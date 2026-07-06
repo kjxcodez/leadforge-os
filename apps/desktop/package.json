@@ -1,6 +1,8 @@
 {
-  "name": "leadforge",
+  "name": "@leadforge/desktop",
+  "version": "0.0.1",
   "private": true,
+  "main": "dist/main.js",
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
@@ -9,12 +11,6 @@
     "check-types": "turbo run check-types"
   },
   "devDependencies": {
-    "prettier": "^3.7.4",
-    "turbo": "^2.10.3",
-    "typescript": "5.9.2"
-  },
-  "packageManager": "pnpm@9.0.0",
-  "engines": {
-    "node": ">=18"
+    "electron": "^43.0.0"
   }
 }

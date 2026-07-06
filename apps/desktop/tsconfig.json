@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.json",
+
+  "compilerOptions": {
+    "jsx": "react-jsx",
+
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+
+    "types": ["node"],
+
+    "outDir": "dist",
+
+    "rootDir": "."
+  },
+
+  "include": [
+    "main",
+    "preload",
+    "renderer",
+    "vite.config.ts",
+    "electron-builder.config.ts"
+  ]
+}
