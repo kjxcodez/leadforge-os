@@ -15,14 +15,14 @@ export function successResponse<T>(data: T, meta?: Record<string, unknown>): Suc
 
 export function errorResponse(
   message: string,
-  code: ErrorCode = ErrorCode.INTERNAL_SERVER_ERROR,
+  code: ErrorCode | string = ErrorCode.INTERNAL_SERVER_ERROR,
   details: unknown | null = null
 ): ApiErrorResponse {
   return {
     success: false,
     data: null,
     error: {
-      code,
+      code: code as ErrorCode,
       message,
       details,
     },
