@@ -1,5 +1,5 @@
 import { createMiddleware } from 'hono/factory';
-import { errorResponse } from '@leadforge/shared';
+import { errorResponse } from '@leadforge/core';
 import { ErrorCode, HttpStatus } from '@leadforge/schema';
 
 export function createAuthMiddleware(authInstance: any) {
