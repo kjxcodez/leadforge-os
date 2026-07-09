@@ -337,12 +337,6 @@ importers:
 
   packages/logger:
     dependencies:
-      '@leadforge/core':
-        specifier: workspace:*
-        version: link:../core
-      '@leadforge/schema':
-        specifier: workspace:*
-        version: link:../schema
       pino:
         specifier: ^10.3.1
         version: 10.3.1

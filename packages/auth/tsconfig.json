@@ -6,6 +6,10 @@
     "baseUrl": ".",
     "moduleResolution": "bundler"
   },
+  "references": [
+    { "path": "../core" },
+    { "path": "../schema" }
+  ],
   "include": [
     "src/**/*"
   ],

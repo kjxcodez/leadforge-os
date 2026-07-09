@@ -1910,25 +1910,25 @@ This checklist tracks all remaining engineering tasks to remediate technical deb
 
 
 
-- [ ] **1.2 Clean Up API Duplications**
+- [x] **1.2 Clean Up API Duplications**
 
-  - [ ] Remove the local Pino configuration file `apps/api/src/config/logger.ts` and update the server to import from `@leadforge/logger`.
+  - [x] Remove the local Pino configuration file `apps/api/src/config/logger.ts` and update the server to import from `@leadforge/logger`.
 
-  - [ ] Remove duplicate pagination helpers from `apps/api/src/utils/helpers.ts` and update routes to import from `@leadforge/shared`.
+  - [x] Remove duplicate pagination helpers from `apps/api/src/utils/helpers.ts` and update routes to import from `@leadforge/core`.
 
-  - [ ] Expand the global `turbo.json` configuration to cache the outputs of `check-types` and `lint` tasks.
+  - [x] Expand the global `turbo.json` configuration to cache the outputs of `check-types` and `lint` tasks.
 
 
 
-- [ ] **1.3 Establish Real Better Auth Integration**
+- [x] **1.3 Establish Real Better Auth Integration**
 
-  - [ ] Configure the Better Auth MongoDB adapter inside `apps/api` using variables from `@leadforge/config`.
+  - [x] Configure the Better Auth MongoDB adapter inside `apps/api` using variables from `@leadforge/core`.
 
-  - [ ] Remove mock `/auth/login` responses and implement actual credentials signup, login, and logout endpoints.
+  - [x] Remove mock `/auth/login` responses and implement actual credentials signup, login, and logout endpoints.
 
-  - [ ] Replace the mock `authMiddleware` inside `apps/api` with the session-verifying middleware from `@leadforge/auth`.
+  - [x] Replace the mock `authMiddleware` inside `apps/api` with the session-verifying middleware from `@leadforge/auth`.
 
-  - [ ] Verify CORS configurations to ensure cookie-based credentials transfer securely between Electron and the server.
+  - [x] Verify CORS configurations to ensure cookie-based credentials transfer securely between Electron and the server.
 
 
 
