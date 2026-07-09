@@ -10,7 +10,7 @@ export const ErrorResponseSchema = z
     error: z.object({
       code: z.string().openapi({ example: "BAD_REQUEST" }),
       message: z.string().openapi({ example: "The request could not be understood or was missing parameters." }),
-      details: z.any().optional(),
+      details: z.any().nullable(),
     }),
   })
   .openapi("ErrorResponse");
@@ -32,7 +32,7 @@ export function createSuccessResponseSchema<T extends z.ZodTypeAny>(dataSchema: 
         .object({
           code: z.string(),
           message: z.string(),
-          details: z.any().optional(),
+          details: z.any().nullable(),
         })
         .nullable()
         .openapi({ example: null }),
