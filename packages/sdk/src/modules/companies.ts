@@ -1,5 +1,5 @@
 import { HttpClient } from '../http/client';
-import type { Company, CreateCompanyDto, UpdateCompanyDto, CompanyFilters } from '@leadforge/types';
+import type { Company, CreateCompanyDto, UpdateCompanyDto, CompanyFilters } from '@leadforge/schema';
 
 export class CompaniesModule {
   constructor(private client: HttpClient) {}

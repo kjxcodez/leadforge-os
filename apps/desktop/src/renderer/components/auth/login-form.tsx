@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { loginDtoSchema } from "@leadforge/validation";
-import type { LoginDto } from "@leadforge/types";
+import { loginDtoSchema } from "@leadforge/schema";
+import type { LoginDto } from "@leadforge/schema";
 import { FormCard } from "./form-card";
 import { AuthHeader } from "./auth-header";
 import { Divider } from "./divider";

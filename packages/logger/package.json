@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@leadforge/config": "workspace:*",
-    "@leadforge/types": "workspace:*",
+    "@leadforge/schema": "workspace:*",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3"
   }

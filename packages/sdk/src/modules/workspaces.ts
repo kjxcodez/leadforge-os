@@ -1,5 +1,5 @@
 import { HttpClient } from '../http/client';
-import type { Workspace, CreateWorkspaceDto, UpdateWorkspaceDto } from '@leadforge/types';
+import type { Workspace, CreateWorkspaceDto, UpdateWorkspaceDto } from '@leadforge/schema';
 
 export class WorkspacesModule {
   constructor(private client: HttpClient) {}

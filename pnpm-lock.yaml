@@ -47,15 +47,12 @@ importers:
       '@leadforge/prompts':
         specifier: workspace:*
         version: link:../../packages/prompts
+      '@leadforge/schema':
+        specifier: workspace:*
+        version: link:../../packages/schema
       '@leadforge/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@leadforge/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      '@leadforge/validation':
-        specifier: workspace:*
-        version: link:../../packages/validation
       '@leadforge/workflows':
         specifier: workspace:*
         version: link:../../packages/workflows
@@ -138,18 +135,15 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.9.1
         version: 3.10.0(react-hook-form@7.81.0(react@19.2.0))
+      '@leadforge/schema':
+        specifier: workspace:*
+        version: link:../../packages/schema
       '@leadforge/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
       '@leadforge/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@leadforge/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      '@leadforge/validation':
-        specifier: workspace:*
-        version: link:../../packages/validation
       '@shadcn/react':
         specifier: ^0.2.1
         version: 0.2.1(@types/react@19.2.2)(react@19.2.0)
@@ -307,12 +301,12 @@ importers:
       '@leadforge/config':
         specifier: workspace:*
         version: link:../config
+      '@leadforge/schema':
+        specifier: workspace:*
+        version: link:../schema
       '@leadforge/shared':
         specifier: workspace:*
         version: link:../shared
-      '@leadforge/types':
-        specifier: workspace:*
-        version: link:../types
       '@types/bcryptjs':
         specifier: ^3.0.0
         version: 3.0.0
@@ -328,14 +322,14 @@ importers:
 
   packages/config:
     dependencies:
-      '@leadforge/types':
+      '@leadforge/schema':
         specifier: workspace:*
-        version: link:../types
+        version: link:../schema
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
       zod:
-        specifier: ^3.23.8
+        specifier: ^3.24.1
         version: 3.25.76
 
   packages/integrations:
@@ -343,24 +337,21 @@ importers:
       '@leadforge/config':
         specifier: workspace:*
         version: link:../config
+      '@leadforge/schema':
+        specifier: workspace:*
+        version: link:../schema
       '@leadforge/shared':
         specifier: workspace:*
         version: link:../shared
-      '@leadforge/types':
-        specifier: workspace:*
-        version: link:../types
-      '@leadforge/validation':
-        specifier: workspace:*
-        version: link:../validation
 
   packages/logger:
     dependencies:
       '@leadforge/config':
         specifier: workspace:*
         version: link:../config
-      '@leadforge/types':
+      '@leadforge/schema':
         specifier: workspace:*
-        version: link:../types
+        version: link:../schema
       pino:
         specifier: ^10.3.1
         version: 10.3.1
@@ -370,30 +361,33 @@ importers:
 
   packages/prompts:
     dependencies:
-      '@leadforge/types':
+      '@leadforge/schema':
         specifier: workspace:*
-        version: link:../types
+        version: link:../schema
+
+  packages/schema:
+    dependencies:
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
 
   packages/sdk:
     dependencies:
       '@leadforge/config':
         specifier: workspace:*
         version: link:../config
+      '@leadforge/schema':
+        specifier: workspace:*
+        version: link:../schema
       '@leadforge/shared':
         specifier: workspace:*
         version: link:../shared
-      '@leadforge/types':
-        specifier: workspace:*
-        version: link:../types
-      '@leadforge/validation':
-        specifier: workspace:*
-        version: link:../validation
 
   packages/shared:
     dependencies:
-      '@leadforge/types':
+      '@leadforge/schema':
         specifier: workspace:*
-        version: link:../types
+        version: link:../schema
 
   packages/types: {}
 
@@ -411,15 +405,12 @@ importers:
 
   packages/workflows:
     dependencies:
+      '@leadforge/schema':
+        specifier: workspace:*
+        version: link:../schema
       '@leadforge/shared':
         specifier: workspace:*
         version: link:../shared
-      '@leadforge/types':
-        specifier: workspace:*
-        version: link:../types
-      '@leadforge/validation':
-        specifier: workspace:*
-        version: link:../validation
 
 packages:
 

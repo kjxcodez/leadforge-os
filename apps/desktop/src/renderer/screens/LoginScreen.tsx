@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AuthenticationLayout } from "../components/layout/auth-layout";
 import { LoginForm } from "../components/auth/login-form";
-import type { LoginDto } from "@leadforge/types";
+import type { LoginDto } from "@leadforge/schema";
 
 interface LoginScreenProps {
   onNavigateToRegister: () => void;

@@ -1,5 +1,5 @@
-import type { SuccessResponse, ApiErrorResponse, PaginatedResponse, PaginationMeta } from '@leadforge/types';
-import { ErrorCode } from '@leadforge/types';
+import type { SuccessResponse, ApiErrorResponse, PaginatedResponse, PaginationMeta } from '@leadforge/schema';
+import { ErrorCode } from '@leadforge/schema';
 
 export function successResponse<T>(data: T, meta?: Record<string, unknown>): SuccessResponse<T> {
   const result: SuccessResponse<T> = {
@@ -15,7 +15,7 @@ export function successResponse<T>(data: T, meta?: Record<string, unknown>): Suc
 
 export function errorResponse(
   message: string,
-  code: string = ErrorCode.INTERNAL_SERVER_ERROR,
+  code: ErrorCode = ErrorCode.INTERNAL_SERVER_ERROR,
   details: unknown | null = null
 ): ApiErrorResponse {
   return {

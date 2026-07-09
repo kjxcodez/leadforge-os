@@ -1,0 +1,81 @@
+export enum CompanyStatus {
+  LEAD = 'LEAD',
+  QUALIFIED = 'QUALIFIED',
+  CUSTOMER = 'CUSTOMER',
+  ARCHIVED = 'ARCHIVED',
+}
+
+export enum OpportunityStage {
+  PROSPECTING = 'PROSPECTING',
+  QUALIFICATION = 'QUALIFICATION',
+  PROPOSAL = 'PROPOSAL',
+  NEGOTIATION = 'NEGOTIATION',
+  CLOSED_WON = 'CLOSED_WON',
+  CLOSED_LOST = 'CLOSED_LOST',
+}
+
+export enum OutreachChannel {
+  EMAIL = 'EMAIL',
+  LINKEDIN = 'LINKEDIN',
+  CALL = 'CALL',
+}
+
+export enum UserRole {
+  OWNER = 'OWNER',
+  ADMIN = 'ADMIN',
+  MEMBER = 'MEMBER',
+}
+
+export enum WorkflowStatus {
+  DRAFT = 'DRAFT',
+  ACTIVE = 'ACTIVE',
+  PAUSED = 'PAUSED',
+  ERROR = 'ERROR',
+}
+
+export enum WorkflowStepType {
+  DISCOVER = 'DISCOVER',
+  ENRICH = 'ENRICH',
+  VERIFY = 'VERIFY',
+  QUALIFY = 'QUALIFY',
+  SEND = 'SEND',
+}
+
+export enum CampaignStatus {
+  DRAFT = 'DRAFT',
+  ACTIVE = 'ACTIVE',
+  PAUSED = 'PAUSED',
+  COMPLETED = 'COMPLETED',
+}
+
+export enum ContactStatus {
+  NEW = 'NEW',
+  CONTACTED = 'CONTACTED',
+  REPLIED = 'REPLIED',
+  BOUNCED = 'BOUNCED',
+  UNSUBSCRIBED = 'UNSUBSCRIBED',
+}
+
+export enum ErrorCode {
+  BAD_REQUEST = 'BAD_REQUEST',
+  UNAUTHORIZED = 'UNAUTHORIZED',
+  FORBIDDEN = 'FORBIDDEN',
+  NOT_FOUND = 'NOT_FOUND',
+  CONFLICT = 'CONFLICT',
+  INTERNAL_SERVER_ERROR = 'INTERNAL_SERVER_ERROR',
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+}
+
+export enum HttpStatus {
+  OK = 200,
+  CREATED = 201,
+  NO_CONTENT = 204,
+  BAD_REQUEST = 400,
+  UNAUTHORIZED = 401,
+  FORBIDDEN = 403,
+  NOT_FOUND = 404,
+  CONFLICT = 409,
+  TOO_MANY_REQUESTS = 429,
+  INTERNAL_SERVER_ERROR = 500,
+}

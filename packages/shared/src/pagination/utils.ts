@@ -1,4 +1,4 @@
-import type { PaginationParams, SortOrder, PaginationMeta } from '@leadforge/types';
+import type { PaginationParams, SortOrder, PaginationMeta } from '@leadforge/schema';
 import { LIMITS } from '../constants/limits';
 
 export function getPaginationParams(query: Record<string, any>): Required<PaginationParams> {

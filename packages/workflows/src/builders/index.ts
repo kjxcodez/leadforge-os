@@ -1,4 +1,4 @@
-import type { Workflow, WorkflowStep, WorkflowStepType, WorkflowStatus } from '@leadforge/types';
+import type { Workflow, WorkflowStep, WorkflowStepType, WorkflowStatus } from '@leadforge/schema';
 import { generateTempId } from '@leadforge/shared';
 
 export class WorkflowBuilder {
