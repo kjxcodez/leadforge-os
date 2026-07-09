@@ -1,25 +1,29 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { IpcChannelMap } from '@leadforge/types';
 
-// Expose protected methods that allow the renderer process to use
-// the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('ipc', {
-  // Test channel
-  test: () => ipcRenderer.invoke('ipc:test'),
+  test: (): Promise<{ status: string; timestamp: number }> => {
+    return ipcRenderer.invoke('ipc:test');
+  },
 
-  // Generic invoke
-  invoke: (channel: string, ...args: unknown[]) => {
-    const validChannels = ['ipc:test'];
-    if (validChannels.includes(channel)) {
-      return ipcRenderer.invoke(channel, ...args);
+  invoke: <K extends keyof IpcChannelMap>(
+    channel: K,
+    payload: IpcChannelMap[K]['input']
+  ): Promise<IpcChannelMap[K]['output']> => {
+    const validChannels: Array<string> = ['companies:list', 'companies:create', 'system:status'];
+    if (validChannels.includes(channel as string)) {
+      return ipcRenderer.invoke(channel, payload);
     }
     throw new Error(`Unauthorized IPC channel: ${channel}`);
   },
 
-  // Event listeners
-  on: (channel: string, callback: (...args: unknown[]) => void) => {
-    const validChannels = ['ipc:test'];
-    if (validChannels.includes(channel)) {
-      const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(...args);
+  on: <K extends keyof IpcChannelMap>(
+    channel: K,
+    callback: (payload: IpcChannelMap[K]['output']) => void
+  ) => {
+    const validChannels: Array<string> = ['companies:list', 'companies:create', 'system:status'];
+    if (validChannels.includes(channel as string)) {
+      const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(args[0] as any);
       ipcRenderer.on(channel, listener);
       return () => ipcRenderer.removeListener(channel, listener);
     }
@@ -27,11 +31,16 @@ contextBridge.exposeInMainWorld('ipc', {
   },
 });
 
-// Type definitions for the exposed API
 export interface IpcApi {
-  test: () => Promise<{ status: string; timestamp: number }>;
-  invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
-  on: (channel: string, callback: (...args: unknown[]) => void) => () => void;
+  test(): Promise<{ status: string; timestamp: number }>;
+  invoke<K extends keyof IpcChannelMap>(
+    channel: K,
+    payload: IpcChannelMap[K]['input']
+  ): Promise<IpcChannelMap[K]['output']>;
+  on<K extends keyof IpcChannelMap>(
+    channel: K,
+    callback: (payload: IpcChannelMap[K]['output']) => void
+  ): () => void;
 }
 
 declare global {

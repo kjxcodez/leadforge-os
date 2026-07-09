@@ -6,7 +6,7 @@ import { is } from '@electron-toolkit/utils';
 let mainWindow: BrowserWindow | null = null;
 
 // IPC handlers registry
-const ipcHandlers = new Map<string, (event: Electron.IpcMainEvent, ...args: unknown[]) => void>();
+export const ipcHandlers = new Map<string, (event: Electron.IpcMainEvent, ...args: unknown[]) => void>();
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -57,18 +57,45 @@ function createWindow() {
 
 }
 
-// IPC event handlers
+import { companyFiltersSchema, createCompanyDtoSchema } from '@leadforge/validation';
+
+// Typed IPC event handlers
+ipcMain.handle('companies:list', async (_event, payload) => {
+  const filters = companyFiltersSchema.parse(payload);
+  console.log('Main Process: Fetching companies with filters:', filters);
+  return [];
+});
+
+ipcMain.handle('companies:create', async (_event, payload) => {
+  const dto = createCompanyDtoSchema.parse(payload);
+  console.log('Main Process: Creating company with DTO:', dto);
+  return {
+    id: 'comp_' + Math.random().toString(36).substring(7),
+    workspaceId: 'workspace_1',
+    name: dto.name,
+    domain: dto.domain ?? null,
+    industry: dto.industry ?? null,
+    size: dto.size ?? null,
+    location: dto.location ?? null,
+    status: dto.status ?? 'LEAD',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+});
+
+ipcMain.handle('system:status', async () => {
+  return [
+    { name: 'API Server', status: 'online' },
+    { name: 'Database', status: 'connected' },
+  ];
+});
+
 ipcMain.handle('ipc:test', async () => {
   return { status: 'ok', timestamp: Date.now() };
 });
 
-// Register IPC handler
-function registerIpcHandler(channel: string, handler: (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => void | Promise<void>) {
-  ipcHandlers.set(channel, handler as unknown as (event: Electron.IpcMainEvent, ...args: unknown[]) => void);
-}
-
-// Export for IPC module
-export { registerIpcHandler, ipcHandlers };
+// Export stubs for backwards compatibility
+export function registerIpcHandler() {}
 
 // App lifecycle
 app.whenReady().then(() => {

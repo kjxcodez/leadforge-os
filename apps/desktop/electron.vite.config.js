@@ -5,10 +5,18 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [
+      externalizeDepsPlugin({
+        exclude: ['@leadforge/validation', '@leadforge/types', '@leadforge/sdk', '@leadforge/shared']
+      })
+    ]
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [
+      externalizeDepsPlugin({
+        exclude: ['@leadforge/validation', '@leadforge/types', '@leadforge/sdk', '@leadforge/shared']
+      })
+    ]
   },
   renderer: {
     resolve: {

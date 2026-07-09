@@ -1,0 +1,18 @@
+import { HttpClient } from '../http/client';
+import type { LoginDto, RegisterDto, AuthResponse } from '@leadforge/types';
+
+export class AuthModule {
+  constructor(private client: HttpClient) {}
+
+  public async login(dto: LoginDto): Promise<AuthResponse> {
+    return this.client.post<AuthResponse>('/auth/login', dto);
+  }
+
+  public async register(dto: RegisterDto): Promise<AuthResponse> {
+    return this.client.post<AuthResponse>('/auth/register', dto);
+  }
+
+  public async logout(): Promise<void> {
+    return this.client.post<void>('/auth/logout');
+  }
+}

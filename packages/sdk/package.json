@@ -1,0 +1,23 @@
+{
+  "name": "@leadforge/sdk",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@leadforge/types": "workspace:*",
+    "@leadforge/validation": "workspace:*",
+    "@leadforge/shared": "workspace:*",
+    "@leadforge/config": "workspace:*"
+  }
+}

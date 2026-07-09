@@ -1,0 +1,26 @@
+{
+  "name": "@leadforge/auth",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@leadforge/types": "workspace:*",
+    "@leadforge/config": "workspace:*",
+    "@leadforge/shared": "workspace:*",
+    "better-auth": "latest",
+    "bcryptjs": "latest",
+    "@types/bcryptjs": "^2.4.6",
+    "hono": "^4.6.15"
+  }
+}
