@@ -1,86 +1,182 @@
 import React, { useState, useEffect } from 'react'
+import {
+  LayoutDashboard,
+  Building2,
+  Users,
+  Megaphone,
+  GitBranch,
+  Settings,
+  Search,
+  ChevronRight,
+  Terminal,
+  Sparkles,
+  BarChart3,
+  Sun,
+  Moon
+} from 'lucide-react'
+
+// Modular screen imports
+import DashboardScreen from '../screens/DashboardScreen'
+import CompaniesScreen from '../screens/CompaniesScreen'
+import ContactsScreen from '../screens/ContactsScreen'
+import OpportunitiesScreen from '../screens/OpportunitiesScreen'
+import DiscoveryScreen from '../screens/DiscoveryScreen'
+import CampaignsScreen from '../screens/CampaignsScreen'
+import WorkflowsScreen from '../screens/WorkflowsScreen'
+import ReportsScreen from '../screens/ReportsScreen'
+import SettingsScreen from '../screens/SettingsScreen'
+
+const initialIntegrations = [
+  { id: 'salesforce', name: 'Salesforce', description: 'Sync accounts, contacts, and opportunities.', connected: true, logo: 'SF' },
+  { id: 'hubspot', name: 'HubSpot', description: 'Import list leads and track deals.', connected: true, logo: 'HS' },
+  { id: 'gmail', name: 'Google Workspace', description: 'Send outreach emails and track replies.', connected: false, logo: 'GW' },
+  { id: 'slack', name: 'Slack notifications', description: 'Receive system notifications and alerts.', connected: true, logo: 'SL' }
+]
 
 export default function App() {
-  const [ipcStatus, setIpcStatus] = useState<string>('Connecting to main process...')
+  const [activeTab, setActiveTab] = useState<string>('dashboard')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false)
+  const [darkMode, setDarkMode] = useState<boolean>(false)
+  const [systemRunning, setSystemRunning] = useState<boolean>(true)
+  const [integrations, setIntegrations] = useState(initialIntegrations)
+
+  const [ipcStatus, setIpcStatus] = useState<string>('Connecting...')
   const [timestamp, setTimestamp] = useState<string>('N/A')
 
   useEffect(() => {
-    // Test the exposed IPC API
+    const root = window.document.documentElement
+    if (darkMode) root.classList.add('dark')
+    else root.classList.remove('dark')
+  }, [darkMode])
+
+  useEffect(() => {
     if (window.ipc && typeof window.ipc.test === 'function') {
       window.ipc.test()
-        .then((response) => {
+        .then((res) => {
           setIpcStatus('Connected')
-          setTimestamp(new Date(response.timestamp).toLocaleTimeString())
+          setTimestamp(new Date(res.timestamp).toLocaleTimeString())
         })
-        .catch((err) => {
-          setIpcStatus(`Error: ${err.message}`)
-        })
+        .catch((err) => setIpcStatus(`Error: ${err.message}`))
     } else {
-      setIpcStatus('IPC API not available (are you running in a web browser?)')
+      setIpcStatus('Not connected (Web)')
     }
   }, [])
 
+  const toggleIntegration = (id: string) => {
+    setIntegrations(prev => prev.map(item => item.id === id ? { ...item, connected: !item.connected } : item))
+  }
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return <DashboardScreen systemRunning={systemRunning} onToggleSystem={() => setSystemRunning(!systemRunning)} ipcStatus={ipcStatus} timestamp={timestamp} />
+      case 'companies':
+        return <CompaniesScreen />
+      case 'contacts':
+        return <ContactsScreen />
+      case 'opportunities':
+        return <OpportunitiesScreen />
+      case 'discovery':
+        return <DiscoveryScreen />
+      case 'campaigns':
+        return <CampaignsScreen />
+      case 'workflows':
+        return <WorkflowsScreen />
+      case 'reports':
+        return <ReportsScreen />
+      case 'settings':
+        return <SettingsScreen integrations={integrations} onToggleIntegration={toggleIntegration} darkMode={darkMode} onToggleDarkMode={() => setDarkMode(!darkMode)} />
+      default:
+        return <DashboardScreen systemRunning={systemRunning} onToggleSystem={() => setSystemRunning(!systemRunning)} ipcStatus={ipcStatus} timestamp={timestamp} />
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 selection:bg-indigo-500 selection:text-white font-sans">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/30 via-slate-950 to-slate-950 pointer-events-none" />
+    <div className="flex h-screen w-full bg-background text-foreground font-sans overflow-hidden">
       
-      <div className="relative max-w-2xl w-full bg-slate-900/55 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-8 shadow-2xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/25 mb-2">
-            <span className="text-3xl">🎯</span>
+      {/* Sidebar Navigation */}
+      <aside className={`h-screen border-r border-border-subtle bg-card flex flex-col py-4 shrink-0 transition-all duration-300 ${sidebarCollapsed ? 'w-14 px-1' : 'w-[240px] px-2'}`}>
+        <div className={`mb-6 flex items-center gap-3 px-3 ${sidebarCollapsed ? 'justify-center' : ''}`}>
+          <div className="w-8 h-8 bg-accent rounded flex items-center justify-center shrink-0 shadow-sm shadow-accent/25">
+            <Sparkles className="h-4.5 w-4.5 text-white" />
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-200 via-slate-100 to-violet-200 bg-clip-text text-transparent">
-            LeadForge Desktop
-          </h1>
-          <p className="text-slate-400 text-sm max-w-md mx-auto">
-            A premium desktop execution environment. Powered by Electron, Vite, Tailwind CSS, and Shadcn UI.
-          </p>
-        </div>
-
-        {/* Info Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-slate-950/60 border border-slate-800/50 rounded-xl p-5 space-y-2 hover:border-indigo-500/30 transition-all duration-300">
-            <span className="text-indigo-400 text-xs font-semibold uppercase tracking-wider">IPC Status</span>
-            <div className="flex items-center gap-2">
-              <span className={`w-2.5 h-2.5 rounded-full ${ipcStatus === 'Connected' ? 'bg-emerald-500 shadow-md shadow-emerald-500/30 animate-pulse' : 'bg-amber-500'}`} />
-              <p className="font-semibold text-sm">{ipcStatus}</p>
+          {!sidebarCollapsed && (
+            <div className="overflow-hidden">
+              <h1 className="font-semibold text-sm tracking-tight text-foreground leading-tight">LeadForge</h1>
+              <p className="text-[10px] text-muted-foreground truncate">Global Workspace</p>
             </div>
-            <p className="text-slate-500 text-xs">Exposed via contextBridge in preload script.</p>
-          </div>
-
-          <div className="bg-slate-950/60 border border-slate-800/50 rounded-xl p-5 space-y-2 hover:border-indigo-500/30 transition-all duration-300">
-            <span className="text-violet-400 text-xs font-semibold uppercase tracking-wider">Last Heartbeat</span>
-            <p className="font-mono font-semibold text-sm text-slate-200">{timestamp}</p>
-            <p className="text-slate-500 text-xs">Received response from IPC channel: <code className="text-indigo-300 font-mono">ipc:test</code></p>
-          </div>
+          )}
         </div>
 
-        {/* Feature Checkpoints */}
-        <div className="space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Environment Verification</h3>
-          <div className="space-y-2">
-            {[
-              { label: "Electron Main process path resolved", ok: true },
-              { label: "Vite dev server with Hot Module Reload", ok: true },
-              { label: "Tailwind CSS stylesheet loaded", ok: true },
-              { label: "Shadcn components CLI ready", ok: true }
-            ].map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between bg-slate-950/30 border border-slate-800/30 rounded-lg py-2.5 px-4 text-sm hover:bg-slate-950/50 transition-colors">
-                <span className="text-slate-300">{item.label}</span>
-                <span className="text-indigo-400 font-semibold text-xs bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">Verified</span>
+        <nav className="flex-1 space-y-0.5 overflow-y-auto px-1">
+          {[
+            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+            { id: 'companies', label: 'Companies', icon: Building2 },
+            { id: 'contacts', label: 'Contacts', icon: Users },
+            { id: 'opportunities', label: 'Opportunities', icon: ChevronRight },
+            { id: 'discovery', label: 'Discovery', icon: Search },
+            { id: 'campaigns', label: 'Campaigns', icon: Megaphone },
+            { id: 'workflows', label: 'Workflows', icon: GitBranch },
+            { id: 'reports', label: 'Reports', icon: BarChart3 },
+            { id: 'settings', label: 'Settings', icon: Settings },
+          ].map((tab) => {
+            const Icon = tab.icon
+            const isActive = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded text-left transition-colors font-medium text-xs leading-none relative group ${isActive ? 'bg-accent-tint text-accent border-l-2 border-accent' : 'text-secondary hover:bg-sunken'}`}
+              >
+                <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-accent' : 'text-secondary'}`} />
+                {!sidebarCollapsed && <span>{tab.label}</span>}
+              </button>
+            )
+          })}
+        </nav>
+
+        <div className="mt-auto px-2 pt-4 border-t border-border-subtle">
+          <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center' : 'px-1'}`}>
+            <img className="w-8 h-8 rounded-full border border-border-default object-cover" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Profile" />
+            {!sidebarCollapsed && (
+              <div className="overflow-hidden min-w-0 flex-1">
+                <p className="text-xs font-semibold truncate text-foreground">Alex Rivera</p>
+                <p className="text-[10px] text-muted-foreground truncate">Pro Workspace</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
+      </aside>
 
-        {/* Bottom CTA / Instructions */}
-        <div className="pt-2 text-center">
-          <p className="text-xs text-slate-500">
-            To install Shadcn components, run <code className="bg-slate-950 px-1.5 py-1 rounded text-indigo-400 border border-slate-800/80 font-mono">pnpm dlx shadcn@latest add &lt;component&gt;</code> in this folder.
-          </p>
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <header className="flex justify-between items-center h-12 px-6 w-full sticky top-0 z-40 bg-background/80 backdrop-blur-sm border-b border-border-subtle shrink-0">
+          <div className="flex items-center gap-4 flex-1">
+            <div className="relative w-full max-w-sm group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input type="text" placeholder="Search workspace..." className="w-full pl-9 pr-4 py-1 bg-sunken focus:bg-card border-none rounded text-xs placeholder:text-muted-foreground/80 focus:ring-1 focus:ring-accent/20 outline-none" />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button onClick={() => setDarkMode(!darkMode)} className="p-1.5 text-secondary hover:bg-sunken rounded transition-colors">
+              {darkMode ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
+            </button>
+            <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className="p-1.5 text-secondary hover:bg-sunken rounded transition-colors hidden sm:block">
+              <ChevronRight className={`h-4.5 w-4.5 transform transition-transform ${sidebarCollapsed ? '' : 'rotate-180'}`} />
+            </button>
+            <div className="h-4 w-px bg-border-subtle" />
+            <button className="text-xs text-secondary hover:text-accent font-medium flex items-center gap-1.5 bg-sunken px-2.5 py-1 rounded border border-border-subtle">
+              <Terminal className="h-3.5 w-3.5" />
+              <span>Command Palette</span>
+            </button>
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-6 bg-background">
+          {renderTabContent()}
         </div>
-      </div>
+      </main>
     </div>
   )
 }

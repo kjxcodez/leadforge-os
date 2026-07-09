@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, Menu } from 'electron';
 import { join } from 'path';
 import { is } from '@electron-toolkit/utils';
 
@@ -29,10 +29,10 @@ function createWindow() {
   });
 
   // Load the app
-  if (is.dev && process.env.NODE_ENV !== 'production') {
-    mainWindow.loadFile('index.html');
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
-    mainWindow.loadFile('index.html');
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
 
   // Show window when ready
@@ -74,6 +74,9 @@ export { registerIpcHandler, ipcHandlers };
 app.whenReady().then(() => {
   // Set as app user model ID (Windows)
   app.setAppUserModelId('com.leadforge.desktop');
+
+  // Remove default menu bar
+  Menu.setApplicationMenu(null);
 
   // Optimize for OS
   if (process.platform === 'darwin') {
