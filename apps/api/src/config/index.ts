@@ -1,7 +1,8 @@
 import { env } from "./env.js";
 import { logger } from "./logger.js";
+import { auth } from "./auth.js";
 
-export { env, logger };
+export { env, logger, auth };
 
 /**
  * CORS configurations central module.
