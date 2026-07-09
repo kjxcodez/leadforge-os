@@ -89,3 +89,13 @@ export class InternalServerError extends ApiError {
     super(500, "INTERNAL_SERVER_ERROR", message, details);
   }
 }
+
+/**
+ * Database Error indicating Mongo or query failure (HTTP 500).
+ */
+export class DatabaseError extends ApiError {
+  constructor(message = "Database operation failed", details: unknown = null) {
+    super(500, "DATABASE_ERROR", message, details);
+  }
+}
+
