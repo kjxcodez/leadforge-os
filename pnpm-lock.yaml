@@ -35,9 +35,9 @@ importers:
       '@leadforge/auth':
         specifier: workspace:*
         version: link:../../packages/auth
-      '@leadforge/config':
+      '@leadforge/core':
         specifier: workspace:*
-        version: link:../../packages/config
+        version: link:../../packages/core
       '@leadforge/integrations':
         specifier: workspace:*
         version: link:../../packages/integrations
@@ -50,9 +50,6 @@ importers:
       '@leadforge/schema':
         specifier: workspace:*
         version: link:../../packages/schema
-      '@leadforge/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@leadforge/workflows':
         specifier: workspace:*
         version: link:../../packages/workflows
@@ -135,15 +132,15 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.9.1
         version: 3.10.0(react-hook-form@7.81.0(react@19.2.0))
+      '@leadforge/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@leadforge/schema':
         specifier: workspace:*
         version: link:../../packages/schema
       '@leadforge/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
-      '@leadforge/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@shadcn/react':
         specifier: ^0.2.1
         version: 0.2.1(@types/react@19.2.2)(react@19.2.0)
@@ -298,15 +295,12 @@ importers:
 
   packages/auth:
     dependencies:
-      '@leadforge/config':
+      '@leadforge/core':
         specifier: workspace:*
-        version: link:../config
+        version: link:../core
       '@leadforge/schema':
         specifier: workspace:*
         version: link:../schema
-      '@leadforge/shared':
-        specifier: workspace:*
-        version: link:../shared
       '@types/bcryptjs':
         specifier: ^3.0.0
         version: 3.0.0
@@ -346,21 +340,18 @@ importers:
 
   packages/integrations:
     dependencies:
-      '@leadforge/config':
+      '@leadforge/core':
         specifier: workspace:*
-        version: link:../config
+        version: link:../core
       '@leadforge/schema':
         specifier: workspace:*
         version: link:../schema
-      '@leadforge/shared':
-        specifier: workspace:*
-        version: link:../shared
 
   packages/logger:
     dependencies:
-      '@leadforge/config':
+      '@leadforge/core':
         specifier: workspace:*
-        version: link:../config
+        version: link:../core
       '@leadforge/schema':
         specifier: workspace:*
         version: link:../schema
@@ -385,15 +376,12 @@ importers:
 
   packages/sdk:
     dependencies:
-      '@leadforge/config':
+      '@leadforge/core':
         specifier: workspace:*
-        version: link:../config
+        version: link:../core
       '@leadforge/schema':
         specifier: workspace:*
         version: link:../schema
-      '@leadforge/shared':
-        specifier: workspace:*
-        version: link:../shared
 
   packages/shared:
     dependencies:
@@ -403,12 +391,12 @@ importers:
 
   packages/workflows:
     dependencies:
+      '@leadforge/core':
+        specifier: workspace:*
+        version: link:../core
       '@leadforge/schema':
         specifier: workspace:*
         version: link:../schema
-      '@leadforge/shared':
-        specifier: workspace:*
-        version: link:../shared
 
 packages:
 
