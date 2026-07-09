@@ -1,4 +1,4 @@
-import type { Workflow, WorkflowStep, WorkflowStepType } from '@leadforge/types';
+import type { Workflow, WorkflowStep, WorkflowStepType } from '@leadforge/schema';
 import type { WorkflowExecutionState, StepExecutor, WorkflowExecutionContext } from '../types';
 
 export class WorkflowEngine {

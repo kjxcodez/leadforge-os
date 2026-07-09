@@ -1,5 +1,5 @@
 import { HttpClient } from '../http/client';
-import type { Outreach, CreateOutreachDto, OutreachFilters } from '@leadforge/types';
+import type { Outreach, CreateOutreachDto, OutreachFilters } from '@leadforge/schema';
 
 export class OutreachModule {
   constructor(private client: HttpClient) {}

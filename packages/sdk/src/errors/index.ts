@@ -1,4 +1,4 @@
-import { ErrorCode } from '@leadforge/types';
+import { ErrorCode } from '@leadforge/schema';
 
 export class SdkError extends Error {
   public readonly code: string;

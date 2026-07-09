@@ -1,5 +1,5 @@
 import { HttpClient } from '../http/client';
-import type { LoginDto, RegisterDto, AuthResponse } from '@leadforge/types';
+import type { LoginDto, RegisterDto, AuthResponse } from '@leadforge/schema';
 
 export class AuthModule {
   constructor(private client: HttpClient) {}

@@ -1,5 +1,5 @@
 import { SdkError } from '../errors';
-import type { ApiResponse } from '@leadforge/types';
+import type { ApiResponse } from '@leadforge/schema';
 
 export interface HttpClientConfig {
   baseUrl: string;

@@ -57,7 +57,7 @@ function createWindow() {
 
 }
 
-import { companyFiltersSchema, createCompanyDtoSchema } from '@leadforge/validation';
+import { companyFiltersSchema, createCompanyDtoSchema } from '@leadforge/schema';
 
 // Typed IPC event handlers
 ipcMain.handle('companies:list', async (_event, payload) => {

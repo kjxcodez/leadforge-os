@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { IpcChannelMap } from '@leadforge/types';
+import type { IpcChannelMap } from '@leadforge/schema';
 
 contextBridge.exposeInMainWorld('ipc', {
   test: (): Promise<{ status: string; timestamp: number }> => {

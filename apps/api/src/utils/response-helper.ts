@@ -1,5 +1,5 @@
 import { successResponse as sharedSuccessResponse, errorResponse as sharedErrorResponse } from '@leadforge/shared';
-import type { ApiResponse as SharedApiResponse, ApiErrorResponse as SharedErrorResponse } from '@leadforge/types';
+import type { ApiResponse as SharedApiResponse, ApiErrorResponse as SharedErrorResponse } from '@leadforge/schema';
 
 export type ApiResponse<T> = SharedApiResponse<T>;
 export type ErrorResponse = SharedErrorResponse;

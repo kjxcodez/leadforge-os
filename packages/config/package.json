@@ -15,8 +15,8 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@leadforge/types": "workspace:*",
-    "zod": "^3.23.8",
+    "@leadforge/schema": "workspace:*",
+    "zod": "^3.24.1",
     "dotenv": "^16.4.5"
   }
 }
