@@ -1898,13 +1898,13 @@ This checklist tracks all remaining engineering tasks to remediate technical deb
 
 - [ ] **1.1 Workspace Architecture Cleanup**
 
-  - [ ] Merge `packages/types` and `packages/validation` into a single `@leadforge/schema` package.
+  - [x] Merge `packages/types` and `packages/validation` into a single `@leadforge/schema` package.
 
-  - [ ] Configure Zod schemas to infer TypeScript interfaces using `z.infer<typeof schema>`.
+  - [x] Configure Zod schemas to infer TypeScript interfaces using `z.infer<typeof schema>`.
 
-  - [ ] Merge `packages/config` and `packages/shared` into a unified `@leadforge/core` library.
+  - [x] Merge `packages/config` and `packages/shared` into a unified `@leadforge/core` library.
 
-  - [ ] Update import references across `apps/api` and `apps/desktop` to point to new package locations.
+  - [x] Update import references across `apps/api` and `apps/desktop` to point to new package locations.
 
   - [ ] Configure TypeScript Project References (`composite: true` and `tsconfig.json` references) for all packages to speed up local type checking.
 
