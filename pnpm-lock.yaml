@@ -332,6 +332,18 @@ importers:
         specifier: ^3.24.1
         version: 3.25.76
 
+  packages/core:
+    dependencies:
+      '@leadforge/schema':
+        specifier: workspace:*
+        version: link:../schema
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+
   packages/integrations:
     dependencies:
       '@leadforge/config':
@@ -388,20 +400,6 @@ importers:
       '@leadforge/schema':
         specifier: workspace:*
         version: link:../schema
-
-  packages/types: {}
-
-  packages/validation:
-    dependencies:
-      '@leadforge/shared':
-        specifier: workspace:*
-        version: link:../shared
-      '@leadforge/types':
-        specifier: workspace:*
-        version: link:../types
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
 
   packages/workflows:
     dependencies:
