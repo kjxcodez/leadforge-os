@@ -32,6 +32,33 @@ importers:
       '@hono/zod-validator':
         specifier: ^0.8.0
         version: 0.8.0(hono@4.12.28)(zod@3.25.76)
+      '@leadforge/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@leadforge/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@leadforge/integrations':
+        specifier: workspace:*
+        version: link:../../packages/integrations
+      '@leadforge/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@leadforge/prompts':
+        specifier: workspace:*
+        version: link:../../packages/prompts
+      '@leadforge/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@leadforge/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@leadforge/validation':
+        specifier: workspace:*
+        version: link:../../packages/validation
+      '@leadforge/workflows':
+        specifier: workspace:*
+        version: link:../../packages/workflows
       '@scalar/hono-api-reference':
         specifier: ^0.11.9
         version: 0.11.9(hono@4.12.28)
@@ -111,6 +138,18 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.9.1
         version: 3.10.0(react-hook-form@7.81.0(react@19.2.0))
+      '@leadforge/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      '@leadforge/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@leadforge/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@leadforge/validation':
+        specifier: workspace:*
+        version: link:../../packages/validation
       '@tanstack/react-query':
         specifier: ^5.62.8
         version: 5.101.2(react@19.2.0)
@@ -126,6 +165,9 @@ importers:
       lucide-react:
         specifier: ^0.469.0
         version: 0.469.0(react@19.2.0)
+      motion:
+        specifier: ^12.42.2
+        version: 12.42.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       react:
         specifier: ^19.0.0
         version: 19.2.0
@@ -226,6 +268,125 @@ importers:
       vite:
         specifier: ^6.0.5
         version: 6.4.3(@types/node@22.15.3)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.0)(yaml@2.9.0)
+
+  packages/auth:
+    dependencies:
+      '@leadforge/config':
+        specifier: workspace:*
+        version: link:../config
+      '@leadforge/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@leadforge/types':
+        specifier: workspace:*
+        version: link:../types
+      '@types/bcryptjs':
+        specifier: ^2.4.6
+        version: 2.4.6
+      bcryptjs:
+        specifier: latest
+        version: 3.0.3
+      better-auth:
+        specifier: latest
+        version: 1.6.23(mongodb@7.2.0(socks@2.8.9))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      hono:
+        specifier: ^4.6.15
+        version: 4.12.28
+
+  packages/config:
+    dependencies:
+      '@leadforge/types':
+        specifier: workspace:*
+        version: link:../types
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+
+  packages/integrations:
+    dependencies:
+      '@leadforge/config':
+        specifier: workspace:*
+        version: link:../config
+      '@leadforge/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@leadforge/types':
+        specifier: workspace:*
+        version: link:../types
+      '@leadforge/validation':
+        specifier: workspace:*
+        version: link:../validation
+
+  packages/logger:
+    dependencies:
+      '@leadforge/config':
+        specifier: workspace:*
+        version: link:../config
+      '@leadforge/types':
+        specifier: workspace:*
+        version: link:../types
+      pino:
+        specifier: latest
+        version: 10.3.1
+      pino-pretty:
+        specifier: latest
+        version: 13.1.3
+
+  packages/prompts:
+    dependencies:
+      '@leadforge/types':
+        specifier: workspace:*
+        version: link:../types
+
+  packages/sdk:
+    dependencies:
+      '@leadforge/config':
+        specifier: workspace:*
+        version: link:../config
+      '@leadforge/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@leadforge/types':
+        specifier: workspace:*
+        version: link:../types
+      '@leadforge/validation':
+        specifier: workspace:*
+        version: link:../validation
+
+  packages/shared:
+    dependencies:
+      '@leadforge/types':
+        specifier: workspace:*
+        version: link:../types
+
+  packages/types: {}
+
+  packages/validation:
+    dependencies:
+      '@leadforge/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@leadforge/types':
+        specifier: workspace:*
+        version: link:../types
+      zod:
+        specifier: latest
+        version: 4.4.3
+
+  packages/workflows:
+    dependencies:
+      '@leadforge/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@leadforge/types':
+        specifier: workspace:*
+        version: link:../types
+      '@leadforge/validation':
+        specifier: workspace:*
+        version: link:../validation
 
 packages:
 
@@ -1585,6 +1746,9 @@ packages:
   '@types/babel__traverse@7.28.0':
     resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
 
+  '@types/bcryptjs@2.4.6':
+    resolution: {integrity: sha512-9xlo6R2qDs5uixm0bcIqCeMCE6HiQsIyel9KQySStiyqNl2tnj2mP3DX1Nf56MD6KMenNNlBBsy3LJ7gUEQPXQ==}
+
   '@types/bcryptjs@3.0.0':
     resolution: {integrity: sha512-WRZOuCuaz8UcZZE4R5HXTco2goQSI2XxjGY3hbM/xDvwmqFWd4ivooImsMx65OKM6CtNKbnZ5YL+YwAwK7c1dg==}
     deprecated: This is a stub types definition. bcryptjs provides its own type definitions, so you do not need this installed.
@@ -2896,6 +3060,20 @@ packages:
   fraction.js@5.3.4:
     resolution: {integrity: sha512-1X1NTtiJphryn/uLQz3whtY6jK3fTqoE3ohKs0tT+Ujr1W59oopxmoEh7Lu5p6vBaPbgoM0bzveAW4Qi5RyWDQ==}
 
+  framer-motion@12.42.2:
+    resolution: {integrity: sha512-5XY9luDiu0oHfHBjpDthFMh0ES+122w6p/papSJBweMkO8Sn+PW2QaEgRblQBpWFnuvZS5qvarpt/hO2pjGmnw==}
+    peerDependencies:
+      '@emotion/is-prop-valid': '*'
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@emotion/is-prop-valid':
+        optional: true
+      react:
+        optional: true
+      react-dom:
+        optional: true
+
   fresh@2.0.0:
     resolution: {integrity: sha512-Rx/WycZ60HOaqLKAi6cHRKKI7zxWbJ31MhntmtwMoaTeF7XFH9hhBp8vITaMidfljRQ6eYWCKkaTK+ykVJHP2A==}
     engines: {node: '>= 0.8'}
@@ -3832,6 +4010,26 @@ packages:
   mongoose@9.7.4:
     resolution: {integrity: sha512-nuSYGUWWzNd4EAbGYxE469wPTL+kmxb5+91YvCvMkJ08rvNRht/usZUU3LuFuk7rDutF2QWBZHPHuzM8TxXApA==}
     engines: {node: '>=20.19.0'}
+
+  motion-dom@12.42.2:
+    resolution: {integrity: sha512-5gIMWLp/PycBtJRJWRgjxke5n8dlvkSn2DrYW+tr3XcqAZY1xZh6BJyooJXCM8wdfM7wfMjkBJNLge1CKPUIRA==}
+
+  motion-utils@12.39.0:
+    resolution: {integrity: sha512-8nadJAJjTtqRkmRF36FoJTrywK9nnFmnPwnSMyxaOCU7GDjN9RTMJIxx9De8ErM+vpPhMccr/6fo5WciyQLnMQ==}
+
+  motion@12.42.2:
+    resolution: {integrity: sha512-Atvv11yUKIid41cVrRBDVX5m8tF8kNpExRSlbpt6APClhDjtwQssgFHhQzejxw7/7YYbjHSPKBVbHo05BuJT5Q==}
+    peerDependencies:
+      '@emotion/is-prop-valid': '*'
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@emotion/is-prop-valid':
+        optional: true
+      react:
+        optional: true
+      react-dom:
+        optional: true
 
   mpath@0.9.0:
     resolution: {integrity: sha512-ikJRQTk8hw5DEoFVxHG1Gn9T/xcjtdnOKIU1JTmGjZZlg9LST2mBLmcX3/ICIbgJydT2GOc15RnNy5mHmzfSew==}
@@ -6231,6 +6429,8 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.7
 
+  '@types/bcryptjs@2.4.6': {}
+
   '@types/bcryptjs@3.0.0':
     dependencies:
       bcryptjs: 3.0.3
@@ -7893,6 +8093,15 @@ snapshots:
 
   fraction.js@5.3.4: {}
 
+  framer-motion@12.42.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
+    dependencies:
+      motion-dom: 12.42.2
+      motion-utils: 12.39.0
+      tslib: 2.8.1
+    optionalDependencies:
+      react: 19.2.0
+      react-dom: 19.2.0(react@19.2.0)
+
   fresh@2.0.0: {}
 
   from@0.1.7: {}
@@ -8773,6 +8982,20 @@ snapshots:
       - mongodb-client-encryption
       - snappy
       - socks
+
+  motion-dom@12.42.2:
+    dependencies:
+      motion-utils: 12.39.0
+
+  motion-utils@12.39.0: {}
+
+  motion@12.42.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
+    dependencies:
+      framer-motion: 12.42.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      tslib: 2.8.1
+    optionalDependencies:
+      react: 19.2.0
+      react-dom: 19.2.0(react@19.2.0)
 
   mpath@0.9.0: {}
 

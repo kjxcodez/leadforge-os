@@ -1,2 +1,1 @@
-// Placeholder barrel file for types.
-export {};
+export * from '@leadforge/types';
