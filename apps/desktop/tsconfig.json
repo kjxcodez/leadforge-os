@@ -10,14 +10,19 @@
 
     "outDir": "dist",
 
-    "rootDir": "."
+    "rootDir": ".",
+
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
 
   "include": [
-    "main",
-    "preload",
-    "renderer",
-    "vite.config.ts",
-    "electron-builder.config.ts"
+    "src/main/**/*",
+    "src/preload/**/*",
+    "src/renderer/**/*",
+    "src/shared/**/*",
+    "electron.vite.config.js"
   ]
 }
