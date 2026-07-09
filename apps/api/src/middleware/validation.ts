@@ -1,5 +1,5 @@
 import { Context, Next } from "hono";
-import { z } from "zod";
+import { z } from "@hono/zod-openapi";
 import { ValidationError } from "../errors/index.js";
 
 type ValidationTarget = "json" | "query" | "param";

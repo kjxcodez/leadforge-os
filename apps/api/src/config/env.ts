@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@hono/zod-openapi";
 import dotenv from "dotenv";
 
 // Load environment variables from .env file
