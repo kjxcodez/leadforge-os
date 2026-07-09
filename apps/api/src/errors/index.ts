@@ -6,4 +6,5 @@ export {
   NotFoundError,
   ConflictError,
   InternalServerError,
+  DatabaseError,
 } from "./api-errors.js";

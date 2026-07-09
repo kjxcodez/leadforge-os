@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { logger, dbConfig } from "../config/index.js";
+import { logger, dbConfig } from "../../config/index.js";
 
 /**
  * Singleton database connection manager.
@@ -9,8 +9,6 @@ class DatabaseManager {
   private isConnected = false;
 
   private constructor() {
-    // Prevent direct instantiation
-
     // Register Mongoose connection events
     mongoose.connection.on("connected", () => {
       this.isConnected = true;
@@ -30,8 +28,6 @@ class DatabaseManager {
 
   /**
    * Retrieves the DatabaseManager singleton instance.
-   *
-   * @returns DatabaseManager
    */
   public static getInstance(): DatabaseManager {
     if (!DatabaseManager.instance) {
@@ -42,18 +38,13 @@ class DatabaseManager {
 
   /**
    * Connects to the MongoDB instance if not already connected.
-   * Prevents duplicate connections during hot reload environments.
-   *
-   * @returns Promise<void>
    */
   public async connect(): Promise<void> {
-    // If we're already connected, do not re-establish
     if (this.isConnected || mongoose.connection.readyState === 1) {
       logger.debug("MongoDB connection is already active. Reusing existing connection.");
       return;
     }
 
-    // Handle other readyStates (connecting/disconnecting)
     if (mongoose.connection.readyState === 2) {
       logger.info("MongoDB connection is currently connecting. Awaiting completion...");
       return;
@@ -77,7 +68,6 @@ class DatabaseManager {
           logger.fatal("Database connection attempts exhausted. Shutting down.");
           throw error;
         }
-        // Wait 2 seconds before retrying
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
     }
@@ -85,8 +75,6 @@ class DatabaseManager {
 
   /**
    * Disconnects the database connection gracefully.
-   *
-   * @returns Promise<void>
    */
   public async disconnect(): Promise<void> {
     if (mongoose.connection.readyState !== 0) {
@@ -98,9 +86,7 @@ class DatabaseManager {
   }
 
   /**
-   * Performs a health check check on the database connection.
-   *
-   * @returns Promise<{ isHealthy: boolean; readyState: number }>
+   * Performs a health check on the database connection.
    */
   public async checkHealth(): Promise<{ isHealthy: boolean; readyState: number }> {
     const state = mongoose.connection.readyState;
