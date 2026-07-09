@@ -1,18 +1,18 @@
 import { betterAuth } from "better-auth";
-import { dbConfig, authConfig } from "./index.js";
+import { env } from "./env.js";
 
 /**
  * Configure and export the Better Auth instance.
  * Exclusively using Credentials provider with Node.js/Mongoose backing.
  */
 export const auth = betterAuth({
-  secret: authConfig.secret,
-  baseURL: authConfig.url,
+  secret: env.BETTER_AUTH_SECRET,
+  baseURL: env.BETTER_AUTH_URL,
   database: {
     // Better Auth can accept a database connection configuration.
     // For Mongoose backend, we provide MongoDB URL or rely on internal session mappings.
     // Let's pass standard Better Auth database connection mapping.
-    db: dbConfig.uri,
+    db: env.MONGODB_URI,
     provider: "mongodb",
   },
   providers: [
