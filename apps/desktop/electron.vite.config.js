@@ -7,14 +7,14 @@ export default defineConfig({
   main: {
     plugins: [
       externalizeDepsPlugin({
-        exclude: ['@leadforge/schema', '@leadforge/sdk', '@leadforge/shared']
+        exclude: ['@leadforge/schema', '@leadforge/sdk', '@leadforge/core']
       })
     ]
   },
   preload: {
     plugins: [
       externalizeDepsPlugin({
-        exclude: ['@leadforge/schema', '@leadforge/sdk', '@leadforge/shared']
+        exclude: ['@leadforge/schema', '@leadforge/sdk', '@leadforge/core']
       })
     ]
   },

@@ -1,4 +1,4 @@
-import { successResponse as sharedSuccessResponse, errorResponse as sharedErrorResponse } from '@leadforge/shared';
+import { successResponse as sharedSuccessResponse, errorResponse as sharedErrorResponse } from '@leadforge/core';
 import type { ApiResponse as SharedApiResponse, ApiErrorResponse as SharedErrorResponse } from '@leadforge/schema';
 import { ErrorCode } from '@leadforge/schema';
 

@@ -1,4 +1,4 @@
-import { loadAndValidateEnv } from '@leadforge/config';
+import { loadAndValidateEnv } from '@leadforge/core';
 
 const env = loadAndValidateEnv();
 
