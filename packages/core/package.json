@@ -1,5 +1,5 @@
 {
-  "name": "@leadforge/integrations",
+  "name": "@leadforge/core",
   "version": "0.0.0",
   "private": true,
   "main": "./dist/index.js",
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@leadforge/schema": "workspace:*",
-    "@leadforge/core": "workspace:*"
+    "dotenv": "^16.4.5",
+    "zod": "^3.24.1"
   }
 }

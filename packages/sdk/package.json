@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@leadforge/schema": "workspace:*",
-    "@leadforge/shared": "workspace:*",
-    "@leadforge/config": "workspace:*"
+    "@leadforge/core": "workspace:*"
   }
 }
