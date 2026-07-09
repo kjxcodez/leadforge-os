@@ -15,6 +15,9 @@ export function createBetterAuth(options: BetterAuthConfigOptions) {
       db: options.mongodbUri,
       provider: 'mongodb',
     },
+    emailAndPassword: {
+      enabled: true,
+    },
     providers: [
       {
         id: 'credential',

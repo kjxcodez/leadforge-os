@@ -1,5 +1,5 @@
 import { env } from "./env.js";
-import { logger } from "./logger.js";
+import { logger } from "@leadforge/logger";
 import { auth } from "./auth.js";
 
 export { env, logger, auth };
