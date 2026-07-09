@@ -1,5 +1,6 @@
 import { successResponse as sharedSuccessResponse, errorResponse as sharedErrorResponse } from '@leadforge/shared';
 import type { ApiResponse as SharedApiResponse, ApiErrorResponse as SharedErrorResponse } from '@leadforge/schema';
+import { ErrorCode } from '@leadforge/schema';
 
 export type ApiResponse<T> = SharedApiResponse<T>;
 export type ErrorResponse = SharedErrorResponse;
@@ -9,7 +10,7 @@ export function successResponse<T>(data: T, meta?: Record<string, unknown>) {
 }
 
 export function errorResponse(
-  code: string,
+  code: ErrorCode | string,
   message: string,
   details: unknown = null
 ): ErrorResponse {
