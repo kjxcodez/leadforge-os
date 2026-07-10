@@ -255,6 +255,72 @@ ipcMain.handle('workspaces:invites:decline', async (_event, payload) => {
   return sdk.workspaces.declineInvite(payload);
 });
 
+// ── CRM IPC Handlers ──────────────────────────────────────────────────────
+
+ipcMain.handle('companies:list', async (_event, filters) => {
+  return sdk.companies.list(filters);
+});
+
+ipcMain.handle('companies:get', async (_event, id) => {
+  return sdk.companies.get(id);
+});
+
+ipcMain.handle('companies:create', async (_event, dto) => {
+  return sdk.companies.create(dto);
+});
+
+ipcMain.handle('companies:update', async (_event, { id, dto }) => {
+  return sdk.companies.update(id, dto);
+});
+
+ipcMain.handle('companies:delete', async (_event, id) => {
+  return sdk.companies.delete(id);
+});
+
+ipcMain.handle('contacts:list', async (_event, filters) => {
+  return sdk.contacts.list(filters);
+});
+
+ipcMain.handle('contacts:get', async (_event, id) => {
+  return sdk.contacts.get(id);
+});
+
+ipcMain.handle('contacts:create', async (_event, dto) => {
+  return sdk.contacts.create(dto);
+});
+
+ipcMain.handle('contacts:update', async (_event, { id, dto }) => {
+  return sdk.contacts.update(id, dto);
+});
+
+ipcMain.handle('contacts:delete', async (_event, id) => {
+  return sdk.contacts.delete(id);
+});
+
+ipcMain.handle('campaigns:list', async (_event, filters) => {
+  return sdk.campaigns.list(filters);
+});
+
+ipcMain.handle('campaigns:get', async (_event, id) => {
+  return sdk.campaigns.get(id);
+});
+
+ipcMain.handle('campaigns:create', async (_event, dto) => {
+  return sdk.campaigns.create(dto);
+});
+
+ipcMain.handle('campaigns:update', async (_event, { id, dto }) => {
+  return sdk.campaigns.update(id, dto);
+});
+
+ipcMain.handle('campaigns:delete', async (_event, id) => {
+  return sdk.campaigns.delete(id);
+});
+
+ipcMain.handle('activities:list', async (_event, filters) => {
+  return sdk.activities.list(filters);
+});
+
 ipcMain.handle('electron:setActiveWorkspace', (_event, workspaceId) => {
   console.log('Main Process: Setting active workspace headers:', workspaceId);
   if (workspaceId) {

@@ -74,3 +74,28 @@ export const RemoteCampaignRepository: IRemoteRepository<any> = {
     return window.ipc.invoke('campaigns:delete', id);
   },
 };
+
+/**
+ * RemoteActivityRepository wraps remote Activity log API calls.
+ */
+export const RemoteActivityRepository: IRemoteRepository<any> = {
+  async get(id: string): Promise<any> {
+    return null;
+  },
+
+  async list(filter?: Record<string, any>): Promise<any[]> {
+    return window.ipc.invoke('activities:list', filter || {});
+  },
+
+  async create(data: Record<string, any>): Promise<any> {
+    return null;
+  },
+
+  async update(id: string, data: Record<string, any>): Promise<any> {
+    return null;
+  },
+
+  async delete(id: string): Promise<void> {
+    return;
+  },
+};

@@ -5,9 +5,19 @@ import {
   inviteMemberDtoSchema,
   updateMemberRoleDtoSchema,
   acceptInviteDtoSchema,
-  WorkspaceRole
+  WorkspaceRole,
+  createCompanyDtoSchema,
+  updateCompanyDtoSchema,
+  createContactDtoSchema,
+  updateContactDtoSchema,
+  createCampaignDtoSchema,
+  updateCampaignDtoSchema
 } from "@leadforge/schema";
 import { WorkspaceService } from "../services/workspace/workspace.service.js";
+import { CompanyService } from "../services/company/company.service.js";
+import { ContactService } from "../services/contact/contact.service.js";
+import { CampaignService } from "../services/campaign/campaign.service.js";
+import { ActivityService } from "../services/activity/activity.service.js";
 import { successResponse } from "../utils/index.js";
 import { ForbiddenError } from "../errors/index.js";
 
@@ -17,6 +27,7 @@ export const campaignsRouter = new OpenAPIHono();
 export const outreachRouter = new OpenAPIHono();
 export const workspacesRouter = new OpenAPIHono();
 export const discoveryRouter = new OpenAPIHono();
+export const activitiesRouter = new OpenAPIHono();
 
 const workspaceService = new WorkspaceService();
 
@@ -26,6 +37,13 @@ function getUserId(c: any): string {
   const userId = user?.id || user?._id;
   if (!userId) throw new ForbiddenError("Authentication required.");
   return userId.toString();
+}
+
+// Helper to get active workspace ID from context
+function getWorkspaceId(c: any): string {
+  const wsId = c.get("workspaceId");
+  if (!wsId) throw new ForbiddenError("Workspace context required.");
+  return wsId.toString();
 }
 
 // ---------------------------------------------------------------------------
@@ -421,3 +439,195 @@ discoveryRouter.openapi(discoverySearchRoute, async (c) => {
     })
   );
 });
+
+// ── Companies Router ──────────────────────────────────────────────────────
+
+companiesRouter.get("/", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const page = parseInt(c.req.query("page") || "1");
+  const limit = parseInt(c.req.query("limit") || "100");
+  const service = new CompanyService(wsId);
+  const result = await service.listCompanies(page, limit);
+  return c.json(successResponse(result.data));
+});
+
+companiesRouter.get("/:id", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const service = new CompanyService(wsId);
+  const company = await service.getCompanyById(id);
+  return c.json(successResponse(company));
+});
+
+companiesRouter.post("/", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const body = await c.req.json();
+  const service = new CompanyService(wsId);
+  const company = await service.createCompany({ ...body, workspaceId: wsId });
+
+  // Log activity
+  const actService = new ActivityService(wsId);
+  await actService.logActivity("company_created", `Company ${company.name} was created.`);
+
+  return c.json(successResponse(company));
+});
+
+companiesRouter.patch("/:id", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const body = await c.req.json();
+  const service = new CompanyService(wsId);
+  const company = await service.updateCompany(id, body);
+
+  // Log activity
+  const actService = new ActivityService(wsId);
+  await actService.logActivity("company_updated", `Company ${company.name} details were updated.`);
+
+  return c.json(successResponse(company));
+});
+
+companiesRouter.delete("/:id", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const service = new CompanyService(wsId);
+  const company = await service.getCompanyById(id);
+  await service.deleteCompany(id);
+
+  // Log activity
+  const actService = new ActivityService(wsId);
+  await actService.logActivity("company_deleted", `Company ${company?.name || id} was deleted.`);
+
+  return c.json(successResponse({ success: true }));
+});
+
+// ── Contacts Router ───────────────────────────────────────────────────────
+
+contactsRouter.get("/", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const page = parseInt(c.req.query("page") || "1");
+  const limit = parseInt(c.req.query("limit") || "100");
+  const service = new ContactService(wsId);
+  const result = await service.listContacts(page, limit);
+  return c.json(successResponse(result.data));
+});
+
+contactsRouter.get("/:id", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const service = new ContactService(wsId);
+  const contact = await service.getContactById(id);
+  return c.json(successResponse(contact));
+});
+
+contactsRouter.post("/", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const body = await c.req.json();
+  const service = new ContactService(wsId);
+  const contact = await service.createContact({ ...body, workspaceId: wsId });
+
+  // Log activity
+  const actService = new ActivityService(wsId);
+  await actService.logActivity("contact_created", `Contact ${contact.firstName} ${contact.lastName || ""} was created.`);
+
+  return c.json(successResponse(contact));
+});
+
+contactsRouter.patch("/:id", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const body = await c.req.json();
+  const service = new ContactService(wsId);
+  const contact = await service.updateContact(id, body);
+
+  // Log activity
+  const actService = new ActivityService(wsId);
+  await actService.logActivity("contact_updated", `Contact ${contact.firstName} ${contact.lastName || ""} details were updated.`);
+
+  return c.json(successResponse(contact));
+});
+
+contactsRouter.delete("/:id", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const service = new ContactService(wsId);
+  const contact = await service.getContactById(id);
+  await service.deleteContact(id);
+
+  // Log activity
+  const actService = new ActivityService(wsId);
+  await actService.logActivity("contact_deleted", `Contact ${contact?.firstName || id} was deleted.`);
+
+  return c.json(successResponse({ success: true }));
+});
+
+// ── Campaigns Router ──────────────────────────────────────────────────────
+
+campaignsRouter.get("/", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const page = parseInt(c.req.query("page") || "1");
+  const limit = parseInt(c.req.query("limit") || "100");
+  const service = new CampaignService(wsId);
+  const result = await service.listCampaigns(page, limit);
+  return c.json(successResponse(result.data));
+});
+
+campaignsRouter.get("/:id", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const service = new CampaignService(wsId);
+  const campaign = await service.getCampaignById(id);
+  return c.json(successResponse(campaign));
+});
+
+campaignsRouter.post("/", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const body = await c.req.json();
+  const service = new CampaignService(wsId);
+  const campaign = await service.createCampaign({ ...body, workspaceId: wsId });
+
+  // Log activity
+  const actService = new ActivityService(wsId);
+  await actService.logActivity("campaign_created", `Campaign ${campaign.name} was created.`);
+
+  return c.json(successResponse(campaign));
+});
+
+campaignsRouter.patch("/:id", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const body = await c.req.json();
+  const service = new CampaignService(wsId);
+  const campaign = await service.updateCampaign(id, body);
+
+  // Log activity
+  const actService = new ActivityService(wsId);
+  await actService.logActivity("campaign_updated", `Campaign ${campaign.name} details were updated.`);
+
+  return c.json(successResponse(campaign));
+});
+
+campaignsRouter.delete("/:id", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const service = new CampaignService(wsId);
+  const campaign = await service.getCampaignById(id);
+  await service.deleteCampaign(id);
+
+  // Log activity
+  const actService = new ActivityService(wsId);
+  await actService.logActivity("campaign_deleted", `Campaign ${campaign?.name || id} was deleted.`);
+
+  return c.json(successResponse({ success: true }));
+});
+
+// ── Activities Router ─────────────────────────────────────────────────────
+
+activitiesRouter.get("/", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const page = parseInt(c.req.query("page") || "1");
+  const limit = parseInt(c.req.query("limit") || "100");
+  const service = new ActivityService(wsId);
+  const result = await service.listActivities(page, limit);
+  return c.json(successResponse(result.data));
+});
+

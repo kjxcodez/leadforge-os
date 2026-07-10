@@ -209,6 +209,10 @@ export interface IpcChannelMap {
     input: string;
     output: void;
   };
+  'activities:list': {
+    input: any;
+    output: any[];
+  };
 }
 
 export interface IpcRequest<T> {

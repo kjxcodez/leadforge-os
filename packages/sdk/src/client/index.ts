@@ -9,6 +9,7 @@ import {
   OutreachModule,
   WorkspacesModule,
   DiscoveryModule,
+  ActivitiesModule,
 } from '../modules';
 
 export class SdkClient {
@@ -22,6 +23,7 @@ export class SdkClient {
   public readonly outreach: OutreachModule;
   public readonly workspaces: WorkspacesModule;
   public readonly discovery: DiscoveryModule;
+  public readonly activities: ActivitiesModule;
 
   constructor(config: HttpClientConfig) {
     this.httpClient = new HttpClient(config);
@@ -34,5 +36,6 @@ export class SdkClient {
     this.outreach = new OutreachModule(this.httpClient);
     this.workspaces = new WorkspacesModule(this.httpClient);
     this.discovery = new DiscoveryModule(this.httpClient);
+    this.activities = new ActivitiesModule(this.httpClient);
   }
 }

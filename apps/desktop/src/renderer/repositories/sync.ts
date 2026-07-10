@@ -2,7 +2,8 @@ import type { ISyncRepository } from '../../main/database/contracts';
 import {
   RemoteCompanyRepository,
   RemoteContactRepository,
-  RemoteCampaignRepository
+  RemoteCampaignRepository,
+  RemoteActivityRepository
 } from './remote';
 
 // ---------------------------------------------------------------------------
@@ -178,3 +179,4 @@ class BaseSyncRepository<T> implements ISyncRepository<T> {
 export const SyncCompanyRepository = new BaseSyncRepository<any>('companies', RemoteCompanyRepository);
 export const SyncContactRepository = new BaseSyncRepository<any>('contacts', RemoteContactRepository);
 export const SyncCampaignRepository = new BaseSyncRepository<any>('campaigns', RemoteCampaignRepository);
+export const SyncActivityRepository = new BaseSyncRepository<any>('activities', RemoteActivityRepository);

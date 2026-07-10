@@ -319,3 +319,10 @@ Below is the concrete engineering checklist to remediate the repository before s
   - Implement OpenRouter API wrapper inside `@leadforge/prompts` (or rename to `@leadforge/ai`). Add local sqlite-vec embeddings support.
 - [x] **Create Environment Templates**:
   - Done as part of Phase 1 and 2 setup.
+
+## Phase 4: Core CRM Platform (Completed)
+- [x] **API Endpoints**: CRUD endpoints and database services for Companies, Contacts, Campaigns, and Activities implemented on the backend Honos API.
+- [x] **Generic CRM Abstractions**: Built reusable `useEntity` hooks, `EntityToolbar`, `TagSystem`, `NotesSystem`, and `TimelineView` components.
+- [x] **Production Screens**: Overhauled CompaniesScreen, ContactsScreen, and DashboardScreen to consume React Query, SQLite caches, and background sync.
+- [x] **Verification**: All modules are workspace isolated, support offline caching/mutating, and compile with 0 TypeScript errors.
+
