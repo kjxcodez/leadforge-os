@@ -213,6 +213,30 @@ export interface IpcChannelMap {
     input: any;
     output: any[];
   };
+  'discovery:list': {
+    input: any;
+    output: any[];
+  };
+  'discovery:create': {
+    input: { name: string; provider: string; query: string };
+    output: any;
+  };
+  'discovery:get': {
+    input: string;
+    output: any;
+  };
+  'discovery:results': {
+    input: string;
+    output: any[];
+  };
+  'discovery:import': {
+    input: string;
+    output: any;
+  };
+  'discovery:skip': {
+    input: string;
+    output: any;
+  };
 }
 
 export interface IpcRequest<T> {
