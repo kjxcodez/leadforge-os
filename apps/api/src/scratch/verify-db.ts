@@ -25,12 +25,13 @@ async function run() {
     industry: "SaaS",
     size: "11-50",
   });
-  console.log("✅ Company created successfully:", company.name, `(ID: ${company.id})`);
+  const companyId = company._id.toString();
+  console.log("✅ Company created successfully:", company.name, `(ID: ${companyId})`);
 
   // 4. Test Workspace Isolation
   console.log("🛡️ Testing workspace isolation...");
   const otherService = new CompanyService("other-workspace-456");
-  const found = await otherService.getCompanyById(company.id).catch(() => null);
+  const found = await otherService.getCompanyById(companyId).catch(() => null);
   if (found) {
     throw new Error("❌ FAIL: Workspace isolation bypassed!");
   }
@@ -46,7 +47,7 @@ async function run() {
         firstName: "John",
         lastName: "Doe",
         phone: "+12345678",
-        status: "active",
+        status: "NEW",
       });
       await contactModel.save({ session });
 
