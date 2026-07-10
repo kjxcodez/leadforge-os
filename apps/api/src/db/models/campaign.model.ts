@@ -10,7 +10,7 @@ export interface CampaignStep {
 
 export interface CampaignDocument extends mongoose.Document, SoftDeleteDocument, AuditDocument, TimestampDocument, WorkspaceScopedDocument {
   name: string;
-  status: "draft" | "active" | "paused" | "completed";
+  status: "DRAFT" | "ACTIVE" | "PAUSED" | "COMPLETED";
   steps: CampaignStep[];
   template?: string | null;
   schedule?: Record<string, any> | string | null;
@@ -26,8 +26,8 @@ const campaignSchema = new Schema<CampaignDocument>(
     },
     status: {
       type: String,
-      enum: ["draft", "active", "paused", "completed"],
-      default: "draft",
+      enum: ["DRAFT", "ACTIVE", "PAUSED", "COMPLETED"],
+      default: "DRAFT",
     },
     steps: [
       {

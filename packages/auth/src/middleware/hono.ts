@@ -15,6 +15,6 @@ export function createAuthMiddleware(authInstance: any) {
     }
     c.set('session', session.session);
     c.set('user', session.user);
-    await next();
+    return next();
   });
 }

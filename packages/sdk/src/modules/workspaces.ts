@@ -15,4 +15,8 @@ export class WorkspacesModule {
   public async update(id: string, dto: UpdateWorkspaceDto): Promise<Workspace> {
     return this.client.patch<Workspace>(`/workspaces/${id}`, dto);
   }
+
+  public async list(): Promise<Workspace[]> {
+    return this.client.get<Workspace[]>('/workspaces');
+  }
 }

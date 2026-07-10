@@ -12,7 +12,7 @@ export interface CompanyDocument extends mongoose.Document, SoftDeleteDocument, 
   linkedin?: string | null;
   linkedinUrl?: string | null;
   location?: string | null;
-  status: "lead" | "contacted" | "nurturing" | "qualified" | "unqualified";
+  status: "LEAD" | "QUALIFIED" | "CUSTOMER" | "ARCHIVED";
   tags: string[];
   notes?: string | null;
 }
@@ -69,8 +69,8 @@ const companySchema = new Schema<CompanyDocument>(
     },
     status: {
       type: String,
-      enum: ["lead", "contacted", "nurturing", "qualified", "unqualified"],
-      default: "lead",
+      enum: ["LEAD", "QUALIFIED", "CUSTOMER", "ARCHIVED"],
+      default: "LEAD",
     },
     tags: {
       type: [String],

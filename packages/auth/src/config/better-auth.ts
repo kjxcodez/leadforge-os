@@ -1,4 +1,5 @@
 import { betterAuth } from 'better-auth';
+import { bearer } from 'better-auth/plugins';
 
 export interface BetterAuthConfigOptions {
   secret: string;
@@ -18,6 +19,9 @@ export function createBetterAuth(options: BetterAuthConfigOptions) {
     emailAndPassword: {
       enabled: true,
     },
+    plugins: [
+      bearer(),
+    ],
     providers: [
       {
         id: 'credential',

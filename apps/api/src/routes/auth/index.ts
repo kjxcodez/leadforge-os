@@ -63,7 +63,15 @@ const loginRoute = createRoute({
 });
 
 router.openapi(loginRoute, async (c) => {
-  return handleBetterAuthRequest(c, "/sign-in/email");
+  const response = await handleBetterAuthRequest(c, "/sign-in/email");
+  if (response.status === 200) {
+    const data = (await response.json()) as any;
+    return c.json({
+      token: data.session.token,
+      user: data.user,
+    });
+  }
+  return response;
 });
 
 // 2. POST /signup
@@ -98,7 +106,15 @@ const signupRoute = createRoute({
 });
 
 router.openapi(signupRoute, async (c) => {
-  return handleBetterAuthRequest(c, "/sign-up/email");
+  const response = await handleBetterAuthRequest(c, "/sign-up/email");
+  if (response.status === 200) {
+    const data = (await response.json()) as any;
+    return c.json({
+      token: data.session.token,
+      user: data.user,
+    });
+  }
+  return response;
 });
 
 // 3. POST /logout
