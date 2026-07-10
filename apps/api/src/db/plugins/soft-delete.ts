@@ -21,14 +21,13 @@ export function softDeletePlugin(schema: Schema) {
   });
 
   // Query middleware to exclude deleted documents
-  const excludeDeleted = function (this: any, next: () => void) {
+  const excludeDeleted = function (this: any) {
     const filter = this.getFilter();
     if (filter && filter.includeDeleted === true) {
       delete filter.includeDeleted;
-      return next();
+      return;
     }
     this.where({ deletedAt: null });
-    next();
   };
 
   schema.pre("find" as any, excludeDeleted);

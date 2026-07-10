@@ -1,31 +1,23 @@
 import mongoose, { Schema } from "mongoose";
-import { softDeletePlugin, type SoftDeleteDocument } from "../plugins/soft-delete.js";
-import { auditPlugin, type AuditDocument } from "../plugins/audit.js";
+import { softDeletePlugin, auditPlugin, timestampPlugin, workspacePlugin, type SoftDeleteDocument, type AuditDocument, type TimestampDocument, type WorkspaceScopedDocument } from "../plugins/index.js";
 import { ContactStatus } from "@leadforge/schema";
 
-export interface ContactDocument extends mongoose.Document, SoftDeleteDocument, AuditDocument {
-  workspaceId: string;
+export interface ContactDocument extends mongoose.Document, SoftDeleteDocument, AuditDocument, TimestampDocument, WorkspaceScopedDocument {
   companyId?: string | null;
   firstName: string;
   lastName?: string | null;
   email?: string | null;
   phone?: string | null;
   title?: string | null;
+  linkedin?: string | null;
   linkedinUrl?: string | null;
   source?: string | null;
   status: ContactStatus;
   notes?: string | null;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 const contactSchema = new Schema<ContactDocument>(
   {
-    workspaceId: {
-      type: String,
-      required: true,
-      index: true,
-    },
     companyId: {
       type: String,
       default: null,
@@ -57,6 +49,11 @@ const contactSchema = new Schema<ContactDocument>(
       default: null,
       trim: true,
     },
+    linkedin: {
+      type: String,
+      default: null,
+      trim: true,
+    },
     linkedinUrl: {
       type: String,
       default: null,
@@ -77,7 +74,6 @@ const contactSchema = new Schema<ContactDocument>(
     },
   },
   {
-    timestamps: true,
     strict: true,
     optimisticConcurrency: true,
   }
@@ -87,7 +83,6 @@ const contactSchema = new Schema<ContactDocument>(
 // 1. workspaceId + companyId (enables contact listing per company inside workspace)
 contactSchema.index({ workspaceId: 1, companyId: 1 });
 // 2. workspaceId + email (unique per workspace: email must be unique per tenant)
-// Note: We use unique: true, but since email is optional (can be null), we use partialFilterExpression to allow multiple null emails.
 contactSchema.index(
   { workspaceId: 1, email: 1 },
   {
@@ -96,8 +91,10 @@ contactSchema.index(
   }
 );
 
+contactSchema.plugin(workspacePlugin);
 contactSchema.plugin(softDeletePlugin);
 contactSchema.plugin(auditPlugin);
+contactSchema.plugin(timestampPlugin);
 
 export const ContactModel = mongoose.models.Contact
   ? (mongoose.models.Contact as mongoose.Model<ContactDocument>)

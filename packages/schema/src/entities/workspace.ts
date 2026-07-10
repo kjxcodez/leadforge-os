@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { objectIdField, nameField } from '../fields/common';
+import { objectIdField, nameField } from '../fields/common.js';
 
 export const workspaceSettingsSchema = z.object({
   defaultTimezone: z.string().default('UTC'),

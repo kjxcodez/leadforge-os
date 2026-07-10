@@ -313,6 +313,9 @@ importers:
       hono:
         specifier: ^4.12.28
         version: 4.12.28
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
 
   packages/core:
     dependencies:

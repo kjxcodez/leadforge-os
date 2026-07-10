@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { WorkflowStatus, WorkflowStepType } from '../enums';
-import { objectIdField, nameField } from '../fields/common';
+import { WorkflowStatus, WorkflowStepType } from '../enums/index.js';
+import { objectIdField, nameField } from '../fields/common.js';
 
 export const workflowStatusSchema = z.nativeEnum(WorkflowStatus);
 export const workflowStepTypeSchema = z.nativeEnum(WorkflowStepType);

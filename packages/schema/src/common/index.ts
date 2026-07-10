@@ -1,3 +1,3 @@
-export * from './pagination';
-export * from './response';
-export * from './types';
+export * from './pagination.js';
+export * from './response.js';
+export * from './types.js';

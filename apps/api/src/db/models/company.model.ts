@@ -1,9 +1,7 @@
 import mongoose, { Schema } from "mongoose";
-import { softDeletePlugin, type SoftDeleteDocument } from "../plugins/soft-delete.js";
-import { auditPlugin, type AuditDocument } from "../plugins/audit.js";
+import { softDeletePlugin, auditPlugin, timestampPlugin, workspacePlugin, type SoftDeleteDocument, type AuditDocument, type TimestampDocument, type WorkspaceScopedDocument } from "../plugins/index.js";
 
-export interface CompanyDocument extends mongoose.Document, SoftDeleteDocument, AuditDocument {
-  workspaceId: string;
+export interface CompanyDocument extends mongoose.Document, SoftDeleteDocument, AuditDocument, TimestampDocument, WorkspaceScopedDocument {
   name: string;
   domain: string;
   website?: string | null;
@@ -11,22 +9,16 @@ export interface CompanyDocument extends mongoose.Document, SoftDeleteDocument, 
   size?: string | null; // Employee range e.g. "11-50"
   employeeCount?: number | null;
   revenue?: string | null;
+  linkedin?: string | null;
   linkedinUrl?: string | null;
   location?: string | null;
   status: "lead" | "contacted" | "nurturing" | "qualified" | "unqualified";
   tags: string[];
   notes?: string | null;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 const companySchema = new Schema<CompanyDocument>(
   {
-    workspaceId: {
-      type: String,
-      required: true,
-      index: true,
-    },
     name: {
       type: String,
       required: true,
@@ -60,6 +52,11 @@ const companySchema = new Schema<CompanyDocument>(
       type: String,
       default: null,
     },
+    linkedin: {
+      type: String,
+      default: null,
+      trim: true,
+    },
     linkedinUrl: {
       type: String,
       default: null,
@@ -85,7 +82,6 @@ const companySchema = new Schema<CompanyDocument>(
     },
   },
   {
-    timestamps: true,
     strict: true,
     optimisticConcurrency: true,
   }
@@ -97,8 +93,10 @@ companySchema.index({ workspaceId: 1, domain: 1 });
 // 2. workspaceId + status (enables fast tenant filtering by pipeline status)
 companySchema.index({ workspaceId: 1, status: 1 });
 
+companySchema.plugin(workspacePlugin);
 companySchema.plugin(softDeletePlugin);
 companySchema.plugin(auditPlugin);
+companySchema.plugin(timestampPlugin);
 
 export const CompanyModel = mongoose.models.Company
   ? (mongoose.models.Company as mongoose.Model<CompanyDocument>)

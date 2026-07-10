@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { nameField } from '../fields/common';
-import { workspaceSettingsSchema } from '../entities/workspace';
+import { nameField } from '../fields/common.js';
+import { workspaceSettingsSchema } from '../entities/workspace.js';
 
 export const createWorkspaceDtoSchema = z.object({
   name: nameField,

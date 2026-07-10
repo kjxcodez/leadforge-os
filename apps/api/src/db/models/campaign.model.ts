@@ -1,6 +1,5 @@
 import mongoose, { Schema } from "mongoose";
-import { softDeletePlugin, type SoftDeleteDocument } from "../plugins/soft-delete.js";
-import { auditPlugin, type AuditDocument } from "../plugins/audit.js";
+import { softDeletePlugin, auditPlugin, timestampPlugin, workspacePlugin, type SoftDeleteDocument, type AuditDocument, type TimestampDocument, type WorkspaceScopedDocument } from "../plugins/index.js";
 
 export interface CampaignStep {
   id: string;
@@ -9,22 +8,17 @@ export interface CampaignStep {
   templateId: string;
 }
 
-export interface CampaignDocument extends mongoose.Document, SoftDeleteDocument, AuditDocument {
-  workspaceId: string;
+export interface CampaignDocument extends mongoose.Document, SoftDeleteDocument, AuditDocument, TimestampDocument, WorkspaceScopedDocument {
   name: string;
   status: "draft" | "active" | "paused" | "completed";
   steps: CampaignStep[];
-  createdAt: Date;
-  updatedAt: Date;
+  template?: string | null;
+  schedule?: Record<string, any> | string | null;
+  settings?: Record<string, any> | null;
 }
 
 const campaignSchema = new Schema<CampaignDocument>(
   {
-    workspaceId: {
-      type: String,
-      required: true,
-      index: true,
-    },
     name: {
       type: String,
       required: true,
@@ -43,16 +37,29 @@ const campaignSchema = new Schema<CampaignDocument>(
         templateId: { type: String, required: true },
       },
     ],
+    template: {
+      type: String,
+      default: null,
+    },
+    schedule: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
+    settings: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
   },
   {
-    timestamps: true,
     strict: true,
     optimisticConcurrency: true,
   }
 );
 
+campaignSchema.plugin(workspacePlugin);
 campaignSchema.plugin(softDeletePlugin);
 campaignSchema.plugin(auditPlugin);
+campaignSchema.plugin(timestampPlugin);
 
 export const CampaignModel = mongoose.models.Campaign
   ? (mongoose.models.Campaign as mongoose.Model<CampaignDocument>)

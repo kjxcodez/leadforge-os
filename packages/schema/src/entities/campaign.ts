@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { CampaignStatus } from '../enums';
-import { objectIdField, nameField } from '../fields/common';
+import { CampaignStatus } from '../enums/index.js';
+import { objectIdField, nameField } from '../fields/common.js';
 
 export const campaignStatusSchema = z.nativeEnum(CampaignStatus);
 
@@ -18,6 +18,9 @@ export const campaignSchema = z.object({
   name: nameField,
   status: campaignStatusSchema,
   steps: z.array(campaignStepSchema),
+  template: z.string().nullable().optional(),
+  schedule: z.any().nullable().optional(),
+  settings: z.any().nullable().optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });

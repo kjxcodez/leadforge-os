@@ -1,17 +1,20 @@
 import { z } from 'zod';
-import { objectIdField, nameField, emailField, phoneField, urlField } from '../fields/common';
-import { contactStatusSchema, contactSchema } from '../entities/contact';
-import { paginationParamsSchema } from '../common/pagination';
+import { objectIdField, nameField, emailField, phoneField, urlField } from '../fields/common.js';
+import { contactStatusSchema, contactSchema } from '../entities/contact.js';
+import { paginationParamsSchema } from '../common/pagination.js';
 
 export const createContactDtoSchema = z.object({
   companyId: objectIdField.nullable().optional(),
   firstName: nameField,
   lastName: z.string().nullable().optional(),
   email: emailField.nullable().optional(),
-  phone: phoneField.optional(),
+  phone: phoneField.nullable().optional(),
   title: z.string().nullable().optional(),
-  linkedinUrl: urlField.optional(),
+  linkedin: z.string().nullable().optional(),
+  linkedinUrl: urlField.nullable().optional(),
   status: contactStatusSchema.optional(),
+  notes: z.string().nullable().optional(),
+  source: z.string().nullable().optional(),
 });
 export type CreateContactDto = z.infer<typeof createContactDtoSchema>;
 

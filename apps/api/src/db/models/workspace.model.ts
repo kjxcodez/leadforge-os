@@ -1,6 +1,5 @@
 import mongoose, { Schema } from "mongoose";
-import { softDeletePlugin, type SoftDeleteDocument } from "../plugins/soft-delete.js";
-import { auditPlugin, type AuditDocument } from "../plugins/audit.js";
+import { softDeletePlugin, auditPlugin, timestampPlugin, type SoftDeleteDocument, type AuditDocument, type TimestampDocument } from "../plugins/index.js";
 
 export interface WorkspaceMember {
   userId: string;
@@ -8,7 +7,7 @@ export interface WorkspaceMember {
   joinedAt: Date;
 }
 
-export interface WorkspaceDocument extends mongoose.Document, SoftDeleteDocument, AuditDocument {
+export interface WorkspaceDocument extends mongoose.Document, SoftDeleteDocument, AuditDocument, TimestampDocument {
   name: string;
   slug: string;
   ownerId: string;
@@ -22,8 +21,6 @@ export interface WorkspaceDocument extends mongoose.Document, SoftDeleteDocument
     campaignCount: number;
     outreachMonthlyLimit: number;
   } | null;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 const workspaceSchema = new Schema<WorkspaceDocument>(
@@ -74,7 +71,6 @@ const workspaceSchema = new Schema<WorkspaceDocument>(
     },
   },
   {
-    timestamps: true,
     strict: true,
     optimisticConcurrency: true,
   }
@@ -82,6 +78,7 @@ const workspaceSchema = new Schema<WorkspaceDocument>(
 
 workspaceSchema.plugin(softDeletePlugin);
 workspaceSchema.plugin(auditPlugin);
+workspaceSchema.plugin(timestampPlugin);
 
 export const WorkspaceModel = mongoose.models.Workspace
   ? (mongoose.models.Workspace as mongoose.Model<WorkspaceDocument>)

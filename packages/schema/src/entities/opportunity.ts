@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { OpportunityStage } from '../enums';
-import { objectIdField, nameField } from '../fields/common';
+import { OpportunityStage } from '../enums/index.js';
+import { objectIdField, nameField } from '../fields/common.js';
 
 export const opportunityStageSchema = z.nativeEnum(OpportunityStage);
 

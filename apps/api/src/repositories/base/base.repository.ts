@@ -1,7 +1,7 @@
-import mongoose, { type Model, type Document, type ClientSession } from "mongoose";
+import { type Model, type Document, type ClientSession } from "mongoose";
 import { NotFoundError, ConflictError, ValidationError, DatabaseError } from "../../errors/index.js";
 
-type FilterQuery<T> = mongoose.FilterQuery<T>;
+type FilterQuery<T> = any;
 
 
 export class BaseRepository<T extends Document> {
