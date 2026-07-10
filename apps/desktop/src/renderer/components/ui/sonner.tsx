@@ -1,11 +1,12 @@
 "use client"
 
-import { useTheme } from "next-themes"
+import { useUIStore } from "../../stores/ui-store"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
 const Toaster = ({ theme: propsTheme, ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  const { state } = useUIStore()
+  const theme = state.theme
 
   return (
     <Sonner

@@ -1,22 +1,19 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import '@/shared/styles/globals.css'
-import App from './App'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import '@/shared/styles/globals.css';
+import { AppProviders } from '../providers/AppProviders';
+import { AppRouter } from '../router';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
-  },
-})
-
+/**
+ * Application entry point.
+ *
+ * AppProviders — wraps all global state stores + React Query
+ * AppRouter    — manages all routing with session-aware guards
+ */
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
+    <AppProviders>
+      <AppRouter />
+    </AppProviders>
   </React.StrictMode>
-)
+);
