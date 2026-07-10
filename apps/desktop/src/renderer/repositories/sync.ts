@@ -3,7 +3,8 @@ import {
   RemoteCompanyRepository,
   RemoteContactRepository,
   RemoteCampaignRepository,
-  RemoteActivityRepository
+  RemoteActivityRepository,
+  RemoteDiscoveryJobRepository
 } from './remote';
 
 // ---------------------------------------------------------------------------
@@ -180,3 +181,4 @@ export const SyncCompanyRepository = new BaseSyncRepository<any>('companies', Re
 export const SyncContactRepository = new BaseSyncRepository<any>('contacts', RemoteContactRepository);
 export const SyncCampaignRepository = new BaseSyncRepository<any>('campaigns', RemoteCampaignRepository);
 export const SyncActivityRepository = new BaseSyncRepository<any>('activities', RemoteActivityRepository);
+export const SyncDiscoveryJobRepository = new BaseSyncRepository<any>('discovery_jobs', RemoteDiscoveryJobRepository);

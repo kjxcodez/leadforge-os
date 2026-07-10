@@ -326,3 +326,18 @@ Below is the concrete engineering checklist to remediate the repository before s
 - [x] **Production Screens**: Overhauled CompaniesScreen, ContactsScreen, and DashboardScreen to consume React Query, SQLite caches, and background sync.
 - [x] **Verification**: All modules are workspace isolated, support offline caching/mutating, and compile with 0 TypeScript errors.
 
+## Phase 5: Discovery Platform (Completed)
+- [x] **Backend Models & API Routes**: Implemented `DiscoveryJob` and `DiscoveryResult` schemas, created `DiscoveryService` simulating background progress updates, and registered route handlers on the Hono API.
+- [x] **Local SQLite Cache**: Appended migrations `002_discovery_schema` creating jobs and results caching tables.
+- [x] **Deduplication Engine**: Built local-first company/contact domain matching similarity metrics.
+- [x] **UI Monitors**: Overhauled `DiscoveryScreen.tsx` displaying queue progresses, scraped logs list, duplicate warnings, and direct CRM imports.
+- [x] **Verification**: App builds successfully with 0 TypeScript compilation errors.
+
+## IPC Architecture Audit & Stabilization (Completed)
+- [x] **Root Cause Resolved**: Eliminated duplicate `companies:list` registrations by cleaning up duplicate handler declarations and modules side-effects.
+- [x] **Safe Register Helper**: Created `safeRegister()` wrapping `ipcMain.removeHandler` before adding handlers, resolving all hot-reload/HMR collision crashes.
+- [x] **Centralized Layer**: Structured IPC handlers into dedicated domain modules under `main/ipc/` and registered them through a unified coordinator `registerAllIpc()` invoked exactly once during startup.
+- [x] **Verification**: Codebase builds and compiles successfully with 0 TypeScript compiler warnings.
+
+
+

@@ -135,6 +135,51 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_sync_queue_workspaceId ON sync_queue (workspaceId);
     `,
   },
+  {
+    name: '002_discovery_schema',
+    up: `
+      CREATE TABLE IF NOT EXISTS discovery_jobs (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        name TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        status TEXT NOT NULL,
+        progress INTEGER DEFAULT 0,
+        query TEXT,
+        error TEXT,
+        statisticsJson TEXT,
+        startedAt DATETIME,
+        finishedAt DATETIME,
+        syncStatus TEXT DEFAULT 'synced',
+        version INTEGER DEFAULT 1,
+        createdAt DATETIME,
+        updatedAt DATETIME,
+        deletedAt DATETIME DEFAULT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS discovery_results (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        jobId TEXT NOT NULL,
+        companyName TEXT NOT NULL,
+        website TEXT,
+        email TEXT,
+        phone TEXT,
+        linkedinUrl TEXT,
+        description TEXT,
+        status TEXT DEFAULT 'pending',
+        contactsJson TEXT,
+        syncStatus TEXT DEFAULT 'synced',
+        version INTEGER DEFAULT 1,
+        createdAt DATETIME,
+        updatedAt DATETIME,
+        deletedAt DATETIME DEFAULT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_discovery_jobs_workspaceId ON discovery_jobs (workspaceId);
+      CREATE INDEX IF NOT EXISTS idx_discovery_results_workspaceId ON discovery_results (workspaceId);
+    `,
+  },
 ];
 
 /**

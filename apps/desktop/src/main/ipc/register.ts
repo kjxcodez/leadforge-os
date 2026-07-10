@@ -1,0 +1,35 @@
+import { SdkClient } from '@leadforge/sdk';
+import { registerAuthIpc } from './auth';
+import { registerWorkspaceIpc } from './workspace';
+import { registerCrmIpc } from './crm';
+import { registerDiscoveryIpc } from './discovery';
+import { registerElectronIpc } from './electron';
+import { registerDatabaseIpc } from './database';
+
+/**
+ * Orchestrates and registers all IPC channels exactly once, utilizing safeRegister
+ * to prevent duplicate handler collisions during hot reload HMR.
+ */
+export function registerAllIpc(
+  sdk: SdkClient,
+  customHeaders: Record<string, string>,
+  setToken: (token: string | null) => void,
+  persistActiveWorkspace: (workspaceId: string | null) => void,
+  getPersistedActiveWorkspace: () => string | null
+) {
+  const setWorkspaceHeader = (workspaceId: string | null) => {
+    if (workspaceId) {
+      customHeaders['x-workspace-id'] = workspaceId;
+    } else {
+      delete customHeaders['x-workspace-id'];
+    }
+  };
+
+  // Register domain specific handlers
+  registerDatabaseIpc();
+  registerAuthIpc(sdk, setToken, setWorkspaceHeader, getPersistedActiveWorkspace);
+  registerWorkspaceIpc(sdk);
+  registerCrmIpc(sdk);
+  registerDiscoveryIpc(sdk);
+  registerElectronIpc(setWorkspaceHeader, persistActiveWorkspace, getPersistedActiveWorkspace);
+}

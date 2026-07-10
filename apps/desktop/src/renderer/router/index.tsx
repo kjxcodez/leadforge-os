@@ -13,6 +13,10 @@ import { SessionExpiredScreen } from '../screens/SessionExpiredScreen';
 import { useAuth } from '../hooks/useAuth';
 import WorkspaceSettingsScreen from '../screens/WorkspaceSettingsScreen';
 import WorkspaceInvitesScreen from '../screens/WorkspaceInvitesScreen';
+import DashboardScreen from '../screens/DashboardScreen';
+import CompaniesScreen from '../screens/CompaniesScreen';
+import ContactsScreen from '../screens/ContactsScreen';
+import DiscoveryScreen from '../screens/DiscoveryScreen';
 
 // ---------------------------------------------------------------------------
 // Session Bootstrap
@@ -92,11 +96,21 @@ const router = createHashRouter([
         element: <AppLayout />,
         children: [
           { path: '/', element: <Navigate to="/dashboard" replace /> },
-          { path: '/dashboard', element: <ComingSoon label="Dashboard" /> },
-          { path: '/companies', element: <ComingSoon label="Companies" /> },
-          { path: '/contacts', element: <ComingSoon label="Contacts" /> },
+          {
+            path: '/dashboard',
+            element: (
+              <DashboardScreen
+                systemRunning={true}
+                onToggleSystem={() => {}}
+                ipcStatus="connected"
+                timestamp={new Date().toISOString()}
+              />
+            ),
+          },
+          { path: '/companies', element: <CompaniesScreen /> },
+          { path: '/contacts', element: <ContactsScreen /> },
           { path: '/campaigns', element: <ComingSoon label="Campaigns" /> },
-          { path: '/discovery', element: <ComingSoon label="Discovery" /> },
+          { path: '/discovery', element: <DiscoveryScreen /> },
           { path: '/workflows', element: <ComingSoon label="Workflows" /> },
           { path: '/reports', element: <ComingSoon label="Reports" /> },
           { path: '/settings', element: <WorkspaceSettingsScreen /> },
