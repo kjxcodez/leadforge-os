@@ -1,8 +1,10 @@
 import type { CreateCompanyDto, CompanyFilters } from '../dto/company.js';
 import type { Company } from '../entities/company.js';
 import type { LoginDto, RegisterDto, AuthResponse } from '../dto/auth.js';
-import type { CreateWorkspaceDto } from '../dto/workspace.js';
-import type { Workspace } from '../entities/workspace.js';
+import type { CreateWorkspaceDto, UpdateWorkspaceDto, InviteMemberDto } from '../dto/workspace.js';
+import type { Workspace, WorkspaceMember } from '../entities/workspace.js';
+import type { WorkspaceRole } from '../enums/index.js';
+
 
 export interface IpcChannelMap {
   'companies:list': {
@@ -40,6 +42,62 @@ export interface IpcChannelMap {
   'workspaces:list': {
     input: void;
     output: Workspace[];
+  };
+  'workspaces:update': {
+    input: { id: string; dto: UpdateWorkspaceDto };
+    output: Workspace;
+  };
+  'workspaces:delete': {
+    input: string;
+    output: void;
+  };
+  'workspaces:get': {
+    input: string;
+    output: Workspace;
+  };
+  'workspaces:members:list': {
+    input: string;
+    output: WorkspaceMember[];
+  };
+  'workspaces:members:invite': {
+    input: { id: string; dto: InviteMemberDto };
+    output: Workspace;
+  };
+  'workspaces:members:updateRole': {
+    input: { id: string; memberId: string; role: WorkspaceRole };
+    output: Workspace;
+  };
+  'workspaces:members:remove': {
+    input: { id: string; memberId: string };
+    output: Workspace;
+  };
+  'workspaces:members:leave': {
+    input: string;
+    output: Workspace;
+  };
+  'workspaces:members:transferOwnership': {
+    input: { id: string; newOwnerId: string };
+    output: Workspace;
+  };
+  'workspaces:invites:list': {
+    input: void;
+    output: Workspace[];
+  };
+  'workspaces:invites:accept': {
+    input: string;
+    output: Workspace;
+  };
+  'workspaces:invites:decline': {
+    input: string;
+    output: Workspace;
+  };
+  'electron:setActiveWorkspace': {
+    input: string | null;
+    output: void;
+  };
+  'electron:getActiveWorkspace': {
+    input: void;
+    output: string | null;
   };
 }
 
