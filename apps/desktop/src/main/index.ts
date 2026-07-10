@@ -3,6 +3,9 @@ import { join } from 'path';
 import fs from 'fs';
 import { is } from '@electron-toolkit/utils';
 import { SdkClient } from '@leadforge/sdk';
+import { runMigrations } from './database/runner';
+import { closeDatabase } from './database/connection';
+import { registerDatabaseIpc } from './ipc/database';
 
 // Main window reference
 let mainWindow: BrowserWindow | null = null;
@@ -298,6 +301,16 @@ app.whenReady().then(() => {
   // Set as app user model ID (Windows)
   app.setAppUserModelId('com.leadforge.desktop');
 
+  // 1. Run SQLite schema migrations
+  try {
+    runMigrations();
+  } catch (err) {
+    console.error('Failed to run local SQLite migrations:', err);
+  }
+
+  // 2. Register local database IPC handlers
+  registerDatabaseIpc();
+
   // Remove default menu bar
   Menu.setApplicationMenu(null);
 
@@ -317,9 +330,15 @@ app.whenReady().then(() => {
 
 // Quit when all windows are closed
 app.on('window-all-closed', () => {
+  closeDatabase();
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+// Graceful exit handler
+app.on('will-quit', () => {
+  closeDatabase();
 });
 
 // Security: Prevent navigation to external URLs
