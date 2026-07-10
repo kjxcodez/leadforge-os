@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { objectIdField } from '../fields/common';
+import { objectIdField } from '../fields/common.js';
 
 export const sessionDataSchema = z.object({
   ip: z.string().optional(),

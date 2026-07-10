@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
-import { envSchema } from './env.schema';
+import { envSchema } from './env.schema.js';
 
 let hasLoaded = false;
 

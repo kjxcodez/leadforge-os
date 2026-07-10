@@ -1,6 +1,7 @@
 import { WorkspaceRepository } from "../../repositories/workspace/workspace.repository.js";
 import type { WorkspaceDocument } from "../../db/models/workspace.model.js";
 import { slugify } from "@leadforge/core";
+import { createWorkspaceDtoSchema, updateWorkspaceDtoSchema, type CreateWorkspaceDto, type UpdateWorkspaceDto } from "@leadforge/schema";
 
 export class WorkspaceService {
   private workspaceRepository: WorkspaceRepository;
@@ -21,21 +22,28 @@ export class WorkspaceService {
     return this.workspaceRepository.findUserWorkspaces(userId);
   }
 
-  public async createWorkspace(name: string, ownerId: string): Promise<WorkspaceDocument> {
-    const slug = slugify(name);
+  public async createWorkspace(dto: CreateWorkspaceDto & { ownerId: string }): Promise<WorkspaceDocument> {
+    const validated = createWorkspaceDtoSchema.parse(dto);
+    const slug = slugify(validated.name);
     return this.workspaceRepository.create({
-      name,
+      name: validated.name,
       slug,
-      ownerId,
+      ownerId: dto.ownerId,
       plan: "free",
+      settings: validated.settings || { defaultTimezone: "UTC" },
       members: [
         {
-          userId: ownerId,
+          userId: dto.ownerId,
           role: "admin",
           joinedAt: new Date(),
         },
       ],
     });
+  }
+
+  public async updateWorkspace(id: string, dto: UpdateWorkspaceDto): Promise<WorkspaceDocument> {
+    const validated = updateWorkspaceDtoSchema.parse(dto);
+    return this.workspaceRepository.update(id, validated);
   }
 
   public async addMember(workspaceId: string, userId: string, role: "admin" | "member" | "billing" = "member"): Promise<WorkspaceDocument> {

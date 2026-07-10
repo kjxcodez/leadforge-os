@@ -1,1 +1,1 @@
-export * from './hono';
+export * from './hono.js';

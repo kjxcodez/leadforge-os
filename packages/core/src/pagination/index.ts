@@ -1,5 +1,5 @@
 import type { PaginationParams, SortOrder, PaginationMeta } from '@leadforge/schema';
-import { LIMITS } from '../constants';
+import { LIMITS } from '../constants/index.js';
 
 export function getPaginationParams(query: Record<string, any>): Required<PaginationParams> {
   const page = Math.max(1, parseInt(query.page as string, 10) || 1);

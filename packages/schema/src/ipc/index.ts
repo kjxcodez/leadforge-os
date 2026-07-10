@@ -1,5 +1,5 @@
-import type { CreateCompanyDto, CompanyFilters } from '../dto/company';
-import type { Company } from '../entities/company';
+import type { CreateCompanyDto, CompanyFilters } from '../dto/company.js';
+import type { Company } from '../entities/company.js';
 
 export interface IpcChannelMap {
   'companies:list': {

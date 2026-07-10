@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { nameField, objectIdField } from '../fields/common';
-import { campaignStatusSchema, campaignSchema } from '../entities/campaign';
-import { paginationParamsSchema } from '../common/pagination';
+import { nameField, objectIdField } from '../fields/common.js';
+import { campaignStatusSchema, campaignSchema } from '../entities/campaign.js';
+import { paginationParamsSchema } from '../common/pagination.js';
 
 export const createCampaignStepDtoSchema = z.object({
   type: z.string(),
@@ -14,6 +14,9 @@ export const createCampaignDtoSchema = z.object({
   name: nameField,
   status: campaignStatusSchema.optional(),
   steps: z.array(createCampaignStepDtoSchema).optional(),
+  template: z.string().nullable().optional(),
+  schedule: z.any().nullable().optional(),
+  settings: z.any().nullable().optional(),
 });
 export type CreateCampaignDto = z.infer<typeof createCampaignDtoSchema>;
 

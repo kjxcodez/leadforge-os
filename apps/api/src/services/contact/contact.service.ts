@@ -1,6 +1,6 @@
 import { ContactRepository } from "../../repositories/contact/contact.repository.js";
 import type { ContactDocument } from "../../db/models/contact.model.js";
-import { ContactStatus } from "@leadforge/schema";
+import { createContactDtoSchema, updateContactDtoSchema, type CreateContactDto, type UpdateContactDto } from "@leadforge/schema";
 
 export class ContactService {
   private contactRepository: ContactRepository;
@@ -17,15 +17,14 @@ export class ContactService {
     return this.contactRepository.paginate({}, page, limit);
   }
 
-  public async createContact(data: { firstName: string; lastName?: string | null; email?: string | null; phone: string; title?: string | null; linkedinUrl?: string | null; companyId?: string | null }): Promise<ContactDocument> {
-    return this.contactRepository.create({
-      ...data,
-      status: ContactStatus.NEW,
-    });
+  public async createContact(dto: CreateContactDto): Promise<ContactDocument> {
+    const validated = createContactDtoSchema.parse(dto);
+    return this.contactRepository.create(validated);
   }
 
-  public async updateContact(id: string, data: Partial<ContactDocument>): Promise<ContactDocument> {
-    return this.contactRepository.update(id, data);
+  public async updateContact(id: string, dto: UpdateContactDto): Promise<ContactDocument> {
+    const validated = updateContactDtoSchema.parse(dto);
+    return this.contactRepository.update(id, validated);
   }
 
   public async deleteContact(id: string): Promise<boolean> {

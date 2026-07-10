@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { emailField } from '../fields/common';
-import { userSchema } from '../entities/user';
+import { emailField } from '../fields/common.js';
+import { userSchema } from '../entities/user.js';
 
 export const loginDtoSchema = z.object({
   email: emailField,

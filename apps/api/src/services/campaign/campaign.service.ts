@@ -1,6 +1,6 @@
 import { CampaignRepository } from "../../repositories/campaign/campaign.repository.js";
-import type { CampaignDocument, CampaignStep } from "../../db/models/campaign.model.js";
-import { CampaignStatus } from "@leadforge/schema";
+import type { CampaignDocument } from "../../db/models/campaign.model.js";
+import { createCampaignDtoSchema, updateCampaignDtoSchema, type CreateCampaignDto, type UpdateCampaignDto } from "@leadforge/schema";
 
 export class CampaignService {
   private campaignRepository: CampaignRepository;
@@ -17,16 +17,21 @@ export class CampaignService {
     return this.campaignRepository.paginate({}, page, limit);
   }
 
-  public async createCampaign(data: { name: string; steps?: CampaignStep[] }): Promise<CampaignDocument> {
+  public async createCampaign(dto: CreateCampaignDto): Promise<CampaignDocument> {
+    const validated = createCampaignDtoSchema.parse(dto);
     return this.campaignRepository.create({
-      name: data.name,
-      steps: data.steps || [],
-      status: CampaignStatus.DRAFT,
+      name: validated.name,
+      steps: validated.steps || [],
+      status: validated.status || "draft",
+      template: validated.template || null,
+      schedule: validated.schedule || null,
+      settings: validated.settings || null,
     });
   }
 
-  public async updateCampaign(id: string, data: Partial<CampaignDocument>): Promise<CampaignDocument> {
-    return this.campaignRepository.update(id, data);
+  public async updateCampaign(id: string, dto: UpdateCampaignDto): Promise<CampaignDocument> {
+    const validated = updateCampaignDtoSchema.parse(dto);
+    return this.campaignRepository.update(id, validated);
   }
 
   public async deleteCampaign(id: string): Promise<boolean> {

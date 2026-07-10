@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { ErrorCode } from '../enums';
-import { paginationMetaSchema, cursorMetaSchema } from './pagination';
+import { ErrorCode } from '../enums/index.js';
+import { paginationMetaSchema, cursorMetaSchema } from './pagination.js';
 
 export const apiErrorSchema = z.object({
   code: z.nativeEnum(ErrorCode),
@@ -48,4 +48,4 @@ export interface CursorPaginatedResponse<T> extends SuccessResponse<T[]> {
   };
 }
 
-import type { PaginationMeta, CursorMeta } from './pagination';
+import type { PaginationMeta, CursorMeta } from './pagination.js';

@@ -1,29 +1,32 @@
 import mongoose, { Schema } from "mongoose";
-import { softDeletePlugin, type SoftDeleteDocument } from "../plugins/soft-delete.js";
-import { auditPlugin, type AuditDocument } from "../plugins/audit.js";
+import { softDeletePlugin, auditPlugin, timestampPlugin, workspacePlugin, type SoftDeleteDocument, type AuditDocument, type TimestampDocument, type WorkspaceScopedDocument } from "../plugins/index.js";
 
-export interface OutreachDocument extends mongoose.Document, SoftDeleteDocument, AuditDocument {
-  workspaceId: string;
-  contactId: string;
+export interface OutreachDocument extends mongoose.Document, SoftDeleteDocument, AuditDocument, TimestampDocument, WorkspaceScopedDocument {
   campaignId?: string | null;
-  channel: "email" | "linkedin" | "phone";
+  companyId?: string | null;
+  contactId: string;
   status: "pending" | "sent" | "delivered" | "failed" | "opened" | "replied";
-  sentAt?: Date | null;
+  provider: "email" | "linkedin" | "phone" | string;
+  attempts: number;
+  lastSentAt?: Date | null;
   messageDetails?: {
     messageId: string;
     threadId?: string;
     subject: string;
     body: string;
   } | null;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 const outreachSchema = new Schema<OutreachDocument>(
   {
-    workspaceId: {
+    campaignId: {
       type: String,
-      required: true,
+      default: null,
+      index: true,
+    },
+    companyId: {
+      type: String,
+      default: null,
       index: true,
     },
     contactId: {
@@ -31,23 +34,21 @@ const outreachSchema = new Schema<OutreachDocument>(
       required: true,
       index: true,
     },
-    campaignId: {
-      type: String,
-      default: null,
-      index: true,
-    },
-    channel: {
-      type: String,
-      enum: ["email", "linkedin", "phone"],
-      required: true,
-    },
     status: {
       type: String,
       enum: ["pending", "sent", "delivered", "failed", "opened", "replied"],
       default: "pending",
       index: true,
     },
-    sentAt: {
+    provider: {
+      type: String,
+      required: true,
+    },
+    attempts: {
+      type: Number,
+      default: 0,
+    },
+    lastSentAt: {
       type: Date,
       default: null,
     },
@@ -59,14 +60,15 @@ const outreachSchema = new Schema<OutreachDocument>(
     },
   },
   {
-    timestamps: true,
     strict: true,
     optimisticConcurrency: true,
   }
 );
 
+outreachSchema.plugin(workspacePlugin);
 outreachSchema.plugin(softDeletePlugin);
 outreachSchema.plugin(auditPlugin);
+outreachSchema.plugin(timestampPlugin);
 
 export const OutreachModel = mongoose.models.Outreach
   ? (mongoose.models.Outreach as mongoose.Model<OutreachDocument>)

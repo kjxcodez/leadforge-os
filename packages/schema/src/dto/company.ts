@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { nameField, urlField } from '../fields/common';
-import { companyStatusSchema, companySchema } from '../entities/company';
-import { paginationParamsSchema } from '../common/pagination';
+import { nameField, urlField } from '../fields/common.js';
+import { companyStatusSchema, companySchema } from '../entities/company.js';
+import { paginationParamsSchema } from '../common/pagination.js';
 
 export const createCompanyDtoSchema = z.object({
   name: nameField,

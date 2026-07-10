@@ -1,6 +1,6 @@
 import { CompanyRepository } from "../../repositories/company/company.repository.js";
 import type { CompanyDocument } from "../../db/models/company.model.js";
-import { CompanyStatus } from "@leadforge/schema";
+import { createCompanyDtoSchema, updateCompanyDtoSchema, type CreateCompanyDto, type UpdateCompanyDto } from "@leadforge/schema";
 
 export class CompanyService {
   private companyRepository: CompanyRepository;
@@ -17,16 +17,17 @@ export class CompanyService {
     return this.companyRepository.paginate({}, page, limit);
   }
 
-  public async createCompany(data: { name: string; domain: string; industry?: string | null; size?: string | null; location?: string | null }): Promise<CompanyDocument> {
+  public async createCompany(dto: CreateCompanyDto): Promise<CompanyDocument> {
+    const validated = createCompanyDtoSchema.parse(dto);
     return this.companyRepository.create({
-      ...data,
-      status: CompanyStatus.LEAD,
+      ...validated,
       tags: [],
     });
   }
 
-  public async updateCompany(id: string, data: Partial<CompanyDocument>): Promise<CompanyDocument> {
-    return this.companyRepository.update(id, data);
+  public async updateCompany(id: string, dto: UpdateCompanyDto): Promise<CompanyDocument> {
+    const validated = updateCompanyDtoSchema.parse(dto);
+    return this.companyRepository.update(id, validated);
   }
 
   public async deleteCompany(id: string): Promise<boolean> {

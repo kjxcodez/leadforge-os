@@ -1,8 +1,5 @@
 import { z } from 'zod';
-import { OutreachChannel } from '../enums';
-import { objectIdField, nameField } from '../fields/common';
-
-export const outreachChannelSchema = z.nativeEnum(OutreachChannel);
+import { objectIdField, nameField } from '../fields/common.js';
 
 export const emailTemplateSchema = z.object({
   id: objectIdField,
@@ -28,11 +25,13 @@ export const outreachSchema = z.object({
   id: objectIdField,
   workspaceId: objectIdField,
   contactId: objectIdField,
-  campaignId: objectIdField.nullable(),
-  channel: outreachChannelSchema,
+  campaignId: objectIdField.nullable().optional(),
+  companyId: objectIdField.nullable().optional(),
+  provider: z.string(),
   status: z.string(),
-  sentAt: z.date().nullable(),
-  messageDetails: emailMessageSchema.nullable(),
+  attempts: z.number().int().nonnegative().default(0),
+  lastSentAt: z.date().nullable().optional(),
+  messageDetails: emailMessageSchema.nullable().optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
