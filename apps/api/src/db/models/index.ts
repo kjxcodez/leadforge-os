@@ -5,3 +5,5 @@ export { ContactModel, type ContactDocument } from "./contact.model.js";
 export { CampaignModel, type CampaignDocument } from "./campaign.model.js";
 export { OutreachModel, type OutreachDocument } from "./outreach.model.js";
 export { ActivityModel, type ActivityDocument } from "./activity.model.js";
+export { DiscoveryJobModel, type DiscoveryJobDocument } from "./discovery-job.model.js";
+export { DiscoveryResultModel, type DiscoveryResultDocument } from "./discovery-result.model.js";

@@ -18,6 +18,7 @@ import { CompanyService } from "../services/company/company.service.js";
 import { ContactService } from "../services/contact/contact.service.js";
 import { CampaignService } from "../services/campaign/campaign.service.js";
 import { ActivityService } from "../services/activity/activity.service.js";
+import { DiscoveryService } from "../services/discovery/discovery.service.js";
 import { successResponse } from "../utils/index.js";
 import { ForbiddenError } from "../errors/index.js";
 
@@ -438,6 +439,55 @@ discoveryRouter.openapi(discoverySearchRoute, async (c) => {
       ],
     })
   );
+});
+
+discoveryRouter.get("/jobs", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const page = parseInt(c.req.query("page") || "1");
+  const limit = parseInt(c.req.query("limit") || "100");
+  const service = new DiscoveryService(wsId);
+  const result = await service.listJobs(page, limit);
+  return c.json(successResponse(result.data));
+});
+
+discoveryRouter.post("/jobs", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const body = await c.req.json();
+  const service = new DiscoveryService(wsId);
+  const job = await service.createJob(body.name, body.provider, body.query);
+  return c.json(successResponse(job));
+});
+
+discoveryRouter.get("/jobs/:id", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const service = new DiscoveryService(wsId);
+  const job = await service.getJobById(id);
+  return c.json(successResponse(job));
+});
+
+discoveryRouter.get("/jobs/:id/results", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const service = new DiscoveryService(wsId);
+  const results = await service.getJobResults(id);
+  return c.json(successResponse(results));
+});
+
+discoveryRouter.post("/results/:id/import", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const service = new DiscoveryService(wsId);
+  const result = await service.importResult(id);
+  return c.json(successResponse(result));
+});
+
+discoveryRouter.post("/results/:id/skip", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const service = new DiscoveryService(wsId);
+  const result = await service.skipResult(id);
+  return c.json(successResponse(result));
 });
 
 // ── Companies Router ──────────────────────────────────────────────────────
