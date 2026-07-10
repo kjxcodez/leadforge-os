@@ -11,6 +11,28 @@ export class WorkspaceRepository extends BaseRepository<WorkspaceDocument> {
   }
 
   public async findUserWorkspaces(userId: string): Promise<WorkspaceDocument[]> {
-    return this.findMany({ "members.userId": userId });
+    return this.findMany({
+      members: {
+        $elemMatch: {
+          userId,
+          status: "ACTIVE",
+        },
+      },
+    });
+  }
+
+  public async findByInvitationToken(token: string): Promise<WorkspaceDocument | null> {
+    return this.findOne({ "members.invitationToken": token });
+  }
+
+  public async findPendingInvitesByEmail(email: string): Promise<WorkspaceDocument[]> {
+    return this.findMany({
+      members: {
+        $elemMatch: {
+          email: email.toLowerCase().trim(),
+          status: "PENDING",
+        },
+      },
+    });
   }
 }

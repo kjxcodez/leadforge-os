@@ -2,9 +2,15 @@ import mongoose, { Schema } from "mongoose";
 import { softDeletePlugin, auditPlugin, timestampPlugin, type SoftDeleteDocument, type AuditDocument, type TimestampDocument } from "../plugins/index.js";
 
 export interface WorkspaceMember {
-  userId: string;
-  role: "admin" | "member" | "billing";
-  joinedAt: Date;
+  userId?: string | null;
+  email: string;
+  role: "OWNER" | "ADMIN" | "MEMBER" | "READ_ONLY" | "BILLING";
+  status: "ACTIVE" | "PENDING" | "DECLINED" | "EXPIRED";
+  joinedAt?: Date | null;
+  invitedBy?: string | null;
+  invitedAt?: Date;
+  invitationToken?: string | null;
+  invitationExpiresAt?: Date | null;
 }
 
 export interface WorkspaceDocument extends mongoose.Document, SoftDeleteDocument, AuditDocument, TimestampDocument {
@@ -56,9 +62,15 @@ const workspaceSchema = new Schema<WorkspaceDocument>(
     },
     members: [
       {
-        userId: { type: String, required: true },
-        role: { type: String, enum: ["admin", "member", "billing"], default: "member" },
-        joinedAt: { type: Date, default: Date.now },
+        userId: { type: String, default: null, index: true },
+        email: { type: String, required: true, lowercase: true, trim: true },
+        role: { type: String, enum: ["OWNER", "ADMIN", "MEMBER", "READ_ONLY", "BILLING"], default: "MEMBER" },
+        status: { type: String, enum: ["ACTIVE", "PENDING", "DECLINED", "EXPIRED"], default: "ACTIVE" },
+        joinedAt: { type: Date, default: null },
+        invitedBy: { type: String, default: null },
+        invitedAt: { type: Date, default: Date.now },
+        invitationToken: { type: String, default: null, index: true },
+        invitationExpiresAt: { type: Date, default: null },
       },
     ],
     billing: {
