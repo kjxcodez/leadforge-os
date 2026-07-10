@@ -25,6 +25,7 @@ import CampaignsScreen from '../screens/CampaignsScreen'
 import WorkflowsScreen from '../screens/WorkflowsScreen'
 import ReportsScreen from '../screens/ReportsScreen'
 import SettingsScreen from '../screens/SettingsScreen'
+import { LoginScreen } from '../screens/LoginScreen'
 
 const initialIntegrations = [
   { id: 'salesforce', name: 'Salesforce', description: 'Sync accounts, contacts, and opportunities.', connected: true, logo: 'SF' },
@@ -42,6 +43,13 @@ export default function App() {
 
   const [ipcStatus, setIpcStatus] = useState<string>('Connecting...')
   const [timestamp, setTimestamp] = useState<string>('N/A')
+
+  // Auth and workspace states
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
+  const [user, setUser] = useState<any>(null)
+  const [checkingAuth, setCheckingAuth] = useState<boolean>(true)
+  const [workspaces, setWorkspaces] = useState<any[]>([])
+  const [activeWorkspace, setActiveWorkspace] = useState<any>(null)
 
   useEffect(() => {
     const root = window.document.documentElement
@@ -61,6 +69,61 @@ export default function App() {
       setIpcStatus('Not connected (Web)')
     }
   }, [])
+
+  useEffect(() => {
+    // Check active session on mount
+    window.ipc.invoke('auth:session', undefined)
+      .then((session) => {
+        if (session) {
+          setUser(session.user)
+          setIsAuthenticated(true)
+          // Fetch workspaces
+          window.ipc.invoke('workspaces:list', undefined)
+            .then((list) => {
+              setWorkspaces(list || [])
+              if (list && list.length > 0) {
+                const active = list.find((w: any) => w.id === session.user.activeWorkspaceId || w._id === session.user.activeWorkspaceId) || list[0]
+                setActiveWorkspace(active)
+              }
+            })
+            .catch(console.error)
+        }
+        setCheckingAuth(false)
+      })
+      .catch((err) => {
+        console.error('Session restoration failed:', err)
+        setCheckingAuth(false)
+      })
+  }, [])
+
+  const handleLoginSuccess = async () => {
+    setCheckingAuth(true)
+    try {
+      const session = await window.ipc.invoke('auth:session', undefined)
+      if (session) {
+        setUser(session.user)
+        setIsAuthenticated(true)
+        const list = await window.ipc.invoke('workspaces:list', undefined)
+        setWorkspaces(list || [])
+        if (list && list.length > 0) {
+          const active = list.find((w: any) => w.id === session.user.activeWorkspaceId || w._id === session.user.activeWorkspaceId) || list[0]
+          setActiveWorkspace(active)
+        }
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setCheckingAuth(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    await window.ipc.invoke('auth:logout', undefined)
+    setIsAuthenticated(false)
+    setUser(null)
+    setWorkspaces([])
+    setActiveWorkspace(null)
+  }
 
   const toggleIntegration = (id: string) => {
     setIntegrations(prev => prev.map(item => item.id === id ? { ...item, connected: !item.connected } : item))
@@ -91,6 +154,26 @@ export default function App() {
     }
   }
 
+  if (checkingAuth) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background text-foreground font-sans">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-xs text-secondary font-medium">Verifying active session...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <LoginScreen
+        onNavigateToRegister={() => alert("Registration is closed. Please request an invitation.")}
+        onLoginSuccess={handleLoginSuccess}
+      />
+    )
+  }
+
   return (
     <div className="flex h-screen w-full bg-background text-foreground font-sans overflow-hidden">
       
@@ -103,7 +186,7 @@ export default function App() {
           {!sidebarCollapsed && (
             <div className="overflow-hidden">
               <h1 className="font-semibold text-sm tracking-tight text-foreground leading-tight">LeadForge</h1>
-              <p className="text-[10px] text-muted-foreground truncate">Global Workspace</p>
+              <p className="text-[10px] text-muted-foreground truncate">{activeWorkspace?.name || 'No Workspace'}</p>
             </div>
           )}
         </div>
@@ -135,16 +218,26 @@ export default function App() {
           })}
         </nav>
 
-        <div className="mt-auto px-2 pt-4 border-t border-border-subtle">
+        <div className="mt-auto px-2 pt-4 border-t border-border-subtle space-y-2">
           <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center' : 'px-1'}`}>
-            <img className="w-8 h-8 rounded-full border border-border-default object-cover" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Profile" />
+            <div className="w-8 h-8 rounded-full border border-border-default bg-accent-tint text-accent flex items-center justify-center font-bold text-xs shrink-0">
+              {(user?.name || user?.email || 'U').substring(0, 2).toUpperCase()}
+            </div>
             {!sidebarCollapsed && (
               <div className="overflow-hidden min-w-0 flex-1">
-                <p className="text-xs font-semibold truncate text-foreground">Alex Rivera</p>
-                <p className="text-[10px] text-muted-foreground truncate">Pro Workspace</p>
+                <p className="text-xs font-semibold truncate text-foreground">{user?.displayName || user?.name || user?.email}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{activeWorkspace?.name || 'Default Plan'}</p>
               </div>
             )}
           </div>
+          {!sidebarCollapsed && (
+            <button
+              onClick={handleLogout}
+              className="w-full text-left px-3 py-1.5 rounded text-[10px] font-semibold text-red-500 hover:bg-red-950/20 transition-colors"
+            >
+              Sign Out
+            </button>
+          )}
         </div>
       </aside>
 

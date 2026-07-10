@@ -55,12 +55,17 @@ export class WorkspaceService {
       return workspace;
     }
 
-    workspace.members.push({
-      userId,
-      role,
-      joinedAt: new Date(),
-    });
+    const updatedMembers = [
+      ...workspace.members,
+      {
+        userId,
+        role,
+        joinedAt: new Date(),
+      },
+    ];
 
-    return workspace.save();
+    return this.workspaceRepository.update(workspaceId, {
+      members: updatedMembers,
+    });
   }
 }

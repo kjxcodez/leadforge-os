@@ -1,9 +1,20 @@
 import { app, BrowserWindow, ipcMain, shell, Menu } from 'electron';
 import { join } from 'path';
 import { is } from '@electron-toolkit/utils';
+import { SdkClient } from '@leadforge/sdk';
 
 // Main window reference
 let mainWindow: BrowserWindow | null = null;
+
+// SDK client initialization
+const customHeaders: Record<string, string> = {};
+let activeToken: string | null = null;
+
+const sdk = new SdkClient({
+  baseUrl: process.env.API_URL || 'http://localhost:3000/api/v1',
+  headers: customHeaders,
+  tokenResolver: () => activeToken,
+});
 
 // IPC handlers registry
 export const ipcHandlers = new Map<string, (event: Electron.IpcMainEvent, ...args: unknown[]) => void>();
@@ -63,24 +74,13 @@ import { companyFiltersSchema, createCompanyDtoSchema } from '@leadforge/schema'
 ipcMain.handle('companies:list', async (_event, payload) => {
   const filters = companyFiltersSchema.parse(payload);
   console.log('Main Process: Fetching companies with filters:', filters);
-  return [];
+  return sdk.companies.list(filters);
 });
 
 ipcMain.handle('companies:create', async (_event, payload) => {
   const dto = createCompanyDtoSchema.parse(payload);
   console.log('Main Process: Creating company with DTO:', dto);
-  return {
-    id: 'comp_' + Math.random().toString(36).substring(7),
-    workspaceId: 'workspace_1',
-    name: dto.name,
-    domain: dto.domain ?? null,
-    industry: dto.industry ?? null,
-    size: dto.size ?? null,
-    location: dto.location ?? null,
-    status: dto.status ?? 'LEAD',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  return sdk.companies.create(dto);
 });
 
 ipcMain.handle('system:status', async () => {
@@ -92,6 +92,67 @@ ipcMain.handle('system:status', async () => {
 
 ipcMain.handle('ipc:test', async () => {
   return { status: 'ok', timestamp: Date.now() };
+});
+
+ipcMain.handle('auth:login', async (_event, payload) => {
+  console.log('Main Process: Logging in user:', payload.email);
+  const res = await sdk.auth.login(payload);
+  activeToken = res.token;
+  if (res.user?.activeWorkspaceId) {
+    customHeaders['x-workspace-id'] = res.user.activeWorkspaceId;
+  }
+  return res;
+});
+
+ipcMain.handle('auth:register', async (_event, payload) => {
+  console.log('Main Process: Registering user:', payload.email);
+  const res = await sdk.auth.register(payload);
+  activeToken = res.token;
+  if (res.user?.activeWorkspaceId) {
+    customHeaders['x-workspace-id'] = res.user.activeWorkspaceId;
+  }
+  return res;
+});
+
+ipcMain.handle('auth:logout', async () => {
+  console.log('Main Process: Logging out user');
+  try {
+    await sdk.auth.logout();
+  } catch (err) {
+    console.error('Logout error on server:', err);
+  } finally {
+    activeToken = null;
+    delete customHeaders['x-workspace-id'];
+  }
+});
+
+ipcMain.handle('auth:session', async () => {
+  console.log('Main Process: Verifying active token session');
+  if (!activeToken) {
+    return null;
+  }
+  try {
+    const res = await sdk.auth.session();
+    if (res?.user?.activeWorkspaceId) {
+      customHeaders['x-workspace-id'] = res.user.activeWorkspaceId;
+    }
+    return res;
+  } catch (err) {
+    console.warn('Session verification failed, clearing token:', err);
+    activeToken = null;
+    delete customHeaders['x-workspace-id'];
+    return null;
+  }
+});
+
+ipcMain.handle('workspaces:create', async (_event, payload) => {
+  console.log('Main Process: Creating workspace:', payload.name);
+  return sdk.workspaces.create(payload);
+});
+
+ipcMain.handle('workspaces:list', async () => {
+  console.log('Main Process: Listing workspaces');
+  return sdk.workspaces.list();
 });
 
 // Export stubs for backwards compatibility

@@ -8,7 +8,7 @@ export interface UserDocument extends mongoose.Document, SoftDeleteDocument, Aud
   displayName: string;
   image?: string | null;
   avatar?: string | null;
-  role: "admin" | "user" | "owner";
+  role: "ADMIN" | "MEMBER" | "OWNER";
   activeWorkspaceId?: string | null;
   emailVerified: boolean;
   lastLoginAt?: Date | null;
@@ -51,8 +51,8 @@ const userSchema = new Schema<UserDocument>(
     },
     role: {
       type: String,
-      enum: ["admin", "user", "owner"],
-      default: "user",
+      enum: ["ADMIN", "MEMBER", "OWNER"],
+      default: "MEMBER",
     },
     activeWorkspaceId: {
       type: String,

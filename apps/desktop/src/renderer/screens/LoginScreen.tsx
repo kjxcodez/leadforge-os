@@ -17,16 +17,25 @@ export function LoginScreen({
   onLoginSuccess,
 }: LoginScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleSubmit = (data: LoginDto) => {
+  const handleSubmit = async (data: LoginDto) => {
     setIsLoading(true);
+    setErrorMsg(null);
     console.log("Login submitted with details:", data);
 
-    // Simulated local timeout for UX demonstration
-    setTimeout(() => {
+    try {
+      const res = await window.ipc.invoke("auth:login", data);
       setIsLoading(false);
-      onLoginSuccess();
-    }, 1000);
+      if (res && res.token) {
+        onLoginSuccess();
+      } else {
+        setErrorMsg("Authentication failed. Please verify credentials.");
+      }
+    } catch (err: any) {
+      setIsLoading(false);
+      setErrorMsg(err.message || "An unexpected error occurred during login.");
+    }
   };
 
   return (
@@ -35,6 +44,7 @@ export function LoginScreen({
         onSubmit={handleSubmit}
         onNavigateToRegister={onNavigateToRegister}
         isLoading={isLoading}
+        error={errorMsg}
       />
     </AuthenticationLayout>
   );

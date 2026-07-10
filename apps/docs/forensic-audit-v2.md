@@ -285,29 +285,29 @@ The roadmap must be adjusted to account for the remediation phase:
 Below is the concrete engineering checklist to remediate the repository before starting core MVP development.
 
 ### P0: Build, Schema, and Auth Realignment
-- [ ] **Fix compiler error in `@leadforge/auth`**: 
+- [x] **Fix compiler error in `@leadforge/auth`**: 
   - Ensure all paths in Hono's `createAuthMiddleware` in [hono.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/packages/auth/src/middleware/hono.ts) return a value.
-- [ ] **Standardize Global Enum Casing**:
+- [x] **Standardize Global Enum Casing**:
   - Update Mongoose models for `User` ([user.model.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/api/src/db/models/user.model.ts)), `Company` ([company.model.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/api/src/db/models/company.model.ts)), and `Campaign` ([campaign.model.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/api/src/db/models/campaign.model.ts)) to match the uppercase values in `@leadforge/schema` enums.
-- [ ] **Align Better Auth configuration**:
+- [x] **Align Better Auth configuration**:
   - Add Bearer Token plugin support to the Better Auth instance config in [better-auth.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/packages/auth/src/config/better-auth.ts), or modify the SDK HTTP Client to persist and send session cookies.
-- [ ] **Integrate Client SDK in Desktop App**:
+- [x] **Integrate Client SDK in Desktop App**:
   - Add imports for `@leadforge/sdk` in desktop screens. Remove simulated `setTimeout` state updates and connect screens to real SDK methods.
-- [ ] **Configure React Query Provider**:
+- [x] **Configure React Query Provider**:
   - Instantiate `QueryClient` and wrap the root of the desktop app in `QueryClientProvider` in [main.tsx](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/renderer/app/main.tsx).
 
 ### P1: Security Verification
-- [ ] **Secure API Business Endpoints**:
+- [x] **Secure API Business Endpoints**:
   - Mount `authMiddleware` and `workspaceMiddleware` to all `/api/v1` routes in Hono's API [routes/index.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/api/src/routes/index.ts).
-- [ ] **Verify Workspace Membership**:
+- [x] **Verify Workspace Membership**:
   - Update `workspaceMiddleware` in Hono's [middleware/auth.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/api/src/middleware/auth.ts) to verify that the logged-in user belongs to the workspace ID passed in the headers.
 
 ### P2: API & Local Caching Setup
-- [ ] **Correct Route Path Mismatches**:
+- [x] **Correct Route Path Mismatches**:
   - Change the SDK `/register` endpoint to match the API's `/signup` endpoint in [auth.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/packages/sdk/src/modules/auth.ts).
-- [ ] **Mount Missing API Routes**:
+- [x] **Mount Missing API Routes**:
   - Create and register API routers for `/workspaces` and `/discovery` in `apps/api`.
-- [ ] **Remove direct DB Save bypasses**:
+- [x] **Remove direct DB Save bypasses**:
   - Refactor `WorkspaceService.addMember` in [workspace.service.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/api/src/services/workspace/workspace.service.ts) to use a repository-based update instead of direct document `.save()`.
 - [ ] **Install and Configure SQLite Cache**:
   - Install `better-sqlite3` in the desktop client. Create local schema tables and implement the sync-worker process queue.

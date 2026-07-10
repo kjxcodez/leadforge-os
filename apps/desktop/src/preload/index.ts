@@ -10,7 +10,17 @@ contextBridge.exposeInMainWorld('ipc', {
     channel: K,
     payload: IpcChannelMap[K]['input']
   ): Promise<IpcChannelMap[K]['output']> => {
-    const validChannels: Array<string> = ['companies:list', 'companies:create', 'system:status'];
+    const validChannels: Array<string> = [
+      'companies:list',
+      'companies:create',
+      'system:status',
+      'auth:login',
+      'auth:register',
+      'auth:logout',
+      'auth:session',
+      'workspaces:create',
+      'workspaces:list',
+    ];
     if (validChannels.includes(channel as string)) {
       return ipcRenderer.invoke(channel, payload);
     }
@@ -21,7 +31,17 @@ contextBridge.exposeInMainWorld('ipc', {
     channel: K,
     callback: (payload: IpcChannelMap[K]['output']) => void
   ) => {
-    const validChannels: Array<string> = ['companies:list', 'companies:create', 'system:status'];
+    const validChannels: Array<string> = [
+      'companies:list',
+      'companies:create',
+      'system:status',
+      'auth:login',
+      'auth:register',
+      'auth:logout',
+      'auth:session',
+      'workspaces:create',
+      'workspaces:list',
+    ];
     if (validChannels.includes(channel as string)) {
       const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(args[0] as any);
       ipcRenderer.on(channel, listener);
