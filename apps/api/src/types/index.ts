@@ -1,1 +1,1 @@
-export * from '@leadforge/types';
+export * from '@leadforge/schema';

@@ -1,4 +1,4 @@
-import type { User, Session } from '@leadforge/types';
+import type { User, Session } from '@leadforge/schema';
 
 export interface AuthSession extends Session {}
 export interface AuthUser extends User {}

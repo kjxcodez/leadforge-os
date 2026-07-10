@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { IpcChannelMap } from '@leadforge/types';
+import type { IpcChannelMap } from '@leadforge/schema';
 
 contextBridge.exposeInMainWorld('ipc', {
   test: (): Promise<{ status: string; timestamp: number }> => {
@@ -10,7 +10,35 @@ contextBridge.exposeInMainWorld('ipc', {
     channel: K,
     payload: IpcChannelMap[K]['input']
   ): Promise<IpcChannelMap[K]['output']> => {
-    const validChannels: Array<string> = ['companies:list', 'companies:create', 'system:status'];
+    const validChannels: Array<string> = [
+      'companies:list',
+      'companies:create',
+      'system:status',
+      'auth:login',
+      'auth:register',
+      'auth:logout',
+      'auth:session',
+      'workspaces:create',
+      'workspaces:list',
+      'workspaces:update',
+      'workspaces:delete',
+      'workspaces:get',
+      'workspaces:members:list',
+      'workspaces:members:invite',
+      'workspaces:members:updateRole',
+      'workspaces:members:remove',
+      'workspaces:members:leave',
+      'workspaces:members:transferOwnership',
+      'workspaces:invites:list',
+      'workspaces:invites:accept',
+      'workspaces:invites:decline',
+      'electron:setActiveWorkspace',
+      'electron:getActiveWorkspace',
+      'electron:version',
+      'electron:platform',
+      'electron:openUrl',
+      'electron:notify',
+    ];
     if (validChannels.includes(channel as string)) {
       return ipcRenderer.invoke(channel, payload);
     }
@@ -21,7 +49,17 @@ contextBridge.exposeInMainWorld('ipc', {
     channel: K,
     callback: (payload: IpcChannelMap[K]['output']) => void
   ) => {
-    const validChannels: Array<string> = ['companies:list', 'companies:create', 'system:status'];
+    const validChannels: Array<string> = [
+      'companies:list',
+      'companies:create',
+      'system:status',
+      'auth:login',
+      'auth:register',
+      'auth:logout',
+      'auth:session',
+      'workspaces:create',
+      'workspaces:list',
+    ];
     if (validChannels.includes(channel as string)) {
       const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(args[0] as any);
       ipcRenderer.on(channel, listener);

@@ -1,41 +1,51 @@
-import { useState } from "react";
-import { AuthenticationLayout } from "../components/layout/auth-layout";
-import { LoginForm } from "../components/auth/login-form";
-import type { LoginDto } from "@leadforge/types";
-
-interface LoginScreenProps {
-  onNavigateToRegister: () => void;
-  onLoginSuccess: () => void;
-}
+import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import { LoginForm } from '../components/auth/login-form';
+import type { LoginDto } from '@leadforge/schema';
 
 /**
- * Screen wrapper for the Login interface.
- * Connects layout shell with LoginForm component and manages local loading state.
+ * LoginScreen handles user authentication.
+ * It reads auth state from useAuth and delegates navigation to React Router.
+ * No prop callbacks — the router resolves navigation declaratively.
  */
-export function LoginScreen({
-  onNavigateToRegister,
-  onLoginSuccess,
-}: LoginScreenProps) {
+export function LoginScreen() {
+  const navigate = useNavigate();
+  const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleSubmit = (data: LoginDto) => {
+  const handleSubmit = async (data: LoginDto) => {
     setIsLoading(true);
-    console.log("Login submitted with details:", data);
-
-    // Simulated local timeout for UX demonstration
-    setTimeout(() => {
+    setErrorMsg(null);
+    try {
+      await login(data.email, data.password ?? '');
+      navigate('/', { replace: true });
+    } catch (err: any) {
+      setErrorMsg(err.message ?? 'Authentication failed. Please verify your credentials.');
+    } finally {
       setIsLoading(false);
-      onLoginSuccess();
-    }, 1000);
+    }
   };
 
   return (
-    <AuthenticationLayout>
+    <div className="space-y-6 w-full">
       <LoginForm
         onSubmit={handleSubmit}
-        onNavigateToRegister={onNavigateToRegister}
+        onNavigateToRegister={() => navigate('/auth/register')}
         isLoading={isLoading}
+        error={errorMsg}
       />
-    </AuthenticationLayout>
+
+      <p className="text-center text-xs text-muted-foreground">
+        Don&apos;t have an account?{' '}
+        <Link
+          to="/auth/register"
+          className="text-accent hover:underline font-medium"
+        >
+          Request access
+        </Link>
+      </p>
+    </div>
   );
 }

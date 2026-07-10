@@ -24,6 +24,18 @@ export function errorHandler(error: Error, c: Context): Response {
   }
 
   // Handle Mongoose specific validation or query errors safely without exposing DB internals
+  if (error.name === "ZodError") {
+    logger.warn({ reqId, error }, "Zod validation error handled.");
+    const formattedErrors = (error as any).errors?.map((e: any) => ({
+      field: e.path.join("."),
+      message: e.message,
+    })) || null;
+    return c.json(
+      errorResponse("VALIDATION_ERROR", "Validation constraint violation.", formattedErrors),
+      400
+    );
+  }
+
   if (error.name === "ValidationError") {
     logger.warn({ reqId, error }, "Mongoose validation error handled.");
     return c.json(

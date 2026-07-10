@@ -1,4 +1,4 @@
-import { Context, Next } from "hono";
+import type { Context, Next } from "hono";
 import { z } from "@hono/zod-openapi";
 import { ValidationError } from "../errors/index.js";
 

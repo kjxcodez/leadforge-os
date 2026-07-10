@@ -1,5 +1,5 @@
 import { HttpClient } from '../http/client';
-import type { Contact, CreateContactDto, UpdateContactDto, ContactFilters } from '@leadforge/types';
+import type { Contact, CreateContactDto, UpdateContactDto, ContactFilters } from '@leadforge/schema';
 
 export class ContactsModule {
   constructor(private client: HttpClient) {}

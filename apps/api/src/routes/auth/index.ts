@@ -1,47 +1,47 @@
-import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
-import { successResponse } from "../../utils/index.js";
-import { createSuccessResponseSchema, ErrorResponseSchema } from "../../openapi/index.js";
+import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
+import { loginDtoSchema, registerDtoSchema } from "@leadforge/schema";
+import { auth } from "../../config/auth.js";
+import { ErrorResponseSchema } from "../../openapi/index.js";
 
 const router = new OpenAPIHono();
 
-const loginInputSchema = z
-  .object({
-    email: z.string().email().openapi({ example: "admin@leadforge.os" }),
-    password: z.string().min(8).openapi({ example: "securePassword123" }),
-  })
-  .openapi("LoginInput");
+// Helper to forward custom routes to Better Auth handlers
+async function handleBetterAuthRequest(c: any, targetPath: string) {
+  const url = new URL(c.req.url);
+  url.pathname = `/api/v1/auth${targetPath}`;
+  
+  const headers = new Headers(c.req.raw.headers);
+  const body = c.req.method !== "GET" && c.req.method !== "HEAD" ? await c.req.blob() : undefined;
+  
+  const modifiedRequest = new Request(url.toString(), {
+    method: c.req.method,
+    headers,
+    body,
+    duplex: "half",
+  } as any);
 
-const authUserSchema = z
-  .object({
-    id: z.string().openapi({ example: "user-id-123" }),
-    email: z.string().email().openapi({ example: "admin@leadforge.os" }),
-    role: z.string().openapi({ example: "admin" }),
-  })
-  .openapi("AuthUser");
+  return auth.handler(modifiedRequest);
+}
 
+// 1. POST /login
 const loginRoute = createRoute({
   method: "post",
   path: "/login",
-  summary: "User Authentication Login",
+  summary: "User Login",
   description: "Authenticates credentials and establishes session cookie.",
   tags: ["Auth"],
   request: {
     body: {
       content: {
         "application/json": {
-          schema: loginInputSchema,
+          schema: loginDtoSchema,
         },
       },
     },
   },
   responses: {
     200: {
-      content: {
-        "application/json": {
-          schema: createSuccessResponseSchema(authUserSchema, "LoginSuccessResponse"),
-        },
-      },
-      description: "Successfully authenticated session",
+      description: "Successfully logged in",
     },
     400: {
       content: {
@@ -62,16 +62,108 @@ const loginRoute = createRoute({
   },
 });
 
-router.openapi(loginRoute, (c) => {
-  // Authentication route scaffold returning success response.
-  return c.json(
-    successResponse({
-      id: "auth-session-user-id",
-      email: "admin@leadforge.os",
-      role: "admin",
-    }),
-    200
-  );
+router.openapi(loginRoute, async (c) => {
+  const response = await handleBetterAuthRequest(c, "/sign-in/email");
+  if (response.status === 200) {
+    const data = (await response.json()) as any;
+    return c.json({
+      token: data.session.token,
+      user: data.user,
+    });
+  }
+  return response;
+});
+
+// 2. POST /signup
+const signupRoute = createRoute({
+  method: "post",
+  path: "/signup",
+  summary: "User Registration",
+  description: "Registers a new user and establishes a session.",
+  tags: ["Auth"],
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: registerDtoSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Successfully registered and logged in",
+    },
+    400: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: "Invalid parameters or user already exists",
+    },
+  },
+});
+
+router.openapi(signupRoute, async (c) => {
+  const response = await handleBetterAuthRequest(c, "/sign-up/email");
+  if (response.status === 200) {
+    const data = (await response.json()) as any;
+    return c.json({
+      token: data.session.token,
+      user: data.user,
+    });
+  }
+  return response;
+});
+
+// 3. POST /logout
+const logoutRoute = createRoute({
+  method: "post",
+  path: "/logout",
+  summary: "User Logout",
+  description: "Terminates the active session and clears the session cookie.",
+  tags: ["Auth"],
+  responses: {
+    200: {
+      description: "Successfully logged out",
+    },
+  },
+});
+
+router.openapi(logoutRoute, async (c) => {
+  return handleBetterAuthRequest(c, "/sign-out");
+});
+
+// 4. GET /session
+const sessionRoute = createRoute({
+  method: "get",
+  path: "/session",
+  summary: "Get Current Session",
+  description: "Retrieves current authenticated session and user details.",
+  tags: ["Auth"],
+  responses: {
+    200: {
+      description: "Active session details retrieved successfully",
+    },
+    401: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: "Not authenticated",
+    },
+  },
+});
+
+router.openapi(sessionRoute, async (c) => {
+  return handleBetterAuthRequest(c, "/get-session");
+});
+
+// Wildcard routing to support direct Better Auth client SDK requests
+router.on(["GET", "POST"], "/*", async (c) => {
+  return auth.handler(c.req.raw);
 });
 
 export { router };

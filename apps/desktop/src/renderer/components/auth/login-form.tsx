@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { loginDtoSchema } from "@leadforge/validation";
-import type { LoginDto } from "@leadforge/types";
+import { loginDtoSchema } from "@leadforge/schema";
+import type { LoginDto } from "@leadforge/schema";
 import { FormCard } from "./form-card";
 import { AuthHeader } from "./auth-header";
 import { Divider } from "./divider";
@@ -13,6 +13,7 @@ interface LoginFormProps {
   onSubmit: (data: LoginDto) => void;
   onNavigateToRegister: () => void;
   isLoading?: boolean;
+  error?: string | null;
 }
 
 /**
@@ -23,6 +24,7 @@ export function LoginForm({
   onSubmit,
   onNavigateToRegister,
   isLoading = false,
+  error = null,
 }: LoginFormProps) {
   const {
     register,
@@ -44,6 +46,12 @@ export function LoginForm({
       />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+        {error && (
+          <div className="rounded-md bg-red-950/25 border border-red-900/50 p-2 text-center text-[10px] font-medium text-red-400">
+            {error}
+          </div>
+        )}
+
         <div className="space-y-1.5">
           <label
             htmlFor="email"

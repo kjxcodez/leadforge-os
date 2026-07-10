@@ -18,6 +18,12 @@
     }
   },
 
+  "references": [
+    { "path": "../../packages/sdk" },
+    { "path": "../../packages/core" },
+    { "path": "../../packages/schema" }
+  ],
+
   "include": [
     "src/main/**/*",
     "src/preload/**/*",

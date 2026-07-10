@@ -1,6 +1,6 @@
 // Built-in step executor factories/stubs
 import type { StepExecutor, WorkflowExecutionContext } from '../types';
-import type { WorkflowStep } from '@leadforge/types';
+import type { WorkflowStep } from '@leadforge/schema';
 
 export const createConsoleLogExecutor = (): StepExecutor => ({
   type: 'DISCOVER' as any, // fallback or test type
