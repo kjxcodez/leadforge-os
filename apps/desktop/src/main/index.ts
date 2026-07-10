@@ -1,10 +1,42 @@
 import { app, BrowserWindow, ipcMain, shell, Menu } from 'electron';
 import { join } from 'path';
+import fs from 'fs';
 import { is } from '@electron-toolkit/utils';
 import { SdkClient } from '@leadforge/sdk';
 
 // Main window reference
 let mainWindow: BrowserWindow | null = null;
+
+// Local config persistence
+function getLocalConfigPath() {
+  return join(app.getPath('userData'), 'config.json');
+}
+
+function getPersistedActiveWorkspace(): string | null {
+  try {
+    const configPath = getLocalConfigPath();
+    if (fs.existsSync(configPath)) {
+      const data = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      return data.activeWorkspaceId || null;
+    }
+  } catch (err) {
+    console.error('Failed to read local workspace config:', err);
+  }
+  return null;
+}
+
+function persistActiveWorkspace(workspaceId: string | null) {
+  try {
+    const configPath = getLocalConfigPath();
+    const config = fs.existsSync(configPath)
+      ? JSON.parse(fs.readFileSync(configPath, 'utf8'))
+      : {};
+    config.activeWorkspaceId = workspaceId;
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Failed to write local workspace config:', err);
+  }
+}
 
 // SDK client initialization
 const customHeaders: Record<string, string> = {};
@@ -98,8 +130,11 @@ ipcMain.handle('auth:login', async (_event, payload) => {
   console.log('Main Process: Logging in user:', payload.email);
   const res = await sdk.auth.login(payload);
   activeToken = res.token;
-  if (res.user?.activeWorkspaceId) {
-    customHeaders['x-workspace-id'] = res.user.activeWorkspaceId;
+  
+  const savedWorkspaceId = getPersistedActiveWorkspace();
+  const workspaceId = savedWorkspaceId || res.user?.activeWorkspaceId;
+  if (workspaceId) {
+    customHeaders['x-workspace-id'] = workspaceId;
   }
   return res;
 });
@@ -133,8 +168,10 @@ ipcMain.handle('auth:session', async () => {
   }
   try {
     const res = await sdk.auth.session();
-    if (res?.user?.activeWorkspaceId) {
-      customHeaders['x-workspace-id'] = res.user.activeWorkspaceId;
+    const savedWorkspaceId = getPersistedActiveWorkspace();
+    const workspaceId = savedWorkspaceId || res?.user?.activeWorkspaceId;
+    if (workspaceId) {
+      customHeaders['x-workspace-id'] = workspaceId;
     }
     return res;
   } catch (err) {
@@ -155,8 +192,106 @@ ipcMain.handle('workspaces:list', async () => {
   return sdk.workspaces.list();
 });
 
+ipcMain.handle('workspaces:update', async (_event, payload) => {
+  console.log('Main Process: Updating workspace:', payload.id);
+  return sdk.workspaces.update(payload.id, payload.dto);
+});
+
+ipcMain.handle('workspaces:delete', async (_event, payload) => {
+  console.log('Main Process: Deleting workspace:', payload);
+  return sdk.workspaces.delete(payload);
+});
+
+ipcMain.handle('workspaces:get', async (_event, payload) => {
+  console.log('Main Process: Getting workspace details:', payload);
+  return sdk.workspaces.get(payload);
+});
+
+ipcMain.handle('workspaces:members:list', async (_event, payload) => {
+  console.log('Main Process: Listing workspace members:', payload);
+  return sdk.workspaces.listMembers(payload);
+});
+
+ipcMain.handle('workspaces:members:invite', async (_event, payload) => {
+  console.log('Main Process: Inviting member:', payload.id);
+  return sdk.workspaces.inviteMember(payload.id, payload.dto);
+});
+
+ipcMain.handle('workspaces:members:updateRole', async (_event, payload) => {
+  console.log('Main Process: Updating member role:', payload.memberId);
+  return sdk.workspaces.updateMemberRole(payload.id, payload.memberId, payload.role);
+});
+
+ipcMain.handle('workspaces:members:remove', async (_event, payload) => {
+  console.log('Main Process: Removing member:', payload.memberId);
+  return sdk.workspaces.removeMember(payload.id, payload.memberId);
+});
+
+ipcMain.handle('workspaces:members:leave', async (_event, payload) => {
+  console.log('Main Process: Leaving workspace:', payload);
+  return sdk.workspaces.leave(payload);
+});
+
+ipcMain.handle('workspaces:members:transferOwnership', async (_event, payload) => {
+  console.log('Main Process: Transferring ownership:', payload.newOwnerId);
+  return sdk.workspaces.transferOwnership(payload.id, payload.newOwnerId);
+});
+
+ipcMain.handle('workspaces:invites:list', async () => {
+  console.log('Main Process: Listing pending user invites');
+  return sdk.workspaces.listPendingInvites();
+});
+
+ipcMain.handle('workspaces:invites:accept', async (_event, payload) => {
+  console.log('Main Process: Accepting invite:', payload);
+  return sdk.workspaces.acceptInvite(payload);
+});
+
+ipcMain.handle('workspaces:invites:decline', async (_event, payload) => {
+  console.log('Main Process: Declining invite:', payload);
+  return sdk.workspaces.declineInvite(payload);
+});
+
+ipcMain.handle('electron:setActiveWorkspace', (_event, workspaceId) => {
+  console.log('Main Process: Setting active workspace headers:', workspaceId);
+  if (workspaceId) {
+    customHeaders['x-workspace-id'] = workspaceId;
+  } else {
+    delete customHeaders['x-workspace-id'];
+  }
+  persistActiveWorkspace(workspaceId);
+});
+
+ipcMain.handle('electron:getActiveWorkspace', () => {
+  return getPersistedActiveWorkspace();
+});
+
+ipcMain.handle('electron:version', () => {
+  return app.getVersion();
+});
+
+ipcMain.handle('electron:platform', () => {
+  return process.platform;
+});
+
+ipcMain.handle('electron:openUrl', async (_event, url: string) => {
+  if (typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://'))) {
+    await shell.openExternal(url);
+  }
+});
+
+ipcMain.handle('electron:notify', (_event, payload: { title: string; body: string }) => {
+  // Native notifications are handled here in the main process
+  // Notification API is available from Electron's built-in module
+  const { Notification } = require('electron');
+  if (Notification.isSupported()) {
+    new Notification({ title: payload.title, body: payload.body }).show();
+  }
+});
+
 // Export stubs for backwards compatibility
 export function registerIpcHandler() {}
+
 
 // App lifecycle
 app.whenReady().then(() => {
