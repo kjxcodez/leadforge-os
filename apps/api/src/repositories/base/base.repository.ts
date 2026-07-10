@@ -1,5 +1,8 @@
-import type { Model, Document, FilterQuery, ClientSession } from "mongoose";
+import mongoose, { type Model, type Document, type ClientSession } from "mongoose";
 import { NotFoundError, ConflictError, ValidationError, DatabaseError } from "../../errors/index.js";
+
+type FilterQuery<T> = mongoose.FilterQuery<T>;
+
 
 export class BaseRepository<T extends Document> {
   constructor(
@@ -98,7 +101,7 @@ export class BaseRepository<T extends Document> {
         filter,
         { $set: updateData },
         options
-      )) as T | null;
+      )) as unknown as T | null;
 
       if (!doc) {
         throw new NotFoundError(`Resource with id ${id} not found.`);
