@@ -1,4 +1,7 @@
+import { useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { SyncWorker } from '../sync/sync-worker';
 import {
   LayoutDashboard,
   Building2,
@@ -48,6 +51,20 @@ export function AppLayout() {
   const { activeWorkspace } = useWorkspace();
   const { sidebarCollapsed, toggleSidebar } = useUI();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const workspaceId = activeWorkspace?.id;
+    if (workspaceId) {
+      SyncWorker.start(queryClient, workspaceId);
+    } else {
+      SyncWorker.stop();
+    }
+
+    return () => {
+      SyncWorker.stop();
+    };
+  }, [activeWorkspace?.id, queryClient]);
 
   const handleLogout = async () => {
     await logout();

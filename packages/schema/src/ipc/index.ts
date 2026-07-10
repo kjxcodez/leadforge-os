@@ -99,6 +99,116 @@ export interface IpcChannelMap {
     input: void;
     output: string | null;
   };
+
+  // ── CRM API Remote queries ──────────────────────────────────────────────
+  'companies:get': {
+    input: string;
+    output: any;
+  };
+  'companies:update': {
+    input: { id: string; dto: any };
+    output: any;
+  };
+  'companies:delete': {
+    input: string;
+    output: void;
+  };
+  'contacts:get': {
+    input: string;
+    output: any;
+  };
+  'contacts:list': {
+    input: any;
+    output: any[];
+  };
+  'contacts:create': {
+    input: any;
+    output: any;
+  };
+  'contacts:update': {
+    input: { id: string; dto: any };
+    output: any;
+  };
+  'contacts:delete': {
+    input: string;
+    output: void;
+  };
+  'campaigns:get': {
+    input: string;
+    output: any;
+  };
+  'campaigns:list': {
+    input: any;
+    output: any[];
+  };
+  'campaigns:create': {
+    input: any;
+    output: any;
+  };
+  'campaigns:update': {
+    input: { id: string; dto: any };
+    output: any;
+  };
+  'campaigns:delete': {
+    input: string;
+    output: void;
+  };
+
+  // ── Local SQLite Cache Queries ───────────────────────────────────────────
+  'db:find': {
+    input: { tableName: string; workspaceId: string; filter?: any };
+    output: any[];
+  };
+  'db:findById': {
+    input: { tableName: string; id: string };
+    output: any | null;
+  };
+  'db:save': {
+    input: { tableName: string; record: any };
+    output: any;
+  };
+  'db:saveMany': {
+    input: { tableName: string; records: any[] };
+    output: void;
+  };
+  'db:softDelete': {
+    input: { tableName: string; id: string };
+    output: void;
+  };
+  'db:delete': {
+    input: { tableName: string; id: string };
+    output: void;
+  };
+  'db:workspaces:findMany': {
+    input: void;
+    output: any[];
+  };
+  'db:workspaces:saveMany': {
+    input: any[];
+    output: void;
+  };
+
+  // ── Local Offline Sync Queue Queries ─────────────────────────────────────
+  'db:queue:push': {
+    input: any;
+    output: void;
+  };
+  'db:queue:pop': {
+    input: string;
+    output: any | null;
+  };
+  'db:queue:list': {
+    input: string;
+    output: any[];
+  };
+  'db:queue:update': {
+    input: { id: string; retryCount: number; error: string };
+    output: void;
+  };
+  'db:queue:remove': {
+    input: string;
+    output: void;
+  };
 }
 
 export interface IpcRequest<T> {

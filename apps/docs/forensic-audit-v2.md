@@ -130,8 +130,8 @@ The authentication layers contain a major conflict:
 
 ### 4.3 Desktop App is a Mock Shell
 - **Simulated Screens**: Screens such as [CompaniesScreen.tsx](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/renderer/screens/CompaniesScreen.tsx) and [LoginScreen.tsx](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/renderer/screens/LoginScreen.tsx) maintain isolated local component state and do not invoke the client SDK or IPC handlers.
-- **Unused Query Library**: React Query (`@tanstack/react-query`) is declared as a dependency in the desktop app but is not initialized or wrapped around the React tree.
-- **Missing SQLite Cache/Queue**: `leadforge-architecture-v2.md` details an offline SQLite cache and sync queue. However, no SQLite engine (`better-sqlite3` or `sqlite3`) is installed in `apps/desktop/package.json`, and the local caching module is absent.
+- **Unused Query Library**: React Query (`@tanstack/react-query`) is declared as a dependency in the desktop app but is not initialized or wrapped around the React tree. *(Resolved: Initialized in AppProviders and implemented across workspace and CRM pages)*
+- **Missing SQLite Cache/Queue**: `leadforge-architecture-v2.md` details an offline SQLite cache and sync queue. However, no SQLite engine (`better-sqlite3` or `sqlite3`) is installed in `apps/desktop/package.json`, and the local caching module is absent. *(Resolved in Phase 3: Configured better-sqlite3 connection, migration runner, local repositories, IPC mapping, and background sync worker)*
 
 ### 4.4 AI Prompts Package Limitations
 - **Current State**: [packages/prompts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/packages/prompts/src/index.ts) is limited to five static prompt objects and a simple regex interpolation method.
