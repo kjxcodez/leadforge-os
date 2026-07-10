@@ -309,13 +309,13 @@ Below is the concrete engineering checklist to remediate the repository before s
   - Create and register API routers for `/workspaces` and `/discovery` in `apps/api`.
 - [x] **Remove direct DB Save bypasses**:
   - Refactor `WorkspaceService.addMember` in [workspace.service.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/api/src/services/workspace/workspace.service.ts) to use a repository-based update instead of direct document `.save()`.
-- [ ] **Install and Configure SQLite Cache**:
-  - Install `better-sqlite3` in the desktop client. Create local schema tables and implement the sync-worker process queue.
-
+- [x] **Install and Configure SQLite Cache**:
+  - Done as part of Phase 3 prerequisites.
+  
 ### P3: AI & UX Polish
-- [ ] **Extract Reusable Layout**:
-  - Move the sidebar, header, and user profile display out of [App.tsx](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/renderer/app/App.tsx) into a clean, reusable `MainLayout` component. Use React Router outlet hooks.
+- [x] **Extract Reusable Layout**:
+  - Moved the sidebar, header, and user profile display out of App.tsx into a clean, reusable AppLayout.tsx using HashRouter outlets.
 - [ ] **Develop AI Service Layer**:
   - Implement OpenRouter API wrapper inside `@leadforge/prompts` (or rename to `@leadforge/ai`). Add local sqlite-vec embeddings support.
-- [ ] **Create Environment Templates**:
-  - Create a `.env.example` file in the monorepo root and under `apps/api/` containing all required configuration variables.
+- [x] **Create Environment Templates**:
+  - Done as part of Phase 1 and 2 setup.
