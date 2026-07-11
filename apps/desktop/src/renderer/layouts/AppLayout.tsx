@@ -10,7 +10,7 @@ import {
   SidebarProvider,
 } from "../components/ui/sidebar";
 import AppHeader from "./AppHeader";
-import { AppSidebar } from "./AppSidebar";
+import { AppSidebar } from "../components/sidebar/AppSidebar";
 
 
 /**

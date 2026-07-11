@@ -77,7 +77,7 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onSuccess }: CreateW
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="bg-transparent">
             <Button
               type="button"
               variant="outline"

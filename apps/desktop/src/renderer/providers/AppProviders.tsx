@@ -1,11 +1,12 @@
-import React from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from '../components/ui/sonner';
-import { UIProvider } from '../stores/ui-store';
-import { SettingsProvider } from '../stores/settings-store';
-import { AuthProvider } from '../stores/auth-store';
-import { WorkspaceProvider } from '../stores/workspace-store';
-import { ThemeApplier } from './ThemeProvider';
+import React from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "../components/ui/sonner";
+import { UIProvider } from "../stores/ui-store";
+import { SettingsProvider } from "../stores/settings-store";
+import { AuthProvider } from "../stores/auth-store";
+import { WorkspaceProvider } from "../stores/workspace-store";
+import { ThemeApplier } from "./ThemeProvider";
+import { TooltipProvider } from "../components/ui/tooltip";
 
 // ---------------------------------------------------------------------------
 // Global QueryClient
@@ -58,7 +59,7 @@ export function AppProviders({ children }: AppProvidersProps) {
           <AuthProvider>
             <WorkspaceProvider>
               <ThemeApplier />
-              {children}
+              <TooltipProvider>{children}</TooltipProvider>
               <Toaster position="bottom-right" />
             </WorkspaceProvider>
           </AuthProvider>
