@@ -110,7 +110,7 @@ export class WorkspaceService {
 
     // Authorize
     const actorMember = workspace.members.find((m) => m.userId === actorId && m.status === WorkspaceMemberStatus.ACTIVE);
-    if (!actorMember || !canInviteMembers(actorMember.role)) {
+    if (!actorMember || !canInviteMembers(actorMember.role as any)) {
       throw new ForbiddenError("You do not have permission to invite members to this workspace.");
     }
 
@@ -140,7 +140,7 @@ export class WorkspaceService {
     const pendingUser = await this.userRepository.findByEmail(inviteEmail);
 
     const newMember: WorkspaceMember = {
-      userId: pendingUser?.id || null, // Link user ID immediately if they already exist
+      userId: pendingUser?._id?.toString() || null, // Link user ID immediately if they already exist
       email: inviteEmail,
       role: dto.role,
       status: WorkspaceMemberStatus.PENDING,
@@ -160,6 +160,7 @@ export class WorkspaceService {
 
     const memberIndex = workspace.members.findIndex((m) => m.invitationToken === token);
     const member = workspace.members[memberIndex];
+    if (!member) throw new ValidationError("Invitation not found.");
 
     if (member.invitationExpiresAt && member.invitationExpiresAt < new Date()) {
       member.status = WorkspaceMemberStatus.EXPIRED;
@@ -182,7 +183,7 @@ export class WorkspaceService {
     member.invitationExpiresAt = null;
 
     // Persist as user's active workspace
-    user.activeWorkspaceId = workspace.id;
+    user.activeWorkspaceId = workspace._id.toString();
     await user.save();
 
     return workspace.save();
@@ -219,12 +220,12 @@ export class WorkspaceService {
 
     // Authorize actor
     const actorMember = workspace.members.find((m) => m.userId === actorId && m.status === WorkspaceMemberStatus.ACTIVE);
-    if (!actorMember || !canManageMembers(actorMember.role)) {
+    if (!actorMember || !canManageMembers(actorMember.role as any)) {
       throw new ForbiddenError("You do not have permission to update member roles.");
     }
 
     // Locate member to modify
-    const targetMember = workspace.members.find((m) => m.id === memberId || m.userId === memberId);
+    const targetMember = workspace.members.find((m) => (m as any).id === memberId || m.userId === memberId);
     if (!targetMember) throw new NotFoundError("Member not found in workspace.");
 
     if (targetMember.role === WorkspaceRole.OWNER) {
@@ -244,18 +245,18 @@ export class WorkspaceService {
 
     // Authorize actor
     const actorMember = workspace.members.find((m) => m.userId === actorId && m.status === WorkspaceMemberStatus.ACTIVE);
-    if (!actorMember || !canManageMembers(actorMember.role)) {
+    if (!actorMember || !canManageMembers(actorMember.role as any)) {
       throw new ForbiddenError("You do not have permission to remove members.");
     }
 
-    const targetMember = workspace.members.find((m) => m.id === memberId || m.userId === memberId);
+    const targetMember = workspace.members.find((m) => (m as any).id === memberId || m.userId === memberId);
     if (!targetMember) throw new NotFoundError("Member not found in workspace.");
 
     if (targetMember.role === WorkspaceRole.OWNER) {
       throw new ValidationError("Workspace owner cannot be removed. Transfer ownership first.");
     }
 
-    workspace.members = workspace.members.filter((m) => m.id !== targetMember.id && m.userId !== targetMember.userId);
+    workspace.members = workspace.members.filter((m) => (m as any).id !== (targetMember as any).id && m.userId !== targetMember.userId) as any;
     return workspace.save();
   }
 

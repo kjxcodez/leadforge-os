@@ -19,6 +19,7 @@ import { ContactService } from "../services/contact/contact.service.js";
 import { CampaignService } from "../services/campaign/campaign.service.js";
 import { ActivityService } from "../services/activity/activity.service.js";
 import { DiscoveryService } from "../services/discovery/discovery.service.js";
+import { OutreachService } from "../services/outreach/outreach.service.js";
 import { successResponse } from "../utils/index.js";
 import { ForbiddenError } from "../errors/index.js";
 
@@ -342,7 +343,7 @@ const listUserInvitesRoute = createRoute({
 });
 
 workspacesRouter.openapi(listUserInvitesRoute, async (c) => {
-  const user = c.get("user");
+  const user = (c as any).get("user");
   if (!user || !user.email) {
     return c.json(successResponse([]));
   }
@@ -668,6 +669,79 @@ campaignsRouter.delete("/:id", async (c) => {
   await actService.logActivity("campaign_deleted", `Campaign ${campaign?.name || id} was deleted.`);
 
   return c.json(successResponse({ success: true }));
+});
+
+campaignsRouter.post("/:id/schedule", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const service = new OutreachService(wsId);
+  await service.scheduleCampaign(id);
+  return c.json(successResponse({ success: true }));
+});
+
+// ── Outreach Email Accounts & Templates Router ──────────────────────────────
+
+outreachRouter.get("/accounts", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const service = new OutreachService(wsId);
+  const accounts = await service.listEmailAccounts();
+  return c.json(successResponse(accounts));
+});
+
+outreachRouter.post("/accounts", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const body = await c.req.json();
+  const service = new OutreachService(wsId);
+  const account = await service.createEmailAccount(body);
+  return c.json(successResponse(account));
+});
+
+outreachRouter.delete("/accounts/:id", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const service = new OutreachService(wsId);
+  await service.deleteEmailAccount(id);
+  return c.json(successResponse({ success: true }));
+});
+
+outreachRouter.post("/accounts/:id/verify", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const service = new OutreachService(wsId);
+  const verified = await service.testConnection(id);
+  return c.json(successResponse({ verified }));
+});
+
+outreachRouter.get("/templates", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const service = new OutreachService(wsId);
+  const templates = await service.listTemplates();
+  return c.json(successResponse(templates));
+});
+
+outreachRouter.post("/templates", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const body = await c.req.json();
+  const service = new OutreachService(wsId);
+  const template = await service.createTemplate(body);
+  return c.json(successResponse(template));
+});
+
+outreachRouter.delete("/templates/:id", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const service = new OutreachService(wsId);
+  await service.deleteTemplate(id);
+  return c.json(successResponse({ success: true }));
+});
+
+outreachRouter.get("/templates/:id/preview", async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param("id");
+  const contactId = c.req.query("contactId");
+  const service = new OutreachService(wsId);
+  const preview = await service.previewTemplate(id, contactId);
+  return c.json(successResponse(preview));
 });
 
 // ── Activities Router ─────────────────────────────────────────────────────

@@ -7,3 +7,5 @@ export { OutreachModel, type OutreachDocument } from "./outreach.model.js";
 export { ActivityModel, type ActivityDocument } from "./activity.model.js";
 export { DiscoveryJobModel, type DiscoveryJobDocument } from "./discovery-job.model.js";
 export { DiscoveryResultModel, type DiscoveryResultDocument } from "./discovery-result.model.js";
+export { EmailAccountModel, type EmailAccountDocument } from "./email-account.model.js";
+export { EmailTemplateModel, type EmailTemplateDocument } from "./email-template.model.js";

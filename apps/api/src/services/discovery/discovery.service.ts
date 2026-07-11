@@ -1,4 +1,5 @@
-import { DiscoveryJobModel, type DiscoveryJobDocument } from "../../db/models/discovery-job.model.js";
+import { DiscoveryJobModel } from "../../db/models/discovery-job.model.js";
+import type { DiscoveryJobDocument } from "../../db/models/discovery-job.model.js";
 import { DiscoveryResultModel } from "../../db/models/discovery-result.model.js";
 import { CompanyModel } from "../../db/models/company.model.js";
 import { ContactModel } from "../../db/models/contact.model.js";
@@ -13,7 +14,7 @@ export class DiscoveryService {
    */
   public async createJob(name: string, provider: string, query: string): Promise<DiscoveryJobDocument> {
     const job = new DiscoveryJobModel({
-      workspaceId: new mongoose.Types.ObjectId(this.workspaceId),
+      workspaceId: this.workspaceId as any,
       name,
       provider,
       query,
@@ -41,7 +42,7 @@ export class DiscoveryService {
    * Retrieves all discovery jobs in the active workspace.
    */
   public async listJobs(page = 1, limit = 100): Promise<{ data: any[]; total: number }> {
-    const filter = { workspaceId: new mongoose.Types.ObjectId(this.workspaceId) };
+    const filter = { workspaceId: this.workspaceId } as any;
     const query = DiscoveryJobModel.find(filter).sort({ createdAt: -1 });
     
     const data = await query.skip((page - 1) * limit).limit(limit);
@@ -55,9 +56,9 @@ export class DiscoveryService {
    */
   public async getJobById(id: string): Promise<any> {
     return DiscoveryJobModel.findOne({
-      _id: new mongoose.Types.ObjectId(id),
-      workspaceId: new mongoose.Types.ObjectId(this.workspaceId),
-    });
+      _id: id,
+      workspaceId: this.workspaceId,
+    } as any);
   }
 
   /**
@@ -65,9 +66,9 @@ export class DiscoveryService {
    */
   public async getJobResults(jobId: string): Promise<any[]> {
     return DiscoveryResultModel.find({
-      jobId: new mongoose.Types.ObjectId(jobId),
-      workspaceId: new mongoose.Types.ObjectId(this.workspaceId),
-    });
+      jobId: jobId,
+      workspaceId: this.workspaceId,
+    } as any);
   }
 
   /**
@@ -76,9 +77,9 @@ export class DiscoveryService {
   public async skipResult(resultId: string): Promise<any> {
     return DiscoveryResultModel.findOneAndUpdate(
       {
-        _id: new mongoose.Types.ObjectId(resultId),
-        workspaceId: new mongoose.Types.ObjectId(this.workspaceId),
-      },
+        _id: resultId,
+        workspaceId: this.workspaceId,
+      } as any,
       { status: "skipped" },
       { new: true }
     );
@@ -89,9 +90,9 @@ export class DiscoveryService {
    */
   public async importResult(resultId: string): Promise<any> {
     const result = await DiscoveryResultModel.findOne({
-      _id: new mongoose.Types.ObjectId(resultId),
-      workspaceId: new mongoose.Types.ObjectId(this.workspaceId),
-    });
+      _id: resultId,
+      workspaceId: this.workspaceId,
+    } as any);
 
     if (!result) {
       throw new Error("Discovery result not found.");
@@ -103,7 +104,7 @@ export class DiscoveryService {
 
     // 1. Create Company in CRM
     const company = new CompanyModel({
-      workspaceId: new mongoose.Types.ObjectId(this.workspaceId),
+      workspaceId: this.workspaceId as any,
       name: result.companyName,
       domain: result.website || "",
       industry: "Discovered",
@@ -116,7 +117,7 @@ export class DiscoveryService {
     if (result.contacts && result.contacts.length > 0) {
       for (const rawCont of result.contacts) {
         const contact = new ContactModel({
-          workspaceId: new mongoose.Types.ObjectId(this.workspaceId),
+          workspaceId: this.workspaceId as any,
           companyId: company.id,
           firstName: rawCont.firstName,
           lastName: rawCont.lastName || "",
@@ -142,7 +143,7 @@ export class DiscoveryService {
 
     // 5. Create activity log
     const activity = new ActivityModel({
-      workspaceId: new mongoose.Types.ObjectId(this.workspaceId),
+      workspaceId: this.workspaceId as any,
       type: "company_created",
       content: `Imported Company ${company.name} and ${result.contacts.length} contacts from Discovery.`,
     });
