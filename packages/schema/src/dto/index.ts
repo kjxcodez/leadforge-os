@@ -4,3 +4,4 @@ export * from './company.js';
 export * from './contact.js';
 export * from './outreach.js';
 export * from './workspace.js';
+export * from './automation.js';

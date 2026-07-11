@@ -8,6 +8,7 @@ import { OutreachModel } from "../../db/models/outreach.model.js";
 import { ActivityModel } from "../../db/models/activity.model.js";
 import { encrypt, decrypt } from "../../utils/encryption.js";
 import { GmailSmtpProvider } from "./provider.js";
+import { AutomationService } from "../automation/automation.service.js";
 import mongoose from "mongoose";
 
 const provider = new GmailSmtpProvider();
@@ -109,6 +110,68 @@ export class OutreachService {
     await acc.save();
 
     return ok;
+  }
+
+  /**
+   * Sends a single email to a contact using a template and connected workspace credentials.
+   */
+  public async sendSingleEmail(contactId: string, templateId: string): Promise<any> {
+    const account = await EmailAccountModel.findOne({
+      workspaceId: this.workspaceId,
+      status: 'connected',
+    } as any);
+
+    if (!account) throw new Error('No connected email account for workspace.');
+
+    const contact = await ContactModel.findById(contactId);
+    if (!contact || !contact.email) throw new Error('Contact or contact email not found.');
+
+    const rendered = await this.previewTemplate(templateId, contactId);
+
+    const pass = decrypt(account.encryptedPassword);
+    const smtpConfig = {
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user: account.email, pass },
+    };
+
+    const sendResult = await provider.sendEmail(
+      smtpConfig,
+      contact.email,
+      rendered.subject,
+      rendered.body
+    );
+
+    const log = new OutreachModel({
+      workspaceId: this.workspaceId,
+      campaignId: null,
+      companyId: contact.companyId ? contact.companyId.toString() : null,
+      contactId: contact._id.toString(),
+      provider: 'email',
+      status: 'sent',
+      attempts: 1,
+      lastSentAt: new Date(),
+      messageDetails: {
+        messageId: sendResult.messageId,
+        subject: rendered.subject,
+        body: rendered.body,
+      },
+    });
+    await log.save();
+
+    await EmailAccountModel.findByIdAndUpdate(account._id, {
+      $inc: { dailySent: 1, hourlySent: 1 },
+    });
+
+    // Trigger automation sequence event
+    const autoService = new AutomationService(this.workspaceId);
+    await autoService.handleEvent("EMAIL_SENT", {
+      contactId: contact._id.toString(),
+      ...(contact.companyId ? { companyId: contact.companyId.toString() } : {})
+    });
+
+    return log;
   }
 
   // ── Email Templates Management ──────────────────────────────────────────
@@ -324,6 +387,13 @@ export class OutreachService {
           $inc: { dailySent: 1, hourlySent: 1 },
         });
 
+        // Trigger EMAIL_SENT automation event
+        const autoService = new AutomationService(campaign.workspaceId.toString());
+        await autoService.handleEvent("EMAIL_SENT", {
+          contactId: c._id.toString(),
+          ...(c.companyId ? { companyId: c.companyId.toString() } : {})
+        });
+
       } catch (err: any) {
         console.error(`[OutreachService] Failed sending to contact ${c.email}:`, err);
         log.status = 'failed';
@@ -337,6 +407,10 @@ export class OutreachService {
     // Complete campaign
     campaign.status = 'COMPLETED';
     await campaign.save();
+
+    // Trigger CAMPAIGN_COMPLETED automation event
+    const autoService = new AutomationService(campaign.workspaceId.toString());
+    await autoService.handleEvent("CAMPAIGN_COMPLETED", {});
 
     await this.logWorkspaceActivity(`Outreach Campaign ${campaign.name} successfully finished sending.`);
   }

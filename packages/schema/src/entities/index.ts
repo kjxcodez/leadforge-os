@@ -7,3 +7,4 @@ export * from './opportunity.js';
 export * from './outreach.js';
 export * from './session.js';
 export * from './user.js';
+export * from './automation.js';

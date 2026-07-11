@@ -273,6 +273,46 @@ export interface IpcChannelMap {
     input: string;
     output: void;
   };
+  'sequence:list': {
+    input: void;
+    output: any[];
+  };
+  'sequence:get': {
+    input: string;
+    output: any;
+  };
+  'sequence:create': {
+    input: any;
+    output: any;
+  };
+  'sequence:update': {
+    input: { id: string; dto: any };
+    output: any;
+  };
+  'sequence:delete': {
+    input: string;
+    output: void;
+  };
+  'sequence:start': {
+    input: { sequenceId: string; contactId?: string | null; companyId?: string | null };
+    output: any;
+  };
+  'sequence:stop': {
+    input: string;
+    output: any;
+  };
+  'execution:list': {
+    input: void;
+    output: any[];
+  };
+  'execution:get': {
+    input: string;
+    output: any;
+  };
+  'execution:logs': {
+    input: string;
+    output: any[];
+  };
 }
 
 export interface IpcRequest<T> {
