@@ -222,6 +222,64 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_templates_workspaceId ON templates (workspaceId);
     `,
   },
+  {
+    name: '004_automation_schema',
+    up: `
+      CREATE TABLE IF NOT EXISTS sequences (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL,
+        trigger TEXT NOT NULL,
+        steps TEXT NOT NULL,
+        createdBy TEXT,
+        syncStatus TEXT DEFAULT 'synced',
+        version INTEGER DEFAULT 1,
+        createdAt DATETIME,
+        updatedAt DATETIME,
+        deletedAt DATETIME DEFAULT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS sequence_executions (
+        id TEXT PRIMARY KEY,
+        sequenceId TEXT NOT NULL,
+        workspaceId TEXT NOT NULL,
+        companyId TEXT,
+        contactId TEXT,
+        currentStep INTEGER DEFAULT 0,
+        status TEXT NOT NULL,
+        startedAt DATETIME,
+        completedAt DATETIME,
+        nextExecutionAt DATETIME,
+        logs TEXT,
+        syncStatus TEXT DEFAULT 'synced',
+        version INTEGER DEFAULT 1,
+        createdAt DATETIME,
+        updatedAt DATETIME,
+        deletedAt DATETIME DEFAULT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS sequence_logs (
+        id TEXT PRIMARY KEY,
+        executionId TEXT NOT NULL,
+        workspaceId TEXT NOT NULL,
+        timestamp DATETIME,
+        step INTEGER,
+        action TEXT NOT NULL,
+        status TEXT NOT NULL,
+        message TEXT,
+        syncStatus TEXT DEFAULT 'synced',
+        version INTEGER DEFAULT 1,
+        createdAt DATETIME,
+        updatedAt DATETIME
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sequences_workspaceId ON sequences (workspaceId);
+      CREATE INDEX IF NOT EXISTS idx_sequence_executions_workspaceId ON sequence_executions (workspaceId);
+      CREATE INDEX IF NOT EXISTS idx_sequence_logs_workspaceId ON sequence_logs (workspaceId);
+    `,
+  },
 ];
 
 /**

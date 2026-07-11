@@ -4,8 +4,12 @@ import {
   RemoteContactRepository,
   RemoteCampaignRepository,
   RemoteActivityRepository,
-  RemoteDiscoveryJobRepository
+  RemoteDiscoveryJobRepository,
+  RemoteSequenceRepository,
+  RemoteSequenceExecutionRepository,
+  RemoteSequenceLogRepository,
 } from './remote';
+
 
 // ---------------------------------------------------------------------------
 // Base SyncRepository Class
@@ -182,3 +186,7 @@ export const SyncContactRepository = new BaseSyncRepository<any>('contacts', Rem
 export const SyncCampaignRepository = new BaseSyncRepository<any>('campaigns', RemoteCampaignRepository);
 export const SyncActivityRepository = new BaseSyncRepository<any>('activities', RemoteActivityRepository);
 export const SyncDiscoveryJobRepository = new BaseSyncRepository<any>('discovery_jobs', RemoteDiscoveryJobRepository);
+export const SyncSequenceRepository = new BaseSyncRepository<any>('sequences', RemoteSequenceRepository);
+export const SyncSequenceExecutionRepository = new BaseSyncRepository<any>('sequence_executions', RemoteSequenceExecutionRepository);
+export const SyncSequenceLogRepository = new BaseSyncRepository<any>('sequence_logs', RemoteSequenceLogRepository);
+

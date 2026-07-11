@@ -32,7 +32,7 @@ const NAV_ITEMS = [
   { to: '/contacts', label: 'Contacts', icon: Users },
   { to: '/campaigns', label: 'Campaigns', icon: Megaphone },
   { to: '/discovery', label: 'Discovery', icon: Search },
-  { to: '/workflows', label: 'Workflows', icon: GitBranch },
+  { to: '/automation', label: 'Automation', icon: GitBranch },
   { to: '/reports', label: 'Reports', icon: BarChart3 },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];

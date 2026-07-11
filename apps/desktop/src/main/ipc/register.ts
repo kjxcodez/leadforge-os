@@ -6,6 +6,7 @@ import { registerDiscoveryIpc } from './discovery';
 import { registerElectronIpc } from './electron';
 import { registerDatabaseIpc } from './database';
 import { registerOutreachIpc } from './outreach';
+import { registerAutomationIpc } from './automation';
 
 /**
  * Orchestrates and registers all IPC channels exactly once, utilizing safeRegister
@@ -34,4 +35,5 @@ export function registerAllIpc(
   registerDiscoveryIpc(sdk);
   registerElectronIpc(setWorkspaceHeader, persistActiveWorkspace, getPersistedActiveWorkspace);
   registerOutreachIpc(sdk);
+  registerAutomationIpc(sdk);
 }

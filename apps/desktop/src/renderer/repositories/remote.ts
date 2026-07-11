@@ -124,3 +124,86 @@ export const RemoteDiscoveryJobRepository: IRemoteRepository<any> = {
     return;
   },
 };
+
+/**
+ * RemoteSequenceRepository wraps remote automation sequence API communication.
+ */
+export const RemoteSequenceRepository: IRemoteRepository<any> = {
+  async get(id: string): Promise<any> {
+    return window.ipc.invoke('sequence:get', id);
+  },
+
+  async list(filter?: Record<string, any>): Promise<any[]> {
+    return window.ipc.invoke('sequence:list', undefined);
+  },
+
+  async create(data: Record<string, any>): Promise<any> {
+    return window.ipc.invoke('sequence:create', data);
+  },
+
+  async update(id: string, data: Record<string, any>): Promise<any> {
+    return window.ipc.invoke('sequence:update', { id, dto: data });
+  },
+
+  async delete(id: string): Promise<void> {
+    return window.ipc.invoke('sequence:delete', id);
+  },
+};
+
+/**
+ * RemoteSequenceExecutionRepository wraps remote sequence execution API communication.
+ */
+export const RemoteSequenceExecutionRepository: IRemoteRepository<any> = {
+  async get(id: string): Promise<any> {
+    return window.ipc.invoke('execution:get', id);
+  },
+
+  async list(filter?: Record<string, any>): Promise<any[]> {
+    return window.ipc.invoke('execution:list', undefined);
+  },
+
+  async create(data: Record<string, any>): Promise<any> {
+    return window.ipc.invoke('sequence:start', {
+      sequenceId: data.sequenceId,
+      contactId: data.contactId,
+      companyId: data.companyId,
+    });
+  },
+
+  async update(id: string, data: Record<string, any>): Promise<any> {
+    if (data.status === 'STOPPED') {
+      return window.ipc.invoke('sequence:stop', id);
+    }
+    return null;
+  },
+
+  async delete(id: string): Promise<void> {
+    return;
+  },
+};
+
+/**
+ * RemoteSequenceLogRepository wraps remote sequence execution logs API communication.
+ */
+export const RemoteSequenceLogRepository: IRemoteRepository<any> = {
+  async get(id: string): Promise<any> {
+    return null;
+  },
+
+  async list(filter?: Record<string, any>): Promise<any[]> {
+    if (!filter?.executionId) return [];
+    return window.ipc.invoke('execution:logs', filter.executionId);
+  },
+
+  async create(data: Record<string, any>): Promise<any> {
+    return null;
+  },
+
+  async update(id: string, data: Record<string, any>): Promise<any> {
+    return null;
+  },
+
+  async delete(id: string): Promise<void> {
+    return;
+  },
+};

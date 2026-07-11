@@ -3,8 +3,11 @@ import { QueueProcessor } from './queue-processor';
 import {
   SyncCompanyRepository,
   SyncContactRepository,
-  SyncCampaignRepository
+  SyncCampaignRepository,
+  SyncSequenceRepository,
+  SyncSequenceExecutionRepository,
 } from '../repositories/sync';
+
 
 let pollerInterval: any = null;
 
@@ -63,6 +66,8 @@ export const SyncWorker = {
         SyncCompanyRepository.listAndSync(workspaceId),
         SyncContactRepository.listAndSync(workspaceId),
         SyncCampaignRepository.listAndSync(workspaceId),
+        SyncSequenceRepository.listAndSync(workspaceId),
+        SyncSequenceExecutionRepository.listAndSync(workspaceId),
       ]);
 
       // C. Invalidate TanStack query client caches to update renderer UI
