@@ -7,3 +7,4 @@ export * from './outreach';
 export * from './workspaces';
 export * from './discovery';
 export * from './activities';
+export * from './automation';

@@ -10,6 +10,8 @@ import {
   WorkspacesModule,
   DiscoveryModule,
   ActivitiesModule,
+  SequencesModule,
+  ExecutionsModule,
 } from '../modules';
 
 export class SdkClient {
@@ -24,6 +26,8 @@ export class SdkClient {
   public readonly workspaces: WorkspacesModule;
   public readonly discovery: DiscoveryModule;
   public readonly activities: ActivitiesModule;
+  public readonly sequences: SequencesModule;
+  public readonly executions: ExecutionsModule;
 
   constructor(config: HttpClientConfig) {
     this.httpClient = new HttpClient(config);
@@ -37,5 +41,7 @@ export class SdkClient {
     this.workspaces = new WorkspacesModule(this.httpClient);
     this.discovery = new DiscoveryModule(this.httpClient);
     this.activities = new ActivitiesModule(this.httpClient);
+    this.sequences = new SequencesModule(this.httpClient);
+    this.executions = new ExecutionsModule(this.httpClient);
   }
 }
