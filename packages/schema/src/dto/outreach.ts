@@ -27,3 +27,22 @@ export const outreachListResponseSchema = z.object({
   total: z.number(),
 });
 export type OutreachListResponse = z.infer<typeof outreachListResponseSchema>;
+
+export const createEmailAccountDtoSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  provider: z.string(),
+  password: z.string().min(1), // raw App Password for connect verification
+  dailyLimit: z.number().int().optional(),
+  hourlyLimit: z.number().int().optional(),
+  signature: z.string().optional(),
+});
+export type CreateEmailAccountDto = z.infer<typeof createEmailAccountDtoSchema>;
+
+export const createEmailTemplateDtoSchema = z.object({
+  name: z.string().min(1),
+  subject: z.string().min(1),
+  body: z.string().min(1),
+  variables: z.array(z.string()).default([]),
+});
+export type CreateEmailTemplateDto = z.infer<typeof createEmailTemplateDtoSchema>;

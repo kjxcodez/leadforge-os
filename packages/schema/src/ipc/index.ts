@@ -237,6 +237,42 @@ export interface IpcChannelMap {
     input: string;
     output: any;
   };
+  'email-accounts:list': {
+    input: void;
+    output: any[];
+  };
+  'email-accounts:create': {
+    input: any;
+    output: any;
+  };
+  'email-accounts:delete': {
+    input: string;
+    output: void;
+  };
+  'email-accounts:test': {
+    input: string;
+    output: { verified: boolean };
+  };
+  'templates:list': {
+    input: void;
+    output: any[];
+  };
+  'templates:create': {
+    input: any;
+    output: any;
+  };
+  'templates:delete': {
+    input: string;
+    output: void;
+  };
+  'templates:preview': {
+    input: { id: string; contactId?: string };
+    output: { subject: string; body: string };
+  };
+  'campaigns:schedule': {
+    input: string;
+    output: void;
+  };
 }
 
 export interface IpcRequest<T> {
