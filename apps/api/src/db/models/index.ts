@@ -9,3 +9,6 @@ export { DiscoveryJobModel, type DiscoveryJobDocument } from "./discovery-job.mo
 export { DiscoveryResultModel, type DiscoveryResultDocument } from "./discovery-result.model.js";
 export { EmailAccountModel, type EmailAccountDocument } from "./email-account.model.js";
 export { EmailTemplateModel, type EmailTemplateDocument } from "./email-template.model.js";
+export { SequenceModel, type SequenceDocument } from "./sequence.model.js";
+export { SequenceExecutionModel, type SequenceExecutionDocument } from "./sequence-execution.model.js";
+export { SequenceLogModel, type SequenceLogDocument } from "./sequence-log.model.js";
