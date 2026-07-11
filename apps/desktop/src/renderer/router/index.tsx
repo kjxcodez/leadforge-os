@@ -17,6 +17,7 @@ import DashboardScreen from '../screens/DashboardScreen';
 import CompaniesScreen from '../screens/CompaniesScreen';
 import ContactsScreen from '../screens/ContactsScreen';
 import DiscoveryScreen from '../screens/DiscoveryScreen';
+import CampaignsScreen from '../screens/CampaignsScreen';
 
 // ---------------------------------------------------------------------------
 // Session Bootstrap
@@ -109,7 +110,7 @@ const router = createHashRouter([
           },
           { path: '/companies', element: <CompaniesScreen /> },
           { path: '/contacts', element: <ContactsScreen /> },
-          { path: '/campaigns', element: <ComingSoon label="Campaigns" /> },
+          { path: '/campaigns', element: <CampaignsScreen /> },
           { path: '/discovery', element: <DiscoveryScreen /> },
           { path: '/workflows', element: <ComingSoon label="Workflows" /> },
           { path: '/reports', element: <ComingSoon label="Reports" /> },

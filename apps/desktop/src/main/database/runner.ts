@@ -180,6 +180,48 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_discovery_results_workspaceId ON discovery_results (workspaceId);
     `,
   },
+  {
+    name: '003_outreach_schema',
+    up: `
+      CREATE TABLE IF NOT EXISTS email_accounts (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        status TEXT NOT NULL,
+        dailyLimit INTEGER NOT NULL DEFAULT 200,
+        hourlyLimit INTEGER NOT NULL DEFAULT 50,
+        dailySent INTEGER NOT NULL DEFAULT 0,
+        hourlySent INTEGER NOT NULL DEFAULT 0,
+        signature TEXT,
+        lastVerifiedAt TEXT,
+        lastError TEXT,
+        syncStatus TEXT DEFAULT 'synced',
+        version INTEGER DEFAULT 1,
+        createdAt DATETIME,
+        updatedAt DATETIME,
+        deletedAt DATETIME DEFAULT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS templates (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        name TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        body TEXT NOT NULL,
+        variables TEXT NOT NULL,
+        syncStatus TEXT DEFAULT 'synced',
+        version INTEGER DEFAULT 1,
+        createdAt DATETIME,
+        updatedAt DATETIME,
+        deletedAt DATETIME DEFAULT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_email_accounts_workspaceId ON email_accounts (workspaceId);
+      CREATE INDEX IF NOT EXISTS idx_templates_workspaceId ON templates (workspaceId);
+    `,
+  },
 ];
 
 /**

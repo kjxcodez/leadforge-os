@@ -52,18 +52,18 @@ interface AppProvidersProps {
  */
 export function AppProviders({ children }: AppProvidersProps) {
   return (
-    <UIProvider>
-      <SettingsProvider>
-        <AuthProvider>
-          <WorkspaceProvider>
-            <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClient}>
+      <UIProvider>
+        <SettingsProvider>
+          <AuthProvider>
+            <WorkspaceProvider>
               <ThemeApplier />
               {children}
               <Toaster position="bottom-right" />
-            </QueryClientProvider>
-          </WorkspaceProvider>
-        </AuthProvider>
-      </SettingsProvider>
-    </UIProvider>
+            </WorkspaceProvider>
+          </AuthProvider>
+        </SettingsProvider>
+      </UIProvider>
+    </QueryClientProvider>
   );
 }
