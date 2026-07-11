@@ -114,9 +114,11 @@ const createWorkspaceRoute = createRoute({
 workspacesRouter.openapi(createWorkspaceRoute, async (c) => {
   const body = c.req.valid("json");
   const userId = getUserId(c);
+  const user = (c as any).get("user") as any;
   const workspace = await workspaceService.createWorkspace({
     ...body,
     ownerId: userId,
+    ownerEmail: user?.email ?? "",
   });
   return c.json(successResponse(workspace));
 });

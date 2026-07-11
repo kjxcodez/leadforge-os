@@ -2,6 +2,8 @@ import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { loginDtoSchema, registerDtoSchema } from "@leadforge/schema";
 import { auth } from "../../config/auth.js";
 import { ErrorResponseSchema } from "../../openapi/index.js";
+import { successResponse } from "../../utils/index.js";
+import { ApiError } from "../../errors/index.js";
 
 const router = new OpenAPIHono();
 
@@ -63,15 +65,25 @@ const loginRoute = createRoute({
 });
 
 router.openapi(loginRoute, async (c) => {
-  const response = await handleBetterAuthRequest(c, "/sign-in/email");
-  if (response.status === 200) {
-    const data = (await response.json()) as any;
-    return c.json({
-      token: data.session.token,
-      user: data.user,
+  try {
+    const body = await c.req.json();
+    const res = await auth.api.signInEmail({
+      body: {
+        email: body.email,
+        password: body.password,
+      },
+      headers: c.req.raw.headers,
     });
+    return c.json(successResponse({
+      token: res.token,
+      user: res.user,
+    }));
+  } catch (err: any) {
+    console.error('[DEBUG] Hono Auth sign-in caught error:', err);
+    const msg = err.message || "Invalid credentials.";
+    const status = err.status || 401;
+    throw new ApiError(status, status === 401 ? "UNAUTHORIZED" : "BAD_REQUEST", msg);
   }
-  return response;
 });
 
 // 2. POST /signup
@@ -106,15 +118,26 @@ const signupRoute = createRoute({
 });
 
 router.openapi(signupRoute, async (c) => {
-  const response = await handleBetterAuthRequest(c, "/sign-up/email");
-  if (response.status === 200) {
-    const data = (await response.json()) as any;
-    return c.json({
-      token: data.session.token,
-      user: data.user,
+  try {
+    const body = await c.req.json();
+    const res = await auth.api.signUpEmail({
+      body: {
+        email: body.email,
+        password: body.password,
+        name: body.name,
+      },
+      headers: c.req.raw.headers,
     });
+    return c.json(successResponse({
+      token: res.token,
+      user: res.user,
+    }));
+  } catch (err: any) {
+    console.error('[DEBUG] Hono Auth sign-up caught error:', err);
+    const msg = err.message || "Registration failed.";
+    const status = err.status || 400;
+    throw new ApiError(status, status === 409 ? "CONFLICT" : "BAD_REQUEST", msg);
   }
-  return response;
 });
 
 // 3. POST /logout
@@ -132,7 +155,15 @@ const logoutRoute = createRoute({
 });
 
 router.openapi(logoutRoute, async (c) => {
-  return handleBetterAuthRequest(c, "/sign-out");
+  try {
+    await auth.api.signOut({
+      headers: c.req.raw.headers,
+    });
+    return c.json(successResponse({ success: true }));
+  } catch (err: any) {
+    console.error('[DEBUG] Hono Auth sign-out caught error:', err);
+    return c.json(successResponse({ success: true }));
+  }
 });
 
 // 4. GET /session
@@ -158,7 +189,21 @@ const sessionRoute = createRoute({
 });
 
 router.openapi(sessionRoute, async (c) => {
-  return handleBetterAuthRequest(c, "/get-session");
+  try {
+    const res = await auth.api.getSession({
+      headers: c.req.raw.headers,
+    });
+    if (!res || !res.session) {
+      return c.json(successResponse(null));
+    }
+    return c.json(successResponse({
+      token: res.session.token,
+      user: res.user,
+    }));
+  } catch (err: any) {
+    console.error('[DEBUG] Hono Auth session caught error:', err);
+    return c.json(successResponse(null));
+  }
 });
 
 // Wildcard routing to support direct Better Auth client SDK requests

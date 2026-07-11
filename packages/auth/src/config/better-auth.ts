@@ -1,5 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { bearer } from 'better-auth/plugins';
+import { mongodbAdapter } from 'better-auth/adapters/mongodb';
+import { MongoClient } from 'mongodb';
 
 export interface BetterAuthConfigOptions {
   secret: string;
@@ -9,13 +11,13 @@ export interface BetterAuthConfigOptions {
 }
 
 export function createBetterAuth(options: BetterAuthConfigOptions) {
+  const client = new MongoClient(options.mongodbUri);
+  const db = client.db();
+
   return betterAuth({
     secret: options.secret,
     baseURL: options.baseUrl,
-    database: {
-      db: options.mongodbUri,
-      provider: 'mongodb',
-    },
+    database: mongodbAdapter(db),
     emailAndPassword: {
       enabled: true,
     },

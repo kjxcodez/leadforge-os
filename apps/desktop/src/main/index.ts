@@ -62,7 +62,7 @@ function createWindow() {
     minHeight: 600,
     show: false,
     webPreferences: {
-      preload: join(__dirname, '../../preload/index.js'),
+      preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
@@ -84,6 +84,7 @@ function createWindow() {
   // Show window when ready
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show();
+    mainWindow?.webContents.openDevTools();
   });
 
   // Handle window closed

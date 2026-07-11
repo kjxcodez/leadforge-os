@@ -42,10 +42,12 @@ async function run() {
   const workspace1 = await workspaceService.createWorkspace({
     name: "Test Workspace 1",
     ownerId: user._id.toString(),
+    ownerEmail: user.email,
   });
   const workspace2 = await workspaceService.createWorkspace({
     name: "Test Workspace 2",
     ownerId: user._id.toString(),
+    ownerEmail: user.email,
   });
   console.log("✅ Workspaces created:", workspace1.slug, workspace2.slug);
 

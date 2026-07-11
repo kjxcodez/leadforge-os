@@ -41,13 +41,9 @@ export class WorkspaceService {
     return this.workspaceRepository.findUserWorkspaces(userId);
   }
 
-  public async createWorkspace(dto: CreateWorkspaceDto & { ownerId: string }): Promise<WorkspaceDocument> {
+  public async createWorkspace(dto: CreateWorkspaceDto & { ownerId: string; ownerEmail: string }): Promise<WorkspaceDocument> {
     const validated = createWorkspaceDtoSchema.parse(dto);
     const slug = slugify(validated.name);
-
-    // Fetch owner to get their email
-    const owner = await this.userRepository.findById(dto.ownerId);
-    if (!owner) throw new NotFoundError("Workspace owner user not found.");
 
     return this.workspaceRepository.create({
       name: validated.name,
@@ -58,7 +54,7 @@ export class WorkspaceService {
       members: [
         {
           userId: dto.ownerId,
-          email: owner.email,
+          email: dto.ownerEmail,
           role: WorkspaceRole.OWNER,
           status: WorkspaceMemberStatus.ACTIVE,
           joinedAt: new Date(),
