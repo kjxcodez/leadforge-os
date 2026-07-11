@@ -4,6 +4,7 @@ import { DiscoveryResultModel } from "../../db/models/discovery-result.model.js"
 import { CompanyModel } from "../../db/models/company.model.js";
 import { ContactModel } from "../../db/models/contact.model.js";
 import { ActivityModel } from "../../db/models/activity.model.js";
+import { AutomationService } from "../automation/automation.service.js";
 import mongoose from "mongoose";
 
 export class DiscoveryService {
@@ -114,6 +115,7 @@ export class DiscoveryService {
     await company.save();
 
     // 2. Create associated contacts
+    const autoService = new AutomationService(this.workspaceId);
     if (result.contacts && result.contacts.length > 0) {
       for (const rawCont of result.contacts) {
         const contact = new ContactModel({
@@ -129,12 +131,18 @@ export class DiscoveryService {
           source: "discovery",
         });
         await contact.save();
+
+        // Trigger contact creation sequence
+        await autoService.handleEvent("CONTACT_CREATED", { contactId: contact.id, companyId: company.id });
       }
     }
 
     // 3. Mark as imported
     result.status = "imported";
     await result.save();
+
+    // Trigger discovery import completed sequence
+    await autoService.handleEvent("DISCOVERY_IMPORT_COMPLETED", { companyId: company.id });
 
     // 4. Update job statistics count
     await DiscoveryJobModel.findByIdAndUpdate(result.jobId, {
