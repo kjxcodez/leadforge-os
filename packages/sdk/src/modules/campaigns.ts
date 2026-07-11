@@ -26,4 +26,7 @@ export class CampaignsModule {
   public async delete(id: string): Promise<void> {
     return this.client.delete<void>(`/campaigns/${id}`);
   }
+  public async schedule(id: string): Promise<void> {
+    return this.client.post<void>(`/campaigns/${id}/schedule`, {});
+  }
 }
