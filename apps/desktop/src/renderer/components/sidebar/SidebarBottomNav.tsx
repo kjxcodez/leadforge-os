@@ -84,22 +84,22 @@ const SidebarBottomNav = ({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem disabled className="cursor-not-allowed">
                 <Sparkles />
                 Upgrade to Pro
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem disabled className="cursor-not-allowed">
                 <BadgeCheck />
                 Account
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem disabled className="cursor-not-allowed">
                 <CreditCard />
                 Billing
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem disabled className="cursor-not-allowed">
                 <Bell />
                 Notifications
               </DropdownMenuItem>
