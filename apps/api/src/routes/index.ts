@@ -10,6 +10,7 @@ import {
   discoveryRouter,
   activitiesRouter,
 } from "./business.js";
+import { automationRouter } from "./automation.js";
 
 import { authMiddleware, workspaceMiddleware } from "../middleware/auth.js";
 
@@ -29,6 +30,7 @@ apiRouter.use("/outreach/*", authMiddleware, workspaceMiddleware);
 apiRouter.use("/workspaces/*", authMiddleware, workspaceMiddleware);
 apiRouter.use("/discovery/*", authMiddleware, workspaceMiddleware);
 apiRouter.use("/activities/*", authMiddleware, workspaceMiddleware);
+apiRouter.use("/automation/*", authMiddleware, workspaceMiddleware);
 
 // Mount empty placeholder business routers
 apiRouter.route("/companies", companiesRouter);
@@ -38,6 +40,7 @@ apiRouter.route("/outreach", outreachRouter);
 apiRouter.route("/workspaces", workspacesRouter);
 apiRouter.route("/discovery", discoveryRouter);
 apiRouter.route("/activities", activitiesRouter);
+apiRouter.route("/automation", automationRouter);
 
 export { apiRouter };
 export { healthRouter, authRouter };

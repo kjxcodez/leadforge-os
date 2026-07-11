@@ -20,6 +20,7 @@ import { CampaignService } from "../services/campaign/campaign.service.js";
 import { ActivityService } from "../services/activity/activity.service.js";
 import { DiscoveryService } from "../services/discovery/discovery.service.js";
 import { OutreachService } from "../services/outreach/outreach.service.js";
+import { AutomationService } from "../services/automation/automation.service.js";
 import { successResponse } from "../utils/index.js";
 import { ForbiddenError } from "../errors/index.js";
 
@@ -520,6 +521,10 @@ companiesRouter.post("/", async (c) => {
   const actService = new ActivityService(wsId);
   await actService.logActivity("company_created", `Company ${company.name} was created.`);
 
+  // Trigger automation sequence
+  const autoService = new AutomationService(wsId);
+  await autoService.handleEvent("COMPANY_CREATED", { companyId: company._id.toString() });
+
   return c.json(successResponse(company));
 });
 
@@ -580,6 +585,13 @@ contactsRouter.post("/", async (c) => {
   const actService = new ActivityService(wsId);
   await actService.logActivity("contact_created", `Contact ${contact.firstName} ${contact.lastName || ""} was created.`);
 
+  // Trigger automation sequence
+  const autoService = new AutomationService(wsId);
+  await autoService.handleEvent("CONTACT_CREATED", {
+    contactId: contact._id.toString(),
+    ...(contact.companyId ? { companyId: contact.companyId.toString() } : {})
+  });
+
   return c.json(successResponse(contact));
 });
 
@@ -593,6 +605,32 @@ contactsRouter.patch("/:id", async (c) => {
   // Log activity
   const actService = new ActivityService(wsId);
   await actService.logActivity("contact_updated", `Contact ${contact.firstName} ${contact.lastName || ""} details were updated.`);
+
+  // Trigger automation events based on updates
+  const autoService = new AutomationService(wsId);
+  if (body.status) {
+    await autoService.handleEvent("PIPELINE_STAGE_CHANGED", {
+      contactId: id,
+      ...(contact.companyId ? { companyId: contact.companyId.toString() } : {})
+    });
+    if (body.status === "REPLIED") {
+      await autoService.handleEvent("EMAIL_REPLIED", {
+        contactId: id,
+        ...(contact.companyId ? { companyId: contact.companyId.toString() } : {})
+      });
+    } else if (body.status === "BOUNCED") {
+      await autoService.handleEvent("EMAIL_BOUNCED", {
+        contactId: id,
+        ...(contact.companyId ? { companyId: contact.companyId.toString() } : {})
+      });
+    }
+  }
+  if (body.tags) {
+    await autoService.handleEvent("TAG_ADDED", {
+      contactId: id,
+      ...(contact.companyId ? { companyId: contact.companyId.toString() } : {})
+    });
+  }
 
   return c.json(successResponse(contact));
 });
