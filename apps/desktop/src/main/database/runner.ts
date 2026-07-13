@@ -335,6 +335,26 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_sync_queue_v2_workspaceId ON sync_queue(workspaceId, createdAt);
     `,
   },
+  {
+    name: '006_local_schema_enrichment',
+    up: `
+      ALTER TABLE contacts ADD COLUMN companyId TEXT;
+      ALTER TABLE contacts ADD COLUMN title TEXT;
+      ALTER TABLE contacts ADD COLUMN linkedin TEXT;
+      ALTER TABLE contacts ADD COLUMN linkedinUrl TEXT;
+      ALTER TABLE contacts ADD COLUMN source TEXT;
+      ALTER TABLE contacts ADD COLUMN notes TEXT;
+
+      ALTER TABLE companies ADD COLUMN industry TEXT;
+      ALTER TABLE companies ADD COLUMN size TEXT;
+      ALTER TABLE companies ADD COLUMN employeeCount INTEGER;
+      ALTER TABLE companies ADD COLUMN revenue TEXT;
+      ALTER TABLE companies ADD COLUMN linkedin TEXT;
+      ALTER TABLE companies ADD COLUMN linkedinUrl TEXT;
+      ALTER TABLE companies ADD COLUMN tags TEXT;
+      ALTER TABLE companies ADD COLUMN notes TEXT;
+    `,
+  },
 ];
 
 /**

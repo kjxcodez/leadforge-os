@@ -1,8 +1,14 @@
 import type { JobContext } from '../../shared/types/job';
+import { scrapeMaps } from './plugins/scraper';
+import { enrichWebsite } from './plugins/enricher';
+import { dispatchOutreach } from './plugins/outreach';
 
-// A registry of local job plugins. In the future, these can be imported
-// from packages like @leadforge/workflows or @leadforge/core.
+// A registry of local job plugins.
 const JobRegistry: Record<string, (ctx: JobContext) => Promise<any>> = {
+  'scraper:maps': scrapeMaps,
+  'enrich:website': enrichWebsite,
+  'outreach:campaign': dispatchOutreach,
+
   /**
    * Mock test job plugin that simulates slow progress.
    */
