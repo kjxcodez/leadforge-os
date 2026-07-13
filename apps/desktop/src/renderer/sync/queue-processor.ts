@@ -28,7 +28,7 @@ export const QueueProcessor = {
 
     if (!remoteRepo) {
       console.error(`[Sync] No remote repository registered for: ${entityType}`);
-      await window.ipc.invoke('db:queue:remove', id);
+      await window.ipc.invoke('db:queue:remove', { workspaceId, id });
       return true;
     }
 
@@ -57,11 +57,11 @@ export const QueueProcessor = {
       else if (operation === 'DELETE') {
         await remoteRepo.delete(entityId);
         // Hard-delete locally since deletion is synced
-        await window.ipc.invoke('db:delete', { tableName: entityType, id: entityId });
+        await window.ipc.invoke('db:delete', { tableName: entityType, workspaceId, id: entityId });
       }
 
       // Sync successful: remove task from queue
-      await window.ipc.invoke('db:queue:remove', id);
+      await window.ipc.invoke('db:queue:remove', { workspaceId, id });
       console.log(`[Sync] Task ${id} processed and removed successfully.`);
       return true;
     } catch (err: any) {
@@ -70,6 +70,7 @@ export const QueueProcessor = {
 
       // Increment retry counter and update log
       await window.ipc.invoke('db:queue:update', {
+        workspaceId,
         id,
         retryCount: retryCount + 1,
         error: errorMsg,
@@ -78,6 +79,7 @@ export const QueueProcessor = {
       return false; // Stop queue iteration if network failed
     }
   },
+
 
   /**
    * Processes the entire queue for a workspace.

@@ -31,7 +31,7 @@ export function registerAllIpc(
   registerDatabaseIpc();
   registerAuthIpc(sdk, setToken, setWorkspaceHeader, getPersistedActiveWorkspace);
   registerWorkspaceIpc(sdk);
-  registerCrmIpc(sdk);
+  registerCrmIpc();
   registerDiscoveryIpc(sdk);
   registerElectronIpc(setWorkspaceHeader, persistActiveWorkspace, getPersistedActiveWorkspace);
   registerOutreachIpc(sdk);

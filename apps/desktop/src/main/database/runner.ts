@@ -1,4 +1,6 @@
+import Database from 'better-sqlite3';
 import { getDatabase } from './connection';
+
 
 interface Migration {
   name: string;
@@ -280,13 +282,66 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_sequence_logs_workspaceId ON sequence_logs (workspaceId);
     `,
   },
+  {
+    name: '005_local_first_foundation',
+    up: `
+      CREATE TABLE IF NOT EXISTS jobs (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('queued', 'running', 'waiting', 'retrying', 'paused', 'cancelled', 'completed', 'failed', 'interrupted')),
+        priority INTEGER DEFAULT 1,
+        payload TEXT,
+        progress INTEGER DEFAULT 0,
+        retryCount INTEGER DEFAULT 0,
+        maxRetries INTEGER DEFAULT 3,
+        workerId TEXT,
+        error TEXT,
+        startedAt DATETIME,
+        finishedAt DATETIME,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS system_logs (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        workerId TEXT,
+        severity TEXT NOT NULL,
+        task TEXT NOT NULL,
+        message TEXT NOT NULL,
+        durationMs INTEGER,
+        metadata TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      DROP TABLE IF EXISTS sync_queue;
+
+      CREATE TABLE sync_queue (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        entityType TEXT NOT NULL,
+        entityId TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        payload TEXT,
+        version INTEGER NOT NULL DEFAULT 1,
+        retryCount INTEGER DEFAULT 0,
+        lastError TEXT,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_jobs_scheduler ON jobs(workspaceId, status, priority, createdAt);
+      CREATE INDEX IF NOT EXISTS idx_sync_queue_v2_workspaceId ON sync_queue(workspaceId, createdAt);
+    `,
+  },
 ];
 
 /**
  * Runs pending SQLite schema migrations sequentially inside a transaction.
  */
-export function runMigrations(): void {
-  const db = getDatabase();
+export function runMigrations(customDb?: Database.Database): void {
+  const db = customDb || getDatabase();
 
   // Create migration tracking table if missing
   db.prepare(`
@@ -322,3 +377,4 @@ export function runMigrations(): void {
 
   console.log('[SQLite] All migrations verified.');
 }
+

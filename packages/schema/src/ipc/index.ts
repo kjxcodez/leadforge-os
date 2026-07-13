@@ -160,7 +160,7 @@ export interface IpcChannelMap {
     output: any[];
   };
   'db:findById': {
-    input: { tableName: string; id: string };
+    input: { tableName: string; workspaceId: string; id: string };
     output: any | null;
   };
   'db:save': {
@@ -172,11 +172,11 @@ export interface IpcChannelMap {
     output: void;
   };
   'db:softDelete': {
-    input: { tableName: string; id: string };
+    input: { tableName: string; workspaceId: string; id: string };
     output: void;
   };
   'db:delete': {
-    input: { tableName: string; id: string };
+    input: { tableName: string; workspaceId: string; id: string };
     output: void;
   };
   'db:workspaces:findMany': {
@@ -202,13 +202,14 @@ export interface IpcChannelMap {
     output: any[];
   };
   'db:queue:update': {
-    input: { id: string; retryCount: number; error: string };
+    input: { workspaceId: string; id: string; retryCount: number; error: string };
     output: void;
   };
   'db:queue:remove': {
-    input: string;
+    input: { workspaceId: string; id: string };
     output: void;
   };
+
   'activities:list': {
     input: any;
     output: any[];

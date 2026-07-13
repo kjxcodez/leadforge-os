@@ -7,8 +7,9 @@ export interface QueueItem {
   entityId: string;
   operation: 'CREATE' | 'UPDATE' | 'DELETE';
   payload: string; // JSON string
+  version: number;
   retryCount: number;
-  error?: string | null;
+  lastError?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -21,10 +22,10 @@ export const LocalQueueRepository = {
    * Pushes a new operation onto the sync queue.
    */
   async push(item: Omit<QueueItem, 'retryCount'>): Promise<void> {
-    const db = getDatabase();
+    const db = getDatabase(item.workspaceId);
     db.prepare(`
-      INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, retryCount, error, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?, ?)
+      INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?)
     `).run(
       item.id,
       item.workspaceId,
@@ -32,6 +33,7 @@ export const LocalQueueRepository = {
       item.entityId,
       item.operation,
       item.payload,
+      item.version || 1,
       new Date().toISOString(),
       new Date().toISOString()
     );
@@ -41,7 +43,7 @@ export const LocalQueueRepository = {
    * Pops the oldest pending task from the queue.
    */
   async pop(workspaceId: string): Promise<QueueItem | null> {
-    const db = getDatabase();
+    const db = getDatabase(workspaceId);
     const row = db.prepare(`
       SELECT * FROM sync_queue
       WHERE workspaceId = ? AND retryCount < 5
@@ -57,7 +59,7 @@ export const LocalQueueRepository = {
    * Lists all pending tasks inside a workspace.
    */
   async list(workspaceId: string): Promise<QueueItem[]> {
-    const db = getDatabase();
+    const db = getDatabase(workspaceId);
     const rows = db.prepare(`
       SELECT * FROM sync_queue
       WHERE workspaceId = ?
@@ -70,11 +72,11 @@ export const LocalQueueRepository = {
   /**
    * Updates error logs and retry attempts for a failed push task.
    */
-  async updateProgress(id: string, retryCount: number, error: string): Promise<void> {
-    const db = getDatabase();
+  async updateProgress(workspaceId: string, id: string, retryCount: number, error: string): Promise<void> {
+    const db = getDatabase(workspaceId);
     db.prepare(`
       UPDATE sync_queue
-      SET retryCount = ?, error = ?, updatedAt = ?
+      SET retryCount = ?, lastError = ?, updatedAt = ?
       WHERE id = ?
     `).run(retryCount, error, new Date().toISOString(), id);
   },
@@ -82,8 +84,9 @@ export const LocalQueueRepository = {
   /**
    * Removes a successfully processed task from the queue.
    */
-  async remove(id: string): Promise<void> {
-    const db = getDatabase();
+  async remove(workspaceId: string, id: string): Promise<void> {
+    const db = getDatabase(workspaceId);
     db.prepare('DELETE FROM sync_queue WHERE id = ?').run(id);
   },
 };
+

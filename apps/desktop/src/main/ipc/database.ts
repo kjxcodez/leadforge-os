@@ -15,9 +15,10 @@ export function registerDatabaseIpc(): void {
     return LocalCRMRepository.findMany(tableName, workspaceId, filter);
   });
 
-  safeRegister('db:findById', async (_event, { tableName, id }) => {
+  safeRegister('db:findById', async (_event, { tableName, workspaceId, id }) => {
+    if (!workspaceId) throw new Error('workspaceId is required for SQLite queries.');
     if (!id) throw new Error('id is required.');
-    return LocalCRMRepository.findById(tableName, id);
+    return LocalCRMRepository.findById(tableName, workspaceId, id);
   });
 
   safeRegister('db:save', async (_event, { tableName, record }) => {
@@ -30,14 +31,16 @@ export function registerDatabaseIpc(): void {
     return LocalCRMRepository.saveMany(tableName, records);
   });
 
-  safeRegister('db:softDelete', async (_event, { tableName, id }) => {
+  safeRegister('db:softDelete', async (_event, { tableName, workspaceId, id }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
     if (!id) throw new Error('id is required.');
-    return LocalCRMRepository.softDelete(tableName, id);
+    return LocalCRMRepository.softDelete(tableName, workspaceId, id);
   });
 
-  safeRegister('db:delete', async (_event, { tableName, id }) => {
+  safeRegister('db:delete', async (_event, { tableName, workspaceId, id }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
     if (!id) throw new Error('id is required.');
-    return LocalCRMRepository.hardDelete(tableName, id);
+    return LocalCRMRepository.hardDelete(tableName, workspaceId, id);
   });
 
   // ── Workspaces Cache Queries ─────────────────────────────────────────────
@@ -67,11 +70,14 @@ export function registerDatabaseIpc(): void {
     return LocalQueueRepository.list(workspaceId);
   });
 
-  safeRegister('db:queue:update', async (_event, { id, retryCount, error }) => {
-    return LocalQueueRepository.updateProgress(id, retryCount, error);
+  safeRegister('db:queue:update', async (_event, { workspaceId, id, retryCount, error }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    return LocalQueueRepository.updateProgress(workspaceId, id, retryCount, error);
   });
 
-  safeRegister('db:queue:remove', async (_event, id) => {
-    return LocalQueueRepository.remove(id);
+  safeRegister('db:queue:remove', async (_event, { workspaceId, id }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    return LocalQueueRepository.remove(workspaceId, id);
   });
 }
+
