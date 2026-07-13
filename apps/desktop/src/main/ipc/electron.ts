@@ -1,5 +1,6 @@
 import { safeRegister } from './helper';
 import { app, shell, Notification } from 'electron';
+import { WorkspaceManager } from '../lib/workspace-manager';
 
 /**
  * Registers native Electron window, platform, utility, and notification channels.
@@ -9,11 +10,17 @@ export function registerElectronIpc(
   persistActiveWorkspace: (workspaceId: string | null) => void,
   getPersistedActiveWorkspace: () => string | null
 ) {
-  safeRegister('electron:setActiveWorkspace', (_event, workspaceId) => {
+  safeRegister('electron:setActiveWorkspace', async (_event, workspaceId) => {
     console.log('Main Process: Setting active workspace headers:', workspaceId);
     setWorkspaceHeader(workspaceId);
     persistActiveWorkspace(workspaceId);
+    try {
+      await WorkspaceManager.setActiveWorkspace(workspaceId);
+    } catch (err) {
+      console.error('[IPC] Failed to switch workspace in runtime manager:', err);
+    }
   });
+
 
   safeRegister('electron:getActiveWorkspace', () => {
     return getPersistedActiveWorkspace();
