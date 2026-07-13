@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { LocalEventBus } from './event-bus';
 import { getDatabase, closeDatabase } from '../database/connection';
 import { runMigrations } from '../database/runner';
+import { JobScheduler } from '../services/scheduler';
 
 /**
  * WorkspaceRuntime manages a single workspace isolated connection, local event bus,
@@ -11,12 +12,14 @@ export class WorkspaceRuntime {
   public readonly workspaceId: string;
   public readonly sqliteDb: Database.Database;
   public readonly eventBus: LocalEventBus;
+  private readonly scheduler: JobScheduler;
   private isRunning: boolean = false;
 
   constructor(workspaceId: string) {
     this.workspaceId = workspaceId;
     this.sqliteDb = getDatabase(workspaceId);
     this.eventBus = new LocalEventBus(workspaceId);
+    this.scheduler = new JobScheduler(workspaceId, this.sqliteDb, this.eventBus);
   }
 
   /**
@@ -35,7 +38,8 @@ export class WorkspaceRuntime {
       throw err;
     }
 
-    // 2. Future hooks for JobScheduler and SyncEngine start will be registered here
+    // 2. Start Concurrency Scheduler
+    await this.scheduler.start();
 
     this.isRunning = true;
     console.log(`[WorkspaceRuntime] Workspace runtime "${this.workspaceId}" successfully booted.`);
@@ -49,7 +53,8 @@ export class WorkspaceRuntime {
 
     console.log(`[WorkspaceRuntime] Stopping workspace runtime: ${this.workspaceId}`);
 
-    // 1. Future hooks for JobScheduler and SyncEngine stop go here
+    // 1. Stop Concurrency Scheduler
+    await this.scheduler.stop();
 
     // 2. Clear event bus listeners
     this.eventBus.clear();
