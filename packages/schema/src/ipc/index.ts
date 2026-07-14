@@ -210,6 +210,19 @@ export interface IpcChannelMap {
     output: void;
   };
 
+  'scheduler:jobs:list': {
+    input: { workspaceId: string };
+    output: any[];
+  };
+  'scheduler:jobs:submit': {
+    input: { id?: string; workspaceId: string; type: string; payload: any; priority?: number; maxRetries?: number };
+    output: any;
+  };
+  'scheduler:jobs:cancel': {
+    input: { workspaceId: string; jobId: string };
+    output: void;
+  };
+
   'activities:list': {
     input: any;
     output: any[];

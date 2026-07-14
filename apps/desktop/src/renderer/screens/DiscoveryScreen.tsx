@@ -42,28 +42,18 @@ export default function DiscoveryScreen() {
   const [jobName, setJobName] = useState('');
   const [jobQuery, setJobQuery] = useState('');
 
-  // 1. Fetch discovery jobs using SyncRepository
+  // 1. Fetch scheduler jobs
   const jobsQuery = useQuery({
-    queryKey: ['discovery_jobs', 'list', workspaceId],
+    queryKey: ['scheduler_jobs', 'list', workspaceId],
     queryFn: async () => {
       if (!workspaceId) return [];
-      return SyncDiscoveryJobRepository.listAndSync(workspaceId);
+      return window.ipc.invoke('scheduler:jobs:list', { workspaceId });
     },
     enabled: !!workspaceId,
-    refetchInterval: 3000, // Poll every 3 seconds for real-time progress updates!
+    refetchInterval: 1500, // Poll every 1.5 seconds for real-time progress bar updates!
   });
 
-  // 2. Fetch results of the selected job
-  const resultsQuery = useQuery({
-    queryKey: ['discovery_results', 'job', selectedJobId],
-    queryFn: async () => {
-      if (!selectedJobId) return [];
-      return window.ipc.invoke('discovery:results', selectedJobId);
-    },
-    enabled: !!selectedJobId,
-  });
-
-  // 3. Fetch CRM collections to run local deduplication
+  // 2. Fetch companies from CRM cache
   const companiesQuery = useQuery({
     queryKey: ['companies', 'list', workspaceId],
     queryFn: async () => {
@@ -73,50 +63,29 @@ export default function DiscoveryScreen() {
     enabled: !!workspaceId,
   });
 
-  const contactsQuery = useQuery({
-    queryKey: ['contacts', 'list', workspaceId],
-    queryFn: async () => {
-      if (!workspaceId) return [];
-      return SyncContactRepository.listAndSync(workspaceId);
-    },
-    enabled: !!workspaceId,
-  });
-
-  // 4. Job Mutation handlers
+  // 3. Job Mutation handlers
   const createJobMutation = useMutation({
     mutationFn: async (payload: { name: string; query: string }) => {
-      return window.ipc.invoke('discovery:create', {
-        name: payload.name,
-        provider: 'stub-scraper',
-        query: payload.query,
+      return window.ipc.invoke('scheduler:jobs:submit', {
+        workspaceId,
+        type: 'scraper:maps',
+        payload: { name: payload.name, query: payload.query },
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['discovery_jobs', 'list', workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ['scheduler_jobs', 'list', workspaceId] });
       setCreateOpen(false);
       setJobName('');
       setJobQuery('');
     },
   });
 
-  const importResultMutation = useMutation({
-    mutationFn: async (resultId: string) => {
-      return window.ipc.invoke('discovery:import', resultId);
+  const cancelJobMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      return window.ipc.invoke('scheduler:jobs:cancel', { workspaceId, jobId });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['discovery_results', 'job', selectedJobId] });
-      queryClient.invalidateQueries({ queryKey: ['companies', 'list', workspaceId] });
-      queryClient.invalidateQueries({ queryKey: ['contacts', 'list', workspaceId] });
-      queryClient.invalidateQueries({ queryKey: ['activities', 'list', workspaceId] });
-    },
-  });
-
-  const skipResultMutation = useMutation({
-    mutationFn: async (resultId: string) => {
-      return window.ipc.invoke('discovery:skip', resultId);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['discovery_results', 'job', selectedJobId] });
+      queryClient.invalidateQueries({ queryKey: ['scheduler_jobs', 'list', workspaceId] });
     },
   });
 
@@ -126,14 +95,25 @@ export default function DiscoveryScreen() {
     createJobMutation.mutate({ name: jobName, query: jobQuery });
   };
 
-  const jobs = jobsQuery.data || [];
-  const results = resultsQuery.data || [];
-  const existingCompanies = companiesQuery.data || [];
-  const existingContacts = contactsQuery.data || [];
+  const jobs = (jobsQuery.data || []) as any[];
+  const existingCompanies = (companiesQuery.data || []) as any[];
+
+  // Find query from currently selected job
+  const selectedJob = jobs.find(j => j.id === selectedJobId);
+  const selectedJobPayload = selectedJob ? JSON.parse(selectedJob.payload || '{}') : {};
+  const selectedQuery = (selectedJobPayload.query || '').toLowerCase();
+
+  // Filter companies matching the selected job query to show under "Scraped Results"
+  const results = existingCompanies.filter(c => {
+    if (!selectedQuery) return true;
+    return c.name.toLowerCase().includes(selectedQuery) ||
+           c.location?.toLowerCase().includes(selectedQuery) ||
+           c.website?.toLowerCase().includes(selectedQuery);
+  });
 
   // Statistics calculation
   const totalJobs = jobs.length;
-  const runningJobs = jobs.filter((j) => j.status === 'running' || j.status === 'queued').length;
+  const runningJobs = jobs.filter((j) => j.status === 'running' || j.status === 'queued' || j.status === 'retrying').length;
   const totalDiscovered = results.length;
 
   return (
@@ -194,6 +174,11 @@ export default function DiscoveryScreen() {
             <tbody className="divide-y divide-border-subtle/50">
               {jobs.map((job) => {
                 const isSelected = selectedJobId === job.id;
+                const payloadObj = JSON.parse(job.payload || '{}');
+                const displayName = payloadObj.name || job.type;
+                const queryStr = payloadObj.query || '';
+                const isRunnable = ['queued', 'running', 'retrying'].includes(job.status);
+
                 return (
                   <tr
                     key={job.id}
@@ -202,16 +187,18 @@ export default function DiscoveryScreen() {
                       isSelected ? 'bg-accent/5 font-medium' : ''
                     }`}
                   >
-                    <td className="px-4 py-3 font-semibold text-foreground">{job.name}</td>
-                    <td className="px-4 py-3 font-mono text-accent">{job.query}</td>
+                    <td className="px-4 py-3 font-semibold text-foreground">{displayName}</td>
+                    <td className="px-4 py-3 font-mono text-accent">{queryStr}</td>
                     <td className="px-4 py-3">
                       <Badge
                         variant="outline"
-                        className={`text-[9px] font-bold ${
+                        className={`text-[9px] font-bold uppercase ${
                           job.status === 'completed'
                             ? 'bg-green-500/10 text-green-500 border-green-500/20'
                             : job.status === 'running'
                             ? 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                            : job.status === 'cancelled'
+                            ? 'bg-red-500/10 text-red-500 border-red-500/20'
                             : 'bg-muted/10 text-muted-foreground border-muted/20'
                         }`}
                       >
@@ -230,12 +217,27 @@ export default function DiscoveryScreen() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
-                      Companies: {job.statistics?.companiesFound || 0}
+                      Max Retries: {job.maxRetries}
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1">
-                        View Results <ArrowRight className="w-3 h-3" />
-                      </Button>
+                    <td className="px-4 py-3 text-right space-x-2">
+                      {isRunnable ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            cancelJobMutation.mutate(job.id);
+                          }}
+                          disabled={cancelJobMutation.isPending}
+                          className="h-6 text-[10px] text-red-500 hover:text-white hover:bg-red-500 border-red-500/25"
+                        >
+                          Cancel
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1">
+                          View
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -251,81 +253,44 @@ export default function DiscoveryScreen() {
           <div className="px-4 py-3 border-b border-border-subtle flex justify-between items-center bg-sunken/10">
             <h3 className="font-bold text-foreground uppercase tracking-wider text-[10px] flex items-center gap-1.5">
               <Compass className="w-4 h-4 text-accent" />
-              Scraped Results list
+              Scraped Results (Query: "{selectedQuery}")
             </h3>
             <span className="text-[10px] text-muted-foreground">
-              Verify accounts and deduplicate before importing.
+              These discovered leads have been directly populated in your local workspace CRM database.
             </span>
           </div>
 
-          {resultsQuery.isLoading ? (
-            <div className="p-8 text-center text-muted-foreground">Loading results...</div>
+          {companiesQuery.isLoading ? (
+            <div className="p-8 text-center text-muted-foreground">Loading leads...</div>
           ) : results.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">No leads scraped yet. Scraper is running.</div>
+            <div className="p-8 text-center text-muted-foreground">
+              {selectedJob?.status === 'running'
+                ? 'No leads scraped yet. Scraper is running...'
+                : 'No leads found for this query.'}
+            </div>
           ) : (
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-sunken border-b border-border-subtle text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
                   <th className="px-4 py-2.5">Company Name</th>
                   <th className="px-4 py-2.5">Domain</th>
-                  <th className="px-4 py-2.5">Email</th>
-                  <th className="px-4 py-2.5">Description</th>
-                  <th className="px-4 py-2.5">CRM Match</th>
-                  <th className="px-4 py-2.5 text-right">Import Operations</th>
+                  <th className="px-4 py-2.5">Phone</th>
+                  <th className="px-4 py-2.5">Location</th>
+                  <th className="px-4 py-2.5">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle/50">
                 {results.map((res) => {
-                  const dup = checkDeduplication(res, existingCompanies, existingContacts);
-                  const isImported = res.status === 'imported';
-                  const isSkipped = res.status === 'skipped';
-
                   return (
                     <tr key={res.id} className="hover:bg-sunken/10 transition-colors">
-                      <td className="px-4 py-3 font-semibold text-foreground">{res.companyName}</td>
+                      <td className="px-4 py-3 font-semibold text-foreground">{res.name}</td>
                       <td className="px-4 py-3 font-mono text-accent">{res.website || 'N/A'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{res.email || 'N/A'}</td>
-                      <td className="px-4 py-3 text-muted-foreground max-w-xs truncate">{res.description || 'N/A'}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{res.phone || 'N/A'}</td>
+                      <td className="px-4 py-3 text-muted-foreground max-w-xs truncate">{res.location || 'N/A'}</td>
                       <td className="px-4 py-3">
-                        {isImported ? (
-                          <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20 font-bold text-[9px]">
-                            [CRM] IMPORTED
-                          </Badge>
-                        ) : isSkipped ? (
-                          <Badge variant="outline" className="bg-muted/10 text-muted-foreground border-muted/20 font-bold text-[9px]">
-                            SKIPPED
-                          </Badge>
-                        ) : dup.isCompanyDuplicate ? (
-                          <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/20 font-bold text-[9px] flex items-center gap-1 w-fit">
-                            <AlertTriangle className="w-2.5 h-2.5" />
-                            DUPLICATE
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20 font-bold text-[9px]">
-                            NEW RECORD
-                          </Badge>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right space-x-1.5">
-                        {!isImported && !isSkipped && (
-                          <>
-                            <Button
-                              onClick={() => importResultMutation.mutate(res.id)}
-                              size="sm"
-                              className="h-7 text-[10px]"
-                            >
-                              Import
-                            </Button>
-                            <Button
-                              onClick={() => skipResultMutation.mutate(res.id)}
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-[10px] text-muted-foreground"
-                            >
-                              Skip
-                            </Button>
-                          </>
-                        )}
+                        <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20 font-bold text-[9px]">
+                          ACTIVE IN CRM
+                        </Badge>
                       </td>
                     </tr>
                   );
