@@ -1,4 +1,5 @@
 import { WorkspaceRuntime } from './workspace-runtime';
+import type { SdkClient } from '@leadforge/sdk';
 
 /**
  * WorkspaceManager acts as the Main process runtime supervisor, managing the active
@@ -6,6 +7,16 @@ import { WorkspaceRuntime } from './workspace-runtime';
  */
 class WorkspaceManagerClass {
   private activeRuntime: WorkspaceRuntime | null = null;
+  private sdk: SdkClient | null = null;
+
+  public setSdk(sdk: SdkClient): void {
+    this.sdk = sdk;
+  }
+
+  public getSdk(): SdkClient {
+    if (!this.sdk) throw new Error('SDK client has not been set in WorkspaceManager.');
+    return this.sdk;
+  }
 
   /**
    * Switches the active workspace, spinning down the previous runtime and booting the new one.
@@ -26,7 +37,7 @@ class WorkspaceManagerClass {
     console.log(`[WorkspaceManager] Swapping active workspace runtime to: ${workspaceId}`);
     
     // 2. Initialize new isolated runtime environment
-    const runtime = new WorkspaceRuntime(workspaceId);
+    const runtime = new WorkspaceRuntime(workspaceId, this.getSdk());
     try {
       await runtime.start();
       this.activeRuntime = runtime;

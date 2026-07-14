@@ -8,6 +8,7 @@ import { registerDatabaseIpc } from './database';
 import { registerOutreachIpc } from './outreach';
 import { registerAutomationIpc } from './automation';
 import { registerSchedulerIpc } from './scheduler';
+import { WorkspaceManager } from '../lib/workspace-manager';
 
 /**
  * Orchestrates and registers all IPC channels exactly once, utilizing safeRegister
@@ -20,6 +21,9 @@ export function registerAllIpc(
   persistActiveWorkspace: (workspaceId: string | null) => void,
   getPersistedActiveWorkspace: () => string | null
 ) {
+  // Bind SDK instance to WorkspaceManager for isolated sync runtimes
+  WorkspaceManager.setSdk(sdk);
+
   const setWorkspaceHeader = (workspaceId: string | null) => {
     if (workspaceId) {
       customHeaders['x-workspace-id'] = workspaceId;
