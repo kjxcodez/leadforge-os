@@ -270,16 +270,16 @@ export default function AutomationScreen() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="dashboard" className="flex items-center gap-1.5">
+        <TabsList className="bg-transparent">
+          <TabsTrigger value="dashboard" className="flex items-center gap-1.5 p-4">
             <Zap className="h-3.5 w-3.5" />
             <span>Dashboard</span>
           </TabsTrigger>
-          <TabsTrigger value="sequences" className="flex items-center gap-1.5">
+          <TabsTrigger value="sequences" className="flex items-center gap-1.5 p-4">
             <Layers className="h-3.5 w-3.5" />
             <span>Templates</span>
           </TabsTrigger>
-          <TabsTrigger value="executions" className="flex items-center gap-1.5">
+          <TabsTrigger value="executions" className="flex items-center gap-1.5 p-4">
             <Activity className="h-3.5 w-3.5" />
             <span>Executions</span>
           </TabsTrigger>

@@ -36,13 +36,13 @@
 
 :root {
   --radius: 6px;
-  
+
   /* Backgrounds & Surfaces */
   --background: #FAFBFC;
   --sunken: #F4F5F7;
   --card: #FFFFFF;
   --popover: #FFFFFF;
-  
+
   /* Text Colors */
   --foreground: #2E3440;
   --primary: #2E3440;
@@ -51,19 +51,19 @@
   --secondary-foreground: #2E3440;
   --muted: #5B6270;
   --muted-foreground: #8B929E;
-  
+
   /* Accent & Signal */
   --accent: #3358E0;
   --accent-foreground: #FFFFFF;
   --accent-tint: #EEF1FE;
-  
+
   /* Borders & Inputs */
   --border: #DFE2E6;
   --border-subtle: #DFE2E6;
   --border-default: #C9CDD4;
   --input: #DFE2E6;
   --ring: #3358E0;
-  
+
   /* Semantic Colors */
   --success-bg: #EAF6EE;
   --success-text: #1E8A4C;
@@ -81,7 +81,7 @@
   --sunken: #181B21;
   --card: #12151A;
   --popover: #1B1F26;
-  
+
   /* Text Colors */
   --foreground: #F4F5F7;
   --primary: #F4F5F7;
@@ -90,19 +90,19 @@
   --secondary-foreground: #F4F5F7;
   --muted: #AEB4BD;
   --muted-foreground: #8B929E;
-  
+
   /* Accent & Signal */
   --accent: #5B7CFF;
   --accent-foreground: #0D0F13;
   --accent-tint: #182144;
-  
+
   /* Borders & Inputs */
   --border: #21252D;
   --border-subtle: #1E222B;
   --border-default: #2D3139;
   --input: #21252D;
   --ring: #5B7CFF;
-  
+
   /* Semantic Colors */
   --success-bg: #122A1B;
   --success-text: #4ADE80;
@@ -118,7 +118,31 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--ring);
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
   }
 }

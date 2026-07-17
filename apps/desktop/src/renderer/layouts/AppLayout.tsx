@@ -117,7 +117,7 @@ export function AppLayout() {
           <AppHeader />
           <div className="flex flex-col flex-1 min-w-0">
             {/* Page content */}
-            <main className="flex-1 overflow-y-auto p-4">
+            <main className="flex-1 overflow-y-auto p-4 max-h-[calc(100vh-64px)]">
               <Outlet />
             </main>
           </div>

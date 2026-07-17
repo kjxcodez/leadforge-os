@@ -93,7 +93,7 @@ export default function DiagnosticsScreen() {
   const bytesToMb = (bytes: number) => (bytes / (1024 * 1024)).toFixed(2) + ' MB';
 
   return (
-    <div className="space-y-6 text-xs font-sans h-full overflow-y-auto pr-1">
+    <div className="space-y-6 text-xs font-sans h-full pr-1">
       {/* Header */}
       <div className="flex justify-between items-end border-b border-border-subtle pb-3">
         <div>
