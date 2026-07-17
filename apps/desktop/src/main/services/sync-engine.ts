@@ -1,12 +1,14 @@
 import Database from 'better-sqlite3';
+import { BrowserWindow } from 'electron';
 import { SdkClient } from '@leadforge/sdk';
 import { LocalEventBus } from '../lib/event-bus';
 import { AppLogger } from '../lib/logger';
+import { LocalCRMRepository } from '../database/repositories/local-crm';
 
 interface QueueItem {
   id: string;
   workspaceId: string;
-  entityType: 'companies' | 'contacts' | 'campaigns';
+  entityType: 'companies' | 'contacts' | 'campaigns' | 'sequences' | 'sequence_executions';
   entityId: string;
   operation: 'CREATE' | 'UPDATE' | 'DELETE';
   payload: string;
@@ -17,6 +19,7 @@ interface QueueItem {
 /**
  * SyncEngine monitors the local sync_queue table and pushes pending mutations
  * to the remote API sequentially, resolving conflicts using Last-Write-Wins.
+ * It also pulls remote updates to refresh the local SQLite cache.
  */
 export class SyncEngine {
   private intervalId: NodeJS.Timeout | null = null;
@@ -38,6 +41,11 @@ export class SyncEngine {
     // Check queue every 5 seconds
     this.intervalId = setInterval(() => this.tick(), 5000);
     AppLogger.info('SyncEngine', `Sync engine started for workspace: ${this.workspaceId}`, this.workspaceId);
+
+    // Perform initial remote pull sync asynchronously
+    this.pullRemoteUpdates().catch((err) => {
+      AppLogger.error('SyncEngine', 'Initial pull remote updates failed', this.workspaceId, err);
+    });
   }
 
   /**
@@ -49,6 +57,110 @@ export class SyncEngine {
       this.intervalId = null;
     }
     AppLogger.info('SyncEngine', `Sync engine stopped for workspace: ${this.workspaceId}`, this.workspaceId);
+  }
+
+  /**
+   * Pulls fresh records from remote API and saves them to local SQLite cache.
+   */
+  public async pullRemoteUpdates(): Promise<void> {
+    try {
+      AppLogger.info('SyncEngine', `Pulling remote updates for workspace: ${this.workspaceId}`, this.workspaceId);
+
+      // A. Pull companies
+      try {
+        const companies = await this.sdk.companies.list();
+        if (companies && companies.length) {
+          const records = companies.map((c: any) => ({
+            ...c,
+            workspaceId: this.workspaceId,
+            syncStatus: 'synced',
+          }));
+          await LocalCRMRepository.saveMany('companies', records, true); // skipQueue = true
+        }
+      } catch (e) {
+        AppLogger.warn('SyncEngine', 'Failed to pull companies', this.workspaceId, e);
+      }
+
+      // B. Pull contacts
+      try {
+        const contacts = await this.sdk.contacts.list();
+        if (contacts && contacts.length) {
+          const records = contacts.map((c: any) => ({
+            ...c,
+            workspaceId: this.workspaceId,
+            syncStatus: 'synced',
+          }));
+          await LocalCRMRepository.saveMany('contacts', records, true); // skipQueue = true
+        }
+      } catch (e) {
+        AppLogger.warn('SyncEngine', 'Failed to pull contacts', this.workspaceId, e);
+      }
+
+      // C. Pull campaigns
+      try {
+        const campaigns = await this.sdk.campaigns.list();
+        if (campaigns && campaigns.length) {
+          const records = campaigns.map((c: any) => ({
+            ...c,
+            workspaceId: this.workspaceId,
+            syncStatus: 'synced',
+          }));
+          await LocalCRMRepository.saveMany('campaigns', records, true); // skipQueue = true
+        }
+      } catch (e) {
+        AppLogger.warn('SyncEngine', 'Failed to pull campaigns', this.workspaceId, e);
+      }
+
+      // D. Pull sequences
+      try {
+        const sequences = await this.sdk.sequences.list();
+        if (sequences && sequences.length) {
+          const records = sequences.map((s: any) => ({
+            ...s,
+            workspaceId: this.workspaceId,
+            syncStatus: 'synced',
+          }));
+          await LocalCRMRepository.saveMany('sequences', records, true); // skipQueue = true
+        }
+      } catch (e) {
+        AppLogger.warn('SyncEngine', 'Failed to pull sequences', this.workspaceId, e);
+      }
+
+      // E. Pull executions
+      try {
+        const executions = await this.sdk.executions.list();
+        if (executions && executions.length) {
+          const records = executions.map((ex: any) => ({
+            ...ex,
+            workspaceId: this.workspaceId,
+            syncStatus: 'synced',
+          }));
+          await LocalCRMRepository.saveMany('sequence_executions', records, true); // skipQueue = true
+        }
+      } catch (e) {
+        AppLogger.warn('SyncEngine', 'Failed to pull sequence_executions', this.workspaceId, e);
+      }
+
+      AppLogger.info('SyncEngine', `Remote updates pulled successfully for workspace: ${this.workspaceId}`, this.workspaceId);
+      this.broadcastToRenderer();
+    } catch (err) {
+      AppLogger.error('SyncEngine', 'Critical error pulling remote updates', this.workspaceId, err);
+    }
+  }
+
+  /**
+   * Broadcasts sync completion notification to all active renderer windows.
+   */
+  private broadcastToRenderer(): void {
+    try {
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed()) {
+          win.webContents.send('sync:completed', { timestamp: new Date().toISOString() });
+        }
+      });
+    } catch (err) {
+      // IPC window context not yet active
+    }
   }
 
   /**
@@ -82,6 +194,8 @@ export class SyncEngine {
     AppLogger.info('SyncEngine', `Found ${pendingItems.length} pending mutations to sync.`, this.workspaceId);
     this.eventBus.publish('sync:started', { count: pendingItems.length });
 
+    let hasUpdates = false;
+
     for (const item of pendingItems) {
       try {
         const payload = JSON.parse(item.payload || '{}');
@@ -104,6 +218,7 @@ export class SyncEngine {
 
         // Mutation synced successfully: remove from local queue
         this.db.prepare('DELETE FROM sync_queue WHERE id = ?').run(item.id);
+        hasUpdates = true;
         
         this.eventBus.publish('sync:progress', {
           queueItemId: item.id,
@@ -139,6 +254,9 @@ export class SyncEngine {
     }
 
     this.eventBus.publish('sync:completed', { timestamp: new Date().toISOString() });
+    if (hasUpdates) {
+      this.broadcastToRenderer();
+    }
   }
 
   /**
@@ -148,6 +266,8 @@ export class SyncEngine {
     if (entityType === 'companies') return this.sdk.companies;
     if (entityType === 'contacts') return this.sdk.contacts;
     if (entityType === 'campaigns') return this.sdk.campaigns;
+    if (entityType === 'sequences') return this.sdk.sequences;
+    if (entityType === 'sequence_executions') return this.sdk.executions;
     return null;
   }
 

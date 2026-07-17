@@ -104,6 +104,7 @@ contextBridge.exposeInMainWorld('ipc', {
       'electron:openUrl',
       'electron:notify',
       'auth:unauthorized',
+      'system:diagnostics',
     ];
     if (validChannels.includes(channel as string)) {
       return ipcRenderer.invoke(channel, payload);
@@ -126,6 +127,8 @@ contextBridge.exposeInMainWorld('ipc', {
       'workspaces:create',
       'workspaces:list',
       'auth:unauthorized',
+      'sync:completed',
+      'system:log:event',
     ];
     if (validChannels.includes(channel as string)) {
       const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(args[0] as any);

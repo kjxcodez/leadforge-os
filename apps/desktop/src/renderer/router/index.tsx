@@ -22,6 +22,7 @@ import ContactsScreen from '../screens/ContactsScreen';
 import DiscoveryScreen from '../screens/DiscoveryScreen';
 import CampaignsScreen from '../screens/CampaignsScreen';
 import AutomationScreen from '../screens/AutomationScreen';
+import DiagnosticsScreen from '../screens/DiagnosticsScreen';
 
 
 // ---------------------------------------------------------------------------
@@ -137,6 +138,7 @@ const router = createHashRouter([
           { path: '/reports', element: <ComingSoon label="Reports" /> },
           { path: '/settings', element: <WorkspaceSettingsScreen /> },
           { path: '/invites', element: <WorkspaceInvitesScreen /> },
+          { path: '/diagnostics', element: <DiagnosticsScreen /> },
         ],
       },
     ],

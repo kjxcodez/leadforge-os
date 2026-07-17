@@ -41,8 +41,8 @@ const DOMAIN_CHANNELS: Record<string, { list: string; get: string; create: strin
 
 class BaseSyncRepository<T> implements ISyncRepository<T> {
   constructor(
-    protected tableName: string,
-    protected remoteRepo: any
+    public tableName: string,
+    public remoteRepo: any
   ) {}
 
   async findById(id: string): Promise<T | null> {
@@ -87,9 +87,12 @@ class BaseSyncRepository<T> implements ISyncRepository<T> {
   async create(data: T & { workspaceId: string }): Promise<T> {
     const channels = DOMAIN_CHANNELS[this.tableName];
     if (channels) {
+      // Generate ID client-side if missing
+      const id = (data as any).id || crypto.randomUUID();
+      const record = { ...data, id };
       // Main process database repository save automatically handles local writes
       // and schedules synchronization inside a single database transaction.
-      return window.ipc.invoke(channels.create as any, data);
+      return window.ipc.invoke(channels.create as any, record);
     }
 
     // Fallback path

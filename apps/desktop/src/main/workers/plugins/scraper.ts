@@ -80,8 +80,8 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
       `).run(companyId, ctx.workspaceId, name, domain, website, location, phone);
 
       db.prepare(`
-        INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, retryCount, maxRetries, status, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, 'CREATE', ?, 0, 5, 'pending', datetime('now'), datetime('now'))
+        INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, 'CREATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
       `).run(
         require('crypto').randomUUID(),
         ctx.workspaceId,

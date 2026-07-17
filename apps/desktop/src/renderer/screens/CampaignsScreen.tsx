@@ -76,7 +76,7 @@ export default function CampaignsScreen() {
   const campaignsQuery = useQuery({
     queryKey: ['campaigns', workspaceId],
     queryFn: async () => {
-      return window.ipc.invoke('campaigns:list', undefined);
+      return window.ipc.invoke('campaigns:list', { workspaceId });
     },
     enabled: !!workspaceId,
   });
@@ -84,7 +84,7 @@ export default function CampaignsScreen() {
   const contactsQuery = useQuery({
     queryKey: ['contacts', 'list', workspaceId],
     queryFn: async () => {
-      return window.ipc.invoke('contacts:list', {});
+      return window.ipc.invoke('contacts:list', { workspaceId });
     },
     enabled: !!workspaceId,
   });

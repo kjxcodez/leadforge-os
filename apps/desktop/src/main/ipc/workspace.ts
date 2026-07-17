@@ -1,5 +1,6 @@
 import { safeRegister } from './helper';
 import { SdkClient } from '@leadforge/sdk';
+import { LocalWorkspaceRepository } from '../database/repositories/local-workspace';
 
 /**
  * Registers workspace management and membership/invitations IPC channels.
@@ -7,27 +8,71 @@ import { SdkClient } from '@leadforge/sdk';
 export function registerWorkspaceIpc(sdk: SdkClient) {
   safeRegister('workspaces:create', async (_event, payload) => {
     console.log('Main Process: Creating workspace:', payload);
-    return sdk.workspaces.create(payload);
+    const ws = await sdk.workspaces.create(payload);
+    try {
+      await LocalWorkspaceRepository.save(ws);
+    } catch (e) {
+      console.error('[IPC] Failed to cache created workspace:', e);
+    }
+    return ws;
   });
 
   safeRegister('workspaces:list', async () => {
     console.log('Main Process: Listing user workspaces');
-    return sdk.workspaces.list();
+    try {
+      const workspaces = await sdk.workspaces.list();
+      try {
+        await LocalWorkspaceRepository.saveMany(workspaces);
+      } catch (e) {
+        console.error('[IPC] Failed to cache workspaces list:', e);
+      }
+      return workspaces;
+    } catch (err) {
+      console.warn('[IPC] Failed to list workspaces from remote, falling back to local cache:', err);
+      return LocalWorkspaceRepository.findMany();
+    }
   });
 
   safeRegister('workspaces:update', async (_event, payload) => {
     console.log('Main Process: Updating workspace details:', payload);
-    return sdk.workspaces.update(payload.id, payload.dto);
+    const ws = await sdk.workspaces.update(payload.id, payload.dto);
+    try {
+      await LocalWorkspaceRepository.save(ws);
+    } catch (e) {
+      console.error('[IPC] Failed to cache updated workspace:', e);
+    }
+    return ws;
   });
 
   safeRegister('workspaces:delete', async (_event, payload) => {
     console.log('Main Process: Deleting workspace:', payload);
-    return sdk.workspaces.delete(workspaceIdOrToken(payload));
+    const id = workspaceIdOrToken(payload);
+    const res = await sdk.workspaces.delete(id);
+    try {
+      await LocalWorkspaceRepository.delete(id);
+    } catch (e) {
+      console.error('[IPC] Failed to delete cached workspace:', e);
+    }
+    return res;
   });
 
   safeRegister('workspaces:get', async (_event, payload) => {
     console.log('Main Process: Fetching workspace:', payload);
-    return sdk.workspaces.get(workspaceIdOrToken(payload));
+    const id = workspaceIdOrToken(payload);
+    try {
+      const ws = await sdk.workspaces.get(id);
+      try {
+        await LocalWorkspaceRepository.save(ws);
+      } catch (e) {
+        console.error('[IPC] Failed to cache workspace:', e);
+      }
+      return ws;
+    } catch (err) {
+      console.warn(`[IPC] Failed to fetch workspace ${id} from remote, falling back to cache:`, err);
+      const ws = await LocalWorkspaceRepository.findById(id);
+      if (!ws) throw err;
+      return ws;
+    }
   });
 
   // Members Management
@@ -38,17 +83,22 @@ export function registerWorkspaceIpc(sdk: SdkClient) {
 
   safeRegister('workspaces:members:invite', async (_event, payload) => {
     console.log('Main Process: Inviting user to workspace:', payload);
-    return sdk.workspaces.inviteMember(payload.workspaceId || payload.id, { email: payload.email, role: payload.role });
+    const workspaceId = payload.workspaceId || payload.id;
+    const email = payload.email || payload.dto?.email;
+    const role = payload.role || payload.dto?.role;
+    return sdk.workspaces.inviteMember(workspaceId, { email, role });
   });
 
   safeRegister('workspaces:members:updateRole', async (_event, payload) => {
     console.log('Main Process: Updating workspace member role:', payload);
-    return sdk.workspaces.updateMemberRole(payload.id, payload.userId, payload.role);
+    const memberId = payload.memberId || payload.userId;
+    return sdk.workspaces.updateMemberRole(payload.id, memberId, payload.role);
   });
 
   safeRegister('workspaces:members:remove', async (_event, payload) => {
     console.log('Main Process: Removing member from workspace:', payload);
-    return sdk.workspaces.removeMember(payload.id, payload.userId);
+    const memberId = payload.memberId || payload.userId;
+    return sdk.workspaces.removeMember(payload.id, memberId);
   });
 
   safeRegister('workspaces:members:leave', async (_event, payload) => {

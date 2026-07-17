@@ -45,7 +45,7 @@ export const LocalCRMRepository = {
   /**
    * Inserts or replaces a record.
    */
-  async save(tableName: string, record: any): Promise<any> {
+  async save(tableName: string, record: any, skipQueue = false): Promise<any> {
     const workspaceId = record.workspaceId;
     if (!workspaceId) throw new Error('workspaceId is required for SQLite crm repository writes.');
     const db = getDatabase(workspaceId);
@@ -71,8 +71,8 @@ export const LocalCRMRepository = {
       db.prepare(query).run(...params);
 
       // 3. Queue offline mutation task if this is a syncable crm table
-      const syncableTables = ['companies', 'contacts', 'campaigns'];
-      if (syncableTables.includes(tableName)) {
+      const syncableTables = ['companies', 'contacts', 'campaigns', 'sequences', 'sequence_executions'];
+      if (!skipQueue && syncableTables.includes(tableName)) {
         db.prepare(`
           INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
           VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -95,7 +95,7 @@ export const LocalCRMRepository = {
   /**
    * Bulk inserts or replaces records inside a transaction.
    */
-  async saveMany(tableName: string, records: any[]): Promise<void> {
+  async saveMany(tableName: string, records: any[], skipQueue = false): Promise<void> {
     if (!records.length) return;
     const workspaceId = records[0].workspaceId;
     if (!workspaceId) throw new Error('workspaceId is required for SQLite crm repository writes.');
@@ -113,7 +113,7 @@ export const LocalCRMRepository = {
       VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `);
 
-    const syncableTables = ['companies', 'contacts', 'campaigns'];
+    const syncableTables = ['companies', 'contacts', 'campaigns', 'sequences', 'sequence_executions'];
 
     const transaction = db.transaction((list: any[]) => {
       for (const item of list) {
@@ -129,7 +129,7 @@ export const LocalCRMRepository = {
 
         statement.run(...params);
 
-        if (syncableTables.includes(tableName)) {
+        if (!skipQueue && syncableTables.includes(tableName)) {
           insertSyncQueue.run(
             globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : require('crypto').randomUUID(),
             workspaceId,

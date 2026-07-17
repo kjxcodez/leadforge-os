@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { SyncWorker } from "../sync/sync-worker";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -78,14 +77,16 @@ export function AppLayout() {
 
   useEffect(() => {
     const workspaceId = activeWorkspace?.id;
-    if (workspaceId) {
-      SyncWorker.start(queryClient, workspaceId);
-    } else {
-      SyncWorker.stop();
-    }
+    if (!workspaceId) return;
+
+    // Listen to sync:completed events from Main process and refresh UI queries
+    const unsubscribe = window.ipc.on('sync:completed' as any, () => {
+      console.log('[Renderer] Sync completed event received, invalidating queries.');
+      queryClient.invalidateQueries();
+    });
 
     return () => {
-      SyncWorker.stop();
+      unsubscribe();
     };
   }, [activeWorkspace?.id, queryClient]);
 
