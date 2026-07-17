@@ -1,0 +1,38 @@
+appId: com.leadforge.desktop
+
+productName: LeadForge
+
+npmRebuild: false
+
+directories:
+  output: dist
+  buildResources: resources
+
+files:
+  - out/**
+  - package.json
+  - "!src"
+  - "!electron.vite.config.*"
+  - "!**/*.map"
+
+asar: true
+
+compression: maximum
+
+artifactName: "${productName}-${version}-${os}-${arch}.${ext}"
+
+extraMetadata:
+  main: out/main/index.js
+
+win:
+  target:
+    - nsis
+  icon: resources/icon.png
+
+nsis:
+  oneClick: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+
+publish: null
