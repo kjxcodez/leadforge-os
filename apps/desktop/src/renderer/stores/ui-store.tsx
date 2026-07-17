@@ -29,19 +29,51 @@ type UIAction =
 
 function getInitialTheme(): Theme {
   try {
-    const stored = localStorage.getItem('lf:theme') as Theme | null;
-    if (stored === 'dark' || stored === 'light' || stored === 'system') return stored;
-  } catch {}
+    const settings = window.ipc.getInitialSettings();
+    if (settings && (settings.theme === 'dark' || settings.theme === 'light' || settings.theme === 'system')) {
+      return settings.theme;
+    }
+  } catch (err) {
+    console.error('Failed to load initial theme:', err);
+  }
   return 'dark';
+}
+
+function getInitialSidebarCollapsed(): boolean {
+  try {
+    const settings = window.ipc.getInitialSettings();
+    if (settings && typeof settings.sidebarCollapsed === 'boolean') {
+      return settings.sidebarCollapsed;
+    }
+  } catch (err) {
+    console.error('Failed to load initial sidebar state:', err);
+  }
+  return false;
 }
 
 function uiReducer(state: UIState, action: UIAction): UIState {
   switch (action.type) {
     case 'SET_THEME':
+      try {
+        window.ipc.setSettings({ theme: action.payload });
+      } catch (err) {
+        console.error('Failed to persist theme:', err);
+      }
       return { ...state, theme: action.payload };
     case 'TOGGLE_SIDEBAR':
-      return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
+      const nextCollapsed = !state.sidebarCollapsed;
+      try {
+        window.ipc.setSettings({ sidebarCollapsed: nextCollapsed });
+      } catch (err) {
+        console.error('Failed to persist sidebar state:', err);
+      }
+      return { ...state, sidebarCollapsed: nextCollapsed };
     case 'SET_SIDEBAR':
+      try {
+        window.ipc.setSettings({ sidebarCollapsed: action.payload });
+      } catch (err) {
+        console.error('Failed to persist sidebar state:', err);
+      }
       return { ...state, sidebarCollapsed: action.payload };
     case 'TOGGLE_COMMAND_PALETTE':
       return { ...state, commandPaletteOpen: !state.commandPaletteOpen };
@@ -73,17 +105,16 @@ const UIContext = createContext<UIContextValue | null>(null);
 
 /**
  * UIProvider manages application-wide UI state: theme, sidebar, command palette.
- * Persists theme to localStorage so it survives restarts.
+ * Persists theme and sidebar state to config.json so it survives restarts.
  */
 export function UIProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(uiReducer, {
     theme: getInitialTheme(),
-    sidebarCollapsed: false,
+    sidebarCollapsed: getInitialSidebarCollapsed(),
     commandPaletteOpen: false,
   });
 
   const setTheme = useCallback((theme: Theme) => {
-    try { localStorage.setItem('lf:theme', theme); } catch {}
     dispatch({ type: 'SET_THEME', payload: theme });
   }, []);
 

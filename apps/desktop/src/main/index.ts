@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, Menu } from 'electron';
+import { app, BrowserWindow, shell, Menu, ipcMain } from 'electron';
 import { join } from 'path';
 import fs from 'fs';
 import { is } from '@electron-toolkit/utils';
@@ -173,6 +173,36 @@ app.whenReady().then(() => {
     persistActiveWorkspace,
     getPersistedActiveWorkspace
   );
+
+  // Synchronous settings getter for theme/sidebar restore on boot
+  ipcMain.on('settings:getSync', (event) => {
+    try {
+      const configPath = getLocalConfigPath();
+      if (fs.existsSync(configPath)) {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        event.returnValue = config.settings || {};
+      } else {
+        event.returnValue = {};
+      }
+    } catch (err) {
+      console.error('Failed to get sync settings:', err);
+      event.returnValue = {};
+    }
+  });
+
+  // Asynchronous settings setter
+  ipcMain.on('settings:set', (_event, settings) => {
+    try {
+      const configPath = getLocalConfigPath();
+      const config = fs.existsSync(configPath)
+        ? JSON.parse(fs.readFileSync(configPath, 'utf8'))
+        : {};
+      config.settings = { ...(config.settings || {}), ...settings };
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+    } catch (err) {
+      console.error('Failed to set settings:', err);
+    }
+  });
 
   // Remove default menu bar
   Menu.setApplicationMenu(null);

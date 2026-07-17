@@ -39,6 +39,14 @@ export interface IpcChannelMap {
     input: void;
     output: void;
   };
+  'settings:getSync': {
+    input: void;
+    output: any;
+  };
+  'settings:set': {
+    input: any;
+    output: void;
+  };
   'workspaces:create': {
     input: CreateWorkspaceDto;
     output: Workspace;

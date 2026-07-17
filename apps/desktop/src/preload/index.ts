@@ -6,6 +6,14 @@ contextBridge.exposeInMainWorld('ipc', {
     return ipcRenderer.invoke('ipc:test');
   },
 
+  getInitialSettings: (): any => {
+    return ipcRenderer.sendSync('settings:getSync');
+  },
+
+  setSettings: (settings: any): void => {
+    ipcRenderer.send('settings:set', settings);
+  },
+
   invoke: <K extends keyof IpcChannelMap>(
     channel: K,
     payload: IpcChannelMap[K]['input']
@@ -130,6 +138,8 @@ contextBridge.exposeInMainWorld('ipc', {
 
 export interface IpcApi {
   test(): Promise<{ status: string; timestamp: number }>;
+  getInitialSettings(): any;
+  setSettings(settings: any): void;
   invoke<K extends keyof IpcChannelMap>(
     channel: K,
     payload: IpcChannelMap[K]['input']
