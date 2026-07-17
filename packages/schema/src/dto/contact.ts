@@ -1,14 +1,14 @@
 import { z } from 'zod';
-import { objectIdField, nameField, emailField, phoneField, urlField } from '../fields/common.js';
+import { objectIdField, objectIdFieldNullable, nameField, emailFieldNullable, phoneFieldNullable, urlField } from '../fields/common.js';
 import { contactStatusSchema, contactSchema } from '../entities/contact.js';
 import { paginationParamsSchema } from '../common/pagination.js';
 
 export const createContactDtoSchema = z.object({
-  companyId: objectIdField.nullable().optional(),
+  companyId: objectIdFieldNullable.optional(),
   firstName: nameField,
   lastName: z.string().nullable().optional(),
-  email: emailField.nullable().optional(),
-  phone: phoneField.nullable().optional(),
+  email: emailFieldNullable.optional(),
+  phone: phoneFieldNullable.optional(),
   title: z.string().nullable().optional(),
   linkedin: z.string().nullable().optional(),
   linkedinUrl: urlField.nullable().optional(),
