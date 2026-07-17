@@ -7,7 +7,7 @@ interface Migration {
   up: string;
 }
 
-const MIGRATIONS: Migration[] = [
+export const MIGRATIONS: Migration[] = [
   {
     name: '001_initial_schema',
     up: `
