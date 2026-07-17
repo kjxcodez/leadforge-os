@@ -84,7 +84,11 @@ function createWindow() {
   // Show window when ready
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show();
-    mainWindow?.webContents.openDevTools();
+    if (is.dev) {
+      mainWindow?.webContents.openDevTools({
+        mode: "detach"
+      });
+    }
   });
 
   // Handle window closed
@@ -104,7 +108,7 @@ function createWindow() {
 
 }
 
-export function registerIpcHandler() {}
+export function registerIpcHandler() { }
 
 
 // App lifecycle

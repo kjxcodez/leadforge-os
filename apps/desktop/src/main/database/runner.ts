@@ -357,11 +357,185 @@ const MIGRATIONS: Migration[] = [
   },
 ];
 
+
+class MigrationError extends Error {
+  public statement: string;
+  public originalError: any;
+
+  constructor(message: string, statement: string, originalError: any) {
+    super(message);
+    this.name = 'MigrationError';
+    this.statement = statement;
+    this.originalError = originalError;
+  }
+}
+
+function stripComments(sql: string): string {
+  // Remove multi-line comments
+  let result = sql.replace(/\/\*[\s\S]*?\*\//g, '');
+  // Remove single-line comments
+  result = result.replace(/--.*$/gm, '');
+  return result;
+}
+
+function splitSqlStatements(sql: string): string[] {
+  const statements: string[] = [];
+  let current = '';
+  let inString = false;
+  let stringChar = '';
+
+  for (let i = 0; i < sql.length; i++) {
+    const char = sql[i];
+    if ((char === "'" || char === '"') && (i === 0 || sql[i - 1] !== '\\')) {
+      if (!inString) {
+        inString = true;
+        stringChar = char;
+      } else if (stringChar === char) {
+        inString = false;
+      }
+    }
+    if (char === ';' && !inString) {
+      statements.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  if (current.trim()) {
+    statements.push(current.trim());
+  }
+  return statements.filter(stmt => stmt.length > 0);
+}
+
+function tableExists(db: Database.Database, tableName: string): boolean {
+  const row = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName);
+  return !!row;
+}
+
+function indexExists(db: Database.Database, indexName: string): boolean {
+  const row = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?").get(indexName);
+  return !!row;
+}
+
+function triggerExists(db: Database.Database, triggerName: string): boolean {
+  const row = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?").get(triggerName);
+  return !!row;
+}
+
+function viewExists(db: Database.Database, viewName: string): boolean {
+  const row = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'view' AND name = ?").get(viewName);
+  return !!row;
+}
+
+function columnExists(db: Database.Database, tableName: string, columnName: string): boolean {
+  try {
+    const columns = db.pragma(`table_info(${tableName})`) as Array<{ name: string }>;
+    return columns.some(col => col.name.toLowerCase() === columnName.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+function executeIdempotentStatement(db: Database.Database, sql: string): boolean {
+  const cleanSql = sql.trim().replace(/\s+/g, ' ');
+
+  // 1. CREATE TABLE
+  const createTableMatch = cleanSql.match(/^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i);
+  if (createTableMatch && createTableMatch[1]) {
+    const tableName = createTableMatch[1];
+    if (tableExists(db, tableName)) {
+      return false; // Skipped
+    }
+    db.prepare(sql).run();
+    return true; // Applied
+  }
+
+  // 2. CREATE INDEX
+  const createIndexMatch = cleanSql.match(/^CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i);
+  if (createIndexMatch && createIndexMatch[1]) {
+    const indexName = createIndexMatch[1];
+    if (indexExists(db, indexName)) {
+      return false; // Skipped
+    }
+    db.prepare(sql).run();
+    return true;
+  }
+
+  // 3. CREATE TRIGGER
+  const createTriggerMatch = cleanSql.match(/^CREATE\s+TRIGGER\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i);
+  if (createTriggerMatch && createTriggerMatch[1]) {
+    const triggerName = createTriggerMatch[1];
+    if (triggerExists(db, triggerName)) {
+      return false; // Skipped
+    }
+    db.prepare(sql).run();
+    return true;
+  }
+
+  // 4. CREATE VIEW
+  const createViewMatch = cleanSql.match(/^CREATE\s+VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i);
+  if (createViewMatch && createViewMatch[1]) {
+    const viewName = createViewMatch[1];
+    if (viewExists(db, viewName)) {
+      return false; // Skipped
+    }
+    db.prepare(sql).run();
+    return true;
+  }
+
+  // 5. DROP TABLE
+  const dropTableMatch = cleanSql.match(/^DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i);
+  if (dropTableMatch && dropTableMatch[1]) {
+    const tableName = dropTableMatch[1];
+    if (!tableExists(db, tableName)) {
+      return false; // Skipped
+    }
+    if (tableName.toLowerCase() === 'sync_queue' && columnExists(db, 'sync_queue', 'version')) {
+      return false; // Skipped
+    }
+    db.prepare(sql).run();
+    return true;
+  }
+
+  // 6. ALTER TABLE ADD COLUMN
+  const alterTableMatch = cleanSql.match(/^ALTER\s+TABLE\s+([a-zA-Z0-9_]+)\s+ADD\s+(?:COLUMN\s+)?([a-zA-Z0-9_]+)/i);
+  if (alterTableMatch && alterTableMatch[1] && alterTableMatch[2]) {
+    const tableName = alterTableMatch[1];
+    const columnName = alterTableMatch[2];
+    if (columnExists(db, tableName, columnName)) {
+      return false; // Skipped
+    }
+    db.prepare(sql).run();
+    return true;
+  }
+
+  // Fallback
+  db.prepare(sql).run();
+  return true;
+}
+
 /**
  * Runs pending SQLite schema migrations sequentially inside a transaction.
  */
 export function runMigrations(customDb?: Database.Database): void {
   const db = customDb || getDatabase();
+
+  console.log('[SQLite] Database opened');
+
+  // Determine current schema version
+  let currentVersion = 'none';
+  const tableExistsInDb = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_migrations'").get();
+  if (tableExistsInDb) {
+    try {
+      const row = db.prepare('SELECT name FROM _migrations ORDER BY id DESC LIMIT 1').get() as { name: string } | undefined;
+      if (row) {
+        currentVersion = row.name;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  console.log(`[SQLite] Current schema version: ${currentVersion}`);
 
   // Create migration tracking table if missing
   db.prepare(`
@@ -372,29 +546,62 @@ export function runMigrations(customDb?: Database.Database): void {
     )
   `).run();
 
-  const runMigration = db.transaction((migration: Migration) => {
-    // 1. Run actual migration payload
-    db.exec(migration.up);
-
+  const runMigration = db.transaction((migration: Migration, statements: string[]) => {
+    for (const stmt of statements) {
+      try {
+        executeIdempotentStatement(db, stmt);
+      } catch (err: any) {
+        throw new MigrationError(
+          `Failed to execute SQL statement: ${err.message || err}`,
+          stmt,
+          err
+        );
+      }
+    }
     // 2. Register migration in tracking table
     db.prepare('INSERT INTO _migrations (name) VALUES (?)').run(migration.name);
-    console.log(`[SQLite] Migration "${migration.name}" executed successfully.`);
   });
 
   for (const migration of MIGRATIONS) {
-    const isApplied = db.prepare('SELECT 1 FROM _migrations WHERE name = ?').get(migration.name);
+    const numPrefix = migration.name.split('_')[0]; // e.g. '001'
+    console.log(`[SQLite] Checking migration ${numPrefix}...`);
 
-    if (!isApplied) {
-      console.log(`[SQLite] Applying migration: ${migration.name}`);
+    let isApplied = false;
+    try {
+      isApplied = !!db.prepare('SELECT 1 FROM _migrations WHERE name = ?').get(migration.name);
+    } catch {
+      // If table doesn't exist or is locked, treat as not applied
+    }
+
+    if (isApplied) {
+      console.log('[SQLite] Skipped');
+    } else {
+      console.log(`[SQLite] Applying ${numPrefix}...`);
+      const cleanedSql = stripComments(migration.up);
+      const statements = splitSqlStatements(cleanedSql);
+
       try {
-        runMigration(migration);
-      } catch (err) {
-        console.error(`[SQLite] Migration failure: ${migration.name}`, err);
+        runMigration(migration, statements);
+        console.log('[SQLite] Success');
+      } catch (err: any) {
+        let failedStmt = 'unknown';
+        let originalErr = err;
+        if (err instanceof MigrationError) {
+          failedStmt = err.statement;
+          originalErr = err.originalError;
+        }
+
+        console.error(`[SQLite] Migration failure: ${migration.name}`);
+        console.error(`- migration: ${migration.name}`);
+        console.error(`- SQL statement: ${failedStmt}`);
+        console.error(`- error: ${originalErr.message || originalErr}`);
+        console.error(`- rollback status: rolled back`);
         throw err;
       }
     }
   }
 
-  console.log('[SQLite] All migrations verified.');
+  console.log('[SQLite] Completed');
 }
+
 

@@ -14,9 +14,9 @@ const server = serve({
   port,
 });
 
-logger.info(`🚀 LeadForge OS API Server is running on port ${port} in ${env.NODE_ENV} mode.`);
-logger.info(`📖 OpenAPI specifications available at: http://localhost:${port}/openapi.json`);
-logger.info(`📖 Interactive API reference UI available at: http://localhost:${port}/reference`);
+logger.info(`> LeadForge OS API Server is running on port ${port} in ${env.NODE_ENV} mode.`);
+logger.info(`> OpenAPI specifications available at: http://localhost:${port}/openapi.json`);
+logger.info(`> Interactive API reference UI available at: http://localhost:${port}/reference`);
 
 // Start background automation sequences worker
 SequenceWorker.start();
