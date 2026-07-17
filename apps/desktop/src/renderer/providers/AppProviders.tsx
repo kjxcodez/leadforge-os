@@ -18,7 +18,7 @@ import { TooltipProvider } from "../components/ui/tooltip";
  * - 1 retry on failure — fast failure UX for Electron
  * - 5 min staleTime — data stays fresh while user works
  */
-const queryClient = new QueryClient({
+export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,

@@ -11,6 +11,9 @@ import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
 import { VerifyEmailScreen } from '../screens/VerifyEmailScreen';
 import { SessionExpiredScreen } from '../screens/SessionExpiredScreen';
 import { useAuth } from '../hooks/useAuth';
+import { useAuthStore } from '../stores/auth-store';
+import { useWorkspaceStore } from '../stores/workspace-store';
+import { queryClient } from '../providers/AppProviders';
 import WorkspaceSettingsScreen from '../screens/WorkspaceSettingsScreen';
 import WorkspaceInvitesScreen from '../screens/WorkspaceInvitesScreen';
 import DashboardScreen from '../screens/DashboardScreen';
@@ -31,12 +34,27 @@ import AutomationScreen from '../screens/AutomationScreen';
  */
 function SessionBootstrap({ children }: { children: React.ReactNode }) {
   const { restoreSession, isIdle } = useAuth();
+  const { setLoggedOut } = useAuthStore();
+  const workspaceStore = useWorkspaceStore();
 
   useEffect(() => {
     if (isIdle) {
       restoreSession();
     }
   }, [isIdle, restoreSession]);
+
+  useEffect(() => {
+    const unsubscribe = window.ipc.on('auth:unauthorized', () => {
+      setLoggedOut();
+      workspaceStore.reset();
+      queryClient.clear();
+      window.location.hash = '#/session-expired';
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [setLoggedOut, workspaceStore]);
 
   return <>{children}</>;
 }

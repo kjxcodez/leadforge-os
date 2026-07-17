@@ -6,6 +6,8 @@ import { SdkClient } from '@leadforge/sdk';
 import { runMigrations } from './database/runner';
 import { closeDatabase } from './database/connection';
 import { registerAllIpc } from './ipc/register';
+import { loadSession, clearSession } from './lib/session';
+import { AppLogger } from './lib/logger';
 
 // Main window reference
 let mainWindow: BrowserWindow | null = null;
@@ -49,6 +51,16 @@ const sdk = new SdkClient({
   baseUrl: process.env.API_URL || 'http://localhost:3000/api/v1',
   headers: customHeaders,
   tokenResolver: () => activeToken,
+  onUnauthorized: () => {
+    AppLogger.warn('auth', 'Session expired');
+    clearSession();
+    activeToken = null;
+    delete customHeaders['x-workspace-id'];
+    persistActiveWorkspace(null);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('auth:unauthorized');
+    }
+  }
 });
 
 // IPC handlers registry
@@ -115,6 +127,20 @@ export function registerIpcHandler() { }
 app.whenReady().then(() => {
   // Set as app user model ID (Windows)
   app.setAppUserModelId('com.leadforge.desktop');
+
+  // Restore session from disk
+  try {
+    const session = loadSession();
+    if (session) {
+      activeToken = session.accessToken;
+      if (session.activeWorkspaceId) {
+        customHeaders['x-workspace-id'] = session.activeWorkspaceId;
+      }
+      AppLogger.info('auth', 'Session restored');
+    }
+  } catch (err) {
+    AppLogger.error('auth', 'Failed to restore session on startup', undefined, err);
+  }
 
   // 1. Run SQLite schema migrations
   try {

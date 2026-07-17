@@ -35,6 +35,10 @@ export interface IpcChannelMap {
     input: void;
     output: any;
   };
+  'auth:unauthorized': {
+    input: void;
+    output: void;
+  };
   'workspaces:create': {
     input: CreateWorkspaceDto;
     output: Workspace;
