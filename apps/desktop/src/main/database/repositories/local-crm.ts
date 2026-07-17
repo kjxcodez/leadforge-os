@@ -51,7 +51,20 @@ export const LocalCRMRepository = {
     const db = getDatabase(workspaceId);
     if (!/^[a-zA-Z0-9_]+$/.test(tableName)) throw new Error(`Invalid table: ${tableName}`);
 
-    const columns = Object.keys(record).filter(col => /^[a-zA-Z0-9_]+$/.test(col));
+    if (record._id && !record.id) {
+      record.id = typeof record._id === 'object' ? record._id.toString() : record._id;
+    }
+    delete record._id;
+
+    if (!record.id) {
+      record.id = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : require('crypto').randomUUID();
+    }
+
+    // Resolve valid table columns from SQLite schema pragma
+    const tableInfo = db.pragma(`table_info(${tableName})`) as Array<{ name: string }>;
+    const validColumns = new Set(tableInfo.map(col => col.name));
+
+    const columns = Object.keys(record).filter(col => validColumns.has(col) && /^[a-zA-Z0-9_]+$/.test(col));
     const placeholders = columns.map(() => '?').join(', ');
     const query = `INSERT OR REPLACE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
     
@@ -102,7 +115,19 @@ export const LocalCRMRepository = {
     const db = getDatabase(workspaceId);
     if (!/^[a-zA-Z0-9_]+$/.test(tableName)) throw new Error(`Invalid table: ${tableName}`);
 
-    const columns = Object.keys(records[0]).filter(col => /^[a-zA-Z0-9_]+$/.test(col));
+    // Map Mongo _id to id and clean records first
+    for (const record of records) {
+      if (record._id && !record.id) {
+        record.id = typeof record._id === 'object' ? record._id.toString() : record._id;
+      }
+      delete record._id;
+    }
+
+    // Resolve valid table columns from SQLite schema pragma
+    const tableInfo = db.pragma(`table_info(${tableName})`) as Array<{ name: string }>;
+    const validColumns = new Set(tableInfo.map(col => col.name));
+
+    const columns = Object.keys(records[0]).filter(col => validColumns.has(col) && /^[a-zA-Z0-9_]+$/.test(col));
     const placeholders = columns.map(() => '?').join(', ');
     const query = `INSERT OR REPLACE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
     

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { CompanyStatus } from '../enums/index.js';
-import { objectIdField, nameField, urlField } from '../fields/common.js';
+import { objectIdField, nameField, domainField } from '../fields/common.js';
 
 export const companyStatusSchema = z.nativeEnum(CompanyStatus);
 
@@ -8,7 +8,7 @@ export const companySchema = z.object({
   id: objectIdField,
   workspaceId: objectIdField,
   name: nameField,
-  domain: urlField,
+  domain: domainField,
   website: z.string().nullable().optional(),
   industry: z.string().nullable().optional(),
   size: z.string().nullable().optional(),
