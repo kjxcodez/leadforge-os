@@ -187,7 +187,8 @@ function createWindow() {
                 status: 'NEW',
                 title: 'VP of Sales',
                 notes: 'Test contact notes',
-                source: 'manual'
+                source: 'manual',
+                workspaceId: activeWorkspace
               });
               console.log('[E2E-TEST] [contacts:create] Success:', JSON.stringify(result));
             } catch (err) {
