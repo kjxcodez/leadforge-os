@@ -8,6 +8,7 @@ import { closeDatabase } from './database/connection';
 import { registerAllIpc } from './ipc/register';
 import { loadSession, clearSession } from './lib/session';
 import { AppLogger } from './lib/logger';
+import { loadWindowState, trackWindowState } from './lib/window-state';
 
 // Main window reference
 let mainWindow: BrowserWindow | null = null;
@@ -67,9 +68,11 @@ const sdk = new SdkClient({
 export const ipcHandlers = new Map<string, (event: Electron.IpcMainEvent, ...args: unknown[]) => void>();
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+  const windowState = loadWindowState();
+
+  const winOptions: any = {
+    width: windowState.width,
+    height: windowState.height,
     minWidth: 800,
     minHeight: 600,
     show: false,
@@ -84,7 +87,20 @@ function createWindow() {
     titleBarStyle: 'default',
     frame: true,
     trafficLightPosition: { x: 10, y: 10 },
-  });
+  };
+
+  if (windowState.x !== undefined && windowState.y !== undefined) {
+    winOptions.x = windowState.x;
+    winOptions.y = windowState.y;
+  }
+
+  mainWindow = new BrowserWindow(winOptions);
+
+  if (windowState.maximized) {
+    mainWindow.maximize();
+  }
+
+  trackWindowState(mainWindow);
 
   // Load the app
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
@@ -116,8 +132,6 @@ function createWindow() {
     }
     return { action: 'allow' };
   });
-
-
 }
 
 export function registerIpcHandler() { }
