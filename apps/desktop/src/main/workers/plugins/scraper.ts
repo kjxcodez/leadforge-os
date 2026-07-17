@@ -75,9 +75,9 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
       const companyId = require('crypto').randomUUID();
 
       db.prepare(`
-        INSERT INTO companies (id, workspaceId, name, domain, website, location, phone, score, syncStatus, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending', datetime('now'), datetime('now'))
-      `).run(companyId, ctx.workspaceId, name, domain, website, location, phone);
+        INSERT INTO companies (id, workspaceId, name, domain, website, location, syncStatus, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, 'pending', datetime('now'), datetime('now'))
+      `).run(companyId, ctx.workspaceId, name, domain, website, location);
 
       db.prepare(`
         INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
@@ -87,7 +87,7 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
         ctx.workspaceId,
         'companies',
         companyId,
-        JSON.stringify({ id: companyId, workspaceId: ctx.workspaceId, name, domain, website, location, phone })
+        JSON.stringify({ id: companyId, workspaceId: ctx.workspaceId, name, domain, website, location, status: 'LEAD' })
       );
 
       storedCount++;

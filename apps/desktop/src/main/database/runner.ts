@@ -355,6 +355,13 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE companies ADD COLUMN notes TEXT;
     `,
   },
+  {
+    name: '007_add_company_website_location',
+    up: `
+      ALTER TABLE companies ADD COLUMN website TEXT;
+      ALTER TABLE companies ADD COLUMN location TEXT;
+    `,
+  },
 ];
 
 
