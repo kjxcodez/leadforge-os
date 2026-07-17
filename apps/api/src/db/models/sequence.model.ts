@@ -2,6 +2,7 @@ import mongoose, { Schema } from "mongoose";
 import { workspacePlugin, type WorkspaceScopedDocument } from "../plugins/index.js";
 
 export interface SequenceDocument extends mongoose.Document, WorkspaceScopedDocument {
+  _id: any;
   name: string;
   description?: string;
   status: string;
@@ -21,6 +22,10 @@ export interface SequenceDocument extends mongoose.Document, WorkspaceScopedDocu
 
 const sequenceSchema = new Schema<SequenceDocument>(
   {
+    _id: {
+      type: String,
+      default: () => new mongoose.Types.ObjectId().toString(),
+    },
     name: {
       type: String,
       required: true,

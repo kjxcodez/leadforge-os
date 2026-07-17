@@ -37,6 +37,20 @@ const DOMAIN_CHANNELS: Record<string, { list: string; get: string; create: strin
     update: 'campaigns:update',
     delete: 'campaigns:delete',
   },
+  sequences: {
+    list: 'sequence:list',
+    get: 'sequence:get',
+    create: 'sequence:create',
+    update: 'sequence:update',
+    delete: 'sequence:delete',
+  },
+  sequence_executions: {
+    list: 'execution:list',
+    get: 'execution:get',
+    create: 'sequence:start',
+    update: 'sequence:stop',
+    delete: 'sequence:delete', // placeholder
+  },
 };
 
 class BaseSyncRepository<T> implements ISyncRepository<T> {

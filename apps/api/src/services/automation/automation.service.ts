@@ -16,6 +16,7 @@ export class AutomationService {
 
   public async createSequence(data: any): Promise<any> {
     const seq = new SequenceModel({
+      _id: data.id || data._id || undefined,
       workspaceId: this.workspaceId as any,
       name: data.name,
       description: data.description || "",
@@ -97,6 +98,7 @@ export class AutomationService {
     }
 
     const exec = new SequenceExecutionModel({
+      _id: (payload as any).id || (payload as any)._id || undefined,
       sequenceId,
       workspaceId: this.workspaceId as any,
       contactId: payload.contactId || null,
