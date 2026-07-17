@@ -121,86 +121,8 @@ function createWindow() {
         mode: "detach"
       });
     }
-
-    // Inject E2E verification triggers for Contacts
-    setTimeout(() => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        console.log('[TEST-RUNNER] Injecting E2E Contact bootstrap & creation script...');
-        mainWindow.webContents.executeJavaScript(`
-          (async () => {
-            console.log('[E2E-TEST] Starting E2E bootstrap & trace...');
-            try {
-              // 1. Try to login. If it fails, try to register!
-              let authRes;
-              try {
-                console.log('[E2E-TEST] [auth:login] Attempting login with test@leadforge.io...');
-                authRes = await window.ipc.invoke('auth:login', {
-                  email: 'test@leadforge.io',
-                  password: 'Password123!'
-                });
-                console.log('[E2E-TEST] [auth:login] Success!');
-              } catch (loginErr) {
-                console.log('[E2E-TEST] [auth:login] Failed, attempting registration...');
-                authRes = await window.ipc.invoke('auth:register', {
-                  email: 'test@leadforge.io',
-                  password: 'Password123!',
-                  name: 'Test User'
-                });
-                console.log('[E2E-TEST] [auth:register] Success!');
-              }
-
-              // 2. Load workspaces
-              console.log('[E2E-TEST] [workspaces:list] Fetching workspaces...');
-              let workspaces = await window.ipc.invoke('workspaces:list');
-              console.log('[E2E-TEST] [workspaces:list] Found:', workspaces.length);
-
-              let workspaceId = '';
-              if (workspaces.length === 0) {
-                console.log('[E2E-TEST] [workspaces:create] Creating new workspace...');
-                const newWorkspace = await window.ipc.invoke('workspaces:create', {
-                  name: 'Default Test Workspace'
-                });
-                workspaceId = newWorkspace.id || newWorkspace._id;
-                console.log('[E2E-TEST] [workspaces:create] Created:', workspaceId);
-              } else {
-                workspaceId = workspaces[0].id || workspaces[0]._id;
-              }
-
-              // 3. Set active workspace
-              console.log('[E2E-TEST] [electron:setActiveWorkspace] Activating workspace:', workspaceId);
-              await window.ipc.invoke('electron:setActiveWorkspace', workspaceId);
-
-              // Wait for active workspace context to propagate
-              await new Promise(r => setTimeout(r, 2000));
-
-              const activeWorkspace = await window.ipc.invoke('electron:getActiveWorkspace');
-              console.log('[E2E-TEST] [electron:getActiveWorkspace] Active Workspace ID:', activeWorkspace);
-
-              // 4. Try to invoke contacts:create with empty optional inputs
-              console.log('[E2E-TEST] [contacts:create] Invoking creation with empty inputs...');
-              const result = await window.ipc.invoke('contacts:create', {
-                firstName: 'John',
-                lastName: 'Doe',
-                email: '',
-                phone: '',
-                companyId: '',
-                status: 'NEW',
-                title: 'VP of Sales',
-                notes: 'Test contact notes',
-                source: 'manual',
-                workspaceId: activeWorkspace
-              });
-              console.log('[E2E-TEST] [contacts:create] Success:', JSON.stringify(result));
-            } catch (err) {
-              console.error('[E2E-TEST] [CRITICAL-ERROR] Tracing failed:', err.message);
-            }
-          })()
-        `).catch(err => {
-          console.error('[TEST-RUNNER] executeJavaScript failed:', err);
-        });
-      }
-    }, 12000);
   });
+
 
   // Handle window closed
   mainWindow.on('closed', () => {

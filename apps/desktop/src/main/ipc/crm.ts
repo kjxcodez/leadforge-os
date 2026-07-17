@@ -47,7 +47,6 @@ export function registerCrmIpc() {
   });
 
   safeRegister('contacts:create', async (_event, record) => {
-    console.log('[DEBUG-MAIN] contacts:create received payload:', JSON.stringify(record));
     if (!record.workspaceId) throw new Error('workspaceId is required.');
     return LocalCRMRepository.save('contacts', record);
   });
