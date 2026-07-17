@@ -10,6 +10,7 @@ export function registerAuthIpc(
   sdk: SdkClient,
   setToken: (token: string | null) => void,
   setWorkspaceHeader: (workspaceId: string | null) => void,
+  persistActiveWorkspace: (workspaceId: string | null) => void,
   getPersistedActiveWorkspace: () => string | null
 ) {
   safeRegister('auth:login', async (_event, payload) => {
@@ -74,6 +75,7 @@ export function registerAuthIpc(
     setToken(null);
     setWorkspaceHeader(null);
     clearSession();
+    persistActiveWorkspace(null);
     AppLogger.info('auth', 'Logout completed');
   });
 

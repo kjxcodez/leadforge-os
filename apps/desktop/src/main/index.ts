@@ -147,8 +147,10 @@ app.whenReady().then(() => {
     const session = loadSession();
     if (session) {
       activeToken = session.accessToken;
-      if (session.activeWorkspaceId) {
-        customHeaders['x-workspace-id'] = session.activeWorkspaceId;
+      const persistedWorkspace = getPersistedActiveWorkspace();
+      const workspaceId = persistedWorkspace || session.activeWorkspaceId;
+      if (workspaceId) {
+        customHeaders['x-workspace-id'] = workspaceId;
       }
       AppLogger.info('auth', 'Session restored');
     }

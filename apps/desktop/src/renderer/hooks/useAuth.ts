@@ -21,7 +21,22 @@ export function useAuth() {
 
       // Load workspaces after login
       const workspaces = await WorkspaceService.listWorkspaces();
-      const active = WorkspaceService.resolveActiveWorkspace(workspaces, result.user.activeWorkspaceId);
+      const persistedActiveId = await WorkspaceService.getActiveWorkspaceId();
+
+      let active = workspaces.find((w) => w.id === persistedActiveId) || null;
+      if (!active) {
+        active = workspaces.find((w) => w.id === result.user.activeWorkspaceId) || null;
+      }
+      if (!active && workspaces.length > 0) {
+        active = workspaces[0] || null;
+      }
+
+      if (active) {
+        await WorkspaceService.syncActiveWorkspace(active.id);
+      } else {
+        await WorkspaceService.syncActiveWorkspace(null);
+      }
+
       workspaceStore.setWorkspaces(workspaces, active);
     } catch (err: any) {
       setUnauthenticated(err.message ?? 'Login failed');
@@ -36,7 +51,22 @@ export function useAuth() {
       setAuthenticated(result.user, result.token);
 
       const workspaces = await WorkspaceService.listWorkspaces();
-      const active = WorkspaceService.resolveActiveWorkspace(workspaces, result.user.activeWorkspaceId);
+      const persistedActiveId = await WorkspaceService.getActiveWorkspaceId();
+
+      let active = workspaces.find((w) => w.id === persistedActiveId) || null;
+      if (!active) {
+        active = workspaces.find((w) => w.id === result.user.activeWorkspaceId) || null;
+      }
+      if (!active && workspaces.length > 0) {
+        active = workspaces[0] || null;
+      }
+
+      if (active) {
+        await WorkspaceService.syncActiveWorkspace(active.id);
+      } else {
+        await WorkspaceService.syncActiveWorkspace(null);
+      }
+
       workspaceStore.setWorkspaces(workspaces, active);
     } catch (err: any) {
       setUnauthenticated(err.message ?? 'Registration failed');
@@ -55,8 +85,24 @@ export function useAuth() {
     const result = await AuthService.restoreSession();
     if (result) {
       setAuthenticated(result.user, result.token);
+      
       const workspaces = await WorkspaceService.listWorkspaces();
-      const active = WorkspaceService.resolveActiveWorkspace(workspaces, result.user.activeWorkspaceId);
+      const persistedActiveId = await WorkspaceService.getActiveWorkspaceId();
+
+      let active = workspaces.find((w) => w.id === persistedActiveId) || null;
+      if (!active) {
+        active = workspaces.find((w) => w.id === result.user.activeWorkspaceId) || null;
+      }
+      if (!active && workspaces.length > 0) {
+        active = workspaces[0] || null;
+      }
+
+      if (active) {
+        await WorkspaceService.syncActiveWorkspace(active.id);
+      } else {
+        await WorkspaceService.syncActiveWorkspace(null);
+      }
+
       workspaceStore.setWorkspaces(workspaces, active);
     } else {
       setUnauthenticated();

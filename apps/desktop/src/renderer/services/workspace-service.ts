@@ -129,6 +129,18 @@ export const WorkspaceService = {
   },
 
   /**
+   * Gets the locally persisted active workspace ID.
+   */
+  async getActiveWorkspaceId(): Promise<string | null> {
+    try {
+      const res = await window.ipc.invoke('electron:getActiveWorkspace', undefined);
+      return res as string | null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
    * Syncs active workspace to Electron state headers and persist storage.
    */
   async syncActiveWorkspace(workspaceId: string | null): Promise<void> {

@@ -90,9 +90,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   const setWorkspaces = useCallback((workspaces: Workspace[], active: Workspace | null) => {
     dispatch({ type: 'WORKSPACES_LOADED', payload: { workspaces, active } });
-    if (active) {
-      WorkspaceService.syncActiveWorkspace(active.id || null);
-    }
+    WorkspaceService.syncActiveWorkspace(active?.id || null);
   }, []);
 
   const switchWorkspace = useCallback(async (workspace: Workspace) => {

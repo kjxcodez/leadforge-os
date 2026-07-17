@@ -34,7 +34,7 @@ export function registerAllIpc(
 
   // Register domain specific handlers
   registerDatabaseIpc();
-  registerAuthIpc(sdk, setToken, setWorkspaceHeader, getPersistedActiveWorkspace);
+  registerAuthIpc(sdk, setToken, setWorkspaceHeader, persistActiveWorkspace, getPersistedActiveWorkspace);
   registerWorkspaceIpc(sdk);
   registerCrmIpc();
   registerDiscoveryIpc(sdk);
