@@ -1,6 +1,7 @@
 import { type ChildProcess, fork } from 'child_process';
 import { join } from 'path';
 import { app } from 'electron';
+import { is } from '@electron-toolkit/utils';
 import Database from 'better-sqlite3';
 import { LocalEventBus } from '../lib/event-bus';
 import { AppLogger } from '../lib/logger';
@@ -112,6 +113,10 @@ export class JobScheduler {
         NODE_ENV: process.env.NODE_ENV,
       },
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+      // Dev only: attach Node.js inspector on a random available port.
+      // In production is.dev === false so execArgv is an empty array.
+      // Spec: worker_runtime_spec.md §4.7 / TASK-009
+      execArgv: is.dev ? ['--inspect=0'] : [],
     });
 
     // Pipe worker stdout / stderr into the Main-process AppLogger.
