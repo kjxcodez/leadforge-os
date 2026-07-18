@@ -8,7 +8,6 @@ import { OutreachModel } from "../../db/models/outreach.model.js";
 import { ActivityModel } from "../../db/models/activity.model.js";
 import { encrypt, decrypt } from "../../utils/encryption.js";
 import { GmailSmtpProvider } from "./provider.js";
-import { AutomationService } from "../automation/automation.service.js";
 import mongoose from "mongoose";
 
 const provider = new GmailSmtpProvider();
@@ -162,13 +161,6 @@ export class OutreachService {
 
     await EmailAccountModel.findByIdAndUpdate(account._id, {
       $inc: { dailySent: 1, hourlySent: 1 },
-    });
-
-    // Trigger automation sequence event
-    const autoService = new AutomationService(this.workspaceId);
-    await autoService.handleEvent("EMAIL_SENT", {
-      contactId: contact._id.toString(),
-      ...(contact.companyId ? { companyId: contact.companyId.toString() } : {})
     });
 
     return log;
@@ -387,13 +379,6 @@ export class OutreachService {
           $inc: { dailySent: 1, hourlySent: 1 },
         });
 
-        // Trigger EMAIL_SENT automation event
-        const autoService = new AutomationService(campaign.workspaceId.toString());
-        await autoService.handleEvent("EMAIL_SENT", {
-          contactId: c._id.toString(),
-          ...(c.companyId ? { companyId: c.companyId.toString() } : {})
-        });
-
       } catch (err: any) {
         console.error(`[OutreachService] Failed sending to contact ${c.email}:`, err);
         log.status = 'failed';
@@ -407,10 +392,6 @@ export class OutreachService {
     // Complete campaign
     campaign.status = 'COMPLETED';
     await campaign.save();
-
-    // Trigger CAMPAIGN_COMPLETED automation event
-    const autoService = new AutomationService(campaign.workspaceId.toString());
-    await autoService.handleEvent("CAMPAIGN_COMPLETED", {});
 
     await this.logWorkspaceActivity(`Outreach Campaign ${campaign.name} successfully finished sending.`);
   }

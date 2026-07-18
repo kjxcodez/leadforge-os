@@ -150,9 +150,11 @@ export enum SequenceStatus {
 }
 
 export enum ExecutionStatus {
+  PENDING = 'PENDING',
   RUNNING = 'RUNNING',
   WAITING = 'WAITING',
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
 }
 

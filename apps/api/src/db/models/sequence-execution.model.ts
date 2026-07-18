@@ -45,8 +45,8 @@ const sequenceExecutionSchema = new Schema<SequenceExecutionDocument>(
     status: {
       type: String,
       required: true,
-      enum: ["RUNNING", "WAITING", "COMPLETED", "FAILED"],
-      default: "RUNNING",
+      enum: ["PENDING", "RUNNING", "WAITING", "COMPLETED", "FAILED", "CANCELLED"],
+      default: "PENDING",
       index: true,
     },
     startedAt: {
