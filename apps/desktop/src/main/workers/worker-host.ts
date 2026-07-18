@@ -6,6 +6,7 @@ import { scrapeMaps } from './plugins/scraper';
 import { crawlWebsite } from './plugins/crawler';
 import { enrichWebsite } from './plugins/enricher';
 import { dispatchOutreach } from './plugins/outreach';
+import { executeAutomationWorkflow } from './plugins/automation';
 
 // ---------------------------------------------------------------------------
 // Mock Test Plugin
@@ -49,6 +50,7 @@ registry.register('scraper:maps', scrapeMaps);
 registry.register('crawler:website', crawlWebsite);
 registry.register('enrich:website', enrichWebsite);
 registry.register('outreach:campaign', dispatchOutreach);
+registry.register('automation:workflow', executeAutomationWorkflow);
 registry.register('mock:test', mockTest);
 
 // ---------------------------------------------------------------------------
