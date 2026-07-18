@@ -17,6 +17,8 @@ export class JobScheduler {
   private activeWorkers = new Map<string, ChildProcess>();
   /** Tracks pending hard-kill timeouts for soft-cancel fallback (TASK-008 / BC-005). */
   private cancelTimeouts = new Map<string, NodeJS.Timeout>();
+  /** Tracks pending cancel resolvers to return a Promise from cancelJob. */
+  private pendingCancels = new Map<string, () => void>();
   /**
    * Per-job heartbeat watchdog state.
    * Keyed by jobId. Cleared on every worker exit path to prevent interval leaks.
@@ -60,6 +62,9 @@ export class JobScheduler {
     // Clear any pending hard-kill fallback timeouts before shutdown.
     for (const t of this.cancelTimeouts.values()) clearTimeout(t);
     this.cancelTimeouts.clear();
+
+    for (const resolveCancel of this.pendingCancels.values()) resolveCancel();
+    this.pendingCancels.clear();
 
     // Clear all heartbeat intervals before terminating workers.
     for (const jobId of [...this.heartbeats.keys()]) this.clearHeartbeat(jobId);
@@ -279,6 +284,12 @@ export class JobScheduler {
           `).run(new Date().toISOString(), job.id);
           this.activeWorkers.delete(job.id);
           this.eventBus.publish('job:cancelled', { jobId: job.id });
+
+          const resolveCancel = this.pendingCancels.get(job.id);
+          if (resolveCancel) {
+            resolveCancel();
+            this.pendingCancels.delete(job.id);
+          }
           break;
         }
 
@@ -304,6 +315,12 @@ export class JobScheduler {
         const errorMsg = `Worker process exited abnormally with code ${code} (signal: ${signal})`;
         AppLogger.error('JobScheduler', `Job "${job.id}" worker crashed: ${errorMsg}`, this.workspaceId, { jobId: job.id });
         this.handleJobFailure(job.id, job.retryCount, job.maxRetries, errorMsg);
+      }
+
+      const resolveCancel = this.pendingCancels.get(job.id);
+      if (resolveCancel) {
+        resolveCancel();
+        this.pendingCancels.delete(job.id);
       }
     });
 
@@ -343,6 +360,12 @@ export class JobScheduler {
     this.activeWorkers.delete(jobId);
 
     this.eventBus.publish('job:completed', { jobId, result });
+
+    const resolveCancel = this.pendingCancels.get(jobId);
+    if (resolveCancel) {
+      resolveCancel();
+      this.pendingCancels.delete(jobId);
+    }
   }
 
   private handleJobFailure(jobId: string, currentRetry: number, maxRetries: number, error: string): void {
@@ -371,6 +394,12 @@ export class JobScheduler {
       `).run(error, new Date().toISOString(), jobId);
       this.eventBus.publish('job:failed', { jobId, error, willRetry: false });
     }
+
+    const resolveCancel = this.pendingCancels.get(jobId);
+    if (resolveCancel) {
+      resolveCancel();
+      this.pendingCancels.delete(jobId);
+    }
   }
 
   /**
@@ -386,13 +415,17 @@ export class JobScheduler {
    * BC-005 / file_level_tasks items 10, 12: Replaces the previous SIGTERM-based cancel.
    * Windows-safe — does not rely on SIGTERM signal delivery.
    */
-  public cancelJob(jobId: string): void {
+  public cancelJob(jobId: string): Promise<void> {
     const worker = this.activeWorkers.get(jobId);
     if (worker) {
       AppLogger.warn('JobScheduler', `Sending cancel command to job "${jobId}"`, this.workspaceId, { jobId });
 
       // Soft cancel — let the worker clean up before exiting.
       worker.send({ command: 'cancel' } as MainToWorkerMsg);
+
+      const cancelPromise = new Promise<void>((resolve) => {
+        this.pendingCancels.set(jobId, resolve);
+      });
 
       // Hard-kill fallback: force-kill if worker does not ack within 15 seconds.
       const hardKillTimeout = setTimeout(() => {
@@ -411,10 +444,17 @@ export class JobScheduler {
           `).run(new Date().toISOString(), jobId);
 
           this.eventBus.publish('job:cancelled', { jobId });
+
+          const resolveCancel = this.pendingCancels.get(jobId);
+          if (resolveCancel) {
+            resolveCancel();
+            this.pendingCancels.delete(jobId);
+          }
         }
       }, 15000);
 
       this.cancelTimeouts.set(jobId, hardKillTimeout);
+      return cancelPromise;
     } else {
       // No active worker — job is queued or already terminal. Update DB directly.
       this.db.prepare(`
@@ -424,6 +464,7 @@ export class JobScheduler {
       `).run(new Date().toISOString(), jobId);
 
       this.eventBus.publish('job:cancelled', { jobId });
+      return Promise.resolve();
     }
   }
 

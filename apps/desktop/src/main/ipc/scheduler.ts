@@ -52,9 +52,9 @@ export function registerSchedulerIpc() {
 
     const activeRuntime = WorkspaceManager.getActiveRuntime();
     if (activeRuntime && activeRuntime.workspaceId === workspaceId) {
-      // Access the scheduler on the active runtime to trigger SIGTERM signal
+      // Access the scheduler on the active runtime to trigger soft cancel
       // and update the SQLite states
-      (activeRuntime as any).scheduler.cancelJob(jobId);
+      await (activeRuntime as any).scheduler.cancelJob(jobId);
       console.log(`[IPC] Sent cancellation request for running job: ${jobId}`);
       return;
     }
@@ -68,5 +68,42 @@ export function registerSchedulerIpc() {
     `).run(jobId);
 
     console.log(`[IPC] Marked inactive job "${jobId}" as cancelled in database.`);
+  });
+
+  // 4. Pause a running/queued job
+  safeRegister('scheduler:jobs:pause', async (_event, { workspaceId, jobId }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    if (!jobId) throw new Error('jobId is required.');
+
+    const activeRuntime = WorkspaceManager.getActiveRuntime();
+    if (activeRuntime && activeRuntime.workspaceId === workspaceId) {
+      (activeRuntime as any).scheduler.pauseJob(jobId);
+      console.log(`[IPC] Sent pause request for job: ${jobId}`);
+      return;
+    }
+
+    const db = getDatabase(workspaceId);
+    db.prepare(`
+      UPDATE jobs
+      SET status = 'paused', updatedAt = datetime('now')
+      WHERE id = ? AND status = 'queued'
+    `).run(jobId);
+
+    console.log(`[IPC] Marked inactive queued job "${jobId}" as paused in database.`);
+  });
+
+  // 5. Resume a paused job
+  safeRegister('scheduler:jobs:resume', async (_event, { workspaceId, jobId }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    if (!jobId) throw new Error('jobId is required.');
+
+    const db = getDatabase(workspaceId);
+    db.prepare(`
+      UPDATE jobs
+      SET status = 'queued', updatedAt = datetime('now')
+      WHERE id = ? AND status = 'paused'
+    `).run(jobId);
+
+    console.log(`[IPC] Resumed paused job "${jobId}" (marked as queued).`);
   });
 }
