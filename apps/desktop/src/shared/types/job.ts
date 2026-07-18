@@ -41,6 +41,16 @@ export interface JobPayload {
   finishedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  /** Resumable state snapshot — JSON string. Written by the scheduler on { type: 'checkpoint' } / { type: 'paused' }. */
+  checkpointData?: string | null;
+  /** ISO datetime of the last checkpoint write. */
+  checkpointAt?: string | null;
+  /** For retry backoff: job will not be re-dispatched before this datetime. Added by migration-008. */
+  scheduledAt?: string | null;
+  /** Deduplication key for idempotent job queuing. Added by migration-008. */
+  idempotencyKey?: string | null;
+  /** Total wall-clock duration of the last run in milliseconds. Added by migration-008. */
+  durationMs?: number | null;
 }
 
 /**
