@@ -11,6 +11,7 @@ export type EventType =
   | 'job:resumed'
   | 'job:cancelled'
   | 'job:heartbeat:timeout'
+  | 'job:deduplicated'
   | 'sync:started'
   | 'sync:progress'
   | 'sync:completed'
