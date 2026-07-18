@@ -3,6 +3,7 @@ import type { MainToWorkerMsg, WorkerToMainMsg } from '../../shared/types/ipc';
 import type { JobContext } from '../../shared/types/job';
 import { WorkerPluginRegistry } from './plugin-registry';
 import { scrapeMaps } from './plugins/scraper';
+import { crawlWebsite } from './plugins/crawler';
 import { enrichWebsite } from './plugins/enricher';
 import { dispatchOutreach } from './plugins/outreach';
 
@@ -45,6 +46,7 @@ async function mockTest(ctx: JobContext): Promise<any> {
  */
 const registry = new WorkerPluginRegistry();
 registry.register('scraper:maps', scrapeMaps);
+registry.register('crawler:website', crawlWebsite);
 registry.register('enrich:website', enrichWebsite);
 registry.register('outreach:campaign', dispatchOutreach);
 registry.register('mock:test', mockTest);
