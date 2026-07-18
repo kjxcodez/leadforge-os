@@ -5,7 +5,7 @@ import { is } from '@electron-toolkit/utils';
 import Database from 'better-sqlite3';
 import { LocalEventBus } from '../lib/event-bus';
 import { AppLogger } from '../lib/logger';
-import type { JobPayload } from '../../shared/types/job';
+import type { JobPayload, SchedulerConfig } from '../../shared/types/job';
 import type { MainToWorkerMsg, WorkerToMainMsg } from '../../shared/types/ipc';
 
 /**
@@ -32,7 +32,20 @@ export class JobScheduler {
    * Total worst-case detection = heartbeatIntervalMs + heartbeatTimeoutMs = 40s (AC-003.1).
    */
   private readonly heartbeatTimeoutMs = 30_000;
-  private maxConcurrency = 3;
+  /**
+   * Total maximum active workers across all job types.
+   * Default value used as the fallback when no 'scheduler:concurrency:global' key
+   * exists in the settings table.
+   * Spec: worker_runtime_spec.md §4.4 / AC-006 / TASK-013
+   */
+  private readonly defaultMaxConcurrency = 3;
+  /**
+   * Tracks the number of currently active workers for each job type.
+   * Keyed by job type string (e.g. 'scraper:maps', 'crawler:website').
+   * Incremented in runJob(). Decremented in every worker exit path.
+   * Spec: AC-006 / TASK-013
+   */
+  private typeActiveCount = new Map<string, number>();
 
   constructor(
     private workspaceId: string,
@@ -80,6 +93,7 @@ export class JobScheduler {
       `).run(jobId);
     }
     this.activeWorkers.clear();
+    this.typeActiveCount.clear(); // TASK-013: reset all per-type counts on stop
     AppLogger.info('JobScheduler', `Scheduler stopped for workspace: ${this.workspaceId}`, this.workspaceId);
   }
 
@@ -88,22 +102,106 @@ export class JobScheduler {
    */
   private tick(): void {
     try {
-      if (this.activeWorkers.size >= this.maxConcurrency) {
+      const config = this.loadSchedulerConfig();
+
+      // 1. Global concurrency guard — stop here if at capacity.
+      if (this.activeWorkers.size >= config.globalMaxConcurrency) {
         return;
       }
 
-      const job = this.db.prepare(`
+      // 2. Find next queued job, excluding types already at their per-type limit.
+      //    We fetch a small batch (LIMIT 10) and pick the first one that fits.
+      //    This avoids starvation when a high-priority type is at its limit.
+      const candidates = this.db.prepare(`
         SELECT * FROM jobs
         WHERE workspaceId = ? AND status IN ('queued', 'retrying')
         ORDER BY priority DESC, createdAt ASC
-        LIMIT 1
-      `).get(this.workspaceId) as JobPayload | undefined;
+        LIMIT 10
+      `).all(this.workspaceId) as JobPayload[];
+
+      if (candidates.length === 0) return;
+
+      let job: JobPayload | undefined;
+      for (const candidate of candidates) {
+        const typeLimit = config.typeLimits[candidate.type];
+        if (typeLimit !== undefined) {
+          // Per-type limit configured — check active count for this type.
+          const activeForType = this.typeActiveCount.get(candidate.type) ?? 0;
+          if (activeForType >= typeLimit) {
+            // This type is at its limit — try the next candidate.
+            continue;
+          }
+        }
+        // Either no per-type limit, or under the limit — dispatch this job.
+        job = candidate;
+        break;
+      }
 
       if (!job) return;
 
       this.runJob(job);
     } catch (err) {
       AppLogger.error('JobScheduler', 'Error in scheduler execution tick', this.workspaceId, err);
+    }
+  }
+
+  /**
+   * Reads concurrency configuration from the settings table.
+   *
+   * Keys in the settings table:
+   *   `scheduler:concurrency:global`    → globalMaxConcurrency (integer string)
+   *   `scheduler:concurrency:<jobType>` → per-type limit (integer string)
+   *
+   * Falls back to built-in defaults if keys are absent or malformed.
+   * Called every tick so that setting changes take effect without restart.
+   *
+   * Defaults:
+   *   global          = 3
+   *   scraper:maps    = 1
+   *   crawler:website = 2
+   *
+   * Spec: worker_runtime_spec.md §4.4 / AC-006 / TASK-013
+   */
+  private loadSchedulerConfig(): SchedulerConfig {
+    const defaults: SchedulerConfig = {
+      globalMaxConcurrency: this.defaultMaxConcurrency,
+      typeLimits: {
+        'scraper:maps': 1,
+        'crawler:website': 2,
+      },
+    };
+
+    try {
+      const rows = this.db.prepare(`
+        SELECT key, value FROM settings
+        WHERE workspaceId = ? AND key LIKE 'scheduler:concurrency:%'
+      `).all(this.workspaceId) as { key: string; value: string }[];
+
+      if (rows.length === 0) return defaults;
+
+      const config: SchedulerConfig = {
+        globalMaxConcurrency: defaults.globalMaxConcurrency,
+        typeLimits: { ...defaults.typeLimits },
+      };
+
+      for (const row of rows) {
+        const parsed = parseInt(row.value, 10);
+        if (isNaN(parsed) || parsed < 1) continue; // ignore malformed values
+
+        if (row.key === 'scheduler:concurrency:global') {
+          config.globalMaxConcurrency = parsed;
+        } else {
+          // Strip prefix to get the job type, e.g. 'scraper:maps'
+          const jobType = row.key.replace('scheduler:concurrency:', '');
+          config.typeLimits[jobType] = parsed;
+        }
+      }
+
+      return config;
+    } catch (err) {
+      // If the settings table query fails for any reason, continue with defaults.
+      AppLogger.warn('JobScheduler', 'Failed to load scheduler config from settings table — using defaults', this.workspaceId, err);
+      return defaults;
     }
   }
 
@@ -149,6 +247,10 @@ export class JobScheduler {
     });
 
     this.activeWorkers.set(job.id, worker);
+
+    // Track type-level active count. Decremented in every worker exit path.
+    // Spec: AC-006 / TASK-013
+    this.typeActiveCount.set(job.type, (this.typeActiveCount.get(job.type) ?? 0) + 1);
 
     // 3. Register all IPC message handlers BEFORE sending 'start', so no message
     //    can arrive between send and handler registration.
@@ -309,6 +411,7 @@ export class JobScheduler {
     worker.on('exit', (code, signal) => {
       this.clearHeartbeat(job.id); // always clear on any exit, TASK-010
       this.activeWorkers.delete(job.id);
+      this.decrementTypeCount(job.type); // TASK-013: release per-type slot
 
       const current = this.db.prepare('SELECT status FROM jobs WHERE id = ?').get(job.id) as { status: string } | undefined;
       if (current && (current.status === 'running' || current.status === 'starting')) {
@@ -489,6 +592,25 @@ export class JobScheduler {
         SET status = 'paused', updatedAt = CURRENT_TIMESTAMP
         WHERE id = ? AND status = 'queued'
       `).run(jobId);
+    }
+  }
+
+  /**
+   * Decrements the type-level active worker count for a job type.
+   *
+   * Idempotent — safe to call even if no count is tracked for the type.
+   * The count is floored at 0 and removed from the map when it reaches zero
+   * to prevent indefinite map growth.
+   *
+   * Must be called on every worker exit path, mirroring the increment in runJob().
+   * Spec: AC-006 / TASK-013
+   */
+  private decrementTypeCount(jobType: string): void {
+    const current = this.typeActiveCount.get(jobType) ?? 0;
+    if (current <= 1) {
+      this.typeActiveCount.delete(jobType);
+    } else {
+      this.typeActiveCount.set(jobType, current - 1);
     }
   }
 

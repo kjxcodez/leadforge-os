@@ -109,3 +109,21 @@ export interface JobPlugin {
   type: string;
   execute(context: JobContext): Promise<any>;
 }
+
+/**
+ * Configurable concurrency limits for the JobScheduler.
+ *
+ * `globalMaxConcurrency` is the total number of active workers allowed at once.
+ * `typeLimits` maps job type strings to their per-type maximum concurrency.
+ *
+ * Loaded from the `settings` SQLite table on every tick.
+ * Keys convention: `scheduler:concurrency:<jobType>` and `scheduler:concurrency:global`.
+ *
+ * Spec: worker_runtime_spec.md §4.4 / AC-006 / TASK-013
+ */
+export interface SchedulerConfig {
+  /** Maximum total concurrent workers across all job types. Default: 3. */
+  globalMaxConcurrency: number;
+  /** Per-type concurrency ceiling. Keyed by job type string. */
+  typeLimits: Record<string, number>;
+}
