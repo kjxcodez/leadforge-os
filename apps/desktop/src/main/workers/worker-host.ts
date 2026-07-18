@@ -1,47 +1,53 @@
 import { join } from 'path';
 import type { MainToWorkerMsg, WorkerToMainMsg } from '../../shared/types/ipc';
 import type { JobContext } from '../../shared/types/job';
+import { WorkerPluginRegistry } from './plugin-registry';
 import { scrapeMaps } from './plugins/scraper';
 import { enrichWebsite } from './plugins/enricher';
 import { dispatchOutreach } from './plugins/outreach';
+
+// ---------------------------------------------------------------------------
+// Mock Test Plugin
+// ---------------------------------------------------------------------------
+
+/**
+ * Mock test job plugin that simulates slow progress.
+ * Used for integration testing of the IPC protocol without real I/O.
+ */
+async function mockTest(ctx: JobContext): Promise<any> {
+  ctx.emitLog('Starting mock test execution', 'info');
+  for (let i = 1; i <= 10; i++) {
+    if (ctx.isCancelled()) {
+      ctx.emitLog('Mock test execution cancelled.', 'warn');
+      throw new Error('Job cancelled.');
+    }
+    if (ctx.isPaused()) {
+      ctx.emitLog('Mock test execution pausing.', 'warn');
+      ctx.saveCheckpoint({ step: i });
+      throw new Error('Job paused.');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    ctx.updateProgress(i * 10, { step: i, description: `Running test stage ${i} of 10` });
+    ctx.emitLog(`Mock stage ${i} completed successfully.`, 'info');
+  }
+  ctx.emitLog('Mock test execution completed successfully.', 'info');
+  return { status: 'success', stagesRun: 10 };
+}
 
 // ---------------------------------------------------------------------------
 // Plugin Registry
 // ---------------------------------------------------------------------------
 
 /**
- * A registry of local job plugins keyed by job type string.
- * TASK-007 will replace this static map with a WorkerPluginRegistry class.
+ * The global plugin registry for this worker process.
+ * Plugins are registered once at startup and resolved by type string at job dispatch.
+ * Spec: worker_runtime_spec.md §4.6
  */
-const JobRegistry: Record<string, (ctx: JobContext) => Promise<any>> = {
-  'scraper:maps': scrapeMaps,
-  'enrich:website': enrichWebsite,
-  'outreach:campaign': dispatchOutreach,
-
-  /**
-   * Mock test job plugin that simulates slow progress.
-   * Used for integration testing of the IPC protocol without real I/O.
-   */
-  'mock:test': async (ctx) => {
-    ctx.emitLog('Starting mock test execution', 'info');
-    for (let i = 1; i <= 10; i++) {
-      if (ctx.isCancelled()) {
-        ctx.emitLog('Mock test execution cancelled.', 'warn');
-        throw new Error('Job cancelled.');
-      }
-      if (ctx.isPaused()) {
-        ctx.emitLog('Mock test execution pausing.', 'warn');
-        ctx.saveCheckpoint({ step: i });
-        throw new Error('Job paused.');
-      }
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      ctx.updateProgress(i * 10, { step: i, description: `Running test stage ${i} of 10` });
-      ctx.emitLog(`Mock stage ${i} completed successfully.`, 'info');
-    }
-    ctx.emitLog('Mock test execution completed successfully.', 'info');
-    return { status: 'success', stagesRun: 10 };
-  },
-};
+const registry = new WorkerPluginRegistry();
+registry.register('scraper:maps', scrapeMaps);
+registry.register('enrich:website', enrichWebsite);
+registry.register('outreach:campaign', dispatchOutreach);
+registry.register('mock:test', mockTest);
 
 // ---------------------------------------------------------------------------
 // Worker State
@@ -197,7 +203,7 @@ async function handleStart(
   };
 
   try {
-    const pluginFn = JobRegistry[type];
+    const pluginFn = registry.resolve(type);
     if (!pluginFn) {
       throw new Error(`Job type "${type}" is not registered in the Worker Host.`);
     }
