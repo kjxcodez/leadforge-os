@@ -6,6 +6,7 @@ import { runMigrations } from '../database/runner';
 import { JobScheduler } from '../services/scheduler';
 import { SyncEngine } from '../services/sync-engine';
 import { EventBridge } from './event-bridge';
+import { AutomationTriggerEvaluator } from '../services/automation-trigger';
 import type { SdkClient } from '@leadforge/sdk';
 
 /**
@@ -19,6 +20,7 @@ export class WorkspaceRuntime {
   private readonly scheduler: JobScheduler;
   private readonly syncEngine: SyncEngine;
   private readonly eventBridge: EventBridge;
+  private readonly triggerEvaluator: AutomationTriggerEvaluator;
   private isRunning: boolean = false;
 
   constructor(workspaceId: string, sdk: SdkClient) {
@@ -28,6 +30,7 @@ export class WorkspaceRuntime {
     this.scheduler = new JobScheduler(workspaceId, this.sqliteDb, this.eventBus);
     this.syncEngine = new SyncEngine(workspaceId, this.sqliteDb, this.eventBus, sdk);
     this.eventBridge = new EventBridge(this.eventBus);
+    this.triggerEvaluator = new AutomationTriggerEvaluator(workspaceId, this.sqliteDb, this.eventBus);
   }
 
   /**
@@ -58,6 +61,9 @@ export class WorkspaceRuntime {
     // 5. Start EventBridge to forward LocalEventBus events to the renderer process
     this.eventBridge.start();
 
+    // 6. Start AutomationTriggerEvaluator to listen for CRM/job events and queue automation workflows
+    this.triggerEvaluator.start();
+
     this.isRunning = true;
     console.log(`[WorkspaceRuntime] Workspace runtime "${this.workspaceId}" successfully booted.`);
   }
@@ -79,7 +85,10 @@ export class WorkspaceRuntime {
     // 3. Stop EventBridge event forwarding to prevent memory leaks
     this.eventBridge.stop();
 
-    // 4. Clear event bus listeners
+    // 4. Stop AutomationTriggerEvaluator before clearing the event bus
+    this.triggerEvaluator.stop();
+
+    // 5. Clear event bus listeners
     this.eventBus.clear();
 
     // 5. Close SQLite file handle pool connection
