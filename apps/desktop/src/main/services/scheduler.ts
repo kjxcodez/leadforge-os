@@ -17,6 +17,19 @@ export class JobScheduler {
   private activeWorkers = new Map<string, ChildProcess>();
   /** Tracks pending hard-kill timeouts for soft-cancel fallback (TASK-008 / BC-005). */
   private cancelTimeouts = new Map<string, NodeJS.Timeout>();
+  /**
+   * Per-job heartbeat watchdog state.
+   * Keyed by jobId. Cleared on every worker exit path to prevent interval leaks.
+   * Spec: worker_runtime_spec.md §4.5 / AC-003 / TASK-010
+   */
+  private heartbeats = new Map<string, { intervalId: NodeJS.Timeout; lastPongAt: number }>();
+  /** ms between ping commands sent to each active worker. Spec: worker_runtime_spec.md §4.5. */
+  private readonly heartbeatIntervalMs = 10_000;
+  /**
+   * ms after the last pong at which the worker is considered stalled and killed.
+   * Total worst-case detection = heartbeatIntervalMs + heartbeatTimeoutMs = 40s (AC-003.1).
+   */
+  private readonly heartbeatTimeoutMs = 30_000;
   private maxConcurrency = 3;
 
   constructor(
@@ -47,6 +60,9 @@ export class JobScheduler {
     // Clear any pending hard-kill fallback timeouts before shutdown.
     for (const t of this.cancelTimeouts.values()) clearTimeout(t);
     this.cancelTimeouts.clear();
+
+    // Clear all heartbeat intervals before terminating workers.
+    for (const jobId of [...this.heartbeats.keys()]) this.clearHeartbeat(jobId);
 
     for (const [jobId, worker] of this.activeWorkers.entries()) {
       AppLogger.warn('JobScheduler', `Terminating job "${jobId}" due to scheduler stop`, this.workspaceId);
@@ -147,7 +163,50 @@ export class JobScheduler {
             WHERE id = ?
           `).run(new Date().toISOString(), job.id);
           this.eventBus.publish('job:started', { jobId: job.id, workerId });
+          // -----------------------------------------------------------------
+          // Start heartbeat watchdog. Worker is now confirmed alive and must
+          // respond to { command: 'ping' } within heartbeatTimeoutMs.
+          // Spec: worker_runtime_spec.md §4.5 / AC-003 / TASK-010
+          // -----------------------------------------------------------------
+          this.heartbeats.set(job.id, {
+            lastPongAt: Date.now(),
+            intervalId: setInterval(() => {
+              const state = this.heartbeats.get(job.id);
+              if (!state) return; // already cleared on a clean exit path
+
+              if (Date.now() - state.lastPongAt >= this.heartbeatTimeoutMs) {
+                // Stall detected — worker has not responded within heartbeatTimeoutMs.
+                AppLogger.error(
+                  'JobScheduler',
+                  `Heartbeat timeout for job "${job.id}" — no pong in ${this.heartbeatTimeoutMs}ms. Killing worker.`,
+                  this.workspaceId,
+                  { jobId: job.id }
+                );
+                this.clearHeartbeat(job.id);
+                const w = this.activeWorkers.get(job.id);
+                if (w) {
+                  w.kill('SIGKILL');
+                  this.activeWorkers.delete(job.id);
+                }
+                this.handleJobFailure(job.id, job.retryCount, job.maxRetries, 'Heartbeat timeout');
+                this.eventBus.publish('job:heartbeat:timeout', { jobId: job.id });
+              } else if (worker.connected) {
+                // Worker is healthy — send ping to keep watchdog alive.
+                worker.send({ command: 'ping' } as MainToWorkerMsg);
+              }
+            }, this.heartbeatIntervalMs),
+          });
           break;
+
+        // ---------------------------------------------------------------
+        // PONG — worker responded to ping. Reset the watchdog timer.
+        // Spec: worker_runtime_spec.md §4.5 / TASK-010
+        // ---------------------------------------------------------------
+        case 'pong': {
+          const hb = this.heartbeats.get(job.id);
+          if (hb) hb.lastPongAt = Date.now();
+          break;
+        }
 
         case 'progress':
           this.db.prepare(`
@@ -195,6 +254,7 @@ export class JobScheduler {
             new Date().toISOString(),
             job.id
           );
+          this.clearHeartbeat(job.id);
           this.activeWorkers.delete(job.id);
           this.eventBus.publish('job:paused', { jobId: job.id });
           break;
@@ -211,6 +271,7 @@ export class JobScheduler {
             clearTimeout(hardKill);
             this.cancelTimeouts.delete(job.id);
           }
+          this.clearHeartbeat(job.id);
           this.db.prepare(`
             UPDATE jobs
             SET status = 'cancelled', finishedAt = ?, updatedAt = CURRENT_TIMESTAMP
@@ -235,6 +296,7 @@ export class JobScheduler {
     //    Only escalates if the job was still 'running' or 'starting' — not if
     //    it cleanly exited via paused/cancelled/success paths.
     worker.on('exit', (code, signal) => {
+      this.clearHeartbeat(job.id); // always clear on any exit, TASK-010
       this.activeWorkers.delete(job.id);
 
       const current = this.db.prepare('SELECT status FROM jobs WHERE id = ?').get(job.id) as { status: string } | undefined;
@@ -268,6 +330,7 @@ export class JobScheduler {
 
   private handleJobSuccess(jobId: string, result: any): void {
     AppLogger.info('JobScheduler', `Job "${jobId}" completed successfully.`, this.workspaceId, { jobId });
+    this.clearHeartbeat(jobId); // TASK-010: clear watchdog on success
 
     this.db.prepare(`
       UPDATE jobs
@@ -283,6 +346,7 @@ export class JobScheduler {
   }
 
   private handleJobFailure(jobId: string, currentRetry: number, maxRetries: number, error: string): void {
+    this.clearHeartbeat(jobId); // TASK-010: clear watchdog on all failure paths
     const nextRetry = currentRetry + 1;
     const worker = this.activeWorkers.get(jobId);
     if (worker) {
@@ -338,6 +402,7 @@ export class JobScheduler {
           w?.kill('SIGKILL');
           this.activeWorkers.delete(jobId);
           this.cancelTimeouts.delete(jobId);
+          this.clearHeartbeat(jobId); // TASK-010: clear watchdog on hard-kill
 
           this.db.prepare(`
             UPDATE jobs
@@ -383,6 +448,21 @@ export class JobScheduler {
         SET status = 'paused', updatedAt = CURRENT_TIMESTAMP
         WHERE id = ? AND status = 'queued'
       `).run(jobId);
+    }
+  }
+
+  /**
+   * Stops and removes the heartbeat watchdog for a job.
+   *
+   * Idempotent — safe to call multiple times for the same jobId.
+   * Must be invoked on every worker exit path to prevent setInterval leaks.
+   * Spec: worker_runtime_spec.md §4.5 / AC-003.4 (healthy workers not killed) / TASK-010
+   */
+  private clearHeartbeat(jobId: string): void {
+    const hb = this.heartbeats.get(jobId);
+    if (hb) {
+      clearInterval(hb.intervalId);
+      this.heartbeats.delete(jobId);
     }
   }
 }
