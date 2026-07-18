@@ -1,5 +1,6 @@
 import { type ChildProcess, fork } from 'child_process';
 import { join } from 'path';
+import { randomUUID } from 'crypto';
 import { app } from 'electron';
 import { is } from '@electron-toolkit/utils';
 import Database from 'better-sqlite3';
@@ -101,47 +102,85 @@ export class JobScheduler {
    * Ticks to evaluate job slots and dispatch pending items.
    */
   private tick(): void {
+    // ─── Phase 1: Dispatch queued/retrying jobs ───────────────────────────
     try {
       const config = this.loadSchedulerConfig();
 
-      // 1. Global concurrency guard — stop here if at capacity.
-      if (this.activeWorkers.size >= config.globalMaxConcurrency) {
-        return;
-      }
+      // Only evaluate dispatch if global concurrency cap is not exceeded
+      if (this.activeWorkers.size < config.globalMaxConcurrency) {
+        // Find next queued job, excluding types already at their per-type limit.
+        // We fetch a small batch (LIMIT 10) and pick the first one that fits.
+        // This avoids starvation when a high-priority type is at its limit.
+        const candidates = this.db.prepare(`
+          SELECT * FROM jobs
+          WHERE workspaceId = ? AND status IN ('queued', 'retrying')
+          ORDER BY priority DESC, createdAt ASC
+          LIMIT 10
+        `).all(this.workspaceId) as JobPayload[];
 
-      // 2. Find next queued job, excluding types already at their per-type limit.
-      //    We fetch a small batch (LIMIT 10) and pick the first one that fits.
-      //    This avoids starvation when a high-priority type is at its limit.
-      const candidates = this.db.prepare(`
-        SELECT * FROM jobs
-        WHERE workspaceId = ? AND status IN ('queued', 'retrying')
-        ORDER BY priority DESC, createdAt ASC
-        LIMIT 10
-      `).all(this.workspaceId) as JobPayload[];
+        if (candidates.length > 0) {
+          let job: JobPayload | undefined;
+          for (const candidate of candidates) {
+            const typeLimit = config.typeLimits[candidate.type];
+            if (typeLimit !== undefined) {
+              // Per-type limit configured — check active count for this type.
+              const activeForType = this.typeActiveCount.get(candidate.type) ?? 0;
+              if (activeForType >= typeLimit) {
+                // This type is at its limit — try the next candidate.
+                continue;
+              }
+            }
+            // Either no per-type limit, or under the limit — dispatch this job.
+            job = candidate;
+            break;
+          }
 
-      if (candidates.length === 0) return;
-
-      let job: JobPayload | undefined;
-      for (const candidate of candidates) {
-        const typeLimit = config.typeLimits[candidate.type];
-        if (typeLimit !== undefined) {
-          // Per-type limit configured — check active count for this type.
-          const activeForType = this.typeActiveCount.get(candidate.type) ?? 0;
-          if (activeForType >= typeLimit) {
-            // This type is at its limit — try the next candidate.
-            continue;
+          if (job) {
+            this.runJob(job);
           }
         }
-        // Either no per-type limit, or under the limit — dispatch this job.
-        job = candidate;
-        break;
       }
-
-      if (!job) return;
-
-      this.runJob(job);
     } catch (err) {
-      AppLogger.error('JobScheduler', 'Error in scheduler execution tick', this.workspaceId, err);
+      AppLogger.error('JobScheduler', 'Error in scheduler dispatch phase', this.workspaceId, err);
+    }
+
+    // ─── Phase 2: Resume waiting sequence executions ──────────────────────
+    try {
+      const dueExecutions = this.db.prepare(`
+        SELECT id, sequenceId, currentStep
+        FROM sequence_executions
+        WHERE workspaceId = ? 
+          AND status = 'waiting' 
+          AND nextExecutionAt <= datetime('now')
+        LIMIT 5
+      `).all(this.workspaceId) as { id: string; sequenceId: string; currentStep: number }[];
+
+      for (const exec of dueExecutions) {
+        try {
+          // Check if a resume job is already queued, starting, running, or retrying
+          const existing = this.db.prepare(`
+            SELECT id FROM jobs
+            WHERE workspaceId = ? AND type = 'automation:workflow'
+              AND json_extract(payload, '$.executionId') = ?
+              AND status IN ('queued', 'starting', 'running', 'retrying')
+          `).get(this.workspaceId, exec.id);
+
+          if (!existing) {
+            this.db.prepare(`
+              INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
+              VALUES (?, ?, 'automation:workflow', 'queued', 4, ?, 0, 0, 1, datetime('now'), datetime('now'))
+            `).run(
+              randomUUID(),
+              this.workspaceId,
+              JSON.stringify({ executionId: exec.id, resumeFrom: exec.currentStep })
+            );
+          }
+        } catch (execErr) {
+          AppLogger.error('JobScheduler', `Failed to queue resumption job for execution "${exec.id}"`, this.workspaceId, execErr);
+        }
+      }
+    } catch (err) {
+      AppLogger.error('JobScheduler', 'Error in scheduler wait-resume scan phase', this.workspaceId, err);
     }
   }
 
