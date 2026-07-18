@@ -32,7 +32,7 @@ export default function DashboardScreen({ systemRunning, onToggleSystem, ipcStat
 
   // Map activities to TimelineEvents
   const activities = (activitiesQuery.data || []).map((act: any) => ({
-    id: act.id || act._id || Math.random().toString(),
+    id: act.id || Math.random().toString(),
     type: act.type || 'info',
     content: act.content || 'Action logged',
     createdAt: act.createdAt || new Date().toISOString(),

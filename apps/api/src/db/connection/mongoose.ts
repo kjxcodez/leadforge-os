@@ -1,6 +1,45 @@
 import mongoose from "mongoose";
 import { logger, dbConfig } from "../../config/index.js";
 
+// Register global Mongoose plugin to normalize all serialized MongoDB documents
+mongoose.plugin((schema: mongoose.Schema) => {
+  const existingJSON = schema.get("toJSON") ?? {};
+  schema.set("toJSON", {
+    ...existingJSON,
+    virtuals: true,
+    versionKey: false,
+    transform(doc: any, ret: any, options: any) {
+      if (existingJSON && typeof existingJSON.transform === "function") {
+        ret = existingJSON.transform(doc, ret, options) || ret;
+      }
+      if (ret._id) {
+        ret.id = typeof ret._id === "object" ? ret._id.toString() : ret._id;
+      }
+      delete (ret as any)._id;
+      delete (ret as any).__v;
+      return ret;
+    }
+  } as any);
+
+  const existingObject = schema.get("toObject") ?? {};
+  schema.set("toObject", {
+    ...existingObject,
+    virtuals: true,
+    versionKey: false,
+    transform(doc: any, ret: any, options: any) {
+      if (existingObject && typeof existingObject.transform === "function") {
+        ret = existingObject.transform(doc, ret, options) || ret;
+      }
+      if (ret._id) {
+        ret.id = typeof ret._id === "object" ? ret._id.toString() : ret._id;
+      }
+      delete (ret as any)._id;
+      delete (ret as any).__v;
+      return ret;
+    }
+  } as any);
+});
+
 /**
  * Singleton database connection manager.
  */

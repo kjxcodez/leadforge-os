@@ -151,7 +151,7 @@ export default function AutomationScreen() {
   };
 
   const handleOpenEditEditor = (seq: any) => {
-    setEditingSequenceId(seq.id || seq._id);
+    setEditingSequenceId(seq.id);
     setSeqName(seq.name);
     setSeqDesc(seq.description || '');
     setSeqTriggerType(seq.trigger?.type || 'CONTACT_CREATED');
@@ -341,7 +341,7 @@ export default function AutomationScreen() {
                 {execsList.slice(0, 5).map((exec: any, idx) => (
                   <div key={idx} className="py-2.5 flex justify-between items-center first:pt-0 last:pb-0">
                     <div>
-                      <h4 className="font-medium text-foreground">Execution {exec.id || exec._id}</h4>
+                      <h4 className="font-medium text-foreground">Execution {exec.id}</h4>
                       <p className="text-[10px] text-muted mt-0.5">Step Pointer: {exec.currentStep}</p>
                     </div>
                     <Badge variant={exec.status === 'FAILED' ? 'destructive' : 'secondary'} className={exec.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : exec.status === 'WAITING' || exec.status === 'RUNNING' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' : ''}>
@@ -376,14 +376,14 @@ export default function AutomationScreen() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => handleManualTrigger(seq.id || seq._id)}>
+                  <Button variant="outline" size="sm" onClick={() => handleManualTrigger(seq.id)}>
                     <Play className="h-3 w-3 mr-1" />
                     <span>Run</span>
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => handleOpenEditEditor(seq)}>
                     <span>Edit</span>
                   </Button>
-                  <Button variant="destructive" size="sm" onClick={() => { if(confirm('Delete?')) deleteSequenceMutation.mutate(seq.id || seq._id); }}>
+                  <Button variant="destructive" size="sm" onClick={() => { if(confirm('Delete?')) deleteSequenceMutation.mutate(seq.id); }}>
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
@@ -416,10 +416,10 @@ export default function AutomationScreen() {
               </thead>
               <tbody className="divide-y divide-border-subtle/50 text-foreground">
                 {execsList.map((exec: any, idx) => {
-                  const seq = seqsList.find((s: any) => (s.id || s._id) === exec.sequenceId);
+                  const seq = seqsList.find((s: any) => s.id === exec.sequenceId);
                   return (
                     <tr key={idx} className="hover:bg-sunken/10">
-                      <td className="p-3 font-mono text-[10px] text-muted">{exec.id || exec._id}</td>
+                      <td className="p-3 font-mono text-[10px] text-muted">{exec.id}</td>
                       <td className="p-3 font-semibold">{seq?.name || 'Unknown Sequence'}</td>
                       <td className="p-3">
                         {exec.contactId ? (
@@ -440,12 +440,12 @@ export default function AutomationScreen() {
                         {exec.nextExecutionAt ? new Date(exec.nextExecutionAt).toLocaleTimeString() : 'N/A'}
                       </td>
                       <td className="p-3 text-right flex gap-1.5 justify-end">
-                        <Button variant="outline" size="sm" onClick={() => { setSelectedExecutionId(exec.id || exec._id); setLogsOpen(true); }}>
+                        <Button variant="outline" size="sm" onClick={() => { setSelectedExecutionId(exec.id); setLogsOpen(true); }}>
                           <History className="h-3 w-3 mr-1" />
                           <span>Logs</span>
                         </Button>
                         {['RUNNING', 'WAITING'].includes(exec.status) && (
-                          <Button variant="destructive" size="sm" onClick={() => handleStopExecution(exec.id || exec._id)}>
+                          <Button variant="destructive" size="sm" onClick={() => handleStopExecution(exec.id)}>
                             <StopCircle className="h-3 w-3" />
                           </Button>
                         )}
@@ -567,7 +567,7 @@ export default function AutomationScreen() {
                             >
                               <option value="">Select Template</option>
                               {templatesQuery.data?.map((t: any) => (
-                                <option key={t.id || t._id} value={t.id || t._id}>{t.name}</option>
+                                <option key={t.id} value={t.id}>{t.name}</option>
                               ))}
                             </select>
                           </div>
