@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { getDatabase } from './connection';
+import fs from 'fs';
 
 
 interface Migration {
@@ -362,6 +363,77 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE companies ADD COLUMN location TEXT;
     `,
   },
+  {
+    name: '008_job_lifecycle_hardening',
+    up: `
+      CREATE TABLE IF NOT EXISTS jobs_new (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('pending', 'queued', 'starting', 'running', 'waiting', 'retrying', 'paused', 'cancelled', 'completed', 'failed', 'interrupted')),
+        priority INTEGER DEFAULT 1,
+        payload TEXT,
+        progress INTEGER DEFAULT 0,
+        retryCount INTEGER DEFAULT 0,
+        maxRetries INTEGER DEFAULT 3,
+        workerId TEXT,
+        error TEXT,
+        startedAt DATETIME,
+        finishedAt DATETIME,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      INSERT INTO jobs_new (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, workerId, error, startedAt, finishedAt, createdAt, updatedAt)
+      SELECT id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, workerId, error, startedAt, finishedAt, createdAt, updatedAt FROM jobs;
+
+      DROP TABLE jobs;
+
+      ALTER TABLE jobs_new RENAME TO jobs;
+
+      CREATE INDEX IF NOT EXISTS idx_jobs_scheduler ON jobs(workspaceId, status, priority, createdAt);
+
+      ALTER TABLE jobs ADD COLUMN scheduledAt DATETIME;
+      ALTER TABLE jobs ADD COLUMN checkpointData TEXT;
+      ALTER TABLE jobs ADD COLUMN checkpointAt DATETIME;
+      ALTER TABLE jobs ADD COLUMN idempotencyKey TEXT;
+      ALTER TABLE jobs ADD COLUMN durationMs INTEGER;
+
+      CREATE INDEX IF NOT EXISTS idx_jobs_scheduled ON jobs(workspaceId, status, scheduledAt);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_idempotency ON jobs(workspaceId, idempotencyKey) WHERE idempotencyKey IS NOT NULL;
+    `,
+  },
+  {
+    name: '009_scraping_pipeline_schema',
+    up: `
+      ALTER TABLE companies ADD COLUMN crawlStatus TEXT DEFAULT 'pending' CHECK(crawlStatus IN ('pending','in_progress','completed','failed','skipped'));
+      ALTER TABLE companies ADD COLUMN crawledAt DATETIME;
+      ALTER TABLE companies ADD COLUMN crawlError TEXT;
+      ALTER TABLE companies ADD COLUMN contactCount INTEGER DEFAULT 0;
+      ALTER TABLE companies ADD COLUMN score INTEGER;
+      ALTER TABLE companies ADD COLUMN scoreUpdatedAt DATETIME;
+
+      ALTER TABLE contacts ADD COLUMN confidence TEXT DEFAULT 'low' CHECK(confidence IN ('high','medium','low'));
+      ALTER TABLE contacts ADD COLUMN type TEXT DEFAULT 'unknown' CHECK(type IN ('human','department','unknown'));
+      ALTER TABLE contacts ADD COLUMN verificationStatus TEXT DEFAULT 'unverified' CHECK(verificationStatus IN ('unverified','valid','invalid','catch_all'));
+      ALTER TABLE contacts ADD COLUMN sourceUrl TEXT;
+      ALTER TABLE contacts ADD COLUMN sourcePlatform TEXT;
+      ALTER TABLE contacts ADD COLUMN priority INTEGER DEFAULT 1;
+
+      CREATE INDEX IF NOT EXISTS idx_companies_crawl_status ON companies(workspaceId, crawlStatus);
+      CREATE INDEX IF NOT EXISTS idx_contacts_confidence ON contacts(workspaceId, confidence, priority);
+    `,
+  },
+  {
+    name: '010_sequence_execution_tracking',
+    up: `
+      ALTER TABLE sequence_executions ADD COLUMN cancelledAt DATETIME;
+      ALTER TABLE sequence_executions ADD COLUMN cancelReason TEXT;
+      ALTER TABLE sequence_executions ADD COLUMN parentJobId TEXT;
+
+      CREATE INDEX IF NOT EXISTS idx_seq_exec_parent_job ON sequence_executions(parentJobId) WHERE parentJobId IS NOT NULL;
+    `,
+  },
 ];
 
 
@@ -588,6 +660,19 @@ export function runMigrations(customDb?: Database.Database): void {
       const statements = splitSqlStatements(cleanedSql);
 
       try {
+        if (migration.name === '008_job_lifecycle_hardening') {
+          try {
+            const dbPath = db.name;
+            if (dbPath && dbPath !== ':memory:') {
+              const backupPath = `${dbPath}.pre008.bak`;
+              fs.copyFileSync(dbPath, backupPath);
+              console.log(`[SQLite] Pre-migration backup created at: ${backupPath}`);
+            }
+          } catch (backupErr) {
+            console.error('[SQLite] Failed to create pre-migration backup for job lifecycle hardening:', backupErr);
+          }
+        }
+
         runMigration(migration, statements);
         console.log('[SQLite] Success');
       } catch (err: any) {
@@ -603,6 +688,14 @@ export function runMigrations(customDb?: Database.Database): void {
         console.error(`- SQL statement: ${failedStmt}`);
         console.error(`- error: ${originalErr.message || originalErr}`);
         console.error(`- rollback status: rolled back`);
+
+        if (migration.name === '008_job_lifecycle_hardening') {
+          const dbPath = db.name;
+          if (dbPath && dbPath !== ':memory:') {
+            console.error(`[SQLite] Rollback manual recovery backup file is available at: ${dbPath}.pre008.bak`);
+          }
+        }
+
         throw err;
       }
     }

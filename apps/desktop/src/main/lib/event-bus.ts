@@ -2,11 +2,15 @@ import { EventEmitter } from 'events';
 
 export type EventType =
   | 'job:queued'
+  | 'job:starting'
   | 'job:started'
   | 'job:progress'
   | 'job:completed'
   | 'job:failed'
+  | 'job:paused'
+  | 'job:resumed'
   | 'job:cancelled'
+  | 'job:heartbeat:timeout'
   | 'sync:started'
   | 'sync:progress'
   | 'sync:completed'
@@ -14,7 +18,8 @@ export type EventType =
   | 'crm:created'
   | 'crm:updated'
   | 'crm:deleted'
-  | 'system:log';
+  | 'system:log'
+  | 'automation:triggered';
 
 export interface AppEvent {
   type: EventType;

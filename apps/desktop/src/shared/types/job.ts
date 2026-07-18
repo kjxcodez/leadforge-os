@@ -1,6 +1,7 @@
 export type JobStatus =
   | 'queued'
   | 'running'
+  | 'starting'
   | 'waiting'
   | 'retrying'
   | 'paused'
