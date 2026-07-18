@@ -4,6 +4,7 @@ import { getDatabase, closeDatabase } from '../database/connection';
 import { runMigrations } from '../database/runner';
 import { JobScheduler } from '../services/scheduler';
 import { SyncEngine } from '../services/sync-engine';
+import { EventBridge } from './event-bridge';
 import type { SdkClient } from '@leadforge/sdk';
 
 /**
@@ -16,6 +17,7 @@ export class WorkspaceRuntime {
   public readonly eventBus: LocalEventBus;
   private readonly scheduler: JobScheduler;
   private readonly syncEngine: SyncEngine;
+  private readonly eventBridge: EventBridge;
   private isRunning: boolean = false;
 
   constructor(workspaceId: string, sdk: SdkClient) {
@@ -24,6 +26,7 @@ export class WorkspaceRuntime {
     this.eventBus = new LocalEventBus(workspaceId);
     this.scheduler = new JobScheduler(workspaceId, this.sqliteDb, this.eventBus);
     this.syncEngine = new SyncEngine(workspaceId, this.sqliteDb, this.eventBus, sdk);
+    this.eventBridge = new EventBridge(this.eventBus);
   }
 
   /**
@@ -48,6 +51,9 @@ export class WorkspaceRuntime {
     // 3. Start Background Sync Engine
     await this.syncEngine.start();
 
+    // 4. Start EventBridge to forward LocalEventBus events to the renderer process
+    this.eventBridge.start();
+
     this.isRunning = true;
     console.log(`[WorkspaceRuntime] Workspace runtime "${this.workspaceId}" successfully booted.`);
   }
@@ -66,10 +72,13 @@ export class WorkspaceRuntime {
     // 2. Stop Background Sync Engine
     await this.syncEngine.stop();
 
-    // 3. Clear event bus listeners
+    // 3. Stop EventBridge event forwarding to prevent memory leaks
+    this.eventBridge.stop();
+
+    // 4. Clear event bus listeners
     this.eventBus.clear();
 
-    // 3. Close SQLite file handle pool connection
+    // 5. Close SQLite file handle pool connection
     closeDatabase(this.workspaceId);
 
     this.isRunning = false;

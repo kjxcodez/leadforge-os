@@ -339,6 +339,18 @@ export interface IpcChannelMap {
     input: string;
     output: any[];
   };
+  'job:progress': {
+    input: void;
+    output: { jobId: string; progress: number; metadata?: any };
+  };
+  'job:completed': {
+    input: void;
+    output: { jobId: string; result: any };
+  };
+  'job:failed': {
+    input: void;
+    output: { jobId: string; error: string; willRetry?: boolean };
+  };
 }
 
 export interface IpcRequest<T> {

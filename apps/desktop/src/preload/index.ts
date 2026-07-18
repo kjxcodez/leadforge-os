@@ -129,6 +129,9 @@ contextBridge.exposeInMainWorld('ipc', {
       'auth:unauthorized',
       'sync:completed',
       'system:log:event',
+      'job:progress',
+      'job:completed',
+      'job:failed',
     ];
     if (validChannels.includes(channel as string)) {
       const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(args[0] as any);
