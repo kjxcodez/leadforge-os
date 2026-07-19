@@ -22,6 +22,11 @@ class WorkspaceManagerClass {
    * Switches the active workspace, spinning down the previous runtime and booting the new one.
    */
   public async setActiveWorkspace(workspaceId: string | null): Promise<WorkspaceRuntime | null> {
+    if (this.activeRuntime && this.activeRuntime.workspaceId === workspaceId) {
+      console.log(`[WorkspaceManager] Workspace ${workspaceId} is already active, skipping restart.`);
+      return this.activeRuntime;
+    }
+
     // 1. Cleanly spin down current runtime if running
     if (this.activeRuntime) {
       console.log(`[WorkspaceManager] Spinning down active workspace: ${this.activeRuntime.workspaceId}`);
