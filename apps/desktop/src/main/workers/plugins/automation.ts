@@ -50,47 +50,61 @@ interface StepDefinition {
 export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
   ctx.emitLog('Automation workflow plugin execution starting.', 'info');
 
-  // ── 1. Validate payload ───────────────────────────────────────────────────
-  ctx.updateProgress(5, { description: 'Validating payload...' });
-
-  const payload = ctx.payload as AutomationWorkflowPayload;
-  const sequenceId = payload?.sequenceId;
-  const entityId = payload?.entityId;
-  const entityType = payload?.entityType;
-
-  if (!sequenceId) {
-    throw new Error('Automation workflow: missing required payload field: sequenceId.');
-  }
-  if (!entityId) {
-    throw new Error('Automation workflow: missing required payload field: entityId.');
-  }
-  if (!entityType) {
-    throw new Error('Automation workflow: missing required payload field: entityType.');
-  }
-
-  ctx.emitLog(`Payload validated — sequenceId: ${sequenceId}, entityId: ${entityId}, entityType: ${entityType}`, 'info');
-
-  // ── 2. Cancellation check (early) ─────────────────────────────────────────
-  if (ctx.isCancelled()) {
-    ctx.emitLog('Automation workflow cancelled before start.', 'warn');
-    return { status: 'cancelled', sequenceId, entityId };
-  }
-
-  // ── 3. Resume from checkpoint or initial state ────────────────────────────
-  const checkpoint = ctx.getCheckpoint() as AutomationCheckpoint | null;
-  const isResume = !!checkpoint?.executionId;
-  const executionId = isResume ? checkpoint.executionId : randomUUID();
-  let currentStep = isResume ? checkpoint.currentStep : 0;
-
-  if (isResume) {
-    ctx.emitLog(`Resuming from checkpoint — executionId: ${executionId}, currentStep: ${currentStep}`, 'info');
-  }
-
-  // ── 4. Open SQLite ────────────────────────────────────────────────────────
+  // ── 1. Open SQLite early to allow resolution of payload from sequence_executions ──
   const db = new Database(ctx.dbPath);
 
   try {
-    // ── 5. Load sequence from SQLite ─────────────────────────────────────────
+    const payload = ctx.payload as AutomationWorkflowPayload;
+    const checkpoint = ctx.getCheckpoint() as AutomationCheckpoint | null;
+    const isResume = !!checkpoint?.executionId;
+
+    // Resolve executionId and currentStep
+    let executionId = isResume ? checkpoint.executionId : (payload as any).executionId || randomUUID();
+    let currentStep = isResume ? checkpoint.currentStep : (payload as any).resumeFrom !== undefined ? (payload as any).resumeFrom : 0;
+
+    let sequenceId = payload?.sequenceId;
+    let entityId = payload?.entityId;
+    let entityType = payload?.entityType;
+
+    // If sequenceId is missing, check sequence_executions table for stored fields
+    if (!sequenceId && executionId) {
+      const execRecord = db.prepare(`
+        SELECT sequenceId, contactId, companyId
+        FROM sequence_executions
+        WHERE id = ? AND workspaceId = ?
+      `).get(executionId, ctx.workspaceId) as { sequenceId: string; contactId: string | null; companyId: string | null } | undefined;
+
+      if (execRecord) {
+        sequenceId = execRecord.sequenceId;
+        if (execRecord.contactId) {
+          entityId = execRecord.contactId;
+          entityType = 'contact';
+        } else if (execRecord.companyId) {
+          entityId = execRecord.companyId;
+          entityType = 'company';
+        }
+      }
+    }
+
+    // ── 2. Validate payload ───────────────────────────────────────────────────
+    if (!sequenceId) {
+      throw new Error('Automation workflow: missing required payload field: sequenceId.');
+    }
+    if (!entityId) {
+      throw new Error('Automation workflow: missing required payload field: entityId.');
+    }
+    if (!entityType) {
+      throw new Error('Automation workflow: missing required payload field: entityType.');
+    }
+
+    // ── 3. Cancellation check (early) ─────────────────────────────────────────
+    if (ctx.isCancelled()) {
+      ctx.emitLog(`Execution Cancelled: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}`, 'warn');
+      db.close();
+      return { status: 'cancelled', sequenceId, entityId };
+    }
+
+    // ── 4. Load sequence from SQLite ─────────────────────────────────────────
     ctx.updateProgress(10, { description: 'Loading sequence template...' });
 
     const sequence = db.prepare(`
@@ -118,37 +132,8 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
       throw new Error(`Automation workflow: sequence "${sequence.name}" has invalid steps JSON. Error: ${parseErr.message}`);
     }
 
-    ctx.emitLog(`Sequence "${sequence.name}" loaded successfully with ${steps.length} step(s).`, 'info');
-
-    // ── 6. Handle empty steps sequence ────────────────────────────────────────
-    if (steps.length === 0) {
-      ctx.emitLog('Sequence has no steps. Completing immediately.', 'warn');
-      const now = new Date().toISOString();
-      db.transaction(() => {
-        db.prepare(`
-          INSERT OR REPLACE INTO sequence_executions (
-            id, sequenceId, workspaceId, contactId, companyId, currentStep, status, startedAt, completedAt, createdAt, updatedAt, parentJobId
-          ) VALUES (?, ?, ?, ?, ?, 0, 'completed', ?, ?, ?, ?, ?)
-        `).run(
-          executionId,
-          sequenceId,
-          ctx.workspaceId,
-          entityType === 'contact' ? entityId : null,
-          entityType === 'company' ? entityId : null,
-          now,
-          now,
-          now,
-          now,
-          ctx.jobId
-        );
-      })();
-      db.close();
-      ctx.updateProgress(100, { description: 'Sequence has no steps. Completed.', total: 0 });
-      return { status: 'completed', executionId, sequenceId, entityId, stepsTotal: 0 };
-    }
-
-    // ── 7. Sequence execution initialization (if new run) ─────────────────────
-    if (!isResume) {
+    // ── 5. Sequence execution initialization (if new run) ─────────────────────
+    if (!isResume && !(payload as any).executionId) {
       ctx.updateProgress(30, { description: 'Initializing sequence execution...' });
       const now = new Date().toISOString();
       const logId = randomUUID();
@@ -184,203 +169,272 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           now
         );
       })();
-      ctx.emitLog(`Sequence execution record created successfully. executionId: ${executionId}`, 'info');
+      ctx.emitLog(`Execution Started: executionId=${executionId}, sequenceId=${sequenceId}`, 'info');
+    } else {
+      ctx.emitLog(`Resuming execution: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}`, 'info');
     }
 
-    // ── 8. Boundary check before step execution ──────────────────────────────
-    if (currentStep >= steps.length) {
-      ctx.emitLog(`Execution already at or past the final step. currentStep=${currentStep}, totalSteps=${steps.length}`, 'info');
+    // ── 6. Handle empty steps sequence ────────────────────────────────────────
+    if (steps.length === 0) {
+      ctx.emitLog('Sequence has no steps. Completing immediately.', 'warn');
       const now = new Date().toISOString();
       db.transaction(() => {
         db.prepare(`
-          UPDATE sequence_executions
-          SET status = 'completed', completedAt = ?, updatedAt = ?
-          WHERE id = ?
-        `).run(now, now, executionId);
+          INSERT OR REPLACE INTO sequence_executions (
+            id, sequenceId, workspaceId, contactId, companyId, currentStep, status, startedAt, completedAt, createdAt, updatedAt, parentJobId
+          ) VALUES (?, ?, ?, ?, ?, 0, 'completed', ?, ?, ?, ?, ?)
+        `).run(
+          executionId,
+          sequenceId,
+          ctx.workspaceId,
+          entityType === 'contact' ? entityId : null,
+          entityType === 'company' ? entityId : null,
+          now,
+          now,
+          now,
+          now,
+          ctx.jobId
+        );
       })();
       db.close();
-      ctx.updateProgress(100, { description: 'Workflow complete.', step: currentStep, total: steps.length });
-      return { status: 'completed', executionId, sequenceId, entityId, currentStep };
+      ctx.updateProgress(100, { description: 'Sequence has no steps. Completed.', total: 0 });
+      ctx.emitLog(`Execution Completed: executionId=${executionId}, sequenceId=${sequenceId}`, 'info');
+      return { status: 'completed', executionId, sequenceId, entityId, stepsTotal: 0 };
     }
 
-    // ── 9. Pause check (before dispatch) ─────────────────────────────────────
-    if (ctx.isPaused()) {
-      ctx.saveCheckpoint({ executionId, currentStep, sequenceId, entityId, entityType } satisfies AutomationCheckpoint);
-      ctx.emitLog(`Workflow execution paused before step ${currentStep}. Checkpoint saved.`, 'info');
-      db.close();
-      return { status: 'paused', executionId, sequenceId, entityId, currentStep };
-    }
+    let loopCount = 0;
+    const MAX_AUTOMATION_STEPS_PER_RUN = 100;
 
-    // ── 10. Cancellation check (before dispatch) ──────────────────────────────
-    if (ctx.isCancelled()) {
-      ctx.emitLog(`Workflow execution cancelled before step ${currentStep}. Updating status to cancelled...`, 'warn');
+    // ── 7. Loop Execution of consecutive steps ─────────────────────────────────
+    while (currentStep < steps.length) {
+      // Check maximum loop guard to prevent infinite loops
+      if (loopCount >= MAX_AUTOMATION_STEPS_PER_RUN) {
+        const errorMsg = `Max automation steps limit reached (${MAX_AUTOMATION_STEPS_PER_RUN}) - potential infinite loop.`;
+        ctx.emitLog(`Execution Failed: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}, error=${errorMsg}`, 'error');
+
+        const now = new Date().toISOString();
+        db.transaction(() => {
+          db.prepare(`
+            UPDATE sequence_executions
+            SET status = 'failed', completedAt = ?, updatedAt = ?
+            WHERE id = ?
+          `).run(now, now, executionId);
+
+          db.prepare(`
+            INSERT INTO sequence_logs (
+              id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
+            ) VALUES (?, ?, ?, ?, ?, 'ERROR', 'failed', ?, ?, ?)
+          `).run(
+            randomUUID(),
+            executionId,
+            ctx.workspaceId,
+            now,
+            currentStep,
+            errorMsg,
+            now,
+            now
+          );
+        })();
+        throw new Error(errorMsg);
+      }
+
+      loopCount++;
+
+      // Pause check
+      if (ctx.isPaused()) {
+        ctx.saveCheckpoint({ executionId, currentStep, sequenceId, entityId, entityType } satisfies AutomationCheckpoint);
+        ctx.emitLog(`Execution Paused: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}`, 'info');
+        db.close();
+        return { status: 'paused', executionId, sequenceId, entityId, currentStep };
+      }
+
+      // Cancellation check
+      if (ctx.isCancelled()) {
+        ctx.emitLog(`Execution Cancelled: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}`, 'warn');
+        const now = new Date().toISOString();
+        db.transaction(() => {
+          db.prepare(`
+            UPDATE sequence_executions
+            SET status = 'cancelled', completedAt = ?, updatedAt = ?
+            WHERE id = ?
+          `).run(now, now, executionId);
+
+          db.prepare(`
+            INSERT INTO sequence_logs (
+              id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
+            ) VALUES (?, ?, ?, ?, ?, 'CANCEL', 'success', 'Cancelled by user request', now, now)
+          `).run(
+            randomUUID(),
+            executionId,
+            ctx.workspaceId,
+            now,
+            currentStep,
+            now,
+            now
+          );
+        })();
+        db.close();
+        return { status: 'cancelled', executionId, sequenceId, entityId, currentStep };
+      }
+
+      const step = steps[currentStep];
+      if (!step || !step.type) {
+        throw new Error(`Automation workflow: step at index ${currentStep} is malformed or missing a type.`);
+      }
+
+      ctx.updateProgress(
+        Math.floor((currentStep / steps.length) * 100),
+        { description: `Executing step ${currentStep + 1} of ${steps.length}: ${step.type}`, step: currentStep, total: steps.length }
+      );
+      ctx.emitLog(`Step Started: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}, stepType=${step.type}`, 'info');
+
+      // Dispatch step
+      let dispatchResult: { status: 'success' | 'wait'; delaySeconds?: number };
+      switch (step.type) {
+        case 'SEND_EMAIL':
+          dispatchResult = handleSendEmailStep(step);
+          break;
+        case 'WAIT':
+          dispatchResult = handleWaitStep(step);
+          break;
+        case 'ASSIGN_TAG':
+          dispatchResult = handleAssignTagStep(step);
+          break;
+        default:
+          throw new Error(`Unhandled step type: ${step.type}`);
+      }
+
       const now = new Date().toISOString();
-      db.transaction(() => {
-        db.prepare(`
-          UPDATE sequence_executions
-          SET status = 'cancelled', cancelledAt = ?, cancelReason = ?, updatedAt = ?
-          WHERE id = ?
-        `).run(now, 'Cancelled by user request', now, executionId);
-      })();
-      db.close();
-      return { status: 'cancelled', executionId, sequenceId, entityId, currentStep };
+      const nextStep = currentStep + 1;
+      const logId = randomUUID();
+
+      if (dispatchResult.status === 'success') {
+        const isCompleted = nextStep >= steps.length;
+        const newStatus = isCompleted ? 'completed' : 'running';
+
+        db.transaction(() => {
+          db.prepare(`
+            UPDATE sequence_executions
+            SET currentStep = ?, status = ?, completedAt = ?, updatedAt = ?
+            WHERE id = ?
+          `).run(
+            nextStep,
+            newStatus,
+            isCompleted ? now : null,
+            now,
+            executionId
+          );
+
+          db.prepare(`
+            INSERT INTO sequence_logs (
+              id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
+            ) VALUES (?, ?, ?, ?, ?, ?, 'success', ?, ?, ?)
+          `).run(
+            logId,
+            executionId,
+            ctx.workspaceId,
+            now,
+            currentStep,
+            step.type,
+            `Successfully executed step of type ${step.type}.`,
+            now,
+            now
+          );
+        })();
+
+        ctx.emitLog(`Step Completed: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}, stepType=${step.type}`, 'info');
+        currentStep = nextStep;
+
+        if (isCompleted) {
+          ctx.emitLog(`Execution Completed: executionId=${executionId}, sequenceId=${sequenceId}`, 'info');
+          db.close();
+          ctx.updateProgress(100, { description: 'Workflow complete.', step: currentStep, total: steps.length });
+          return { status: 'completed', executionId, sequenceId, entityId, currentStep };
+        }
+      } else if (dispatchResult.status === 'wait') {
+        const delay = dispatchResult.delaySeconds || 60;
+        const nextExecutionAt = new Date(Date.now() + delay * 1000).toISOString();
+
+        db.transaction(() => {
+          db.prepare(`
+            UPDATE sequence_executions
+            SET currentStep = ?, status = 'waiting', nextExecutionAt = ?, updatedAt = ?
+            WHERE id = ?
+          `).run(
+            nextStep,
+            nextExecutionAt,
+            now,
+            executionId
+          );
+
+          db.prepare(`
+            INSERT INTO sequence_logs (
+              id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
+            ) VALUES (?, ?, ?, ?, ?, 'WAIT', 'success', ?, ?, ?)
+          `).run(
+            logId,
+            executionId,
+            ctx.workspaceId,
+            now,
+            currentStep,
+            `Scheduled delay of ${delay} seconds. Next execution at: ${nextExecutionAt}`,
+            now,
+            now
+          );
+        })();
+
+        ctx.emitLog(`Execution Waiting: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}, stepType=WAIT`, 'info');
+        ctx.saveCheckpoint({ executionId, currentStep: nextStep, sequenceId, entityId, entityType } satisfies AutomationCheckpoint);
+        db.close();
+        ctx.updateProgress(100, { description: `Waiting scheduled.`, step: nextStep, total: steps.length });
+        return { status: 'waiting', executionId, sequenceId, entityId, currentStep: nextStep };
+      }
     }
-
-    // ── 11. Dispatch step ────────────────────────────────────────────────────
-    const step = steps[currentStep];
-    if (!step || !step.type) {
-      throw new Error(`Automation workflow: step at index ${currentStep} is malformed or missing a type.`);
-    }
-
-    ctx.updateProgress(50, { description: `Executing step ${currentStep + 1} of ${steps.length}: ${step.type}`, step: currentStep, total: steps.length });
-    ctx.emitLog(`Dispatching step type: ${step.type} (step index: ${currentStep})`, 'info');
-
-    let dispatchResult: { status: 'success' | 'wait'; delaySeconds?: number };
-
-    // Helper functions for step types (isolated dispatcher)
-    switch (step.type) {
-      case 'SEND_EMAIL':
-        dispatchResult = handleSendEmailStep(step);
-        break;
-      case 'WAIT':
-        dispatchResult = handleWaitStep(step);
-        break;
-      case 'ASSIGN_TAG':
-        dispatchResult = handleAssignTagStep(step);
-        break;
-      default:
-        throw new Error(`Unhandled step type: ${step.type}`);
-    }
-
-    // ── 12. Update execution state & log step atomically ──────────────────────
-    ctx.updateProgress(75, { description: `Saving step execution result...`, step: currentStep, total: steps.length });
-
-    const now = new Date().toISOString();
-    const nextStep = currentStep + 1;
-    const logId = randomUUID();
-
-    if (dispatchResult.status === 'success') {
-      const isCompleted = nextStep >= steps.length;
-      const newStatus = isCompleted ? 'completed' : 'running';
-
-      db.transaction(() => {
-        db.prepare(`
-          UPDATE sequence_executions
-          SET currentStep = ?, status = ?, completedAt = ?, updatedAt = ?
-          WHERE id = ?
-        `).run(
-          nextStep,
-          newStatus,
-          isCompleted ? now : null,
-          now,
-          executionId
-        );
-
-        db.prepare(`
-          INSERT INTO sequence_logs (
-            id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
-          ) VALUES (?, ?, ?, ?, ?, ?, 'success', ?, ?, ?)
-        `).run(
-          logId,
-          executionId,
-          ctx.workspaceId,
-          now,
-          currentStep,
-          step.type,
-          `Successfully dispatched step of type ${step.type}. (Placeholder execution)`,
-          now,
-          now
-        );
-      })();
-
-      ctx.emitLog(`Step ${currentStep} (${step.type}) executed successfully. Next step index: ${nextStep}. Status: ${newStatus}`, 'info');
-      currentStep = nextStep;
-    } else if (dispatchResult.status === 'wait') {
-      const delay = dispatchResult.delaySeconds || 60;
-      const nextExecutionAt = new Date(Date.now() + delay * 1000).toISOString();
-
-      db.transaction(() => {
-        db.prepare(`
-          UPDATE sequence_executions
-          SET currentStep = ?, status = 'waiting', nextExecutionAt = ?, updatedAt = ?
-          WHERE id = ?
-        `).run(
-          nextStep,
-          nextExecutionAt,
-          now,
-          executionId
-        );
-
-        db.prepare(`
-          INSERT INTO sequence_logs (
-            id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
-          ) VALUES (?, ?, ?, ?, ?, 'WAIT', 'success', ?, ?, ?)
-        `).run(
-          logId,
-          executionId,
-          ctx.workspaceId,
-          now,
-          currentStep,
-          `Scheduled delay of ${delay} seconds. Next execution at: ${nextExecutionAt}`,
-          now,
-          now
-        );
-      })();
-
-      ctx.emitLog(`Step ${currentStep} (WAIT) executed successfully. Scheduled delay: ${delay}s. Status: waiting`, 'info');
-      currentStep = nextStep;
-    }
-
-    // ── 13. Save checkpoint after successful dispatch ─────────────────────────
-    const finalCheckpoint: AutomationCheckpoint = {
-      executionId,
-      currentStep,
-      sequenceId,
-      entityId,
-      entityType,
-    };
-    ctx.saveCheckpoint(finalCheckpoint);
-    ctx.emitLog(`Checkpoint saved at step index: ${currentStep}`, 'info');
-
-    // ── 14. Post-dispatch lifecycle checks ────────────────────────────────────
-    if (ctx.isPaused()) {
-      ctx.emitLog('Workflow execution paused after step completion.', 'info');
-      db.close();
-      return { status: 'paused', executionId, sequenceId, entityId, currentStep };
-    }
-
-    if (ctx.isCancelled()) {
-      ctx.emitLog('Workflow execution cancelled after step completion. Updating status to cancelled...', 'warn');
-      db.transaction(() => {
-        db.prepare(`
-          UPDATE sequence_executions
-          SET status = 'cancelled', cancelledAt = ?, cancelReason = ?, updatedAt = ?
-          WHERE id = ?
-        `).run(now, 'Cancelled by user request', now, executionId);
-      })();
-      db.close();
-      return { status: 'cancelled', executionId, sequenceId, entityId, currentStep };
-    }
-
-    // ── 15. Complete the step run cleanly ──────────────────────────────────────
-    const finalStatus = currentStep >= steps.length ? 'completed' : (dispatchResult.status === 'wait' ? 'waiting' : 'running');
-
-    ctx.updateProgress(100, {
-      description: finalStatus === 'completed' ? 'Workflow complete.' : `Step execution complete. Current step: ${currentStep}`,
-      step: currentStep,
-      total: steps.length,
-    });
 
     db.close();
     return {
-      status: finalStatus,
+      status: 'completed',
       executionId,
       sequenceId,
       entityId,
       currentStep,
     };
 
-  } catch (err) {
+  } catch (err: any) {
+    try {
+      const payload = ctx.payload as AutomationWorkflowPayload;
+      const checkpoint = ctx.getCheckpoint() as AutomationCheckpoint | null;
+      const executionId = checkpoint?.executionId || (payload as any).executionId;
+      const currentStep = checkpoint?.currentStep || (payload as any).resumeFrom || 0;
+      const sequenceId = payload?.sequenceId;
+
+      if (executionId) {
+        ctx.emitLog(`Execution Failed: executionId=${executionId}, sequenceId=${sequenceId || 'unknown'}, stepIndex=${currentStep}, error=${err.message || String(err)}`, 'error');
+        const now = new Date().toISOString();
+        db.transaction(() => {
+          db.prepare(`
+            UPDATE sequence_executions
+            SET status = 'failed', completedAt = ?, updatedAt = ?
+            WHERE id = ?
+          `).run(now, now, executionId);
+
+          db.prepare(`
+            INSERT INTO sequence_logs (
+              id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
+            ) VALUES (?, ?, ?, ?, ?, 'ERROR', 'failed', ?, ?, ?)
+          `).run(
+            randomUUID(),
+            executionId,
+            ctx.workspaceId,
+            now,
+            currentStep,
+            err.message || String(err),
+            now,
+            now
+          );
+        })();
+      }
+    } catch { /* ignore log/db updates on nested failure */ }
     try { db.close(); } catch { /* ignore */ }
     throw err;
   } finally {
