@@ -101,31 +101,6 @@ export const RemoteActivityRepository: IRemoteRepository<any> = {
 };
 
 /**
- * RemoteDiscoveryJobRepository wraps remote discovery job API calls.
- */
-export const RemoteDiscoveryJobRepository: IRemoteRepository<any> = {
-  async get(id: string): Promise<any> {
-    return window.ipc.invoke('discovery:get', id);
-  },
-
-  async list(filter?: Record<string, any>): Promise<any[]> {
-    return window.ipc.invoke('discovery:list', filter || {});
-  },
-
-  async create(data: Record<string, any>): Promise<any> {
-    return window.ipc.invoke('discovery:create', data as any);
-  },
-
-  async update(id: string, data: Record<string, any>): Promise<any> {
-    return null;
-  },
-
-  async delete(id: string): Promise<void> {
-    return;
-  },
-};
-
-/**
  * RemoteSequenceRepository wraps remote automation sequence API communication.
  */
 export const RemoteSequenceRepository: IRemoteRepository<any> = {

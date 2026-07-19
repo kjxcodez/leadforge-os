@@ -4,7 +4,6 @@ import {
   RemoteContactRepository,
   RemoteCampaignRepository,
   RemoteActivityRepository,
-  RemoteDiscoveryJobRepository,
   RemoteSequenceRepository,
   RemoteSequenceExecutionRepository,
   RemoteSequenceLogRepository,
@@ -190,7 +189,6 @@ export const SyncCompanyRepository = new BaseSyncRepository<any>('companies', Re
 export const SyncContactRepository = new BaseSyncRepository<any>('contacts', RemoteContactRepository);
 export const SyncCampaignRepository = new BaseSyncRepository<any>('campaigns', RemoteCampaignRepository);
 export const SyncActivityRepository = new BaseSyncRepository<any>('activities', RemoteActivityRepository);
-export const SyncDiscoveryJobRepository = new BaseSyncRepository<any>('discovery_jobs', RemoteDiscoveryJobRepository);
 export const SyncSequenceRepository = new BaseSyncRepository<any>('sequences', RemoteSequenceRepository);
 export const SyncSequenceExecutionRepository = new BaseSyncRepository<any>('sequence_executions', RemoteSequenceExecutionRepository);
 export const SyncSequenceLogRepository = new BaseSyncRepository<any>('sequence_logs', RemoteSequenceLogRepository);

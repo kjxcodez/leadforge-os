@@ -2,7 +2,6 @@ import { SdkClient } from '@leadforge/sdk';
 import { registerAuthIpc } from './auth';
 import { registerWorkspaceIpc } from './workspace';
 import { registerCrmIpc } from './crm';
-import { registerDiscoveryIpc } from './discovery';
 import { registerElectronIpc } from './electron';
 import { registerDatabaseIpc } from './database';
 import { registerOutreachIpc } from './outreach';
@@ -37,7 +36,6 @@ export function registerAllIpc(
   registerAuthIpc(sdk, setToken, setWorkspaceHeader, persistActiveWorkspace, getPersistedActiveWorkspace);
   registerWorkspaceIpc(sdk);
   registerCrmIpc();
-  registerDiscoveryIpc(sdk);
   registerElectronIpc(setWorkspaceHeader, persistActiveWorkspace, getPersistedActiveWorkspace);
   registerOutreachIpc(sdk);
   registerAutomationIpc(sdk);

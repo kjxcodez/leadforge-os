@@ -477,6 +477,13 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE sequence_executions ADD COLUMN executionContext TEXT;
     `,
   },
+  {
+    name: '014_drop_legacy_discovery',
+    up: `
+      DROP TABLE IF EXISTS discovery_jobs;
+      DROP TABLE IF EXISTS discovery_results;
+    `,
+  },
 ];
 
 
