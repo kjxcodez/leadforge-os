@@ -25,6 +25,17 @@ export class WorkspaceRuntime {
   private isRunning: boolean = false;
   
   public startedAt: Date | null = null;
+  public startupStartedAt: Date | null = null;
+  public startupCompletedAt: Date | null = null;
+  public startupDuration: number = 0;
+  public lastRestart: Date | null = null;
+
+  public databaseOpenDuration: number = 0;
+  public migrationsDuration: number = 0;
+  public schedulerDuration: number = 0;
+  public syncDuration: number = 0;
+  public automationDuration: number = 0;
+
   private static restartCounts = new Map<string, number>();
 
   public get restartCount(): number {
@@ -33,7 +44,10 @@ export class WorkspaceRuntime {
 
   constructor(workspaceId: string, sdk: SdkClient) {
     this.workspaceId = workspaceId;
+    const dbOpenStart = Date.now();
     this.sqliteDb = getDatabase(workspaceId);
+    this.databaseOpenDuration = Date.now() - dbOpenStart;
+
     this.eventBus = new LocalEventBus(workspaceId);
     this.scheduler = new JobScheduler(workspaceId, this.sqliteDb, this.eventBus);
     this.syncEngine = new SyncEngine(workspaceId, this.sqliteDb, this.eventBus, sdk);
@@ -46,6 +60,9 @@ export class WorkspaceRuntime {
    */
   public async start(): Promise<void> {
     if (this.isRunning) return;
+
+    this.startupStartedAt = new Date();
+    this.lastRestart = this.startupStartedAt;
 
     // Increment restart count
     const prevCount = WorkspaceRuntime.restartCounts.get(this.workspaceId) || 0;
@@ -72,32 +89,51 @@ export class WorkspaceRuntime {
 
     // 1. Run migrations on the isolated database
     sendBootProgress('database:migrations', '✓ Applying migrations');
+    const migStart = Date.now();
     try {
       runMigrations(this.sqliteDb);
     } catch (err) {
       console.error(`[WorkspaceRuntime] Database migration failed for workspace ${this.workspaceId}:`, err);
       throw err;
     }
+    this.migrationsDuration = Date.now() - migStart;
 
     // 2. Recover interrupted background jobs and waiting sequences before scheduler starts
     await this.recoverInterruptedJobs();
 
     // 3. Start Concurrency Scheduler
     sendBootProgress('scheduler:start', '✓ Starting scheduler');
+    const schedStart = Date.now();
     await this.scheduler.start();
+    this.schedulerDuration = Date.now() - schedStart;
 
     // 4. Start Background Sync Engine
     sendBootProgress('sync:start', '✓ Starting sync engine');
+    const syncStart = Date.now();
     await this.syncEngine.start();
+    this.syncDuration = Date.now() - syncStart;
 
     // 5. Start EventBridge to forward LocalEventBus events to the renderer process
     this.eventBridge.start();
 
     // 6. Start AutomationTriggerEvaluator to listen for CRM/job events and queue automation workflows
     sendBootProgress('automation:start', '✓ Starting automation runtime');
+    const autoStart = Date.now();
     this.triggerEvaluator.start();
+    this.automationDuration = Date.now() - autoStart;
 
     this.isRunning = true;
+    this.startupCompletedAt = new Date();
+    this.startupDuration = this.startupCompletedAt.getTime() - this.startupStartedAt.getTime();
+
+    // Update global telemetry with these workspace durations
+    const { telemetry } = require('./telemetry');
+    telemetry.databaseOpenDuration = this.databaseOpenDuration;
+    telemetry.migrationsDuration = this.migrationsDuration;
+    telemetry.schedulerDuration = this.schedulerDuration;
+    telemetry.syncDuration = this.syncDuration;
+    telemetry.automationDuration = this.automationDuration;
+
     console.log(`[WorkspaceRuntime] Workspace runtime "${this.workspaceId}" successfully booted.`);
     sendBootProgress('ready', '✓ Ready');
   }

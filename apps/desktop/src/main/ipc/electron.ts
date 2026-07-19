@@ -133,6 +133,36 @@ export function registerElectronIpc(
     // 9. Registered IPC Channels
     result.ipcChannels = Array.from(REGISTERED_IPC_CHANNELS);
 
+    // 10. Startup and Lifecycle Telemetry (PRD-002)
+    const { telemetry } = require('../lib/telemetry');
+    result.startupMetrics = telemetry.getMetrics(workspaceId);
+    result.workspaceLifecycle = WorkspaceManager.getLifecycleMetrics();
+
     return result;
+  });
+
+  safeRegister('electron:ready-to-show', async (_event, payload: any) => {
+    const { telemetry } = require('../lib/telemetry');
+    const { destroySplashWindow } = require('../lib/splash-window');
+    const { BrowserWindow } = require('electron');
+
+    if (payload) {
+      if (payload.rendererInitStart !== undefined) telemetry.rendererInitStart = payload.rendererInitStart;
+      if (payload.reactMountTime !== undefined) telemetry.reactMountTime = payload.reactMountTime;
+      if (payload.dashboardReadyTime !== undefined) telemetry.dashboardReadyTime = payload.dashboardReadyTime;
+    }
+
+    console.log('[IPC] Renderer reported ready-to-show. Revealing main window.');
+
+    // Find main window and show/focus it
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed() && win.isResizable()) {
+        win.show();
+        win.focus();
+      }
+    });
+
+    // Cleanly close splash window
+    destroySplashWindow();
   });
 }

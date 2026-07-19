@@ -484,6 +484,26 @@ export const MIGRATIONS: Migration[] = [
       DROP TABLE IF EXISTS discovery_results;
     `,
   },
+  {
+    name: '015_sync_dead_letter',
+    up: `
+      CREATE TABLE IF NOT EXISTS sync_dead_letter (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        entityType TEXT NOT NULL,
+        entityId TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        payload TEXT,
+        version INTEGER NOT NULL DEFAULT 1,
+        retryCount INTEGER DEFAULT 0,
+        lastError TEXT,
+        createdAt DATETIME,
+        updatedAt DATETIME,
+        archivedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_sync_dead_letter_workspaceId ON sync_dead_letter(workspaceId);
+    `,
+  },
 ];
 
 

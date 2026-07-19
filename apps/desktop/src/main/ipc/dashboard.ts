@@ -116,14 +116,11 @@ export function registerDashboardIpc(): void {
 
   // 4. Infrastructure Status Tracker
   safeRegister('system:infrastructure-status', async (_event, { workspaceId }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    
     const runtime = WorkspaceManager.getActiveRuntime();
     const stats: any = {
       workspaceId,
-      workspaceRuntime: {
-        status: runtime && runtime.workspaceId === workspaceId ? 'Running' : 'Stopped',
-        uptimeMs: runtime && runtime.startedAt ? Date.now() - runtime.startedAt.getTime() : 0,
-        restartCount: runtime ? runtime.restartCount : 0
-      },
       scheduler: {
         status: 'Stopped',
         uptimeMs: 0,
@@ -148,6 +145,14 @@ export function registerDashboardIpc(): void {
       },
       database: {
         status: 'Connected'
+      },
+      workspaceRuntime: {
+        status: 'Stopped',
+        uptimeMs: 0,
+        startupDuration: 0,
+        restartCount: 0,
+        memoryUsage: 0,
+        averageStartupTime: 0
       }
     };
 
@@ -184,6 +189,17 @@ export function registerDashboardIpc(): void {
       stats.workerHost = {
         status: workerCount > 0 ? 'Running' : (isSchedulerRunning ? 'Running' : 'Stopped'),
         activeWorkers: workerCount
+      };
+
+      // Workspace Runtime metrics (PRD-002)
+      const lifecycle = WorkspaceManager.getLifecycleMetrics();
+      stats.workspaceRuntime = {
+        status: 'Running',
+        uptimeMs: runtime.startedAt ? Date.now() - runtime.startedAt.getTime() : 0,
+        startupDuration: (runtime as any).startupDuration || 0,
+        restartCount: runtime.restartCount,
+        memoryUsage: process.memoryUsage().heapUsed,
+        averageStartupTime: lifecycle.averageStartupTime
       };
     }
 

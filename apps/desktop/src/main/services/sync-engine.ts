@@ -216,18 +216,51 @@ export class SyncEngine {
    * Processes pending sync queue items sequentially.
    */
   private async processQueue(): Promise<void> {
-    // Detect and log permanently failed/poisoned sync items
+    // Detect and archive permanently failed/poisoned sync items to the dead-letter table
     const poisonedItems = this.db.prepare(`
-      SELECT id, entityType, retryCount FROM sync_queue
+      SELECT * FROM sync_queue
       WHERE workspaceId = ? AND retryCount >= ?
-    `).all(this.workspaceId, MAX_SYNC_RETRIES) as Array<{ id: string; entityType: string; retryCount: number }>;
+    `).all(this.workspaceId, MAX_SYNC_RETRIES) as QueueItem[];
 
-    for (const item of poisonedItems) {
-      AppLogger.warn(
-        'SyncEngine',
-        `Skipping permanently failed sync item: id=${item.id}, entityType=${item.entityType}, retryCount=${item.retryCount}`,
-        this.workspaceId
-      );
+    if (poisonedItems.length > 0) {
+      const insertDeadLetter = this.db.prepare(`
+        INSERT OR REPLACE INTO sync_dead_letter (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt, archivedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `);
+      const deleteQueueItem = this.db.prepare(`
+        DELETE FROM sync_queue WHERE id = ?
+      `);
+
+      const archiveTx = this.db.transaction((items: QueueItem[]) => {
+        for (const item of items) {
+          insertDeadLetter.run(
+            item.id,
+            item.workspaceId,
+            item.entityType,
+            item.entityId,
+            item.operation,
+            item.payload,
+            item.version,
+            item.retryCount,
+            item.lastError,
+            item.createdAt,
+            item.updatedAt
+          );
+          deleteQueueItem.run(item.id);
+        }
+      });
+
+      try {
+        archiveTx(poisonedItems);
+        AppLogger.warn(
+          'SyncEngine',
+          `Archived ${poisonedItems.length} permanently failed sync queue items to dead-letter queue.`,
+          this.workspaceId
+        );
+        this.broadcastToRenderer();
+      } catch (err) {
+        AppLogger.error('SyncEngine', 'Failed to archive poisoned sync items', this.workspaceId, err);
+      }
     }
 
     const pendingItems = this.db.prepare(`

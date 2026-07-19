@@ -9,6 +9,8 @@ import { registerAllIpc } from './ipc/register';
 import { loadSession, clearSession } from './lib/session';
 import { AppLogger } from './lib/logger';
 import { loadWindowState, trackWindowState } from './lib/window-state';
+import { createSplashWindow } from './lib/splash-window';
+import { telemetry } from './lib/telemetry';
 
 // Main window reference
 let mainWindow: BrowserWindow | null = null;
@@ -76,6 +78,7 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     show: false,
+    backgroundColor: '#09090b',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -113,9 +116,8 @@ function createWindow() {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
 
-  // Show window when ready
+  // Show window when ready (NO-OP: Main window visibility is managed dynamically by renderer ready-to-show IPC)
   mainWindow.on('ready-to-show', () => {
-    mainWindow?.show();
     if (is.dev) {
       mainWindow?.webContents.openDevTools({
         mode: "detach"
@@ -144,10 +146,16 @@ export function registerIpcHandler() { }
 
 // App lifecycle
 app.whenReady().then(() => {
+  telemetry.whenReadyTime = Date.now();
+
+  // Create lightweight native splash window immediately
+  createSplashWindow();
+
   // Set as app user model ID (Windows)
   app.setAppUserModelId('com.leadforge.desktop');
 
   // Restore session from disk
+  const sessionStart = Date.now();
   try {
     const session = loadSession();
     if (session) {
@@ -162,6 +170,7 @@ app.whenReady().then(() => {
   } catch (err) {
     AppLogger.error('auth', 'Failed to restore session on startup', undefined, err);
   }
+  telemetry.sessionRestoreDuration = Date.now() - sessionStart;
 
   // 1. Run SQLite schema migrations
   try {

@@ -1,29 +1,32 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, lazy } from 'react';
 import { createHashRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { ProtectedRoute, GuestRoute } from './guards';
 import { AppLayout } from '../layouts/AppLayout';
 import { AuthLayout } from '../layouts/AuthLayout';
 import { BlankLayout } from '../layouts/BlankLayout';
-import { SplashScreen } from '../screens/SplashScreen';
-import { LoginScreen } from '../screens/LoginScreen';
-import { RegisterScreen } from '../screens/RegisterScreen';
-import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
-import { VerifyEmailScreen } from '../screens/VerifyEmailScreen';
-import { SessionExpiredScreen } from '../screens/SessionExpiredScreen';
 import { useAuth } from '../hooks/useAuth';
 import { useAuthStore } from '../stores/auth-store';
 import { useWorkspaceStore } from '../stores/workspace-store';
 import { queryClient } from '../providers/AppProviders';
-import WorkspaceSettingsScreen from '../screens/WorkspaceSettingsScreen';
-import WorkspaceInvitesScreen from '../screens/WorkspaceInvitesScreen';
-import DashboardScreen from '../screens/DashboardScreen';
-import CompaniesScreen from '../screens/CompaniesScreen';
-import ContactsScreen from '../screens/ContactsScreen';
-import DiscoveryScreen from '../screens/DiscoveryScreen';
-import CampaignsScreen from '../screens/CampaignsScreen';
-import AutomationScreen from '../screens/AutomationScreen';
-import DiagnosticsScreen from '../screens/DiagnosticsScreen';
-import ReportsScreen from '../screens/ReportsScreen';
+
+// Lazy load screens
+const SplashScreen = lazy(() => import('../screens/SplashScreen').then(m => ({ default: m.SplashScreen })));
+const LoginScreen = lazy(() => import('../screens/LoginScreen').then(m => ({ default: m.LoginScreen })));
+const RegisterScreen = lazy(() => import('../screens/RegisterScreen').then(m => ({ default: m.RegisterScreen })));
+const ForgotPasswordScreen = lazy(() => import('../screens/ForgotPasswordScreen').then(m => ({ default: m.ForgotPasswordScreen })));
+const VerifyEmailScreen = lazy(() => import('../screens/VerifyEmailScreen').then(m => ({ default: m.VerifyEmailScreen })));
+const SessionExpiredScreen = lazy(() => import('../screens/SessionExpiredScreen').then(m => ({ default: m.SessionExpiredScreen })));
+
+const WorkspaceSettingsScreen = lazy(() => import('../screens/WorkspaceSettingsScreen'));
+const WorkspaceInvitesScreen = lazy(() => import('../screens/WorkspaceInvitesScreen'));
+const DashboardScreen = lazy(() => import('../screens/DashboardScreen'));
+const CompaniesScreen = lazy(() => import('../screens/CompaniesScreen'));
+const ContactsScreen = lazy(() => import('../screens/ContactsScreen'));
+const DiscoveryScreen = lazy(() => import('../screens/DiscoveryScreen'));
+const CampaignsScreen = lazy(() => import('../screens/CampaignsScreen'));
+const AutomationScreen = lazy(() => import('../screens/AutomationScreen'));
+const DiagnosticsScreen = lazy(() => import('../screens/DiagnosticsScreen'));
+const ReportsScreen = lazy(() => import('../screens/ReportsScreen'));
 
 
 // ---------------------------------------------------------------------------
@@ -150,6 +153,10 @@ const router = createHashRouter([
  * AppRouter wraps React Router with the session bootstrap logic.
  */
 export function AppRouter() {
+  useEffect(() => {
+    (window as any).__reactMountTime = performance.now();
+  }, []);
+
   return (
     <SessionBootstrap>
       <RouterProvider router={router} />

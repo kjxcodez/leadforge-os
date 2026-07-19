@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import { Outlet } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -27,7 +27,10 @@ function CreateWorkspaceInlineForm() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(schema) });
+  } = useForm<FormValues>({ 
+    resolver: zodResolver(schema),
+    defaultValues: { name: "" },
+  });
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -39,17 +42,17 @@ function CreateWorkspaceInlineForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-4">
-      <div className="space-y-1.5 text-left">
-        <label htmlFor="inline-ws-name" className="text-xs font-medium text-foreground">
-          Workspace name
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 text-left">
+      <div className="space-y-1.5">
+        <label htmlFor="name" className="text-xs font-semibold text-muted-foreground">
+          Workspace Name
         </label>
         <input
-          id="inline-ws-name"
+          id="name"
           type="text"
-          placeholder="e.g. Acme Sales Team"
+          placeholder="e.g. Acme Corp"
           {...register("name")}
-          className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
         {errors.name && (
           <p className="text-[10px] text-danger-text">{errors.name.message}</p>
@@ -74,6 +77,12 @@ function CreateWorkspaceInlineForm() {
 export function AppLayout() {
   const { activeWorkspace } = useWorkspace();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!activeWorkspace) {
+      window.ipc.invoke('electron:ready-to-show' as any).catch(() => {});
+    }
+  }, [activeWorkspace]);
 
   useEffect(() => {
     const workspaceId = activeWorkspace?.id;
@@ -118,7 +127,20 @@ export function AppLayout() {
           <div className="flex flex-col flex-1 min-w-0">
             {/* Page content */}
             <main className="flex-1 overflow-y-auto p-4 max-h-[calc(100vh-64px)]">
-              <Outlet />
+              <Suspense fallback={
+                <div className="space-y-4 p-2">
+                  <div className="h-6 bg-muted animate-pulse rounded w-1/3" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="h-20 bg-muted animate-pulse rounded-xl" />
+                    <div className="h-20 bg-muted animate-pulse rounded-xl" />
+                    <div className="h-20 bg-muted animate-pulse rounded-xl" />
+                    <div className="h-20 bg-muted animate-pulse rounded-xl" />
+                  </div>
+                  <div className="h-64 bg-muted animate-pulse rounded-xl" />
+                </div>
+              }>
+                <Outlet />
+              </Suspense>
             </main>
           </div>
         </SidebarInset>

@@ -141,6 +141,32 @@ export default function DashboardScreen() {
     return `${hr > 0 ? hr + 'h ' : ''}${min > 0 ? min + 'm ' : ''}${sec}s`;
   };
 
+  // Format bytes into human readable sizes
+  const formatBytes = (bytes?: number) => {
+    if (!bytes || bytes <= 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Invoke ready-to-show once all queries complete loading (PRD-002)
+  React.useEffect(() => {
+    if (workspaceId && !statsQuery.isLoading && !chartQuery.isLoading && !feedQuery.isLoading && !infraQuery.isLoading) {
+      const rendererInitStart = (window as any).__rendererInitStart || 0;
+      const reactMountTime = (window as any).__reactMountTime || 0;
+      const dashboardReadyTime = performance.now();
+
+      window.ipc.invoke('electron:ready-to-show' as any, {
+        rendererInitStart,
+        reactMountTime,
+        dashboardReadyTime
+      }).catch((err) => {
+        console.log('Failed to invoke electron:ready-to-show:', err);
+      });
+    }
+  }, [workspaceId, statsQuery.isLoading, chartQuery.isLoading, feedQuery.isLoading, infraQuery.isLoading]);
+
   return (
     <div className="space-y-6 text-xs font-sans h-full overflow-y-auto pr-1">
       {/* Header bar */}
@@ -357,6 +383,9 @@ export default function DashboardScreen() {
             <div className="text-right text-[10px] text-muted-foreground font-mono leading-relaxed">
               <div>Uptime: <span className="font-semibold text-foreground">{formatUptime(infraStatus.workspaceRuntime?.uptimeMs)}</span></div>
               <div>Restarts: <span className="font-semibold text-foreground">{infraStatus.workspaceRuntime?.restartCount || 0}</span></div>
+              <div>Memory: <span className="font-semibold text-foreground">{formatBytes(infraStatus.workspaceRuntime?.memoryUsage)}</span></div>
+              <div>Startup: <span className="font-semibold text-foreground">{infraStatus.workspaceRuntime?.startupDuration || 0}ms</span></div>
+              <div>Avg Boot: <span className="font-semibold text-foreground">{infraStatus.workspaceRuntime?.averageStartupTime ? Math.round(infraStatus.workspaceRuntime.averageStartupTime) : 0}ms</span></div>
             </div>
             <Button
               onClick={handleToggleInfrastructure}

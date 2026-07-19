@@ -111,6 +111,7 @@ contextBridge.exposeInMainWorld('ipc', {
       'dashboard:chart-data',
       'dashboard:activity-feed',
       'system:infrastructure-status',
+      'electron:ready-to-show',
     ];
     if (validChannels.includes(channel as string)) {
       return ipcRenderer.invoke(channel, payload);
