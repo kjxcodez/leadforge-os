@@ -30,6 +30,7 @@ export function getDatabase(workspaceId?: string): Database.Database {
     db.pragma('journal_mode = WAL');
     db.pragma('synchronous = NORMAL');
     db.pragma('busy_timeout = 5000');
+    db.pragma('foreign_keys = ON');
 
     workspaceDbs.set(workspaceId, db);
     console.log(`[SQLite] Workspace database initialized at: ${dbPath}`);
@@ -46,6 +47,7 @@ export function getDatabase(workspaceId?: string): Database.Database {
   globalDb.pragma('journal_mode = WAL');
   globalDb.pragma('synchronous = NORMAL');
   globalDb.pragma('busy_timeout = 5000');
+  globalDb.pragma('foreign_keys = ON');
 
   console.log(`[SQLite] Global database initialized at: ${dbPath}`);
   return globalDb;

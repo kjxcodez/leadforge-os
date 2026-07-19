@@ -91,8 +91,7 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
   }
 
   const dbPath = join(dbDir, `leadforge_${ctx.workspaceId}.db`);
-  ctx.emitLog(`Opening database connection at: ${dbPath}`, 'info');
-  const db = new Database(dbPath);
+  let db: Database.Database | null = null;
 
   // Restore state from checkpoint if resuming
   const checkpoint = ctx.getCheckpoint();
@@ -111,6 +110,9 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
   let duplicatesCount = 0;
 
   try {
+    ctx.emitLog(`Opening database connection at: ${dbPath}`, 'info');
+    db = new Database(dbPath);
+
     ctx.emitLog('Launching headless Chromium browser', 'info');
     browser = await chromium.launch({ headless: true });
     context = await browser.newContext({
@@ -129,7 +131,7 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
     // Check if directly redirected to a details page (e.g. single match query)
     if (page.url().includes('/maps/place/')) {
       ctx.emitLog('Query matched exactly one listing, directly scraping detail page.', 'info');
-      await scrapeDetailsAndStore(page.url(), page, db, ctx);
+      await scrapeDetailsAndStore(page.url(), page, db!, ctx);
       return { storedCount: 1, skippedCount: 0, duplicatesCount: 0 };
     }
 
@@ -238,7 +240,7 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
 
       try {
         const absoluteUrl = url.startsWith('http') ? url : `https://www.google.com${url}`;
-        await scrapeDetailsAndStore(absoluteUrl, page, db, ctx);
+        await scrapeDetailsAndStore(absoluteUrl, page, db!, ctx);
       } catch (err: any) {
         ctx.emitLog(`Failed to extract details from listing ${index + 1}: ${err.message || err}`, 'error');
         // Continue to remaining listings
@@ -265,7 +267,7 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
     ctx.emitLog('Shutting down Playwright browser contexts', 'info');
     if (context) await context.close().catch(() => {});
     if (browser) await browser.close().catch(() => {});
-    db.close();
+    if (db) db.close();
   }
 
   return { storedCount, skippedCount, duplicatesCount };

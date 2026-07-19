@@ -434,6 +434,22 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_seq_exec_parent_job ON sequence_executions(parentJobId) WHERE parentJobId IS NOT NULL;
     `,
   },
+  {
+    name: '011_indexing_optimizations',
+    up: `
+      CREATE INDEX IF NOT EXISTS idx_contacts_companyId
+      ON contacts(companyId);
+
+      CREATE INDEX IF NOT EXISTS idx_activities_workspaceId
+      ON activities(workspaceId);
+
+      CREATE INDEX IF NOT EXISTS idx_sequence_exec_contactId
+      ON sequence_executions(contactId);
+
+      CREATE INDEX IF NOT EXISTS idx_sequence_exec_companyId
+      ON sequence_executions(companyId);
+    `,
+  },
 ];
 
 
