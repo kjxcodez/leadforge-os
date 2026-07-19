@@ -12,7 +12,7 @@ export const ElectronService = {
    * Opens a URL in the system's default browser.
    */
   async openExternal(url: string): Promise<void> {
-    await window.ipc.invoke('electron:openUrl' as any, url as any);
+    await window.ipc.invoke('electron:openUrl', url);
   },
 
   /**
@@ -20,8 +20,8 @@ export const ElectronService = {
    */
   async getVersion(): Promise<string> {
     try {
-      const res = await window.ipc.invoke('electron:version' as any, undefined as any);
-      return (res as string) ?? '0.0.0';
+      const res = await window.ipc.invoke('electron:version', undefined);
+      return res ?? '0.0.0';
     } catch {
       return '0.0.0';
     }
@@ -32,8 +32,8 @@ export const ElectronService = {
    */
   async getPlatform(): Promise<string> {
     try {
-      const res = await window.ipc.invoke('electron:platform' as any, undefined as any);
-      return (res as string) ?? 'unknown';
+      const res = await window.ipc.invoke('electron:platform', undefined);
+      return res ?? 'unknown';
     } catch {
       return 'unknown';
     }
@@ -43,6 +43,6 @@ export const ElectronService = {
    * Sends a native OS notification.
    */
   async notify(title: string, body: string): Promise<void> {
-    await window.ipc.invoke('electron:notify' as any, { title, body } as any);
+    await window.ipc.invoke('electron:notify', { title, body });
   },
 };

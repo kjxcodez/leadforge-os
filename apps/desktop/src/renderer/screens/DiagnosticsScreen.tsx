@@ -33,7 +33,7 @@ export default function DiagnosticsScreen() {
     queryKey: ['system_diagnostics', workspaceId],
     queryFn: async () => {
       if (!workspaceId) return null;
-      return window.ipc.invoke('system:diagnostics' as any, { workspaceId });
+      return window.ipc.invoke('system:diagnostics', { workspaceId });
     },
     enabled: !!workspaceId,
     refetchInterval: 3000, // Refresh diagnostics metrics every 3 seconds
@@ -43,7 +43,7 @@ export default function DiagnosticsScreen() {
   useEffect(() => {
     if (!isLiveActive) return;
 
-    const unsubscribe = window.ipc.on('system:log:event' as any, (logRecord: any) => {
+    const unsubscribe = window.ipc.on('system:log:event', (logRecord: any) => {
       if (logRecord && logRecord.workspaceId === workspaceId) {
         setLiveLogs((prev) => [...prev.slice(-199), logRecord]); // Cap to 200 logs
       }

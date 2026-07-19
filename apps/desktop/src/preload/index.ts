@@ -105,6 +105,8 @@ contextBridge.exposeInMainWorld('ipc', {
       'electron:notify',
       'auth:unauthorized',
       'system:diagnostics',
+      'scheduler:jobs:pause',
+      'scheduler:jobs:resume',
     ];
     if (validChannels.includes(channel as string)) {
       return ipcRenderer.invoke(channel, payload);

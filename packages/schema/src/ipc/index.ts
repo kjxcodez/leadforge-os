@@ -317,7 +317,7 @@ export interface IpcChannelMap {
   };
   'sequence:delete': {
     input: string;
-    output: void;
+    output: any;
   };
   'sequence:start': {
     input: { sequenceId: string; contactId?: string | null; companyId?: string | null };
@@ -350,6 +350,46 @@ export interface IpcChannelMap {
   'job:failed': {
     input: void;
     output: { jobId: string; error: string; willRetry?: boolean };
+  };
+  'ipc:test': {
+    input: void;
+    output: { status: string; timestamp: number };
+  };
+  'electron:version': {
+    input: void;
+    output: string;
+  };
+  'electron:platform': {
+    input: void;
+    output: string;
+  };
+  'electron:openUrl': {
+    input: string;
+    output: void;
+  };
+  'electron:notify': {
+    input: { title: string; body: string };
+    output: void;
+  };
+  'system:diagnostics': {
+    input: { workspaceId: string };
+    output: any;
+  };
+  'scheduler:jobs:pause': {
+    input: { workspaceId: string; jobId: string };
+    output: void;
+  };
+  'scheduler:jobs:resume': {
+    input: { workspaceId: string; jobId: string };
+    output: void;
+  };
+  'sync:completed': {
+    input: void;
+    output: { timestamp: string };
+  };
+  'system:log:event': {
+    input: void;
+    output: any;
   };
 }
 

@@ -80,7 +80,7 @@ export function AppLayout() {
     if (!workspaceId) return;
 
     // Listen to sync:completed events from Main process and refresh UI queries
-    const unsubscribe = window.ipc.on('sync:completed' as any, () => {
+    const unsubscribe = window.ipc.on('sync:completed', () => {
       console.log('[Renderer] Sync completed event received, invalidating queries.');
       queryClient.invalidateQueries();
     });
