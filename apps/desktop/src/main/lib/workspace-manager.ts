@@ -1,5 +1,7 @@
 import { WorkspaceRuntime } from './workspace-runtime';
 import type { SdkClient } from '@leadforge/sdk';
+import { telemetry } from './telemetry';
+
 
 /**
  * WorkspaceManager acts as the Main process runtime supervisor, managing the active
@@ -58,7 +60,6 @@ class WorkspaceManagerClass {
       this.totalStarts++;
       this.totalStartupDuration += activateDuration;
       
-      const { telemetry } = require('./telemetry');
       telemetry.workspaceActivationDuration = activateDuration;
 
       this.activeRuntime = runtime;

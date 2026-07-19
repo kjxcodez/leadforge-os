@@ -4,6 +4,8 @@ import { WorkspaceManager } from '../lib/workspace-manager';
 import fs from 'fs';
 import { join } from 'path';
 import { getDatabase } from '../database/connection';
+import { telemetry } from '../lib/telemetry';
+import { destroySplashWindow } from '../lib/splash-window';
 
 /**
  * Registers native Electron window, platform, utility, and notification channels.
@@ -60,7 +62,7 @@ export function registerElectronIpc(
       const userDataPath = app.getPath('userData');
       const globalDbPath = join(userDataPath, 'leadforge.db');
       const workspaceDbPath = join(userDataPath, 'workspaces', `leadforge_${workspaceId}.db`);
-      
+
       result.storage = {
         globalDbSize: fs.existsSync(globalDbPath) ? fs.statSync(globalDbPath).size : 0,
         workspaceDbSize: fs.existsSync(workspaceDbPath) ? fs.statSync(workspaceDbPath).size : 0,
@@ -134,7 +136,7 @@ export function registerElectronIpc(
     result.ipcChannels = Array.from(REGISTERED_IPC_CHANNELS);
 
     // 10. Startup and Lifecycle Telemetry (PRD-002)
-    const { telemetry } = require('../lib/telemetry');
+
     result.startupMetrics = telemetry.getMetrics(workspaceId);
     result.workspaceLifecycle = WorkspaceManager.getLifecycleMetrics();
 
@@ -142,8 +144,7 @@ export function registerElectronIpc(
   });
 
   safeRegister('electron:ready-to-show', async (_event, payload: any) => {
-    const { telemetry } = require('../lib/telemetry');
-    const { destroySplashWindow } = require('../lib/splash-window');
+
 
     if (payload) {
       if (payload.rendererInitStart !== undefined) telemetry.rendererInitStart = payload.rendererInitStart;

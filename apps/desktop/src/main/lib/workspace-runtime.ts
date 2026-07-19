@@ -10,6 +10,8 @@ import { EventBridge } from './event-bridge';
 import { AutomationTriggerEvaluator } from '../services/automation-trigger';
 import type { SdkClient } from '@leadforge/sdk';
 
+import { telemetry } from './telemetry';
+
 /**
  * WorkspaceRuntime manages a single workspace isolated connection, local event bus,
  * and lifecycle engines (scheduler, sync, etc.).
@@ -127,7 +129,6 @@ export class WorkspaceRuntime {
     this.startupDuration = this.startupCompletedAt.getTime() - this.startupStartedAt.getTime();
 
     // Update global telemetry with these workspace durations
-    const { telemetry } = require('./telemetry');
     telemetry.databaseOpenDuration = this.databaseOpenDuration;
     telemetry.migrationsDuration = this.migrationsDuration;
     telemetry.schedulerDuration = this.schedulerDuration;

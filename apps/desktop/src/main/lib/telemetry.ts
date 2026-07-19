@@ -1,5 +1,6 @@
 import { app } from 'electron';
 import os from 'os';
+import { getDatabase } from '../database/connection';
 
 export interface StartupMetrics {
   appLaunchDuration: number;
@@ -45,7 +46,6 @@ class TelemetryTracker {
     let deadLetters = 0;
     if (workspaceId) {
       try {
-        const { getDatabase } = require('../database/connection');
         const db = getDatabase(workspaceId);
         const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_dead_letter'").get();
         if (tableCheck) {
