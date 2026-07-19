@@ -16,6 +16,8 @@ interface QueueItem {
   retryCount: number;
 }
 
+export const MAX_SYNC_RETRIES = 5;
+
 /**
  * SyncEngine monitors the local sync_queue table and pushes pending mutations
  * to the remote API sequentially, resolving conflicts using Last-Write-Wins.
@@ -183,11 +185,25 @@ export class SyncEngine {
    * Processes pending sync queue items sequentially.
    */
   private async processQueue(): Promise<void> {
+    // Detect and log permanently failed/poisoned sync items
+    const poisonedItems = this.db.prepare(`
+      SELECT id, entityType, retryCount FROM sync_queue
+      WHERE workspaceId = ? AND retryCount >= ?
+    `).all(this.workspaceId, MAX_SYNC_RETRIES) as Array<{ id: string; entityType: string; retryCount: number }>;
+
+    for (const item of poisonedItems) {
+      AppLogger.warn(
+        'SyncEngine',
+        `Skipping permanently failed sync item: id=${item.id}, entityType=${item.entityType}, retryCount=${item.retryCount}`,
+        this.workspaceId
+      );
+    }
+
     const pendingItems = this.db.prepare(`
       SELECT * FROM sync_queue
-      WHERE workspaceId = ?
+      WHERE workspaceId = ? AND retryCount < ?
       ORDER BY createdAt ASC
-    `).all(this.workspaceId) as QueueItem[];
+    `).all(this.workspaceId, MAX_SYNC_RETRIES) as QueueItem[];
 
     if (pendingItems.length === 0) return;
 
