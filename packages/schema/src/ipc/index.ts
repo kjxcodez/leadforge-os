@@ -367,6 +367,42 @@ export interface IpcChannelMap {
     input: void;
     output: { jobId: string };
   };
+  'automation:queued': {
+    input: void;
+    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; timestamp: string };
+  };
+  'automation:started': {
+    input: void;
+    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; workerPid: number; timestamp: string };
+  };
+  'automation:resumed': {
+    input: void;
+    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; workerPid: number; timestamp: string };
+  };
+  'automation:paused': {
+    input: void;
+    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; workerPid: number; timestamp: string };
+  };
+  'automation:waiting': {
+    input: void;
+    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; workerPid: number; timestamp: string };
+  };
+  'automation:completed': {
+    input: void;
+    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; workerPid: number; timestamp: string };
+  };
+  'automation:cancelled': {
+    input: void;
+    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; workerPid: number; timestamp: string };
+  };
+  'automation:failed': {
+    input: void;
+    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; workerPid: number; error?: string; timestamp: string };
+  };
+  'automation:recovered': {
+    input: void;
+    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; timestamp: string };
+  };
   'ipc:test': {
     input: void;
     output: { status: string; timestamp: number };

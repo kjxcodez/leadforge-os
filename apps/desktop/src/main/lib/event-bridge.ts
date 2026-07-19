@@ -85,6 +85,37 @@ export class EventBridge {
         });
       })
     );
+
+    // 8. Forward automation events
+    const autoEvents: Array<
+      | 'automation:queued'
+      | 'automation:started'
+      | 'automation:resumed'
+      | 'automation:paused'
+      | 'automation:waiting'
+      | 'automation:completed'
+      | 'automation:cancelled'
+      | 'automation:failed'
+      | 'automation:recovered'
+    > = [
+      'automation:queued',
+      'automation:started',
+      'automation:resumed',
+      'automation:paused',
+      'automation:waiting',
+      'automation:completed',
+      'automation:cancelled',
+      'automation:failed',
+      'automation:recovered',
+    ];
+
+    autoEvents.forEach((ch) => {
+      this.unsubscribes.push(
+        this.eventBus.subscribe(ch, (event: AppEvent) => {
+          this.broadcast(ch, event.payload);
+        })
+      );
+    });
   }
 
   /**

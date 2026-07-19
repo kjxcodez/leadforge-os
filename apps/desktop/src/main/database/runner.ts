@@ -450,6 +450,27 @@ export const MIGRATIONS: Migration[] = [
       ON sequence_executions(companyId);
     `,
   },
+  {
+    name: '012_automation_reliability',
+    up: `
+      CREATE TABLE IF NOT EXISTS automation_locks (
+        sequenceId TEXT NOT NULL,
+        entityId TEXT NOT NULL,
+        workspaceId TEXT NOT NULL,
+        lockedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expiresAt DATETIME NOT NULL,
+        PRIMARY KEY (sequenceId, entityId)
+      );
+
+      ALTER TABLE sequence_executions ADD COLUMN retryCount INTEGER DEFAULT 0;
+      ALTER TABLE sequence_executions ADD COLUMN workerPid INTEGER DEFAULT NULL;
+      ALTER TABLE sequence_executions ADD COLUMN recoveryCount INTEGER DEFAULT 0;
+
+      CREATE INDEX IF NOT EXISTS idx_sequence_executions_sched ON sequence_executions(workspaceId, status, nextExecutionAt);
+      CREATE INDEX IF NOT EXISTS idx_sequence_executions_sequenceId ON sequence_executions(sequenceId);
+      CREATE INDEX IF NOT EXISTS idx_sequence_logs_executionId ON sequence_logs(executionId);
+    `,
+  },
 ];
 
 

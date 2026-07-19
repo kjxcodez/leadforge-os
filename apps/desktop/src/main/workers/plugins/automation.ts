@@ -48,11 +48,31 @@ interface StepDefinition {
  * one workflow step, update execution state, save checkpoint, and return cleanly.
  * No loops or recursive steps.
  */
+function publishAutomationEvent(event: string, payload: any) {
+  if (process.send) {
+    process.send({
+      type: 'automation_event',
+      event,
+      payload
+    });
+  }
+}
+
 export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
   ctx.emitLog('Automation workflow plugin execution starting.', 'info');
 
+  const executionStartTime = Date.now();
+  const MAX_EXECUTION_DURATION_MS = 300_000;
+  const MAX_STEP_DURATION_MS = 60_000;
+
   // ── 1. Open SQLite early to allow resolution of payload from sequence_executions ──
   const db = new Database(ctx.dbPath);
+
+  let sequenceId: string | undefined;
+  let entityId: string | undefined;
+  let entityType: string | undefined;
+  let executionId: string | undefined;
+  let currentStep = 0;
 
   try {
     const payload = ctx.payload as AutomationWorkflowPayload;
@@ -60,12 +80,12 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
     const isResume = !!checkpoint?.executionId;
 
     // Resolve executionId and currentStep
-    let executionId = isResume ? checkpoint.executionId : (payload as any).executionId || randomUUID();
-    let currentStep = isResume ? checkpoint.currentStep : (payload as any).resumeFrom !== undefined ? (payload as any).resumeFrom : 0;
+    executionId = isResume ? checkpoint.executionId : (payload as any).executionId || randomUUID();
+    currentStep = isResume ? checkpoint.currentStep : (payload as any).resumeFrom !== undefined ? (payload as any).resumeFrom : 0;
 
-    let sequenceId = payload?.sequenceId;
-    let entityId = payload?.entityId;
-    let entityType = payload?.entityType;
+    sequenceId = payload?.sequenceId;
+    entityId = payload?.entityId;
+    entityType = payload?.entityType;
 
     // If sequenceId is missing, check sequence_executions table for stored fields
     if (!sequenceId && executionId) {
@@ -98,9 +118,38 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
       throw new Error('Automation workflow: missing required payload field: entityType.');
     }
 
+    // ── 2.1. Acquire Lock (Duplicate Protection & Stale Lock Recovery) ─────────
+    db.prepare(`
+      DELETE FROM automation_locks
+      WHERE sequenceId = ? AND entityId = ? AND expiresAt <= datetime('now')
+    `).run(sequenceId, entityId);
+
+    try {
+      const lockExpiresAt = new Date(Date.now() + MAX_EXECUTION_DURATION_MS).toISOString();
+      db.prepare(`
+        INSERT INTO automation_locks (sequenceId, entityId, workspaceId, expiresAt)
+        VALUES (?, ?, ?, ?)
+      `).run(sequenceId, entityId, ctx.workspaceId, lockExpiresAt);
+    } catch (lockErr) {
+      ctx.emitLog(`Duplicate execution prevented: lock is currently held for sequence "${sequenceId}" and entity "${entityId}". Skipping execution.`, 'warn');
+      db.close();
+      return { status: 'locked_duplicate', sequenceId, entityId };
+    }
+
+    // Update workerPid in sequence_executions if record exists
+    if (executionId) {
+      db.prepare(`
+        UPDATE sequence_executions
+        SET workerPid = ?, updatedAt = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(process.pid, executionId);
+    }
+
     // ── 3. Cancellation check (early) ─────────────────────────────────────────
     if (ctx.isCancelled()) {
       ctx.emitLog(`Execution Cancelled: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}`, 'warn');
+      db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(sequenceId, entityId);
+      publishAutomationEvent('automation:cancelled', { executionId, sequenceId, workspaceId: ctx.workspaceId, entityId, currentStep, workerPid: process.pid, timestamp: new Date().toISOString() });
       db.close();
       return { status: 'cancelled', sequenceId, entityId };
     }
@@ -171,8 +220,10 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         );
       })();
       ctx.emitLog(`Execution Started: executionId=${executionId}, sequenceId=${sequenceId}`, 'info');
+      publishAutomationEvent('automation:started', { executionId, sequenceId, workspaceId: ctx.workspaceId, entityId, currentStep, workerPid: process.pid, timestamp: new Date().toISOString() });
     } else {
       ctx.emitLog(`Resuming execution: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}`, 'info');
+      publishAutomationEvent('automation:resumed', { executionId, sequenceId, workspaceId: ctx.workspaceId, entityId, currentStep, workerPid: process.pid, timestamp: new Date().toISOString() });
     }
 
     // ── 6. Handle empty steps sequence ────────────────────────────────────────
@@ -197,9 +248,11 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           ctx.jobId
         );
       })();
+      db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(sequenceId, entityId);
       db.close();
       ctx.updateProgress(100, { description: 'Sequence has no steps. Completed.', total: 0 });
       ctx.emitLog(`Execution Completed: executionId=${executionId}, sequenceId=${sequenceId}`, 'info');
+      publishAutomationEvent('automation:completed', { executionId, sequenceId, workspaceId: ctx.workspaceId, entityId, currentStep, workerPid: process.pid, timestamp: new Date().toISOString() });
       return { status: 'completed', executionId, sequenceId, entityId, stepsTotal: 0 };
     }
 
@@ -211,40 +264,22 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
       // Check maximum loop guard to prevent infinite loops
       if (loopCount >= MAX_AUTOMATION_STEPS_PER_RUN) {
         const errorMsg = `Max automation steps limit reached (${MAX_AUTOMATION_STEPS_PER_RUN}) - potential infinite loop.`;
-        ctx.emitLog(`Execution Failed: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}, error=${errorMsg}`, 'error');
-
-        const now = new Date().toISOString();
-        db.transaction(() => {
-          db.prepare(`
-            UPDATE sequence_executions
-            SET status = 'failed', completedAt = ?, updatedAt = ?
-            WHERE id = ?
-          `).run(now, now, executionId);
-
-          db.prepare(`
-            INSERT INTO sequence_logs (
-              id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
-            ) VALUES (?, ?, ?, ?, ?, 'ERROR', 'failed', ?, ?, ?)
-          `).run(
-            randomUUID(),
-            executionId,
-            ctx.workspaceId,
-            now,
-            currentStep,
-            errorMsg,
-            now,
-            now
-          );
-        })();
         throw new Error(errorMsg);
       }
 
       loopCount++;
 
+      // Check entire execution duration timeout
+      if (Date.now() - executionStartTime > MAX_EXECUTION_DURATION_MS) {
+        throw new Error(`Execution timeout: entire workflow execution exceeded the limit of ${MAX_EXECUTION_DURATION_MS / 1000}s.`);
+      }
+
       // Pause check
       if (ctx.isPaused()) {
-        ctx.saveCheckpoint({ executionId, currentStep, sequenceId, entityId, entityType } satisfies AutomationCheckpoint);
+        ctx.saveCheckpoint({ executionId: executionId!, currentStep, sequenceId: sequenceId!, entityId: entityId!, entityType: entityType! } satisfies AutomationCheckpoint);
         ctx.emitLog(`Execution Paused: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}`, 'info');
+        db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(sequenceId, entityId);
+        publishAutomationEvent('automation:paused', { executionId, sequenceId, workspaceId: ctx.workspaceId, entityId, currentStep, workerPid: process.pid, timestamp: new Date().toISOString() });
         db.close();
         return { status: 'paused', executionId, sequenceId, entityId, currentStep };
       }
@@ -263,7 +298,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           db.prepare(`
             INSERT INTO sequence_logs (
               id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
-            ) VALUES (?, ?, ?, ?, ?, 'CANCEL', 'success', 'Cancelled by user request', now, now)
+            ) VALUES (?, ?, ?, ?, ?, 'CANCEL', 'success', 'Cancelled by user request', ?, ?)
           `).run(
             randomUUID(),
             executionId,
@@ -274,6 +309,8 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             now
           );
         })();
+        db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(sequenceId, entityId);
+        publishAutomationEvent('automation:cancelled', { executionId, sequenceId, workspaceId: ctx.workspaceId, entityId, currentStep, workerPid: process.pid, timestamp: new Date().toISOString() });
         db.close();
         return { status: 'cancelled', executionId, sequenceId, entityId, currentStep };
       }
@@ -287,29 +324,34 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         Math.floor((currentStep / steps.length) * 100),
         { description: `Executing step ${currentStep + 1} of ${steps.length}: ${step.type}`, step: currentStep, total: steps.length }
       );
+
       const stepStartTime = Date.now();
       ctx.emitLog(`Step Started: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}, stepType=${step.type}, affectedEntity=${entityType}/${entityId}`, 'info');
 
-      // Dispatch step
+      // Dispatch step with step-level timeout boundary
       let dispatchResult: { status: 'success' | 'wait'; delaySeconds?: number };
       try {
-        switch (step.type) {
-          case 'SEND_EMAIL':
-            dispatchResult = await handleSendEmailStep(db, entityId, ctx.workspaceId, sequenceId, step, ctx);
-            break;
-          case 'WAIT':
-            dispatchResult = handleWaitStep(step);
-            break;
-          case 'ASSIGN_TAG':
-            dispatchResult = handleAssignTagStep(db, entityId, ctx.workspaceId, step, ctx);
-            break;
-          case 'MOVE_PIPELINE_STAGE':
-          case 'UPDATE_STAGE':
-            dispatchResult = handleUpdateStageStep(db, entityId, ctx.workspaceId, step, ctx);
-            break;
-          default:
-            throw new Error(`Unhandled step type: ${step.type}`);
-        }
+        const stepPromise = (async () => {
+          switch (step.type) {
+            case 'SEND_EMAIL':
+              return await handleSendEmailStep(db, entityId, ctx.workspaceId, sequenceId, step, ctx);
+            case 'WAIT':
+              return handleWaitStep(step);
+            case 'ASSIGN_TAG':
+              return handleAssignTagStep(db, entityId, ctx.workspaceId, step, ctx);
+            case 'MOVE_PIPELINE_STAGE':
+            case 'UPDATE_STAGE':
+              return handleUpdateStageStep(db, entityId, ctx.workspaceId, step, ctx);
+            default:
+              throw new Error(`Unhandled step type: ${step.type}`);
+          }
+        })();
+
+        const timeoutPromise = new Promise<{ status: 'success' | 'wait'; delaySeconds?: number }>((_, reject) =>
+          setTimeout(() => reject(new Error(`Step execution timeout: step of type ${step.type} exceeded the limit of ${MAX_STEP_DURATION_MS / 1000}s.`)), MAX_STEP_DURATION_MS)
+        );
+
+        dispatchResult = await Promise.race([stepPromise, timeoutPromise]);
       } catch (stepErr: any) {
         const executionTime = Date.now() - stepStartTime;
         ctx.emitLog(`Step Failed: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}, stepType=${step.type}, executionTime=${executionTime}ms, affectedEntity=${entityType}/${entityId}, error=${stepErr.message || String(stepErr)}`, 'error');
@@ -361,6 +403,8 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
 
         if (isCompleted) {
           ctx.emitLog(`Execution Completed: executionId=${executionId}, sequenceId=${sequenceId}`, 'info');
+          db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(sequenceId, entityId);
+          publishAutomationEvent('automation:completed', { executionId, sequenceId, workspaceId: ctx.workspaceId, entityId, currentStep, workerPid: process.pid, timestamp: new Date().toISOString() });
           db.close();
           ctx.updateProgress(100, { description: 'Workflow complete.', step: currentStep, total: steps.length });
           return { status: 'completed', executionId, sequenceId, entityId, currentStep };
@@ -398,13 +442,25 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         })();
 
         ctx.emitLog(`Execution Waiting: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}, stepType=WAIT`, 'info');
-        ctx.saveCheckpoint({ executionId, currentStep: nextStep, sequenceId, entityId, entityType } satisfies AutomationCheckpoint);
+        ctx.saveCheckpoint({ executionId: executionId!, currentStep: nextStep, sequenceId: sequenceId!, entityId: entityId!, entityType: entityType! } satisfies AutomationCheckpoint);
+        
+        // Update lock expiresAt to nextExecutionAt + 5 minutes
+        const lockExpires = new Date(new Date(nextExecutionAt).getTime() + 5 * 60 * 1000).toISOString();
+        db.prepare(`
+          UPDATE automation_locks
+          SET expiresAt = ?
+          WHERE sequenceId = ? AND entityId = ?
+        `).run(lockExpires, sequenceId, entityId);
+
+        publishAutomationEvent('automation:waiting', { executionId, sequenceId, workspaceId: ctx.workspaceId, entityId, currentStep: nextStep, workerPid: process.pid, timestamp: new Date().toISOString() });
         db.close();
         ctx.updateProgress(100, { description: `Waiting scheduled.`, step: nextStep, total: steps.length });
         return { status: 'waiting', executionId, sequenceId, entityId, currentStep: nextStep };
       }
     }
 
+    db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(sequenceId, entityId);
+    publishAutomationEvent('automation:completed', { executionId, sequenceId, workspaceId: ctx.workspaceId, entityId, currentStep, workerPid: process.pid, timestamp: new Date().toISOString() });
     db.close();
     return {
       status: 'completed',
@@ -418,19 +474,20 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
     try {
       const payload = ctx.payload as AutomationWorkflowPayload;
       const checkpoint = ctx.getCheckpoint() as AutomationCheckpoint | null;
-      const executionId = checkpoint?.executionId || (payload as any).executionId;
-      const currentStep = checkpoint?.currentStep || (payload as any).resumeFrom || 0;
-      const sequenceId = payload?.sequenceId;
+      const resolvedExecId = checkpoint?.executionId || executionId || (payload as any).executionId;
+      const resolvedCurrentStep = checkpoint?.currentStep || currentStep || (payload as any).resumeFrom || 0;
+      const resolvedSeqId = sequenceId || payload?.sequenceId;
+      const resolvedEntId = entityId || payload?.entityId;
 
-      if (executionId) {
-        ctx.emitLog(`Execution Failed: executionId=${executionId}, sequenceId=${sequenceId || 'unknown'}, stepIndex=${currentStep}, error=${err.message || String(err)}`, 'error');
+      if (resolvedExecId) {
+        ctx.emitLog(`Execution Failed: executionId=${resolvedExecId}, sequenceId=${resolvedSeqId || 'unknown'}, stepIndex=${resolvedCurrentStep}, error=${err.message || String(err)}`, 'error');
         const now = new Date().toISOString();
         db.transaction(() => {
           db.prepare(`
             UPDATE sequence_executions
             SET status = 'failed', completedAt = ?, updatedAt = ?
             WHERE id = ?
-          `).run(now, now, executionId);
+          `).run(now, now, resolvedExecId);
 
           db.prepare(`
             INSERT INTO sequence_logs (
@@ -438,15 +495,30 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             ) VALUES (?, ?, ?, ?, ?, 'ERROR', 'failed', ?, ?, ?)
           `).run(
             randomUUID(),
-            executionId,
+            resolvedExecId,
             ctx.workspaceId,
             now,
-            currentStep,
+            resolvedCurrentStep,
             err.message || String(err),
             now,
             now
           );
         })();
+
+        if (resolvedSeqId && resolvedEntId) {
+          db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(resolvedSeqId, resolvedEntId);
+        }
+
+        publishAutomationEvent('automation:failed', {
+          executionId: resolvedExecId,
+          sequenceId: resolvedSeqId || 'unknown',
+          workspaceId: ctx.workspaceId,
+          entityId: resolvedEntId || 'unknown',
+          currentStep: resolvedCurrentStep,
+          workerPid: process.pid,
+          error: err.message || String(err),
+          timestamp: new Date().toISOString()
+        });
       }
     } catch { /* ignore log/db updates on nested failure */ }
     try { db.close(); } catch { /* ignore */ }

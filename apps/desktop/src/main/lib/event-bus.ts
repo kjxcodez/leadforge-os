@@ -20,7 +20,16 @@ export type EventType =
   | 'crm:updated'
   | 'crm:deleted'
   | 'system:log'
-  | 'automation:triggered';
+  | 'automation:triggered'
+  | 'automation:queued'
+  | 'automation:started'
+  | 'automation:resumed'
+  | 'automation:paused'
+  | 'automation:waiting'
+  | 'automation:completed'
+  | 'automation:cancelled'
+  | 'automation:failed'
+  | 'automation:recovered';
 
 export interface AppEvent {
   type: EventType;

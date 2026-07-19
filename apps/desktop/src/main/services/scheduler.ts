@@ -105,21 +105,24 @@ export class JobScheduler {
     // ─── Phase 1: Dispatch queued/retrying jobs ───────────────────────────
     try {
       const config = this.loadSchedulerConfig();
+      const workerId = `worker-fork-${Date.now()}`;
 
       // Only evaluate dispatch if global concurrency cap is not exceeded
       if (this.activeWorkers.size < config.globalMaxConcurrency) {
-        // Find next queued job, excluding types already at their per-type limit.
-        // We fetch a small batch (LIMIT 10) and pick the first one that fits.
-        // This avoids starvation when a high-priority type is at its limit.
-        const candidates = this.db.prepare(`
-          SELECT * FROM jobs
-          WHERE workspaceId = ? AND status IN ('queued', 'retrying')
-          ORDER BY priority DESC, createdAt ASC
-          LIMIT 10
-        `).all(this.workspaceId) as JobPayload[];
+        let job: JobPayload | undefined;
 
-        if (candidates.length > 0) {
-          let job: JobPayload | undefined;
+        this.db.transaction(() => {
+          // Find next queued job, excluding types already at their per-type limit.
+          // We fetch a small batch (LIMIT 10) and pick the first one that fits.
+          // This avoids starvation when a high-priority type is at its limit.
+          const candidates = this.db.prepare(`
+            SELECT * FROM jobs
+            WHERE workspaceId = ? AND status IN ('queued', 'retrying')
+              AND (scheduledAt IS NULL OR scheduledAt <= datetime('now'))
+            ORDER BY priority DESC, createdAt ASC
+            LIMIT 10
+          `).all(this.workspaceId) as JobPayload[];
+
           for (const candidate of candidates) {
             const typeLimit = config.typeLimits[candidate.type];
             if (typeLimit !== undefined) {
@@ -130,14 +133,23 @@ export class JobScheduler {
                 continue;
               }
             }
-            // Either no per-type limit, or under the limit — dispatch this job.
-            job = candidate;
-            break;
-          }
 
-          if (job) {
-            this.runJob(job);
+            // Atomic lock/claim: update status to starting inside transaction
+            const result = this.db.prepare(`
+              UPDATE jobs
+              SET status = 'starting', workerId = ?, updatedAt = CURRENT_TIMESTAMP
+              WHERE id = ? AND status = ?
+            `).run(workerId, candidate.id, candidate.status);
+
+            if (result.changes > 0) {
+              job = candidate;
+              break;
+            }
           }
+        })();
+
+        if (job) {
+          this.runJob(job);
         }
       }
     } catch (err) {
@@ -147,13 +159,13 @@ export class JobScheduler {
     // ─── Phase 2: Resume waiting sequence executions ──────────────────────
     try {
       const dueExecutions = this.db.prepare(`
-        SELECT id, sequenceId, currentStep
+        SELECT id, sequenceId, currentStep, retryCount
         FROM sequence_executions
         WHERE workspaceId = ? 
           AND status = 'waiting' 
           AND nextExecutionAt <= datetime('now')
         LIMIT 5
-      `).all(this.workspaceId) as { id: string; sequenceId: string; currentStep: number }[];
+      `).all(this.workspaceId) as { id: string; sequenceId: string; currentStep: number; retryCount?: number }[];
 
       for (const exec of dueExecutions) {
         try {
@@ -166,14 +178,25 @@ export class JobScheduler {
           `).get(this.workspaceId, exec.id);
 
           if (!existing) {
+            const execRetryCount = exec.retryCount || 0;
             this.db.prepare(`
               INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
-              VALUES (?, ?, 'automation:workflow', 'queued', 4, ?, 0, 0, 1, datetime('now'), datetime('now'))
+              VALUES (?, ?, 'automation:workflow', 'queued', 4, ?, 0, ?, 3, datetime('now'), datetime('now'))
             `).run(
               randomUUID(),
               this.workspaceId,
-              JSON.stringify({ executionId: exec.id, resumeFrom: exec.currentStep })
+              JSON.stringify({ executionId: exec.id, resumeFrom: exec.currentStep, retryCount: execRetryCount }),
+              execRetryCount
             );
+
+            this.eventBus.publish('automation:queued', {
+              executionId: exec.id,
+              sequenceId: exec.sequenceId,
+              workspaceId: this.workspaceId,
+              entityId: '', // resolved inside worker
+              currentStep: exec.currentStep,
+              timestamp: new Date().toISOString()
+            });
           }
         } catch (execErr) {
           AppLogger.error('JobScheduler', `Failed to queue resumption job for execution "${exec.id}"`, this.workspaceId, execErr);
@@ -294,7 +317,7 @@ export class JobScheduler {
     // 3. Register all IPC message handlers BEFORE sending 'start', so no message
     //    can arrive between send and handler registration.
     worker.on('message', (rawMsg: unknown) => {
-      const msg = rawMsg as WorkerToMainMsg;
+      const msg = rawMsg as any;
       if (!msg || typeof msg !== 'object' || !('type' in msg)) return;
 
       switch (msg.type) {
@@ -441,6 +464,10 @@ export class JobScheduler {
         case 'error':
           this.handleJobFailure(job.id, job.retryCount, job.maxRetries, msg.error);
           break;
+
+        case 'automation_event':
+          this.eventBus.publish((msg as any).event, (msg as any).payload);
+          break;
       }
     });
 
@@ -519,22 +546,133 @@ export class JobScheduler {
       this.activeWorkers.delete(jobId);
     }
 
-    if (nextRetry <= maxRetries) {
-      AppLogger.warn('JobScheduler', `Job "${jobId}" failed. Retrying (Attempt ${nextRetry}/${maxRetries}). Error: ${error}`, this.workspaceId, { jobId });
-      this.db.prepare(`
-        UPDATE jobs
-        SET status = 'retrying', retryCount = ?, error = ?, updatedAt = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(nextRetry, error, jobId);
-      this.eventBus.publish('job:failed', { jobId, error, willRetry: true });
+    const job = this.db.prepare('SELECT type, payload FROM jobs WHERE id = ?').get(jobId) as { type: string; payload: string } | undefined;
+    const isAutomation = job?.type === 'automation:workflow';
+
+    if (isAutomation) {
+      let executionId: string | undefined;
+      try {
+        executionId = JSON.parse(job?.payload || '{}').executionId;
+      } catch {}
+
+      if (executionId) {
+        const exec = this.db.prepare('SELECT sequenceId, contactId, companyId, currentStep FROM sequence_executions WHERE id = ?').get(executionId) as { sequenceId: string; contactId: string | null; companyId: string | null; currentStep: number } | undefined;
+        const sequenceId = exec?.sequenceId || 'unknown';
+        const entityId = exec?.contactId || exec?.companyId || 'unknown';
+
+        if (nextRetry <= maxRetries) {
+          const delaySec = Math.pow(2, nextRetry);
+          const nextRun = new Date(Date.now() + delaySec * 1000).toISOString();
+
+          this.db.transaction(() => {
+            this.db.prepare(`
+              UPDATE sequence_executions
+              SET status = 'waiting', nextExecutionAt = ?, retryCount = ?, updatedAt = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `).run(nextRun, nextRetry, executionId);
+
+            this.db.prepare(`
+              INSERT INTO sequence_logs (id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt)
+              VALUES (?, ?, ?, ?, ?, 'RETRY', 'failed', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            `).run(
+              randomUUID(),
+              executionId,
+              this.workspaceId,
+              new Date().toISOString(),
+              exec?.currentStep || 0,
+              `Worker process crashed/failed. Scheduling retry ${nextRetry}/${maxRetries} in ${delaySec} seconds. Error: ${error}`
+            );
+
+            this.db.prepare(`
+              UPDATE jobs
+              SET status = 'failed', error = ?, finishedAt = ?, updatedAt = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `).run(error, new Date().toISOString(), jobId);
+          })();
+
+          this.eventBus.publish('automation:failed', {
+            executionId,
+            sequenceId,
+            workspaceId: this.workspaceId,
+            entityId,
+            currentStep: exec?.currentStep || 0,
+            workerPid: 0,
+            error: `Worker crashed: ${error}. Retrying in ${delaySec}s`,
+            timestamp: new Date().toISOString()
+          });
+
+          this.eventBus.publish('automation:waiting', {
+            executionId,
+            sequenceId,
+            workspaceId: this.workspaceId,
+            entityId,
+            currentStep: exec?.currentStep || 0,
+            workerPid: 0,
+            timestamp: new Date().toISOString()
+          });
+        } else {
+          // Permanent failure
+          this.db.transaction(() => {
+            this.db.prepare(`
+              UPDATE sequence_executions
+              SET status = 'failed', completedAt = CURRENT_TIMESTAMP, retryCount = ?, updatedAt = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `).run(nextRetry, executionId);
+
+            this.db.prepare(`
+              INSERT INTO sequence_logs (id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt)
+              VALUES (?, ?, ?, ?, ?, 'ERROR', 'failed', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            `).run(
+              randomUUID(),
+              executionId,
+              this.workspaceId,
+              new Date().toISOString(),
+              exec?.currentStep || 0,
+              `Worker crashed/failed permanently after ${maxRetries} retries. Error: ${error}`
+            );
+
+            this.db.prepare(`
+              UPDATE jobs
+              SET status = 'failed', error = ?, finishedAt = ?, updatedAt = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `).run(error, new Date().toISOString(), jobId);
+
+            // Release lock
+            this.db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(sequenceId, entityId);
+          })();
+
+          this.eventBus.publish('automation:failed', {
+            executionId,
+            sequenceId,
+            workspaceId: this.workspaceId,
+            entityId,
+            currentStep: exec?.currentStep || 0,
+            workerPid: 0,
+            error: `Worker crashed permanently: ${error}`,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
     } else {
-      AppLogger.error('JobScheduler', `Job "${jobId}" failed permanently after ${maxRetries} retries. Error: ${error}`, this.workspaceId, { jobId });
-      this.db.prepare(`
-        UPDATE jobs
-        SET status = 'failed', error = ?, finishedAt = ?, updatedAt = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(error, new Date().toISOString(), jobId);
-      this.eventBus.publish('job:failed', { jobId, error, willRetry: false });
+      if (nextRetry <= maxRetries) {
+        const delaySec = Math.pow(2, nextRetry);
+        const scheduledAt = new Date(Date.now() + delaySec * 1000).toISOString();
+        AppLogger.warn('JobScheduler', `Job "${jobId}" failed. Retrying (Attempt ${nextRetry}/${maxRetries}). Error: ${error}`, this.workspaceId, { jobId });
+        this.db.prepare(`
+          UPDATE jobs
+          SET status = 'retrying', retryCount = ?, error = ?, scheduledAt = ?, updatedAt = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(nextRetry, error, scheduledAt, jobId);
+        this.eventBus.publish('job:failed', { jobId, error, willRetry: true });
+      } else {
+        AppLogger.error('JobScheduler', `Job "${jobId}" failed permanently after ${maxRetries} retries. Error: ${error}`, this.workspaceId, { jobId });
+        this.db.prepare(`
+          UPDATE jobs
+          SET status = 'failed', error = ?, finishedAt = ?, updatedAt = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(error, new Date().toISOString(), jobId);
+        this.eventBus.publish('job:failed', { jobId, error, willRetry: false });
+      }
     }
 
     const resolveCancel = this.pendingCancels.get(jobId);
