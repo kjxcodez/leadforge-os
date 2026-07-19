@@ -1,5 +1,5 @@
 import { safeRegister, REGISTERED_IPC_CHANNELS } from './helper';
-import { app, shell, Notification } from 'electron';
+import { app, shell, Notification, BrowserWindow } from 'electron';
 import { WorkspaceManager } from '../lib/workspace-manager';
 import fs from 'fs';
 import { join } from 'path';
@@ -144,7 +144,6 @@ export function registerElectronIpc(
   safeRegister('electron:ready-to-show', async (_event, payload: any) => {
     const { telemetry } = require('../lib/telemetry');
     const { destroySplashWindow } = require('../lib/splash-window');
-    const { BrowserWindow } = require('electron');
 
     if (payload) {
       if (payload.rendererInitStart !== undefined) telemetry.rendererInitStart = payload.rendererInitStart;
@@ -155,7 +154,7 @@ export function registerElectronIpc(
     console.log('[IPC] Renderer reported ready-to-show. Revealing main window.');
 
     // Find main window and show/focus it
-    BrowserWindow.getAllWindows().forEach((win) => {
+    BrowserWindow.getAllWindows().forEach((win: BrowserWindow) => {
       if (!win.isDestroyed() && win.isResizable()) {
         win.show();
         win.focus();

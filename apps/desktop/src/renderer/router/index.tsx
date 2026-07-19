@@ -9,8 +9,9 @@ import { useAuthStore } from '../stores/auth-store';
 import { useWorkspaceStore } from '../stores/workspace-store';
 import { queryClient } from '../providers/AppProviders';
 
+import { SplashScreen } from '../screens/SplashScreen';
+
 // Lazy load screens
-const SplashScreen = lazy(() => import('../screens/SplashScreen').then(m => ({ default: m.SplashScreen })));
 const LoginScreen = lazy(() => import('../screens/LoginScreen').then(m => ({ default: m.LoginScreen })));
 const RegisterScreen = lazy(() => import('../screens/RegisterScreen').then(m => ({ default: m.RegisterScreen })));
 const ForgotPasswordScreen = lazy(() => import('../screens/ForgotPasswordScreen').then(m => ({ default: m.ForgotPasswordScreen })));

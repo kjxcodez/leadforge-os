@@ -80,7 +80,7 @@ export function AppLayout() {
 
   useEffect(() => {
     if (!activeWorkspace) {
-      window.ipc.invoke('electron:ready-to-show' as any).catch(() => {});
+      window.ipc.invoke('electron:ready-to-show' as any, null).catch(() => {});
     }
   }, [activeWorkspace]);
 

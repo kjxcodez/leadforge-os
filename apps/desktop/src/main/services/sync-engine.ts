@@ -8,12 +8,15 @@ import { LocalCRMRepository } from '../database/repositories/local-crm';
 interface QueueItem {
   id: string;
   workspaceId: string;
-  entityType: 'companies' | 'contacts' | 'campaigns' | 'sequences' | 'sequence_executions';
+  entityType: 'companies' | 'contacts' | 'campaigns' | 'sequences' | 'sequence_executions' | 'email_accounts' | 'templates';
   entityId: string;
   operation: 'CREATE' | 'UPDATE' | 'DELETE';
   payload: string;
   version: number;
   retryCount: number;
+  lastError?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export const MAX_SYNC_RETRIES = 5;

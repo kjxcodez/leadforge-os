@@ -10,7 +10,7 @@ import { BrandPanel } from '../components/auth/brand-panel';
  */
 export function AuthLayout() {
   useEffect(() => {
-    window.ipc.invoke('electron:ready-to-show' as any).catch(() => {});
+    window.ipc.invoke('electron:ready-to-show' as any, null).catch(() => {});
   }, []);
 
   return (
