@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
+import nodemailer from 'nodemailer';
 import type { JobContext } from '../../../shared/types/job';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -286,23 +287,37 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         Math.floor((currentStep / steps.length) * 100),
         { description: `Executing step ${currentStep + 1} of ${steps.length}: ${step.type}`, step: currentStep, total: steps.length }
       );
-      ctx.emitLog(`Step Started: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}, stepType=${step.type}`, 'info');
+      const stepStartTime = Date.now();
+      ctx.emitLog(`Step Started: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}, stepType=${step.type}, affectedEntity=${entityType}/${entityId}`, 'info');
 
       // Dispatch step
       let dispatchResult: { status: 'success' | 'wait'; delaySeconds?: number };
-      switch (step.type) {
-        case 'SEND_EMAIL':
-          dispatchResult = handleSendEmailStep(step);
-          break;
-        case 'WAIT':
-          dispatchResult = handleWaitStep(step);
-          break;
-        case 'ASSIGN_TAG':
-          dispatchResult = handleAssignTagStep(step);
-          break;
-        default:
-          throw new Error(`Unhandled step type: ${step.type}`);
+      try {
+        switch (step.type) {
+          case 'SEND_EMAIL':
+            dispatchResult = await handleSendEmailStep(db, entityId, ctx.workspaceId, sequenceId, step, ctx);
+            break;
+          case 'WAIT':
+            dispatchResult = handleWaitStep(step);
+            break;
+          case 'ASSIGN_TAG':
+            dispatchResult = handleAssignTagStep(db, entityId, ctx.workspaceId, step, ctx);
+            break;
+          case 'MOVE_PIPELINE_STAGE':
+          case 'UPDATE_STAGE':
+            dispatchResult = handleUpdateStageStep(db, entityId, ctx.workspaceId, step, ctx);
+            break;
+          default:
+            throw new Error(`Unhandled step type: ${step.type}`);
+        }
+      } catch (stepErr: any) {
+        const executionTime = Date.now() - stepStartTime;
+        ctx.emitLog(`Step Failed: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}, stepType=${step.type}, executionTime=${executionTime}ms, affectedEntity=${entityType}/${entityId}, error=${stepErr.message || String(stepErr)}`, 'error');
+        throw stepErr;
       }
+
+      const executionTime = Date.now() - stepStartTime;
+      ctx.emitLog(`Step Completed: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}, stepType=${step.type}, executionTime=${executionTime}ms, affectedEntity=${entityType}/${entityId}`, 'info');
 
       const now = new Date().toISOString();
       const nextStep = currentStep + 1;
@@ -342,7 +357,6 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           );
         })();
 
-        ctx.emitLog(`Step Completed: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}, stepType=${step.type}`, 'info');
         currentStep = nextStep;
 
         if (isCompleted) {
@@ -445,12 +459,139 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
 
 // ── Helper handlers for step types (isolated dispatcher) ──────────────────────
 
-function handleSendEmailStep(step: StepDefinition): { status: 'success' } {
+function loadSettings(db: Database.Database, workspaceId: string): Map<string, string> {
+  const rows = db.prepare(`SELECT key, value FROM settings WHERE workspaceId = ?`).all(workspaceId) as { key: string; value: string }[];
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    if (row.key) map.set(row.key, row.value);
+  }
+  return map;
+}
+
+function resolveSettingValue(settings: Map<string, string>, ...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const val = settings.get(key);
+    if (val !== undefined && val !== null && val.trim() !== '') {
+      return val.trim();
+    }
+  }
+  return undefined;
+}
+
+function renderTemplate(template: string, contact: any, sequenceName: string): string {
+  return template.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_match, variable: string) => {
+    switch (variable) {
+      case 'firstName':   return contact.firstName || '';
+      case 'lastName':    return contact.lastName || '';
+      case 'fullName':    return `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
+      case 'email':       return contact.email || '';
+      case 'phone':       return contact.phone || '';
+      case 'title':       return contact.title || '';
+      case 'sequence':    return sequenceName || '';
+      default:            return '';
+    }
+  });
+}
+
+async function handleSendEmailStep(
+  db: Database.Database,
+  entityId: string,
+  workspaceId: string,
+  sequenceId: string,
+  step: StepDefinition,
+  ctx: JobContext
+): Promise<{ status: 'success' }> {
   const templateId = step.config?.templateId;
   if (!templateId) {
     throw new Error('Automation workflow: SEND_EMAIL step config missing required parameter: templateId.');
   }
-  return { status: 'success' };
+
+  const contact = db.prepare(`
+    SELECT id, firstName, lastName, email, title, phone
+    FROM contacts
+    WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
+  `).get(entityId, workspaceId) as { id: string; firstName: string | null; lastName: string | null; email: string | null; title: string | null; phone: string | null } | undefined;
+
+  if (!contact) {
+    throw new Error(`Contact not found: ${entityId}`);
+  }
+  if (!contact.email) {
+    throw new Error(`Contact ${entityId} does not have a valid email address.`);
+  }
+
+  const tpl = db.prepare(`
+    SELECT subject, body FROM templates
+    WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
+  `).get(templateId, workspaceId) as { subject: string; body: string } | undefined;
+
+  if (!tpl) {
+    throw new Error(`Template not found: ${templateId}`);
+  }
+
+  const seq = db.prepare(`SELECT name FROM sequences WHERE id = ?`).get(sequenceId) as { name: string } | undefined;
+  const sequenceName = seq?.name || 'Automation';
+
+  const renderedSubject = renderTemplate(tpl.subject, contact, sequenceName);
+  const renderedBody = renderTemplate(tpl.body, contact, sequenceName);
+
+  // Load credentials
+  const settings = loadSettings(db, workspaceId);
+  const account = db.prepare(`
+    SELECT id, email, name, signature
+    FROM email_accounts
+    WHERE workspaceId = ? AND status = 'connected' AND deletedAt IS NULL
+    ORDER BY createdAt ASC
+    LIMIT 1
+  `).get(workspaceId) as { id: string; email: string; name: string; signature: string | null } | undefined;
+
+  let host = resolveSettingValue(settings, 'smtp.host', 'smtpHost', 'host');
+  let portStr = resolveSettingValue(settings, 'smtp.port', 'smtpPort', 'port');
+  let secureStr = resolveSettingValue(settings, 'smtp.secure', 'smtpSecure', 'secure');
+  let username = resolveSettingValue(settings, 'smtp.username', 'smtp.user', 'smtpUsername', 'username');
+  let password = resolveSettingValue(settings, 'smtp.password', 'smtp.pass', 'smtpPassword', 'password');
+  let senderName = resolveSettingValue(settings, 'smtp.senderName', 'smtpSenderName', 'senderName') || 'LeadForge OS';
+  let senderEmail = resolveSettingValue(settings, 'smtp.senderEmail', 'smtpSenderEmail', 'senderEmail') || username;
+
+  if (account) {
+    senderEmail = account.email;
+    senderName = account.name || senderName;
+  }
+
+  if (!host || !username || !password) {
+    throw new Error('SMTP credentials not found in workspace settings (required: host, username, password).');
+  }
+
+  const port = portStr ? parseInt(portStr, 10) : 465;
+  const secure = secureStr !== undefined ? secureStr === 'true' : port === 465;
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: {
+      user: username,
+      pass: password,
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 5000,
+    socketTimeout: 15000,
+  } as any);
+
+  try {
+    const sendResult = await transporter.sendMail({
+      from: `"${senderName}" <${senderEmail}>`,
+      to: contact.email,
+      subject: renderedSubject,
+      html: renderedBody,
+    });
+    const messageId = sendResult.messageId || Math.random().toString();
+    ctx.emitLog(`SMTP send success: messageId=${messageId}, recipient=${contact.email}, sender=${senderEmail}, subject=${renderedSubject}`, 'info');
+    return { status: 'success' };
+  } catch (sendErr: any) {
+    throw new Error(`SMTP Send email failed: ${sendErr.message || sendErr}`);
+  } finally {
+    transporter.close();
+  }
 }
 
 function handleWaitStep(step: StepDefinition): { status: 'wait'; delaySeconds: number } {
@@ -461,10 +602,127 @@ function handleWaitStep(step: StepDefinition): { status: 'wait'; delaySeconds: n
   return { status: 'wait', delaySeconds };
 }
 
-function handleAssignTagStep(step: StepDefinition): { status: 'success' } {
-  const tag = step.config?.tag;
-  if (!tag) {
+function handleAssignTagStep(
+  db: Database.Database,
+  entityId: string,
+  workspaceId: string,
+  step: StepDefinition,
+  ctx: JobContext
+): { status: 'success' } {
+  // Ensure table contacts has tags column (dynamic schema resilience)
+  try {
+    db.prepare(`ALTER TABLE contacts ADD COLUMN tags TEXT`).run();
+  } catch (e) {
+    // Column might already exist, ignore
+  }
+
+  const newTag = step.config?.tag;
+  if (!newTag) {
     throw new Error('Automation workflow: ASSIGN_TAG step config missing required parameter: tag.');
   }
+
+  const contact = db.prepare(`
+    SELECT id, tags FROM contacts
+    WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
+  `).get(entityId, workspaceId) as { id: string; tags: string | null } | undefined;
+
+  if (!contact) {
+    throw new Error(`Contact not found: ${entityId}`);
+  }
+
+  let existingTags: string[] = [];
+  if (contact.tags) {
+    try {
+      const parsed = JSON.parse(contact.tags);
+      if (Array.isArray(parsed)) {
+        existingTags = parsed;
+      }
+    } catch {
+      existingTags = contact.tags.split(',').map(t => t.trim()).filter(Boolean);
+    }
+  }
+
+  if (existingTags.includes(newTag)) {
+    ctx.emitLog(`Tag "${newTag}" already assigned to contact ${entityId} (idempotent skip).`, 'info');
+    return { status: 'success' };
+  }
+
+  const updatedTags = [...existingTags, newTag];
+  const tagsJson = JSON.stringify(updatedTags);
+
+  db.transaction(() => {
+    db.prepare(`
+      UPDATE contacts
+      SET tags = ?, updatedAt = CURRENT_TIMESTAMP, version = version + 1
+      WHERE id = ? AND workspaceId = ?
+    `).run(tagsJson, entityId, workspaceId);
+
+    const updatedContact = db.prepare(`SELECT * FROM contacts WHERE id = ?`).get(entityId);
+    db.prepare(`
+      INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
+      VALUES (?, ?, 'contacts', ?, 'UPDATE', ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(
+      randomUUID(),
+      workspaceId,
+      entityId,
+      JSON.stringify(updatedContact),
+      (updatedContact as any).version || 1
+    );
+  })();
+
+  return { status: 'success' };
+}
+
+function handleUpdateStageStep(
+  db: Database.Database,
+  entityId: string,
+  workspaceId: string,
+  step: StepDefinition,
+  ctx: JobContext
+): { status: 'success' } {
+  const stage = step.config?.stage || step.config?.status;
+  if (!stage) {
+    throw new Error('Automation workflow: UPDATE_STAGE step config missing required parameter: stage.');
+  }
+
+  const validStages = ['NEW', 'CONTACTED', 'REPLIED', 'BOUNCED', 'UNSUBSCRIBED'];
+  if (!validStages.includes(stage.toUpperCase())) {
+    throw new Error(`Destination stage "${stage}" is invalid. Valid stages are: ${validStages.join(', ')}`);
+  }
+
+  const contact = db.prepare(`
+    SELECT id, status FROM contacts
+    WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
+  `).get(entityId, workspaceId) as { id: string; status: string | null } | undefined;
+
+  if (!contact) {
+    throw new Error(`Contact not found: ${entityId}`);
+  }
+
+  if (contact.status === stage.toUpperCase()) {
+    ctx.emitLog(`Contact ${entityId} is already in stage "${stage.toUpperCase()}" (idempotent skip).`, 'info');
+    return { status: 'success' };
+  }
+
+  db.transaction(() => {
+    db.prepare(`
+      UPDATE contacts
+      SET status = ?, updatedAt = CURRENT_TIMESTAMP, version = version + 1
+      WHERE id = ? AND workspaceId = ?
+    `).run(stage.toUpperCase(), entityId, workspaceId);
+
+    const updatedContact = db.prepare(`SELECT * FROM contacts WHERE id = ?`).get(entityId);
+    db.prepare(`
+      INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
+      VALUES (?, ?, 'contacts', ?, 'UPDATE', ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(
+      randomUUID(),
+      workspaceId,
+      entityId,
+      JSON.stringify(updatedContact),
+      (updatedContact as any).version || 1
+    );
+  })();
+
   return { status: 'success' };
 }
