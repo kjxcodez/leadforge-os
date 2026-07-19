@@ -134,6 +134,10 @@ contextBridge.exposeInMainWorld('ipc', {
       'job:progress',
       'job:completed',
       'job:failed',
+      'job:starting',
+      'job:started',
+      'job:paused',
+      'job:cancelled',
     ];
     if (validChannels.includes(channel as string)) {
       const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(args[0] as any);

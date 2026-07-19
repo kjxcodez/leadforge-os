@@ -351,6 +351,22 @@ export interface IpcChannelMap {
     input: void;
     output: { jobId: string; error: string; willRetry?: boolean };
   };
+  'job:starting': {
+    input: void;
+    output: { jobId: string; workerId: string };
+  };
+  'job:started': {
+    input: void;
+    output: { jobId: string; workerId: string };
+  };
+  'job:paused': {
+    input: void;
+    output: { jobId: string };
+  };
+  'job:cancelled': {
+    input: void;
+    output: { jobId: string };
+  };
   'ipc:test': {
     input: void;
     output: { status: string; timestamp: number };

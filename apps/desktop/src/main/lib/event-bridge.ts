@@ -47,6 +47,44 @@ export class EventBridge {
         });
       })
     );
+
+    // 4. Forward job:starting
+    this.unsubscribes.push(
+      this.eventBus.subscribe('job:starting', (event: AppEvent) => {
+        this.broadcast('job:starting', {
+          jobId: event.payload.jobId,
+          workerId: event.payload.workerId,
+        });
+      })
+    );
+
+    // 5. Forward job:started
+    this.unsubscribes.push(
+      this.eventBus.subscribe('job:started', (event: AppEvent) => {
+        this.broadcast('job:started', {
+          jobId: event.payload.jobId,
+          workerId: event.payload.workerId,
+        });
+      })
+    );
+
+    // 6. Forward job:paused
+    this.unsubscribes.push(
+      this.eventBus.subscribe('job:paused', (event: AppEvent) => {
+        this.broadcast('job:paused', {
+          jobId: event.payload.jobId,
+        });
+      })
+    );
+
+    // 7. Forward job:cancelled
+    this.unsubscribes.push(
+      this.eventBus.subscribe('job:cancelled', (event: AppEvent) => {
+        this.broadcast('job:cancelled', {
+          jobId: event.payload.jobId,
+        });
+      })
+    );
   }
 
   /**
