@@ -143,6 +143,37 @@ export class SyncEngine {
         AppLogger.warn('SyncEngine', 'Failed to pull sequence_executions', this.workspaceId, e);
       }
 
+      // F. Pull email_accounts
+      try {
+        const accounts = await this.sdk.outreach.listAccounts();
+        if (accounts && accounts.length) {
+          const records = accounts.map((a: any) => ({
+            ...a,
+            workspaceId: this.workspaceId,
+            syncStatus: 'synced',
+          }));
+          await LocalCRMRepository.saveMany('email_accounts', records, true);
+        }
+      } catch (e) {
+        AppLogger.warn('SyncEngine', 'Failed to pull email_accounts', this.workspaceId, e);
+      }
+
+      // G. Pull templates
+      try {
+        const templates = await this.sdk.outreach.listTemplates();
+        if (templates && templates.length) {
+          const records = templates.map((t: any) => ({
+            ...t,
+            workspaceId: this.workspaceId,
+            variables: typeof t.variables === 'string' ? t.variables : JSON.stringify(t.variables || []),
+            syncStatus: 'synced',
+          }));
+          await LocalCRMRepository.saveMany('templates', records, true);
+        }
+      } catch (e) {
+        AppLogger.warn('SyncEngine', 'Failed to pull templates', this.workspaceId, e);
+      }
+
       AppLogger.info('SyncEngine', `Remote updates pulled successfully for workspace: ${this.workspaceId}`, this.workspaceId);
       this.broadcastToRenderer();
     } catch (err) {
@@ -284,6 +315,20 @@ export class SyncEngine {
     if (entityType === 'campaigns') return this.sdk.campaigns;
     if (entityType === 'sequences') return this.sdk.sequences;
     if (entityType === 'sequence_executions') return this.sdk.executions;
+    if (entityType === 'email_accounts') {
+      return {
+        create: (payload: any) => this.sdk.outreach.createAccount(payload),
+        update: (id: string, payload: any) => Promise.resolve(),
+        delete: (id: string) => this.sdk.outreach.deleteAccount(id),
+      };
+    }
+    if (entityType === 'templates') {
+      return {
+        create: (payload: any) => this.sdk.outreach.createTemplate(payload),
+        update: (id: string, payload: any) => Promise.resolve(),
+        delete: (id: string) => this.sdk.outreach.deleteTemplate(id),
+      };
+    }
     return null;
   }
 

@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
+import { BrowserWindow } from 'electron';
 import { LocalEventBus } from './event-bus';
 import { getDatabase, closeDatabase } from '../database/connection';
 import { runMigrations } from '../database/runner';
@@ -17,11 +18,18 @@ export class WorkspaceRuntime {
   public readonly workspaceId: string;
   public readonly sqliteDb: Database.Database;
   public readonly eventBus: LocalEventBus;
-  private readonly scheduler: JobScheduler;
-  private readonly syncEngine: SyncEngine;
-  private readonly eventBridge: EventBridge;
-  private readonly triggerEvaluator: AutomationTriggerEvaluator;
+  public readonly scheduler: JobScheduler;
+  public readonly syncEngine: SyncEngine;
+  public readonly eventBridge: EventBridge;
+  public readonly triggerEvaluator: AutomationTriggerEvaluator;
   private isRunning: boolean = false;
+  
+  public startedAt: Date | null = null;
+  private static restartCounts = new Map<string, number>();
+
+  public get restartCount(): number {
+    return WorkspaceRuntime.restartCounts.get(this.workspaceId) || 0;
+  }
 
   constructor(workspaceId: string, sdk: SdkClient) {
     this.workspaceId = workspaceId;
@@ -39,9 +47,31 @@ export class WorkspaceRuntime {
   public async start(): Promise<void> {
     if (this.isRunning) return;
 
+    // Increment restart count
+    const prevCount = WorkspaceRuntime.restartCounts.get(this.workspaceId) || 0;
+    WorkspaceRuntime.restartCounts.set(this.workspaceId, prevCount + 1);
+
+    this.startedAt = new Date();
+
     console.log(`[WorkspaceRuntime] Starting workspace runtime: ${this.workspaceId}`);
     
+    // Broadcast progress helper
+    const sendBootProgress = (step: string, label: string) => {
+      try {
+        BrowserWindow.getAllWindows().forEach((win) => {
+          if (!win.isDestroyed()) {
+            win.webContents.send('workspace:boot-progress', { step, label });
+          }
+        });
+      } catch (err) {
+        // Ignore
+      }
+    };
+
+    sendBootProgress('database:open', '✓ Opening database');
+
     // 1. Run migrations on the isolated database
+    sendBootProgress('database:migrations', '✓ Applying migrations');
     try {
       runMigrations(this.sqliteDb);
     } catch (err) {
@@ -53,19 +83,23 @@ export class WorkspaceRuntime {
     await this.recoverInterruptedJobs();
 
     // 3. Start Concurrency Scheduler
+    sendBootProgress('scheduler:start', '✓ Starting scheduler');
     await this.scheduler.start();
 
     // 4. Start Background Sync Engine
+    sendBootProgress('sync:start', '✓ Starting sync engine');
     await this.syncEngine.start();
 
     // 5. Start EventBridge to forward LocalEventBus events to the renderer process
     this.eventBridge.start();
 
     // 6. Start AutomationTriggerEvaluator to listen for CRM/job events and queue automation workflows
+    sendBootProgress('automation:start', '✓ Starting automation runtime');
     this.triggerEvaluator.start();
 
     this.isRunning = true;
     console.log(`[WorkspaceRuntime] Workspace runtime "${this.workspaceId}" successfully booted.`);
+    sendBootProgress('ready', '✓ Ready');
   }
 
   /**

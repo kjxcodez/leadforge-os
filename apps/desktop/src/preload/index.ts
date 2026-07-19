@@ -107,6 +107,10 @@ contextBridge.exposeInMainWorld('ipc', {
       'system:diagnostics',
       'scheduler:jobs:pause',
       'scheduler:jobs:resume',
+      'dashboard:stats',
+      'dashboard:chart-data',
+      'dashboard:activity-feed',
+      'system:infrastructure-status',
     ];
     if (validChannels.includes(channel as string)) {
       return ipcRenderer.invoke(channel, payload);
@@ -147,6 +151,7 @@ contextBridge.exposeInMainWorld('ipc', {
       'automation:cancelled',
       'automation:failed',
       'automation:recovered',
+      'workspace:boot-progress',
     ];
     if (validChannels.includes(channel as string)) {
       const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(args[0] as any);

@@ -37,28 +37,30 @@ const SidebarBottomNav = ({
     <SidebarMenu>
       <SidebarMenuItem>
         <DropdownMenu>
-          <DropdownMenuTrigger>
-            <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-            >
-              <Avatar className={` ${open ? "h-8 w-8" : "h-6 w-6"} rounded-lg`}>
-                {/* <AvatarImage src={user.avatar} alt={user.name} /> */}
-                <AvatarFallback className="rounded-md bg-accent text-white font-bold">
-                  {user?.displayName?.charAt(0) || user?.name?.charAt(0)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">
-                  {user?.displayName}
-                </span>
-                <span className="truncate text-xs">{user?.email}</span>
-                <p className="text-[10px] text-muted-foreground truncate">
-                  {activeWorkspace?.name ?? "No workspace"}
-                </p>
-              </div>
-              <ChevronsUpDownIcon className="ml-auto size-4" />
-            </SidebarMenuButton>
+          <DropdownMenuTrigger
+            render={
+              <SidebarMenuButton
+                size="lg"
+                className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              />
+            }
+          >
+            <Avatar className={` ${open ? "h-8 w-8" : "h-6 w-6"} rounded-lg`}>
+              {/* <AvatarImage src={user.avatar} alt={user.name} /> */}
+              <AvatarFallback className="rounded-md bg-accent text-white font-bold">
+                {user?.displayName?.charAt(0) || user?.name?.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+            <span className="grid flex-1 text-left text-sm leading-tight">
+              <span className="truncate font-medium">
+                {user?.displayName}
+              </span>
+              <span className="truncate text-xs">{user?.email}</span>
+              <span className="text-[10px] text-muted-foreground truncate block">
+                {activeWorkspace?.name ?? "No workspace"}
+              </span>
+            </span>
+            <ChevronsUpDownIcon className="ml-auto size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"

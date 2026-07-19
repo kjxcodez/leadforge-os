@@ -16,7 +16,13 @@ export const LocalCRMRepository = {
       throw new Error(`Invalid table name: ${tableName}`);
     }
 
-    let query = `SELECT * FROM ${tableName} WHERE workspaceId = ? AND deletedAt IS NULL`;
+    const tableInfo = db.pragma(`table_info(${tableName})`) as Array<{ name: string }>;
+    const hasDeletedAt = tableInfo.some(col => col.name === 'deletedAt');
+
+    let query = `SELECT * FROM ${tableName} WHERE workspaceId = ?`;
+    if (hasDeletedAt) {
+      query += ` AND deletedAt IS NULL`;
+    }
     const params: any[] = [workspaceId];
 
     if (filter) {
@@ -84,7 +90,7 @@ export const LocalCRMRepository = {
       db.prepare(query).run(...params);
 
       // 3. Queue offline mutation task if this is a syncable crm table
-      const syncableTables = ['companies', 'contacts', 'campaigns', 'sequences', 'sequence_executions'];
+      const syncableTables = ['companies', 'contacts', 'campaigns', 'sequences', 'sequence_executions', 'email_accounts', 'templates'];
       if (!skipQueue && syncableTables.includes(tableName)) {
         db.prepare(`
           INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
@@ -138,7 +144,7 @@ export const LocalCRMRepository = {
       VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `);
 
-    const syncableTables = ['companies', 'contacts', 'campaigns', 'sequences', 'sequence_executions'];
+    const syncableTables = ['companies', 'contacts', 'campaigns', 'sequences', 'sequence_executions', 'email_accounts', 'templates'];
 
     const transaction = db.transaction((list: any[]) => {
       for (const item of list) {
@@ -178,7 +184,7 @@ export const LocalCRMRepository = {
     const db = getDatabase(workspaceId);
     if (!/^[a-zA-Z0-9_]+$/.test(tableName)) throw new Error(`Invalid table: ${tableName}`);
 
-    const syncableTables = ['companies', 'contacts', 'campaigns'];
+    const syncableTables = ['companies', 'contacts', 'campaigns', 'email_accounts', 'templates'];
 
     const transaction = db.transaction(() => {
       // 1. Mark soft delete locally

@@ -7,6 +7,7 @@ import { registerDatabaseIpc } from './database';
 import { registerOutreachIpc } from './outreach';
 import { registerAutomationIpc } from './automation';
 import { registerSchedulerIpc } from './scheduler';
+import { registerDashboardIpc } from './dashboard';
 import { WorkspaceManager } from '../lib/workspace-manager';
 
 /**
@@ -40,4 +41,5 @@ export function registerAllIpc(
   registerOutreachIpc(sdk);
   registerAutomationIpc(sdk);
   registerSchedulerIpc();
+  registerDashboardIpc();
 }

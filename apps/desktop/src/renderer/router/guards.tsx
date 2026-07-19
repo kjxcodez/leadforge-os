@@ -1,6 +1,8 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth-store';
+import { BlankLayout } from '../layouts/BlankLayout';
+import { SplashScreen } from '../screens/SplashScreen';
 
 // ---------------------------------------------------------------------------
 // ProtectedRoute
@@ -14,9 +16,13 @@ import { useAuthStore } from '../stores/auth-store';
 export function ProtectedRoute() {
   const { state } = useAuthStore();
 
-  // Still determining session status — render nothing to avoid flash
+  // Still determining session status — render SplashScreen to avoid flash
   if (state.status === 'idle' || state.status === 'loading') {
-    return null;
+    return (
+      <BlankLayout>
+        <SplashScreen />
+      </BlankLayout>
+    );
   }
 
   if (state.status === 'unauthenticated') {
@@ -38,7 +44,11 @@ export function GuestRoute() {
   const { state } = useAuthStore();
 
   if (state.status === 'idle' || state.status === 'loading') {
-    return null;
+    return (
+      <BlankLayout>
+        <SplashScreen />
+      </BlankLayout>
+    );
   }
 
   if (state.status === 'authenticated') {

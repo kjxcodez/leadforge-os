@@ -23,6 +23,7 @@ import DiscoveryScreen from '../screens/DiscoveryScreen';
 import CampaignsScreen from '../screens/CampaignsScreen';
 import AutomationScreen from '../screens/AutomationScreen';
 import DiagnosticsScreen from '../screens/DiagnosticsScreen';
+import ReportsScreen from '../screens/ReportsScreen';
 
 
 // ---------------------------------------------------------------------------
@@ -120,14 +121,7 @@ const router = createHashRouter([
           { path: '/', element: <Navigate to="/dashboard" replace /> },
           {
             path: '/dashboard',
-            element: (
-              <DashboardScreen
-                systemRunning={true}
-                onToggleSystem={() => {}}
-                ipcStatus="connected"
-                timestamp={new Date().toISOString()}
-              />
-            ),
+            element: <DashboardScreen />,
           },
           { path: '/companies', element: <CompaniesScreen /> },
           { path: '/contacts', element: <ContactsScreen /> },
@@ -135,7 +129,7 @@ const router = createHashRouter([
           { path: '/discovery', element: <DiscoveryScreen /> },
           { path: '/automation', element: <AutomationScreen /> },
           { path: '/workflows', element: <Navigate to="/automation" replace /> },
-          { path: '/reports', element: <ComingSoon label="Reports" /> },
+          { path: '/reports', element: <ReportsScreen /> },
           { path: '/settings', element: <WorkspaceSettingsScreen /> },
           { path: '/invites', element: <WorkspaceInvitesScreen /> },
           { path: '/diagnostics', element: <DiagnosticsScreen /> },
