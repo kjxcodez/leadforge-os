@@ -471,6 +471,12 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_sequence_logs_executionId ON sequence_logs(executionId);
     `,
   },
+  {
+    name: '013_execution_context',
+    up: `
+      ALTER TABLE sequence_executions ADD COLUMN executionContext TEXT;
+    `,
+  },
 ];
 
 
