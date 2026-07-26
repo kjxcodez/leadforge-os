@@ -15,7 +15,7 @@ export default defineConfig({
     },
     plugins: [
       externalizeDepsPlugin({
-        exclude: ['@leadforge/schema', '@leadforge/sdk', '@leadforge/core']
+        exclude: ['@leadforge/schema', '@leadforge/sdk', '@leadforge/core', 'p-limit']
       })
     ]
   },
