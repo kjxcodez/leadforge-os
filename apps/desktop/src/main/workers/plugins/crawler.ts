@@ -297,7 +297,6 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
                 ctx.workspaceId,
                 'contacts',
                 contactId,
-                'CREATE',
                 JSON.stringify({ id: contactId, workspaceId: ctx.workspaceId, companyId, email, phone: extractedPhone, status: 'UNVERIFIED' })
               );
             })();

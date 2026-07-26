@@ -63,7 +63,18 @@ export default function DiscoveryScreen() {
     refetchInterval: 2000, // Poll every 2s so newly scraped companies render live!
   });
 
-  // 3. Job Mutation handlers
+  // 3. Fetch contacts from CRM cache
+  const contactsQuery = useQuery({
+    queryKey: ['contacts', 'list', workspaceId],
+    queryFn: async () => {
+      if (!workspaceId) return [];
+      return SyncContactRepository.listAndSync(workspaceId);
+    },
+    enabled: !!workspaceId,
+    refetchInterval: 2000,
+  });
+
+  // 4. Job Mutation handlers
   const createJobMutation = useMutation({
     mutationFn: async (payload: { name: string; query: string }) => {
       return window.ipc.invoke('scheduler:jobs:submit', {
@@ -75,9 +86,23 @@ export default function DiscoveryScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scheduler_jobs', 'list', workspaceId] });
       queryClient.invalidateQueries({ queryKey: ['companies', 'list', workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ['contacts', 'list', workspaceId] });
       setCreateOpen(false);
       setJobName('');
       setJobQuery('');
+    },
+  });
+
+  const enrichCompanyMutation = useMutation({
+    mutationFn: async (payload: { companyId: string; website: string }) => {
+      return window.ipc.invoke('scheduler:jobs:submit', {
+        workspaceId,
+        type: 'crawler:website',
+        payload: { companyId: payload.companyId, website: payload.website, maxDepth: 2, maxPages: 10 },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scheduler_jobs', 'list', workspaceId] });
     },
   });
 
@@ -98,6 +123,7 @@ export default function DiscoveryScreen() {
 
   const jobs = (jobsQuery.data || []) as any[];
   const existingCompanies = (companiesQuery.data || []) as any[];
+  const existingContacts = (contactsQuery.data || []) as any[];
 
   // Find query from currently selected job
   const selectedJob = jobs.find(j => j.id === selectedJobId);
@@ -283,24 +309,57 @@ export default function DiscoveryScreen() {
               <thead>
                 <tr className="bg-sunken border-b border-border-subtle text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
                   <th className="px-4 py-2.5">Company Name</th>
-                  <th className="px-4 py-2.5">Domain</th>
+                  <th className="px-4 py-2.5">Website</th>
                   <th className="px-4 py-2.5">Phone</th>
                   <th className="px-4 py-2.5">Location</th>
-                  <th className="px-4 py-2.5">Status</th>
+                  <th className="px-4 py-2.5">Contacts / Emails</th>
+                  <th className="px-4 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle/50">
                 {results.map((res) => {
+                  const companyContacts = existingContacts.filter(ct => ct.companyId === res.id);
+                  const emailCount = companyContacts.filter(ct => ct.email).length;
+                  const primaryEmail = companyContacts.find(ct => ct.email)?.email;
+
                   return (
                     <tr key={res.id} className="hover:bg-sunken/10 transition-colors">
                       <td className="px-4 py-3 font-semibold text-foreground">{res.name}</td>
-                      <td className="px-4 py-3 font-mono text-accent">{res.website || 'N/A'}</td>
+                      <td className="px-4 py-3 font-mono text-accent max-w-xs truncate">
+                        {res.website ? (
+                          <a href={res.website} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                            {res.website}
+                          </a>
+                        ) : 'N/A'}
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">{res.phone || 'N/A'}</td>
                       <td className="px-4 py-3 text-muted-foreground max-w-xs truncate">{res.location || 'N/A'}</td>
                       <td className="px-4 py-3">
-                        <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20 font-bold text-[9px]">
-                          ACTIVE IN CRM
-                        </Badge>
+                        {emailCount > 0 ? (
+                          <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20 font-bold text-[9px]">
+                            {emailCount} Contact{emailCount > 1 ? 's' : ''} ({primaryEmail})
+                          </Badge>
+                        ) : companyContacts.length > 0 ? (
+                          <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20 font-bold text-[9px]">
+                            Phone Contact Saved
+                          </Badge>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">No contacts yet</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {res.website && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => enrichCompanyMutation.mutate({ companyId: res.id, website: res.website })}
+                            disabled={enrichCompanyMutation.isPending}
+                            className="h-6 text-[10px] gap-1 font-semibold border-accent/30 text-accent hover:bg-accent/10"
+                          >
+                            <Sparkles className="w-3 h-3 text-accent" />
+                            Enrich Contacts
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   );

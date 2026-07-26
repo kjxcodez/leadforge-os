@@ -249,18 +249,34 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
       index++;
       collectedCount = index;
 
-      // Save checkpoints every 10 listings
-      if (collectedCount % 10 === 0) {
-        const scrollPos = await page.evaluate(selector => {
-          const el = document.querySelector(selector);
-          return el ? el.scrollTop : 0;
-        }, feedSelector);
-        ctx.saveCheckpoint({ collectedCount, lastScrollPosition: scrollPos });
-        ctx.emitLog(`Autosaved checkpoint at count ${collectedCount}.`, 'info');
-      }
-
       const progress = Math.round((collectedCount / linksArray.length) * 100);
       ctx.updateProgress(progress, { current: collectedCount, total: linksArray.length });
+    }
+
+    // Auto-chain Stage 2 (Website Crawler) for newly discovered companies with websites
+    if (storedCount > 0 && db) {
+      try {
+        const companiesToEnrich = db.prepare(`
+          SELECT id, website FROM companies
+          WHERE workspaceId = ? AND website IS NOT NULL AND website != ''
+          ORDER BY createdAt DESC LIMIT ?
+        `).all(ctx.workspaceId, storedCount) as { id: string; website: string }[];
+
+        for (const comp of companiesToEnrich) {
+          const crawlerJobId = randomUUID();
+          db.prepare(`
+            INSERT INTO jobs (id, workspaceId, type, payload, status, priority, maxRetries, retryCount, progress, createdAt, updatedAt)
+            VALUES (?, ?, 'crawler:website', ?, 'queued', 5, 3, 0, 0, datetime('now'), datetime('now'))
+          `).run(
+            crawlerJobId,
+            ctx.workspaceId,
+            JSON.stringify({ companyId: comp.id, website: comp.website, maxDepth: 2, maxPages: 10 })
+          );
+        }
+        ctx.emitLog(`Auto-chained website contact crawler jobs for ${companiesToEnrich.length} companies.`, 'info');
+      } catch (chainErr: any) {
+        ctx.emitLog(`Failed to auto-chain crawler jobs: ${chainErr.message || chainErr}`, 'warn');
+      }
     }
 
   } finally {
@@ -311,9 +327,9 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
     db.transaction(() => {
       const companyId = randomUUID();
       db.prepare(`
-        INSERT INTO companies (id, workspaceId, name, domain, website, location, syncStatus, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, 'pending', datetime('now'), datetime('now'))
-      `).run(companyId, ctx.workspaceId, name, domain || null, website || null, location || null);
+        INSERT INTO companies (id, workspaceId, name, domain, website, location, phone, syncStatus, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now'), datetime('now'))
+      `).run(companyId, ctx.workspaceId, name, domain || null, website || null, location || null, phone || null);
 
       db.prepare(`
         INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
@@ -323,8 +339,28 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
         ctx.workspaceId,
         'companies',
         companyId,
-        JSON.stringify({ id: companyId, workspaceId: ctx.workspaceId, name, domain, website, location, status: 'LEAD' })
+        JSON.stringify({ id: companyId, workspaceId: ctx.workspaceId, name, domain, website, location, phone, status: 'LEAD' })
       );
+
+      // Auto-generate primary client contact record if contact info exists
+      if (phone || website) {
+        const contactId = randomUUID();
+        db.prepare(`
+          INSERT INTO contacts (id, workspaceId, companyId, phone, status, syncStatus, createdAt, updatedAt)
+          VALUES (?, ?, ?, ?, 'LEAD', 'pending', datetime('now'), datetime('now'))
+        `).run(contactId, ctx.workspaceId, companyId, phone || null);
+
+        db.prepare(`
+          INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
+          VALUES (?, ?, ?, ?, 'CREATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
+        `).run(
+          randomUUID(),
+          ctx.workspaceId,
+          'contacts',
+          contactId,
+          JSON.stringify({ id: contactId, workspaceId: ctx.workspaceId, companyId, phone, status: 'LEAD' })
+        );
+      }
 
       storedCount++;
       ctx.emitLog(`Stored company: "${name}" | Website: ${website || 'N/A'} | Phone: ${phone || 'N/A'} | Rating: ${rating || 'N/A'}`, 'info');
