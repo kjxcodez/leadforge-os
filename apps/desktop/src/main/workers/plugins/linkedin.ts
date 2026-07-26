@@ -63,8 +63,11 @@ export async function enrichLinkedIn(ctx: JobContext): Promise<any> {
 
   ctx.emitLog(`Initializing Executive LinkedIn Plugin for company "${companyName}" (${companyId})`, 'info');
 
-  const userDataPath = process.env.LEADFORGE_USER_DATA_PATH || '';
-  const dbPath = join(userDataPath, 'workspaces', `leadforge_${ctx.workspaceId}.db`);
+  const dbDir = process.env.WORKSPACES_DB_DIR || '';
+  if (!dbDir) {
+    throw new Error('WORKSPACES_DB_DIR env variable is required for background workers.');
+  }
+  const dbPath = join(dbDir, `leadforge_${ctx.workspaceId}.db`);
   const db = new Database(dbPath);
 
   // 1. Get stored LinkedIn cookie from settings table or process.env
