@@ -157,6 +157,7 @@ export default function ContactsScreen() {
                     />
                   </th>
                   <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Company</th>
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Phone</th>
                   <th className="px-4 py-3">Job Title</th>
@@ -188,9 +189,12 @@ export default function ContactsScreen() {
                       <td className="px-4 py-3 font-semibold text-foreground">
                         {item.firstName} {item.lastName || ''}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{item.email || 'N/A'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{item.phone || 'N/A'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{item.title || 'N/A'}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {companies.find((c: any) => c.id === item.companyId)?.name || <span className="opacity-40">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{item.email || '—'}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{item.phone || '—'}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{item.title || '—'}</td>
                       <td className="px-4 py-3">
                         <Badge
                           variant="outline"

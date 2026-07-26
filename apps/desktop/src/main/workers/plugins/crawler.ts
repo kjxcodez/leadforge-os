@@ -120,6 +120,37 @@ function classifyEmail(email: string): { type: 'human' | 'department' | 'unknown
 }
 
 /**
+ * Derives a firstName and optional lastName from an email prefix.
+ *
+ * Only applied for type='human' high-confidence emails.
+ * Email prefix is split on '.' or '_'. Each part is title-cased.
+ *
+ * Examples:
+ *   "john.doe@company.com"  → { firstName: "John", lastName: "Doe" }
+ *   "sarah_smith@firm.com"  → { firstName: "Sarah", lastName: "Smith" }
+ *   "mike@company.com"      → { firstName: "Mike", lastName: null }
+ *   "info@company.com"      → { firstName: null, lastName: null }
+ */
+function extractNameFromEmail(
+  email: string,
+  type: 'human' | 'department' | 'unknown'
+): { firstName: string | null; lastName: string | null } {
+  if (type !== 'human') return { firstName: null, lastName: null };
+
+  const prefix = (email.split('@')[0] || '').toLowerCase();
+  const parts = prefix.split(/[._]/).filter(p => p.length > 1);
+
+  if (parts.length === 0) return { firstName: null, lastName: null };
+
+  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+  const firstName = capitalize(parts[0]!);
+  const lastName = parts.length > 1 ? capitalize(parts[parts.length - 1]!) : null;
+
+  return { firstName, lastName };
+}
+
+/**
  * Website Crawler Worker Plugin.
  * Crawls target company websites recursively using Cheerio and stores contact records.
  */
@@ -309,13 +340,14 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
             }
 
             const { type, confidence } = classifyEmail(email);
+            const { firstName, lastName } = extractNameFromEmail(email, type);
 
             db.transaction(() => {
               const contactId = randomUUID();
               db.prepare(`
-                INSERT INTO contacts (id, workspaceId, companyId, email, phone, confidence, verificationStatus, sourceUrl, sourcePlatform, priority, type, createdAt, updatedAt)
-                VALUES (?, ?, ?, ?, ?, ?, 'unverified', ?, 'web', 1, ?, datetime('now'), datetime('now'))
-              `).run(contactId, ctx.workspaceId, companyId, email, extractedPhone, confidence, item.url, type);
+                INSERT INTO contacts (id, workspaceId, companyId, firstName, lastName, email, phone, status, confidence, verificationStatus, sourceUrl, sourcePlatform, priority, type, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'LEAD', ?, 'unverified', ?, 'web', 1, ?, datetime('now'), datetime('now'))
+              `).run(contactId, ctx.workspaceId, companyId, firstName, lastName, email, extractedPhone, confidence, item.url, type);
 
               db.prepare(`
                 INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)

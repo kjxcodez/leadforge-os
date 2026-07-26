@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SyncCompanyRepository } from '../repositories/sync';
+import { SyncCompanyRepository, SyncContactRepository } from '../repositories/sync';
 import {
   useEntityList,
   useCreateEntity,
@@ -12,7 +12,7 @@ import { TagSystem } from '../components/crm/TagSystem';
 import { NotesSystem } from '../components/crm/NotesSystem';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Building2, X, Globe, MapPin, Briefcase } from 'lucide-react';
+import { Building2, X, Globe, MapPin, Briefcase, Phone, Star, ExternalLink, Mail, Users2 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { CompanyStatus } from '@leadforge/schema';
 
@@ -32,11 +32,13 @@ export default function CompaniesScreen() {
 
   // TanStack Entity Query hooks
   const companiesQuery = useEntityList(SyncCompanyRepository);
+  const contactsQuery = useEntityList(SyncContactRepository);
   const createMutation = useCreateEntity(SyncCompanyRepository);
   const updateMutation = useUpdateEntity(SyncCompanyRepository);
   const deleteMutation = useDeleteEntity(SyncCompanyRepository);
 
   const companies = companiesQuery.data || [];
+  const contacts = contactsQuery.data || [];
 
   // Filter & Search logic
   const filtered = companies.filter((c: any) => {
@@ -254,20 +256,87 @@ export default function CompaniesScreen() {
             <div className="space-y-2.5">
               <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Overview</h4>
               <div className="bg-sunken/20 border border-border-subtle rounded-lg p-2.5 space-y-2">
+                {selectedCompany.website && (
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <ExternalLink className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                    <a
+                      href={selectedCompany.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-accent truncate hover:underline"
+                    >
+                      {selectedCompany.website}
+                    </a>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                   <Globe className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                  <span className="text-foreground truncate">{selectedCompany.domain || 'N/A'}</span>
+                  <span className="text-foreground font-mono truncate">{selectedCompany.domain || <span className="opacity-40">—</span>}</span>
                 </div>
                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                   <Briefcase className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                  <span className="text-foreground">{selectedCompany.industry || 'N/A'}</span>
+                  <span className="text-foreground">{selectedCompany.industry || <span className="opacity-40">—</span>}</span>
                 </div>
                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                   <MapPin className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                  <span className="text-foreground">{selectedCompany.location || 'N/A'}</span>
+                  <span className="text-foreground">{selectedCompany.location || <span className="opacity-40">—</span>}</span>
                 </div>
+                {selectedCompany.phone && (
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <Phone className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                    <span className="text-foreground">{selectedCompany.phone}</span>
+                  </div>
+                )}
+                {selectedCompany.rating != null && (
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <Star className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                    <span className="text-foreground">{selectedCompany.rating} / 5</span>
+                  </div>
+                )}
+                {selectedCompany.crawlStatus && (
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <span className="opacity-60">Crawl:</span>
+                    <Badge variant="outline" className="text-[9px] h-4 px-1.5">{selectedCompany.crawlStatus}</Badge>
+                    {selectedCompany.contactCount != null && (
+                      <span className="text-foreground">{selectedCompany.contactCount} contacts found</span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
+
+            {/* Linked Contacts */}
+            {(() => {
+              const linkedContacts = contacts.filter((c: any) => c.companyId === selectedCompany.id);
+              return linkedContacts.length > 0 ? (
+                <div className="space-y-2.5">
+                  <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Users2 className="w-3 h-3" /> Contacts ({linkedContacts.length})
+                  </h4>
+                  <div className="space-y-1.5">
+                    {linkedContacts.map((c: any) => (
+                      <div key={c.id} className="bg-sunken/20 border border-border-subtle rounded-lg p-2 space-y-0.5">
+                        <p className="text-[10px] font-semibold text-foreground">
+                          {c.firstName ? `${c.firstName} ${c.lastName || ''}`.trim() : <span className="opacity-40">Unnamed Contact</span>}
+                        </p>
+                        {c.email && (
+                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                            <Mail className="w-3 h-3 shrink-0 opacity-60" />
+                            <span className="truncate">{c.email}</span>
+                          </div>
+                        )}
+                        {c.phone && (
+                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                            <Phone className="w-3 h-3 shrink-0 opacity-60" />
+                            <span>{c.phone}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null;
+            })()}
 
             {/* Tags System */}
             <div className="space-y-2.5">

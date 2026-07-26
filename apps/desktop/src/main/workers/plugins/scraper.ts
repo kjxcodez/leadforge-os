@@ -74,6 +74,38 @@ async function extractRating(page: Page): Promise<number | null> {
 }
 
 /**
+ * Normalizes a raw Google Maps address string.
+ *
+ * Google Maps `innerText()` on `[data-item-id="address"]` returns the full rendered
+ * text of the DOM node, which includes inline UI separators (· U+00B7), business hours
+ * text, and phone fragments. This function strips all of that and returns only the
+ * clean geographic address portion.
+ *
+ * Examples:
+ *   "3571 S Fulton AveClosed · Opens 7am · +1 404..." → "3571 S Fulton Ave"
+ *   "123 Main St · Open 24 hours" → "123 Main St"
+ */
+function normalizeLocation(raw: string | null): string | null {
+  if (!raw) return null;
+
+  // Split on Google Maps middle-dot separator (U+00B7) and take only the first segment (the address)
+  const parts = raw.split('\u00B7');
+  let address = (parts[0] || raw).trim();
+
+  // Remove business-hours keywords that sometimes bleed into the address via innerText concatenation
+  address = address.replace(/\b(Closed|Open|Opens|Closes|24\s*hours?)\b.*$/i, '').trim();
+
+  // Strip any remaining non-printable or non-standard Unicode control characters
+  // (keep letters, digits, spaces, commas, hyphens, dots, slashes, parentheses)
+  address = address.replace(/[^\p{L}\p{N}\s,\.\-\/()#&']/gu, '').trim();
+
+  // Collapse multiple whitespace runs
+  address = address.replace(/\s{2,}/g, ' ').trim();
+
+  return address.length > 0 ? address : null;
+}
+
+/**
  * Google Maps Scraper Job Plugin.
  * Queries maps listings using Playwright and populates the companies SQLite table.
  */
@@ -293,7 +325,7 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
     ctx.emitLog(`Opening listing details: ${url}`, 'info');
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-    const name = await page.locator('h1').first().innerText({ timeout: 5000 }).catch(() => '');
+    const name = (await page.locator('h1').first().innerText({ timeout: 5000 }).catch(() => '')).trim();
     if (!name) {
       ctx.emitLog('Skipped listing: Failed to retrieve business name.', 'warn');
       return;
@@ -304,7 +336,9 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
     const phone = await page.locator('[data-item-id^="phone:tel:"]').first().getAttribute('data-item-id', { timeout: 2000 })
       .then(id => id ? id.replace('phone:tel:', '').trim() : null)
       .catch(() => null);
-    const location = await page.locator('[data-item-id="address"]').first().innerText({ timeout: 2000 }).catch(() => null);
+    // Normalize address: strip Google Maps UI separators and business hours text from raw innerText
+    const rawLocation = await page.locator('[data-item-id="address"]').first().innerText({ timeout: 2000 }).catch(() => null);
+    const location = normalizeLocation(rawLocation);
     const rating = await extractRating(page);
 
     // Follow redirect for link shorteners
@@ -327,9 +361,9 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
     db.transaction(() => {
       const companyId = randomUUID();
       db.prepare(`
-        INSERT INTO companies (id, workspaceId, name, domain, website, location, phone, syncStatus, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now'), datetime('now'))
-      `).run(companyId, ctx.workspaceId, name, domain || null, website || null, location || null, phone || null);
+        INSERT INTO companies (id, workspaceId, name, domain, website, location, phone, rating, status, syncStatus, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'LEAD', 'pending', datetime('now'), datetime('now'))
+      `).run(companyId, ctx.workspaceId, name, domain || null, website || null, location || null, phone || null, rating || null);
 
       db.prepare(`
         INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
@@ -342,24 +376,28 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
         JSON.stringify({ id: companyId, workspaceId: ctx.workspaceId, name, domain, website, location, phone, status: 'LEAD' })
       );
 
-      // Auto-generate primary client contact record if contact info exists
-      if (phone || website) {
-        const contactId = randomUUID();
-        db.prepare(`
-          INSERT INTO contacts (id, workspaceId, companyId, phone, status, syncStatus, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, 'LEAD', 'pending', datetime('now'), datetime('now'))
-        `).run(contactId, ctx.workspaceId, companyId, phone || null);
+      // Auto-generate primary contact record for the company if phone is available.
+      // Deduplication guard: skip if a contact for this company already exists (prevents re-scrape duplicates).
+      if (phone) {
+        const existingContact = db.prepare('SELECT id FROM contacts WHERE workspaceId = ? AND companyId = ?').get(ctx.workspaceId, companyId);
+        if (!existingContact) {
+          const contactId = randomUUID();
+          db.prepare(`
+            INSERT INTO contacts (id, workspaceId, companyId, phone, status, syncStatus, createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, 'LEAD', 'pending', datetime('now'), datetime('now'))
+          `).run(contactId, ctx.workspaceId, companyId, phone);
 
-        db.prepare(`
-          INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, 'CREATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
-        `).run(
-          randomUUID(),
-          ctx.workspaceId,
-          'contacts',
-          contactId,
-          JSON.stringify({ id: contactId, workspaceId: ctx.workspaceId, companyId, phone, status: 'LEAD' })
-        );
+          db.prepare(`
+            INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, 'CREATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
+          `).run(
+            randomUUID(),
+            ctx.workspaceId,
+            'contacts',
+            contactId,
+            JSON.stringify({ id: contactId, workspaceId: ctx.workspaceId, companyId, phone, status: 'LEAD' })
+          );
+        }
       }
 
       storedCount++;
