@@ -443,6 +443,18 @@ export interface IpcChannelMap {
     input: void;
     output: any;
   };
+  'linkedin:get-cookie-status': {
+    input: { workspaceId: string };
+    output: { configured: boolean; preview: string };
+  };
+  'linkedin:save-cookie': {
+    input: { workspaceId: string; cookie: string };
+    output: { success: boolean };
+  };
+  'linkedin:validate': {
+    input: { cookie?: string };
+    output: { valid: boolean; message: string; csrfToken?: string };
+  };
 }
 
 export interface IpcRequest<T> {

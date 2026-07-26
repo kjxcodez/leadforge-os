@@ -522,6 +522,17 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_contacts_companyId ON contacts(companyId);
     `,
   },
+  {
+    name: '017_linkedin_enrichment',
+    up: `
+      ALTER TABLE contacts ADD COLUMN title TEXT;
+      ALTER TABLE contacts ADD COLUMN linkedinUrl TEXT;
+      ALTER TABLE contacts ADD COLUMN headline TEXT;
+      ALTER TABLE contacts ADD COLUMN profilePictureUrl TEXT;
+      ALTER TABLE contacts ADD COLUMN type TEXT;
+      ALTER TABLE contacts ADD COLUMN sourcePlatform TEXT;
+    `,
+  },
 ];
 
 

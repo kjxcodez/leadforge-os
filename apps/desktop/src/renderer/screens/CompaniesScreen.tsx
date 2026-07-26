@@ -315,10 +315,20 @@ export default function CompaniesScreen() {
                   </h4>
                   <div className="space-y-1.5">
                     {linkedContacts.map((c: any) => (
-                      <div key={c.id} className="bg-sunken/20 border border-border-subtle rounded-lg p-2 space-y-0.5">
-                        <p className="text-[10px] font-semibold text-foreground">
-                          {c.firstName ? `${c.firstName} ${c.lastName || ''}`.trim() : <span className="opacity-40">Unnamed Contact</span>}
-                        </p>
+                      <div key={c.id} className="bg-sunken/20 border border-border-subtle rounded-lg p-2.5 space-y-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <p className="text-[10px] font-semibold text-foreground">
+                            {c.firstName ? `${c.firstName} ${c.lastName || ''}`.trim() : <span className="opacity-40">Unnamed Contact</span>}
+                          </p>
+                          {c.type === 'executive' && (
+                            <Badge variant="outline" className="bg-violet-500/10 text-violet-400 border-violet-500/20 text-[8px] h-3.5 px-1 font-bold">
+                              Executive
+                            </Badge>
+                          )}
+                        </div>
+                        {(c.title || c.headline) && (
+                          <p className="text-[9px] text-accent font-medium leading-snug">{c.title || c.headline}</p>
+                        )}
                         {c.email && (
                           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                             <Mail className="w-3 h-3 shrink-0 opacity-60" />
@@ -329,6 +339,13 @@ export default function CompaniesScreen() {
                           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                             <Phone className="w-3 h-3 shrink-0 opacity-60" />
                             <span>{c.phone}</span>
+                          </div>
+                        )}
+                        {c.linkedinUrl && (
+                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                            <a href={c.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline flex items-center gap-1">
+                              LinkedIn Profile
+                            </a>
                           </div>
                         )}
                       </div>

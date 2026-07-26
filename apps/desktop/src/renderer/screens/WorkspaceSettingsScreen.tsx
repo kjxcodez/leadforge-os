@@ -11,7 +11,7 @@ import { Button } from '../components/ui/button';
 import { RenameWorkspaceDialog, DeleteWorkspaceDialog } from '../components/ui/WorkspaceDialogs';
 import { InviteMemberDialog, LeaveWorkspaceDialog, TransferOwnershipDialog } from '../components/ui/MemberDialogs';
 import { WorkspaceRole, WorkspaceMemberStatus, type WorkspaceMember } from '@leadforge/schema';
-import { ShieldAlert, Trash2, UserPlus, LogOut, ArrowLeftRight } from 'lucide-react';
+import { ShieldAlert, Trash2, UserPlus, LogOut, ArrowLeftRight, Key, CheckCircle, AlertCircle, RefreshCw, Linkedin, Sparkles } from 'lucide-react';
 
 /**
  * WorkspaceSettingsScreen enables team management, invitation oversight,
@@ -185,7 +185,10 @@ export default function WorkspaceSettingsScreen() {
         )}
       </div>
 
-      {/* ── SECTION 3: Danger Zone ────────────────────────────────────── */}
+      {/* ── SECTION 3: LinkedIn Integration ─────────────────────────────── */}
+      <LinkedInIntegrationCard workspaceId={activeWorkspace.id || ''} />
+
+      {/* ── SECTION 4: Danger Zone ────────────────────────────────────── */}
       <div className="bg-card border border-destructive/20 rounded-xl p-5 space-y-4">
         <div>
           <h2 className="text-sm font-semibold text-danger-text flex items-center gap-1.5">
@@ -268,6 +271,133 @@ export default function WorkspaceSettingsScreen() {
           onSuccess={() => setTransferTarget(null)}
         />
       )}
+    </div>
+  );
+}
+
+function LinkedInIntegrationCard({ workspaceId }: { workspaceId: string }) {
+  const [cookie, setCookie] = React.useState('');
+  const [status, setStatus] = React.useState<{ configured: boolean; preview: string }>({ configured: false, preview: '' });
+  const [testing, setTesting] = React.useState(false);
+  const [testResult, setTestResult] = React.useState<{ valid: boolean; message: string } | null>(null);
+  const [saving, setSaving] = React.useState(false);
+
+  const fetchStatus = React.useCallback(async () => {
+    if (!workspaceId) return;
+    try {
+      const res = await window.ipc.invoke('linkedin:get-cookie-status', { workspaceId });
+      setStatus(res);
+    } catch {
+      // Ignore
+    }
+  }, [workspaceId]);
+
+  React.useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cookie.trim()) return;
+    setSaving(true);
+    try {
+      await window.ipc.invoke('linkedin:save-cookie', { workspaceId, cookie: cookie.trim() });
+      setCookie('');
+      setTestResult(null);
+      await fetchStatus();
+    } catch (err: any) {
+      alert(`Failed to save cookie: ${err.message || err}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const payload = cookie.trim() ? { cookie: cookie.trim() } : {};
+      const res = await window.ipc.invoke('linkedin:validate', payload);
+      setTestResult(res);
+    } catch (err: any) {
+      setTestResult({ valid: false, message: `Test error: ${err.message || err}` });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <div className="bg-card border border-border-subtle rounded-xl p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Linkedin className="w-4 h-4 text-blue-400" />
+            <span>LinkedIn Executive Enrichment</span>
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Store your LinkedIn session cookie (<code className="font-mono text-[10px] bg-sunken px-1 py-0.5 rounded">li_at</code>) to automatically scrape executive decision-makers (CEOs, VPs, Directors).
+          </p>
+        </div>
+        <div>
+          {status.configured ? (
+            <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold flex items-center gap-1">
+              <CheckCircle className="w-3 h-3" /> Configured ({status.preview})
+            </span>
+          ) : (
+            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+              Not Configured
+            </span>
+          )}
+        </div>
+      </div>
+
+      <form onSubmit={handleSave} className="space-y-3 pt-1">
+        <div className="space-y-1">
+          <label htmlFor="liCookieInput" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+            LinkedIn Session Cookie (li_at)
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="liCookieInput"
+              type="password"
+              placeholder={status.configured ? 'Paste new li_at cookie to update...' : 'AQED... (paste li_at cookie value from DevTools)'}
+              value={cookie}
+              onChange={(e) => setCookie(e.target.value)}
+              className="flex-1 bg-sunken border border-border rounded px-3 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            <Button type="button" variant="outline" size="sm" onClick={handleTest} disabled={testing}>
+              {testing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Test Cookie'}
+            </Button>
+            <Button type="submit" size="sm" disabled={saving || !cookie.trim()}>
+              {saving ? 'Saving...' : 'Save Cookie'}
+            </Button>
+          </div>
+        </div>
+
+        {testResult && (
+          <div className={`p-3 rounded-lg border text-xs flex items-start gap-2 ${
+            testResult.valid
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+              : 'bg-destructive/10 text-destructive border-destructive/20'
+          }`}>
+            {testResult.valid ? <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" /> : <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />}
+            <div>
+              <div className="font-semibold">{testResult.valid ? 'Session Active' : 'Validation Failed'}</div>
+              <div className="text-[11px] opacity-90">{testResult.message}</div>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-sunken/40 border border-border-subtle rounded-lg p-3 text-[10px] text-muted-foreground space-y-1">
+          <div className="font-semibold text-foreground flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-accent" />
+            How to get your li_at cookie:
+          </div>
+          <div>1. Log into LinkedIn in Google Chrome or Edge</div>
+          <div>2. Press <code className="font-mono bg-sunken px-1 rounded text-foreground">F12</code> → Open <strong>Application</strong> tab → <strong>Cookies</strong> → <code className="font-mono text-foreground">https://www.linkedin.com</code></div>
+          <div>3. Find <code className="font-mono bg-sunken px-1 rounded text-foreground">li_at</code> → Copy the Cookie Value → Paste here</div>
+        </div>
+      </form>
     </div>
   );
 }

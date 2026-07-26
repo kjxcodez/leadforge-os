@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkspace } from '../hooks/useWorkspace';
 import {
@@ -25,6 +25,8 @@ import {
   Layers,
   BarChart3,
   Activity,
+  Linkedin,
+  UserCheck,
 } from 'lucide-react';
 
 /**
@@ -107,6 +109,20 @@ export default function DiscoveryScreen() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scheduler_jobs', 'list', workspaceId] });
+    },
+  });
+
+  const enrichLinkedInMutation = useMutation({
+    mutationFn: async (payload: { companyId: string; companyName: string; domain?: string }) => {
+      return window.ipc.invoke('scheduler:jobs:submit', {
+        workspaceId,
+        type: 'enrich:linkedin',
+        payload,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scheduler_jobs', 'list', workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ['contacts', 'list', workspaceId] });
     },
   });
 
@@ -282,33 +298,62 @@ export default function DiscoveryScreen() {
                           <span className="truncate block">{res.location || <span className="opacity-40">—</span>}</span>
                         </td>
                         <td className="px-4 py-3">
-                          {emailContacts.length > 0 ? (
-                            <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/20 font-bold text-[9px]">
-                              <Mail className="w-2.5 h-2.5 mr-1" />
-                              {emailContacts.length} email{emailContacts.length > 1 ? 's' : ''} · {primaryEmail}
-                            </Badge>
-                          ) : companyContacts.length > 0 ? (
-                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 font-bold text-[9px]">
-                              <Phone className="w-2.5 h-2.5 mr-1" />
-                              Phone saved
-                            </Badge>
-                          ) : (
-                            <span className="opacity-40">No contacts yet</span>
-                          )}
+                          {(() => {
+                            const execContacts = companyContacts.filter((ct) => ct.type === 'executive' || ct.sourcePlatform === 'linkedin');
+                            return (
+                              <div className="flex flex-col gap-1 items-start">
+                                {emailContacts.length > 0 && (
+                                  <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/20 font-bold text-[9px]">
+                                    <Mail className="w-2.5 h-2.5 mr-1" />
+                                    {emailContacts.length} email{emailContacts.length > 1 ? 's' : ''} · {primaryEmail}
+                                  </Badge>
+                                )}
+                                {execContacts.length > 0 && (
+                                  <Badge variant="outline" className="bg-violet-500/10 text-violet-400 border-violet-500/20 font-bold text-[9px]">
+                                    <UserCheck className="w-2.5 h-2.5 mr-1" />
+                                    {execContacts.length} Exec{execContacts.length > 1 ? 's' : ''} ({execContacts[0].firstName} {execContacts[0].lastName || ''})
+                                  </Badge>
+                                )}
+                                {emailContacts.length === 0 && execContacts.length === 0 && companyContacts.length > 0 && (
+                                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 font-bold text-[9px]">
+                                    <Phone className="w-2.5 h-2.5 mr-1" />
+                                    Phone saved
+                                  </Badge>
+                                )}
+                                {companyContacts.length === 0 && (
+                                  <span className="opacity-40">No contacts yet</span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {res.website && (
+                          <div className="flex justify-end gap-1.5">
+                            {res.website && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => enrichCompanyMutation.mutate({ companyId: res.id, website: res.website })}
+                                disabled={enrichCompanyMutation.isPending}
+                                title="Crawl website for email addresses"
+                                className="h-6 text-[10px] gap-1 font-semibold border-accent/30 text-accent hover:bg-accent/10"
+                              >
+                                <Sparkles className="w-3 h-3" />
+                                Crawl
+                              </Button>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => enrichCompanyMutation.mutate({ companyId: res.id, website: res.website })}
-                              disabled={enrichCompanyMutation.isPending}
-                              className="h-6 text-[10px] gap-1 font-semibold border-accent/30 text-accent hover:bg-accent/10"
+                              onClick={() => enrichLinkedInMutation.mutate({ companyId: res.id, companyName: res.name, domain: res.domain })}
+                              disabled={enrichLinkedInMutation.isPending}
+                              title="Scrape executive decision makers (CEOs, VPs, Directors)"
+                              className="h-6 text-[10px] gap-1 font-semibold border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
                             >
-                              <Sparkles className="w-3 h-3" />
-                              Enrich
+                              <Linkedin className="w-3 h-3" />
+                              Execs
                             </Button>
-                          )}
+                          </div>
                         </td>
                       </tr>
                     );

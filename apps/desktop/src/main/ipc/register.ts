@@ -8,6 +8,7 @@ import { registerOutreachIpc } from './outreach';
 import { registerAutomationIpc } from './automation';
 import { registerSchedulerIpc } from './scheduler';
 import { registerDashboardIpc } from './dashboard';
+import { registerLinkedInIpc } from './linkedin';
 import { WorkspaceManager } from '../lib/workspace-manager';
 
 /**
@@ -42,4 +43,5 @@ export function registerAllIpc(
   registerAutomationIpc(sdk);
   registerSchedulerIpc();
   registerDashboardIpc();
+  registerLinkedInIpc();
 }

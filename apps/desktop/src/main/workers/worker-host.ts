@@ -7,6 +7,7 @@ import { crawlWebsite } from './plugins/crawler';
 import { enrichWebsite } from './plugins/enricher';
 import { dispatchOutreach } from './plugins/outreach';
 import { executeAutomationWorkflow } from './plugins/automation';
+import { enrichLinkedIn } from './plugins/linkedin';
 
 // ---------------------------------------------------------------------------
 // Mock Test Plugin
@@ -49,6 +50,7 @@ const registry = new WorkerPluginRegistry();
 registry.register('scraper:maps', scrapeMaps);
 registry.register('crawler:website', crawlWebsite);
 registry.register('enrich:website', enrichWebsite);
+registry.register('enrich:linkedin', enrichLinkedIn);
 registry.register('outreach:campaign', dispatchOutreach);
 registry.register('automation:workflow', executeAutomationWorkflow);
 registry.register('mock:test', mockTest);
