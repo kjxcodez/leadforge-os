@@ -113,7 +113,7 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
   const query = ctx.payload.query || '';
   const maxResults = ctx.payload.maxResults !== undefined
     ? Number(ctx.payload.maxResults)
-    : (ctx.payload.limit !== undefined ? Number(ctx.payload.limit) : 10);
+    : (ctx.payload.limit !== undefined ? Number(ctx.payload.limit) : 100);
   
   ctx.emitLog(`Initializing Google Maps Playwright scraper. Query: "${query}" | Limit: ${maxResults}`, 'info');
 
