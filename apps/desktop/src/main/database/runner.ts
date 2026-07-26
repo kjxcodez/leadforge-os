@@ -504,6 +504,24 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_sync_dead_letter_workspaceId ON sync_dead_letter(workspaceId);
     `,
   },
+  {
+    name: '016_discovery_columns',
+    up: `
+      -- Add discovery/scraper columns to companies table
+      ALTER TABLE companies ADD COLUMN website TEXT;
+      ALTER TABLE companies ADD COLUMN location TEXT;
+      ALTER TABLE companies ADD COLUMN phone TEXT;
+      ALTER TABLE companies ADD COLUMN rating REAL;
+
+      -- Add companyId FK to contacts table so contacts can be linked to discovered companies
+      ALTER TABLE contacts ADD COLUMN companyId TEXT;
+
+      -- Indexes for fast company+contact lookups by workspaceId
+      CREATE INDEX IF NOT EXISTS idx_companies_workspaceId ON companies(workspaceId);
+      CREATE INDEX IF NOT EXISTS idx_contacts_workspaceId ON contacts(workspaceId);
+      CREATE INDEX IF NOT EXISTS idx_contacts_companyId ON contacts(companyId);
+    `,
+  },
 ];
 
 

@@ -50,6 +50,11 @@ export class WorkspaceRuntime {
     this.sqliteDb = getDatabase(workspaceId);
     this.databaseOpenDuration = Date.now() - dbOpenStart;
 
+    // Run migrations EAGERLY here — before constructing any service that pre-compiles
+    // SQL prepared statements (e.g. AutomationTriggerEvaluator compiles SELECT FROM sequences
+    // in its constructor, which crashes on a brand-new database with no tables yet).
+    runMigrations(this.sqliteDb);
+
     this.eventBus = new LocalEventBus(workspaceId);
     this.scheduler = new JobScheduler(workspaceId, this.sqliteDb, this.eventBus);
     this.syncEngine = new SyncEngine(workspaceId, this.sqliteDb, this.eventBus, sdk);
