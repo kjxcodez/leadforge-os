@@ -289,8 +289,9 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
                 const parts = href.replace(/^mailto:/i, '').split('?');
                 const mailPart = parts[0];
                 if (mailPart) {
-                  const mail = mailPart.trim();
-                  if (mail) pageEmails.add(mail.toLowerCase());
+                  // Strip non-printable and non-ASCII characters (zero-width marks, BOM, RTL marks, etc.)
+                  const mail = mailPart.trim().replace(/[^\x20-\x7E]/g, '').toLowerCase();
+                  if (mail) pageEmails.add(mail);
                 }
               }
             }
@@ -300,7 +301,8 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
           const bodyText = $('body').text() || '';
           const matches = bodyText.match(/\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/g);
           if (matches) {
-            matches.forEach(m => pageEmails.add(m.toLowerCase()));
+            // Strip invisible Unicode characters before storing (prevents ghost chars like U+200F RTL mark)
+            matches.forEach(m => pageEmails.add(m.replace(/[^\x20-\x7E]/g, '').toLowerCase()));
           }
 
           // Extract phone numbers
@@ -346,9 +348,11 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
               const contactId = randomUUID();
               db.prepare(`
                 INSERT INTO contacts (id, workspaceId, companyId, firstName, lastName, email, phone, status, confidence, verificationStatus, sourceUrl, sourcePlatform, priority, type, createdAt, updatedAt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'LEAD', ?, 'unverified', ?, 'web', 1, ?, datetime('now'), datetime('now'))
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'NEW', ?, 'unverified', ?, 'web', 1, ?, datetime('now'), datetime('now'))
               `).run(contactId, ctx.workspaceId, companyId, firstName, lastName, email, extractedPhone, confidence, item.url, type);
 
+              // Sync payload: omit companyId (server validates as MongoDB ObjectId, not UUID).
+              // Include firstName/lastName — server requires firstName.
               db.prepare(`
                 INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
                 VALUES (?, ?, ?, ?, 'CREATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
@@ -357,7 +361,15 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
                 ctx.workspaceId,
                 'contacts',
                 contactId,
-                JSON.stringify({ id: contactId, workspaceId: ctx.workspaceId, companyId, email, phone: extractedPhone, status: 'UNVERIFIED' })
+                JSON.stringify({
+                  id: contactId,
+                  workspaceId: ctx.workspaceId,
+                  firstName: firstName || '',
+                  lastName: lastName || undefined,
+                  email,
+                  phone: extractedPhone || undefined,
+                  status: 'NEW'
+                })
               );
             })();
 

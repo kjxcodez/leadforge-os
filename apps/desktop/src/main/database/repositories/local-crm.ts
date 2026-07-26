@@ -1,6 +1,35 @@
 import { getDatabase } from '../connection';
 
 /**
+ * Columns that are stored as JSON strings in SQLite (serialized objects/arrays).
+ * When reading records from SQLite, these columns are automatically parsed back
+ * into their native JS types so consumers never receive raw JSON strings.
+ */
+const JSON_COLUMNS = new Set([
+  'tags', 'notes', 'steps', 'variables', 'logs', 'contactsJson',
+  'statisticsJson', 'executionContext', 'metadata'
+]);
+
+/**
+ * Parses any JSON_COLUMNS fields that arrived from SQLite as strings.
+ * All other fields are passed through unchanged.
+ */
+function parseJsonFields(row: any): any {
+  if (!row || typeof row !== 'object') return row;
+  const result = { ...row };
+  for (const field of JSON_COLUMNS) {
+    if (typeof result[field] === 'string') {
+      try {
+        result[field] = JSON.parse(result[field]);
+      } catch {
+        // Value is a plain string, not JSON — leave as-is
+      }
+    }
+  }
+  return result;
+}
+
+/**
  * LocalCRMRepository implements SQLite CRUD caching operations for workspace-scoped entities
  * (e.g. companies, contacts, campaigns) using dynamically compiled prepared statements.
  */
@@ -34,7 +63,7 @@ export const LocalCRMRepository = {
       }
     }
 
-    return db.prepare(query).all(...params);
+    return (db.prepare(query).all(...params) as any[]).map(parseJsonFields);
   },
 
   /**
@@ -45,7 +74,7 @@ export const LocalCRMRepository = {
     if (!/^[a-zA-Z0-9_]+$/.test(tableName)) throw new Error(`Invalid table: ${tableName}`);
 
     const row = db.prepare(`SELECT * FROM ${tableName} WHERE id = ? AND deletedAt IS NULL`).get(id);
-    return row || null;
+    return row ? parseJsonFields(row) : null;
   },
 
   /**

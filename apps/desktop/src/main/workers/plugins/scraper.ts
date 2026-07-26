@@ -384,9 +384,11 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
           const contactId = randomUUID();
           db.prepare(`
             INSERT INTO contacts (id, workspaceId, companyId, phone, status, syncStatus, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, 'LEAD', 'pending', datetime('now'), datetime('now'))
+            VALUES (?, ?, ?, ?, 'NEW', 'pending', datetime('now'), datetime('now'))
           `).run(contactId, ctx.workspaceId, companyId, phone);
 
+          // Sync payload: omit companyId (server expects MongoDB ObjectId, not UUID).
+          // firstName defaults to '' — server requires the field.
           db.prepare(`
             INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
             VALUES (?, ?, ?, ?, 'CREATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
@@ -395,7 +397,7 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
             ctx.workspaceId,
             'contacts',
             contactId,
-            JSON.stringify({ id: contactId, workspaceId: ctx.workspaceId, companyId, phone, status: 'LEAD' })
+            JSON.stringify({ id: contactId, workspaceId: ctx.workspaceId, firstName: '', phone, status: 'NEW' })
           );
         }
       }
