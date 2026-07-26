@@ -63,14 +63,42 @@ function validateEmailFormat(email: string): boolean {
 }
 
 /**
- * Filters out standard noise email domains and patterns.
+ * Filters out standard noise, analytics, tracking, and Sentry email domains and patterns.
  */
 function isNoiseEmail(email: string): boolean {
-  const blockedDomains = ['sentry.io', 'example.com', 'yourdomain.com', 'wix.com', 'wordpress.org'];
-  const blockedPatterns = [/noreply/, /donotreply/, /webmaster/, /postmaster/, /support/, /admin/];
-  const domain = email.split('@')[1] || '';
-  if (blockedDomains.includes(domain)) return true;
-  return blockedPatterns.some(p => p.test(email));
+  if (!email || email.length > 100) return true;
+  const lower = email.toLowerCase().trim();
+
+  // 1. Reject 20+ character hex/hash prefixes (e.g., 68a5328ef3f1bf9279067a83c77ffb95@...)
+  const prefix = lower.split('@')[0] || '';
+  if (/^[a-f0-9]{20,}$/.test(prefix)) return true;
+
+  // 2. Reject tracking, error logging, and analytics subdomains & domains
+  const domain = lower.split('@')[1] || '';
+  const noiseDomains = [
+    'sentry.io', 'sentry-cdn.com', 'wixpress.com', 'schema.org',
+    'example.com', 'domain.com', 'yourdomain.com', 'wordpress.org',
+    'bugsnag.com', 'datadoghq.com', 'intercom-mail.com', 'cloudflare.com',
+    'gitter.im', 'github.com', 'gravatar.com', 'wp.com', 'google.com', 'facebook.com'
+  ];
+
+  if (noiseDomains.some(d => domain === d || domain.endsWith('.' + d))) {
+    return true;
+  }
+
+  // 3. Reject analytics / tracking keywords anywhere in domain
+  if (/ingest|sentry|tracking|telemetry|analytics|metrics|error-log/i.test(domain)) {
+    return true;
+  }
+
+  // 4. Reject static asset artifacts (e.g. logo@2x.png, icon@2x.jpg)
+  if (/\.(png|jpg|jpeg|gif|svg|css|js|webp)$/i.test(lower)) {
+    return true;
+  }
+
+  // 5. Reject standard automated no-reply prefixes
+  const blockedPatterns = [/noreply/, /donotreply/, /no-reply/, /do-not-reply/, /mailer-daemon/];
+  return blockedPatterns.some(p => p.test(prefix));
 }
 
 /**

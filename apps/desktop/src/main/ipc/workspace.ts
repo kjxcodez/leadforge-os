@@ -5,7 +5,12 @@ import { LocalWorkspaceRepository } from '../database/repositories/local-workspa
 /**
  * Registers workspace management and membership/invitations IPC channels.
  */
-export function registerWorkspaceIpc(sdk: SdkClient) {
+export function registerWorkspaceIpc(
+  sdk: SdkClient,
+  setWorkspaceHeader?: (workspaceId: string | null) => void,
+  persistActiveWorkspace?: (workspaceId: string | null) => void,
+  getPersistedActiveWorkspace?: () => string | null
+) {
   safeRegister('workspaces:create', async (_event, payload) => {
     console.log('Main Process: Creating workspace:', payload);
     const ws = await sdk.workspaces.create(payload);
@@ -19,8 +24,23 @@ export function registerWorkspaceIpc(sdk: SdkClient) {
 
   safeRegister('workspaces:list', async () => {
     console.log('Main Process: Listing user workspaces');
+    const savedActiveWorkspaceId = getPersistedActiveWorkspace ? getPersistedActiveWorkspace() : null;
     try {
+      // Temporarily clear x-workspace-id header so backend returns ALL workspaces for this user!
+      if (setWorkspaceHeader) setWorkspaceHeader(null);
       const workspaces = await sdk.workspaces.list();
+
+      // If active workspace header was set to a stale ID, validate or switch to authentic user workspace
+      if (workspaces && workspaces.length > 0) {
+        const isValidActive = !!(savedActiveWorkspaceId && workspaces.some((w: any) => w.id === savedActiveWorkspaceId));
+        const firstWorkspace = workspaces[0] as { id: string };
+        const validWorkspaceId = isValidActive ? (savedActiveWorkspaceId as string) : firstWorkspace.id;
+        if (setWorkspaceHeader) setWorkspaceHeader(validWorkspaceId);
+        if (persistActiveWorkspace && !isValidActive) persistActiveWorkspace(validWorkspaceId);
+      } else if (setWorkspaceHeader && savedActiveWorkspaceId) {
+        setWorkspaceHeader(savedActiveWorkspaceId);
+      }
+
       try {
         await LocalWorkspaceRepository.saveMany(workspaces);
       } catch (e) {
@@ -28,6 +48,7 @@ export function registerWorkspaceIpc(sdk: SdkClient) {
       }
       return workspaces;
     } catch (err) {
+      if (setWorkspaceHeader && savedActiveWorkspaceId) setWorkspaceHeader(savedActiveWorkspaceId);
       console.warn('[IPC] Failed to list workspaces from remote, falling back to local cache:', err);
       return LocalWorkspaceRepository.findMany();
     }
