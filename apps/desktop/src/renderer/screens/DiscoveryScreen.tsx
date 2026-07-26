@@ -60,6 +60,7 @@ export default function DiscoveryScreen() {
       return SyncCompanyRepository.listAndSync(workspaceId);
     },
     enabled: !!workspaceId,
+    refetchInterval: 2000, // Poll every 2s so newly scraped companies render live!
   });
 
   // 3. Job Mutation handlers
@@ -73,6 +74,7 @@ export default function DiscoveryScreen() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scheduler_jobs', 'list', workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ['companies', 'list', workspaceId] });
       setCreateOpen(false);
       setJobName('');
       setJobQuery('');
@@ -100,14 +102,23 @@ export default function DiscoveryScreen() {
   // Find query from currently selected job
   const selectedJob = jobs.find(j => j.id === selectedJobId);
   const selectedJobPayload = selectedJob ? JSON.parse(selectedJob.payload || '{}') : {};
-  const selectedQuery = (selectedJobPayload.query || '').toLowerCase();
+  const selectedQuery = (selectedJobPayload.query || '').toLowerCase().trim();
 
   // Filter companies matching the selected job query to show under "Scraped Results"
   const results = existingCompanies.filter(c => {
     if (!selectedQuery) return true;
-    return c.name.toLowerCase().includes(selectedQuery) ||
-           c.location?.toLowerCase().includes(selectedQuery) ||
-           c.website?.toLowerCase().includes(selectedQuery);
+    const searchBlob = `${c.name || ''} ${c.domain || ''} ${c.website || ''} ${c.location || ''}`.toLowerCase();
+    
+    // Exact substring match
+    if (searchBlob.includes(selectedQuery)) return true;
+    
+    // Flexible word/stem match (e.g. "Architectures" -> matches "Architect", "Architects")
+    const words = selectedQuery.split(/\s+/).filter((w: string) => w.length > 2);
+    if (words.length === 0) return true;
+    return words.some((word: string) => {
+      const stem = word.replace(/(ures|ure|s|es)$/i, '');
+      return searchBlob.includes(word) || (stem.length >= 3 && searchBlob.includes(stem));
+    });
   });
 
   // Statistics calculation
