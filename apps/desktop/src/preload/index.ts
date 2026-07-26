@@ -112,6 +112,9 @@ contextBridge.exposeInMainWorld('ipc', {
       'dashboard:activity-feed',
       'system:infrastructure-status',
       'electron:ready-to-show',
+      'linkedin:get-cookie-status',
+      'linkedin:save-cookie',
+      'linkedin:validate',
     ];
     if (validChannels.includes(channel as string)) {
       return ipcRenderer.invoke(channel, payload);
