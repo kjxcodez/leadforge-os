@@ -323,7 +323,6 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
         ctx.workspaceId,
         'companies',
         companyId,
-        'CREATE',
         JSON.stringify({ id: companyId, workspaceId: ctx.workspaceId, name, domain, website, location, status: 'LEAD' })
       );
 
