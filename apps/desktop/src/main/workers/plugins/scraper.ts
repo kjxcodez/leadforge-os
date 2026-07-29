@@ -106,6 +106,30 @@ function normalizeLocation(raw: string | null): string | null {
 }
 
 /**
+ * Normalizes telephone numbers by stripping visual separators (spaces, hyphens, parentheses)
+ * and enforcing international standard E.164-like formatting.
+ */
+function normalizePhone(raw: string | null): string | null {
+  if (!raw) return null;
+  
+  // Strip spaces, hyphens, parentheses, and dots
+  let clean = raw.replace(/[\s\-\(\)\.]/g, '');
+  
+  // If it's a 10-digit US/Canada number without a country code, prefix with '+1'
+  if (/^\d{10}$/.test(clean)) {
+    clean = `+1${clean}`;
+  } else if (/^\d{11}$/.test(clean) && clean.startsWith('1')) {
+    // If it's 11 digits starting with 1, prefix with '+'
+    clean = `+${clean}`;
+  } else if (/^[^\+]\d+$/.test(clean)) {
+    // Prefix '+' if it looks like it has a country code but lacks '+'
+    clean = `+${clean}`;
+  }
+  
+  return clean.length > 0 ? clean : null;
+}
+
+/**
  * Google Maps Scraper Job Plugin.
  * Queries maps listings using Playwright and populates the companies SQLite table.
  */
@@ -333,9 +357,10 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
 
     // Extract details via data-item-id
     let website = await page.locator('a[data-item-id="authority"]').first().getAttribute('href', { timeout: 2000 }).catch(() => null);
-    const phone = await page.locator('[data-item-id^="phone:tel:"]').first().getAttribute('data-item-id', { timeout: 2000 })
+    const rawPhone = await page.locator('[data-item-id^="phone:tel:"]').first().getAttribute('data-item-id', { timeout: 2000 })
       .then(id => id ? id.replace('phone:tel:', '').trim() : null)
       .catch(() => null);
+    const phone = normalizePhone(rawPhone);
     // Normalize address: strip Google Maps UI separators and business hours text from raw innerText
     const rawLocation = await page.locator('[data-item-id="address"]').first().innerText({ timeout: 2000 }).catch(() => null);
     const location = normalizeLocation(rawLocation);

@@ -23,6 +23,7 @@ import { ContactStatus } from '@leadforge/schema';
 export default function ContactsScreen() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [sourcePlatformFilter, setSourcePlatformFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedContact, setSelectedContact] = useState<any | null>(null);
 
@@ -52,7 +53,8 @@ export default function ContactsScreen() {
                           emailStr.includes(searchLower) ||
                           titleStr.includes(searchLower);
     const matchesStatus = !statusFilter || c.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesPlatform = !sourcePlatformFilter || c.sourcePlatform === sourcePlatformFilter;
+    return matchesSearch && matchesStatus && matchesPlatform;
   });
 
   const handleCreate = async (data: any) => {
@@ -80,6 +82,13 @@ export default function ContactsScreen() {
   const handleBulkDelete = async () => {
     if (confirm(`Are you sure you want to delete the ${selectedIds.length} selected contacts?`)) {
       await Promise.all(selectedIds.map((id) => deleteMutation.mutateAsync(id)));
+      setSelectedIds([]);
+    }
+  };
+
+  const handleBulkStatusChange = async (status: string) => {
+    if (confirm(`Are you sure you want to update the status of ${selectedIds.length} contacts to "${status}"?`)) {
+      await Promise.all(selectedIds.map((id) => updateMutation.mutateAsync({ id, data: { status } })));
       setSelectedIds([]);
     }
   };
@@ -120,7 +129,21 @@ export default function ContactsScreen() {
           onCreateTrigger={() => setCreateOpen(true)}
           selectedCount={selectedIds.length}
           onBulkDelete={handleBulkDelete}
-        />
+          onBulkStatusChange={handleBulkStatusChange}
+          bulkStatusOptions={Object.values(ContactStatus)}
+        >
+          <select
+            value={sourcePlatformFilter}
+            onChange={(e) => setSourcePlatformFilter(e.target.value)}
+            className="bg-card border border-border-subtle rounded px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-accent/20 min-w-[110px] h-9"
+          >
+            <option value="">All Sources</option>
+            <option value="google_maps">Google Maps</option>
+            <option value="linkedin">LinkedIn</option>
+            <option value="crawler">Web Crawler</option>
+            <option value="manual">Manual</option>
+          </select>
+        </EntityToolbar>
 
         {contactsQuery.isLoading ? (
           <div className="h-[300px] flex items-center justify-center text-muted-foreground">
@@ -291,6 +314,36 @@ export default function ContactsScreen() {
                   <Linkedin className="w-3.5 h-3.5 shrink-0 opacity-70" />
                   <span className="text-foreground truncate">{selectedContact.linkedin || 'N/A'}</span>
                 </div>
+              </div>
+            </div>
+
+            {/* Pipeline Stage */}
+            <div className="space-y-2">
+              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Contact Stage</h4>
+              <div className="flex flex-wrap gap-1 bg-sunken/20 border border-border-subtle rounded-lg p-2">
+                {Object.values(ContactStatus).map((status) => {
+                  const isActive = selectedContact.status === status;
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={async () => {
+                        const updated = await updateMutation.mutateAsync({
+                          id: selectedContact.id,
+                          data: { status }
+                        });
+                        setSelectedContact(updated);
+                      }}
+                      className={`px-2 py-1 rounded text-[10px] font-semibold border transition-all ${
+                        isActive
+                          ? 'bg-accent text-white border-accent'
+                          : 'bg-card text-muted-foreground border-border-subtle hover:bg-sunken'
+                      }`}
+                    >
+                      {status}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

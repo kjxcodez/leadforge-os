@@ -15,6 +15,8 @@ interface EntityToolbarProps {
   onBulkDelete?: () => void;
   onBulkArchive?: () => void;
   onBulkAddTag?: () => void;
+  onBulkStatusChange?: (status: string) => void;
+  bulkStatusOptions?: string[];
 }
 
 /**
@@ -32,7 +34,10 @@ export function EntityToolbar({
   onBulkDelete,
   onBulkArchive,
   onBulkAddTag,
-}: EntityToolbarProps) {
+  onBulkStatusChange,
+  bulkStatusOptions = [],
+  children,
+}: EntityToolbarProps & { children?: React.ReactNode }) {
   const [localSearch, setLocalSearch] = useState(search);
 
   // Debounce search input
@@ -47,7 +52,7 @@ export function EntityToolbar({
   return (
     <div className="flex flex-col gap-3 pb-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 flex-1 min-w-[240px] max-w-md">
+        <div className="flex items-center gap-2 flex-1 min-w-[240px] max-w-lg">
           <div className="relative w-full">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground opacity-60" />
             <Input
@@ -72,6 +77,8 @@ export function EntityToolbar({
               ))}
             </select>
           )}
+
+          {children}
         </div>
 
         <Button onClick={onCreateTrigger} size="sm" className="h-9 text-xs font-semibold gap-1.5">
@@ -86,6 +93,25 @@ export function EntityToolbar({
           <span className="font-semibold text-accent">{selectedCount} items selected</span>
 
           <div className="flex items-center gap-2">
+            {onBulkStatusChange && bulkStatusOptions.length > 0 && (
+              <select
+                onChange={(e) => {
+                  if (e.target.value) {
+                    onBulkStatusChange(e.target.value);
+                    e.target.value = '';
+                  }
+                }}
+                className="bg-card border border-border-subtle rounded px-2 py-1 text-[10px] outline-none text-foreground focus:ring-1 focus:ring-accent/20 h-7"
+              >
+                <option value="">Update Status...</option>
+                {bulkStatusOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            )}
+
             {onBulkAddTag && (
               <Button
                 variant="outline"

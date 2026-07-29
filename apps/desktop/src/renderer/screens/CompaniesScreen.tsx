@@ -14,13 +14,17 @@ import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Building2, X, Globe, MapPin, Briefcase, Phone, Star, ExternalLink, Mail, Users2 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
-import { CompanyStatus } from '@leadforge/schema';
+import { CompanyStatus, ContactStatus } from '@leadforge/schema';
+import { useWorkspace } from '../hooks/useWorkspace';
 
 /**
  * CompaniesScreen presents a list of target organizations, a details panel,
  * and handles workspace CRUD.
  */
 export default function CompaniesScreen() {
+  const { activeWorkspace } = useWorkspace();
+  const workspaceId = activeWorkspace?.id || '';
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -35,6 +39,7 @@ export default function CompaniesScreen() {
   const contactsQuery = useEntityList(SyncContactRepository);
   const createMutation = useCreateEntity(SyncCompanyRepository);
   const updateMutation = useUpdateEntity(SyncCompanyRepository);
+  const updateContactMutation = useUpdateEntity(SyncContactRepository);
   const deleteMutation = useDeleteEntity(SyncCompanyRepository);
 
   const companies = companiesQuery.data || [];
@@ -44,8 +49,20 @@ export default function CompaniesScreen() {
   const filtered = companies.filter((c: any) => {
     const nameStr = c.name || '';
     const domainStr = c.domain || '';
-    const matchesSearch = nameStr.toLowerCase().includes(search.toLowerCase()) || 
-                          domainStr.toLowerCase().includes(search.toLowerCase());
+    const tagsStr = Array.isArray(c.tags) ? c.tags.join(' ') : '';
+    let notesStr = '';
+    if (c.notes) {
+      if (Array.isArray(c.notes)) {
+        notesStr = c.notes.map((n: any) => n.content || '').join(' ');
+      } else {
+        notesStr = String(c.notes);
+      }
+    }
+    const searchLower = search.toLowerCase();
+    const matchesSearch = nameStr.toLowerCase().includes(searchLower) || 
+                          domainStr.toLowerCase().includes(searchLower) ||
+                          tagsStr.toLowerCase().includes(searchLower) ||
+                          notesStr.toLowerCase().includes(searchLower);
     const matchesStatus = !statusFilter || c.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -305,6 +322,36 @@ export default function CompaniesScreen() {
               </div>
             </div>
 
+            {/* Pipeline Stage */}
+            <div className="space-y-2">
+              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Company Status</h4>
+              <div className="flex flex-wrap gap-1 bg-sunken/20 border border-border-subtle rounded-lg p-2">
+                {Object.values(CompanyStatus).map((status) => {
+                  const isActive = selectedCompany.status === status;
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={async () => {
+                        const updated = await updateMutation.mutateAsync({
+                          id: selectedCompany.id,
+                          data: { status }
+                        });
+                        setSelectedCompany(updated);
+                      }}
+                      className={`px-2 py-1 rounded text-[10px] font-semibold border transition-all ${
+                        isActive
+                          ? 'bg-accent text-white border-accent'
+                          : 'bg-card text-muted-foreground border-border-subtle hover:bg-sunken'
+                      }`}
+                    >
+                      {status}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Linked Contacts */}
             {(() => {
               const linkedContacts = contacts.filter((c: any) => c.companyId === selectedCompany.id);
@@ -348,6 +395,25 @@ export default function CompaniesScreen() {
                             </a>
                           </div>
                         )}
+                        <div className="flex items-center justify-between gap-1 mt-2 pt-1.5 border-t border-border-subtle/40">
+                          <span className="text-[9px] text-muted-foreground">Stage:</span>
+                          <select
+                            value={c.status || 'NEW'}
+                            onChange={async (e) => {
+                              await updateContactMutation.mutateAsync({
+                                id: c.id,
+                                data: { status: e.target.value }
+                              });
+                            }}
+                            className="bg-card border border-border-subtle rounded text-[9px] font-semibold px-1 py-0.5 text-foreground focus-visible:outline-none"
+                          >
+                            {Object.values(ContactStatus).map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     ))}
                   </div>

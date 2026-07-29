@@ -1207,6 +1207,74 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         );
       }
 
+      // ── Fresh contact status verification (Stop-if-replied/bounced/unsubscribed check) ──
+      if (entityType === "contact") {
+        const freshContact = db
+          .prepare("SELECT status FROM contacts WHERE id = ? AND workspaceId = ?")
+          .get(entityId, ctx.workspaceId) as { status: string | null } | undefined;
+
+        if (freshContact) {
+          const status = (freshContact.status || "").toUpperCase();
+          if (status === "REPLIED" || status === "BOUNCED" || status === "UNSUBSCRIBED") {
+            ctx.emitLog(
+              `Aborting execution loop: contact status is "${status}". Stop condition matched.`,
+              "info",
+            );
+            const stopNow = new Date().toISOString();
+            db.transaction(() => {
+              db.prepare(
+                `
+                UPDATE sequence_executions
+                SET status = 'completed', completedAt = ?, updatedAt = ?
+                WHERE id = ?
+              `,
+              ).run(stopNow, stopNow, executionId);
+
+              db.prepare(
+                `
+                INSERT INTO sequence_logs (
+                  id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
+                ) VALUES (?, ?, ?, ?, ?, 'STOP', 'success', ?, ?, ?)
+              `,
+              ).run(
+                randomUUID(),
+                executionId,
+                ctx.workspaceId,
+                stopNow,
+                currentStep,
+                `Stopped early: contact status changed to "${status}".`,
+                stopNow,
+                stopNow,
+              );
+            })();
+
+            db.prepare(
+              "DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?",
+            ).run(sequenceId, entityId);
+
+            publishAutomationEvent("automation:completed", {
+              executionId,
+              sequenceId,
+              workspaceId: ctx.workspaceId,
+              entityId,
+              currentStep,
+              workerPid: process.pid,
+              timestamp: new Date().toISOString(),
+            });
+
+            db.close();
+            return {
+              status: "completed",
+              executionId,
+              sequenceId,
+              entityId,
+              currentStep,
+              stoppedReason: `status_${status.toLowerCase()}`,
+            };
+          }
+        }
+      }
+
       // ── Pause check ────────────────────────────────────────────────────────
       if (ctx.isPaused()) {
         execCtx!.execution.currentStep = currentStep;
