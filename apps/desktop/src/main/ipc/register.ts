@@ -9,6 +9,7 @@ import { registerAutomationIpc } from './automation';
 import { registerSchedulerIpc } from './scheduler';
 import { registerDashboardIpc } from './dashboard';
 import { registerLinkedInIpc } from './linkedin';
+import { registerCampaignsIpc } from './campaigns-ipc';
 import { WorkspaceManager } from '../lib/workspace-manager';
 
 /**
@@ -44,4 +45,5 @@ export function registerAllIpc(
   registerSchedulerIpc();
   registerDashboardIpc();
   registerLinkedInIpc();
+  registerCampaignsIpc();
 }

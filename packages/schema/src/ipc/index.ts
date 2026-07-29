@@ -122,7 +122,7 @@ export interface IpcChannelMap {
     output: any;
   };
   'companies:delete': {
-    input: string;
+    input: { workspaceId: string; id: string };
     output: void;
   };
   'contacts:get': {
@@ -142,7 +142,7 @@ export interface IpcChannelMap {
     output: any;
   };
   'contacts:delete': {
-    input: string;
+    input: { workspaceId: string; id: string };
     output: void;
   };
   'campaigns:get': {
@@ -162,8 +162,32 @@ export interface IpcChannelMap {
     output: any;
   };
   'campaigns:delete': {
-    input: string;
+    input: { workspaceId: string; id: string };
     output: void;
+  };
+  'campaigns:enroll': {
+    input: { campaignId: string; contactIds: string[] };
+    output: { success: boolean; enrolledCount: number };
+  };
+  'campaigns:enrollments:list': {
+    input: { workspaceId: string; campaignId: string | null };
+    output: any[];
+  };
+  'campaigns:bulk-pause-enrollments': {
+    input: { campaignId: string | null; enrollmentIds: string[] };
+    output: { success: boolean };
+  };
+  'campaigns:bulk-resume-enrollments': {
+    input: { campaignId: string | null; enrollmentIds: string[] };
+    output: { success: boolean };
+  };
+  'campaigns:bulk-remove-enrollments': {
+    input: { campaignId: string | null; enrollmentIds: string[] };
+    output: { success: boolean };
+  };
+  'scheduler:queue:list': {
+    input: { workspaceId: string };
+    output: { jobs: any[]; waiting: any[] };
   };
 
   // ── Local SQLite Cache Queries ───────────────────────────────────────────

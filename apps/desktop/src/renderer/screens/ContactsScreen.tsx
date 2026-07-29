@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { useWorkspace } from '../hooks/useWorkspace';
 import { SyncContactRepository, SyncCompanyRepository } from '../repositories/sync';
 import {
   useEntityList,
@@ -12,6 +14,7 @@ import { TagSystem } from '../components/crm/TagSystem';
 import { NotesSystem } from '../components/crm/NotesSystem';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Label } from '../components/ui/label';
 import { Users, X, Mail, Phone, Briefcase, Linkedin, Sparkles } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { ContactStatus } from '@leadforge/schema';
@@ -21,11 +24,43 @@ import { ContactStatus } from '@leadforge/schema';
  * and CRUD actions.
  */
 export default function ContactsScreen() {
+  const { activeWorkspace } = useWorkspace();
+  const workspaceId = activeWorkspace?.id || '';
+  
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [sourcePlatformFilter, setSourcePlatformFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedContact, setSelectedContact] = useState<any | null>(null);
+
+  // Campaign enrollment states
+  const [enrollOpen, setEnrollOpen] = useState(false);
+  const [enrollCampaignId, setEnrollCampaignId] = useState('');
+
+  // Fetch campaigns for enrollment selector
+  const campaignsQuery = useQuery({
+    queryKey: ['campaigns', workspaceId],
+    queryFn: async () => {
+      return window.ipc.invoke('campaigns:list', { workspaceId });
+    },
+    enabled: !!workspaceId,
+  });
+
+  // Enrollment mutation
+  const enrollMutation = useMutation({
+    mutationFn: async (payload: { campaignId: string; contactIds: string[] }) => {
+      return window.ipc.invoke('campaigns:enroll', payload);
+    },
+    onSuccess: () => {
+      setEnrollOpen(false);
+      setEnrollCampaignId('');
+      setSelectedIds([]);
+      alert('Successfully enrolled selected contact(s) into campaign!');
+    },
+    onError: (err: any) => {
+      alert(`Enrollment failed: ${err.message}`);
+    }
+  });
 
   // Dialog controls
   const [createOpen, setCreateOpen] = useState(false);
@@ -131,6 +166,7 @@ export default function ContactsScreen() {
           onBulkDelete={handleBulkDelete}
           onBulkStatusChange={handleBulkStatusChange}
           bulkStatusOptions={Object.values(ContactStatus)}
+          onBulkEnroll={() => setEnrollOpen(true)}
         >
           <select
             value={sourcePlatformFilter}
@@ -407,6 +443,53 @@ export default function ContactsScreen() {
               onCancel={() => setEditOpen(false)}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Campaign Enrollment Dialog ────────────────────────────────────── */}
+      <Dialog open={enrollOpen} onOpenChange={setEnrollOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Enroll Leads in Campaign</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-[11px] text-muted-foreground">
+              You are enrolling {selectedIds.length} contact(s) into an outreach campaign.
+            </p>
+            <div className="space-y-1">
+              <Label htmlFor="enrollCampSelect">Outreach Campaign</Label>
+              <select
+                id="enrollCampSelect"
+                value={enrollCampaignId}
+                onChange={(e) => setEnrollCampaignId(e.target.value)}
+                className="w-full h-8 px-2 bg-background border border-input rounded text-xs focus-visible:outline-none"
+              >
+                <option value="">-- Select Campaign --</option>
+                {(campaignsQuery.data || []).map((camp: any) => (
+                  <option key={camp.id} value={camp.id}>
+                    {camp.name} ({camp.status})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-border-subtle">
+              <Button type="button" variant="outline" onClick={() => setEnrollOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!enrollCampaignId) {
+                    alert('Please select a campaign.');
+                    return;
+                  }
+                  enrollMutation.mutate({ campaignId: enrollCampaignId, contactIds: selectedIds });
+                }}
+                disabled={enrollMutation.isPending}
+              >
+                {enrollMutation.isPending ? 'Enrolling...' : 'Confirm Enrollment'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

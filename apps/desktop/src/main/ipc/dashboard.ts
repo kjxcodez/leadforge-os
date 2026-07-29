@@ -14,13 +14,63 @@ export function registerDashboardIpc(): void {
     const totalCompanies = (db.prepare('SELECT COUNT(*) as count FROM companies WHERE workspaceId = ? AND deletedAt IS NULL').get(workspaceId) as any).count;
     const totalContacts = (db.prepare('SELECT COUNT(*) as count FROM contacts WHERE workspaceId = ? AND deletedAt IS NULL').get(workspaceId) as any).count;
     const totalCampaigns = (db.prepare('SELECT COUNT(*) as count FROM campaigns WHERE workspaceId = ? AND deletedAt IS NULL').get(workspaceId) as any).count;
-    const totalExecutions = (db.prepare('SELECT COUNT(*) as count FROM sequence_executions WHERE workspaceId = ? AND deletedAt IS NULL').get(workspaceId) as any).count;
+    
+    // Today's Sends (sequence_logs)
+    const todaySends = (db.prepare(`
+      SELECT COUNT(*) as count FROM sequence_logs 
+      WHERE workspaceId = ? AND action = 'EMAIL_SEND' AND status = 'success' AND date(timestamp) = date('now', 'localtime')
+    `).get(workspaceId) as any).count;
+
+    // Enrollment metrics (sequence_executions)
+    const executionStats = db.prepare(`
+      SELECT 
+        SUM(CASE WHEN status = 'waiting' THEN 1 ELSE 0 END) as waiting,
+        SUM(CASE WHEN status IN ('running', 'queued', 'starting') THEN 1 ELSE 0 END) as running,
+        SUM(CASE WHEN status IN ('replied', 'REPLIED') THEN 1 ELSE 0 END) as replied,
+        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+        SUM(CASE WHEN status = 'paused' THEN 1 ELSE 0 END) as paused,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
+      FROM sequence_executions
+      WHERE workspaceId = ? AND deletedAt IS NULL
+    `).get(workspaceId) as { waiting: number; running: number; replied: number; failed: number; paused: number; completed: number };
+
+    // Jobs and Queue Size
+    const jobsStats = db.prepare(`
+      SELECT 
+        COUNT(*) as totalJobs,
+        SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END) as queuedJobs
+      FROM jobs
+      WHERE workspaceId = ? AND status != 'completed' AND status != 'cancelled' AND status != 'failed'
+    `).get(workspaceId) as { totalJobs: number; queuedJobs: number };
+
+    // Sync status (sync_queue count)
+    const syncQueueCount = (db.prepare('SELECT COUNT(*) as count FROM sync_queue WHERE workspaceId = ?').get(workspaceId) as any).count;
+
+    // SMTP & IMAP Status (from email_accounts)
+    const emailAccount = db.prepare(`
+      SELECT status FROM email_accounts 
+      WHERE workspaceId = ? AND deletedAt IS NULL
+      ORDER BY createdAt ASC LIMIT 1
+    `).get(workspaceId) as { status: string } | undefined;
+
+    const emailStatus = emailAccount?.status || 'disconnected';
     
     return {
       totalCompanies,
       totalContacts,
       totalCampaigns,
-      totalExecutions
+      todaySends,
+      waitingCount: executionStats.waiting || 0,
+      runningCount: executionStats.running || 0,
+      repliedCount: executionStats.replied || 0,
+      failedCount: executionStats.failed || 0,
+      pausedCount: executionStats.paused || 0,
+      completedCount: executionStats.completed || 0,
+      totalJobs: jobsStats.totalJobs || 0,
+      queueSize: jobsStats.queuedJobs || 0,
+      syncQueueCount,
+      smtpStatus: emailStatus,
+      imapStatus: emailStatus
     };
   });
 

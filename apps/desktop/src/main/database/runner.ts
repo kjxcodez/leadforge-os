@@ -533,6 +533,30 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE contacts ADD COLUMN sourcePlatform TEXT;
     `,
   },
+  {
+    name: '018_campaigns_and_enrollments',
+    up: `
+      -- Extend campaigns table
+      ALTER TABLE campaigns ADD COLUMN description TEXT;
+      ALTER TABLE campaigns ADD COLUMN sequenceId TEXT;
+      ALTER TABLE campaigns ADD COLUMN sendingAccountId TEXT;
+      ALTER TABLE campaigns ADD COLUMN schedule TEXT;
+      ALTER TABLE campaigns ADD COLUMN timezone TEXT DEFAULT 'UTC';
+      ALTER TABLE campaigns ADD COLUMN dailyLimit INTEGER DEFAULT 0;
+
+      -- Extend sequence_executions (enrollments) table
+      ALTER TABLE sequence_executions ADD COLUMN campaignId TEXT;
+      ALTER TABLE sequence_executions ADD COLUMN currentStepName TEXT;
+      ALTER TABLE sequence_executions ADD COLUMN currentExecutionId TEXT;
+      ALTER TABLE sequence_executions ADD COLUMN lastRunAt DATETIME;
+      ALTER TABLE sequence_executions ADD COLUMN emailsSent INTEGER DEFAULT 0;
+      ALTER TABLE sequence_executions ADD COLUMN replies INTEGER DEFAULT 0;
+      ALTER TABLE sequence_executions ADD COLUMN failures INTEGER DEFAULT 0;
+
+      -- Add indexes for fast lookup
+      CREATE INDEX IF NOT EXISTS idx_sequence_executions_campaignId ON sequence_executions(campaignId);
+    `,
+  },
 ];
 
 

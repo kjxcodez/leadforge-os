@@ -21,7 +21,8 @@ export const RemoteCompanyRepository: IRemoteRepository<any> = {
   },
 
   async delete(id: string): Promise<void> {
-    return window.ipc.invoke('companies:delete', id);
+    const workspaceId = await window.ipc.invoke('electron:getActiveWorkspace', undefined);
+    return window.ipc.invoke('companies:delete', { workspaceId: workspaceId || '', id });
   },
 };
 
@@ -46,7 +47,8 @@ export const RemoteContactRepository: IRemoteRepository<any> = {
   },
 
   async delete(id: string): Promise<void> {
-    return window.ipc.invoke('contacts:delete', id);
+    const workspaceId = await window.ipc.invoke('electron:getActiveWorkspace', undefined);
+    return window.ipc.invoke('contacts:delete', { workspaceId: workspaceId || '', id });
   },
 };
 
@@ -71,7 +73,8 @@ export const RemoteCampaignRepository: IRemoteRepository<any> = {
   },
 
   async delete(id: string): Promise<void> {
-    return window.ipc.invoke('campaigns:delete', id);
+    const workspaceId = await window.ipc.invoke('electron:getActiveWorkspace', undefined);
+    return window.ipc.invoke('campaigns:delete', { workspaceId: workspaceId || '', id });
   },
 };
 

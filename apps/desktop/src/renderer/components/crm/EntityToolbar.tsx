@@ -17,6 +17,7 @@ interface EntityToolbarProps {
   onBulkAddTag?: () => void;
   onBulkStatusChange?: (status: string) => void;
   bulkStatusOptions?: string[];
+  onBulkEnroll?: () => void;
 }
 
 /**
@@ -36,6 +37,7 @@ export function EntityToolbar({
   onBulkAddTag,
   onBulkStatusChange,
   bulkStatusOptions = [],
+  onBulkEnroll,
   children,
 }: EntityToolbarProps & { children?: React.ReactNode }) {
   const [localSearch, setLocalSearch] = useState(search);
@@ -110,6 +112,18 @@ export function EntityToolbar({
                   </option>
                 ))}
               </select>
+            )}
+
+            {onBulkEnroll && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onBulkEnroll}
+                className="h-7 text-[10px] gap-1 border-border-subtle text-foreground hover:bg-accent/10"
+              >
+                <Plus className="w-3 h-3 text-accent" />
+                Enroll in Campaign
+              </Button>
             )}
 
             {onBulkAddTag && (
