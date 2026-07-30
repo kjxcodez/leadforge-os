@@ -115,6 +115,11 @@ contextBridge.exposeInMainWorld('ipc', {
       'linkedin:get-cookie-status',
       'linkedin:save-cookie',
       'linkedin:validate',
+      'intelligence:get',
+      'intelligence:trigger',
+      'onboarding:get-diagnostics',
+      'onboarding:generate-sample-data',
+      'onboarding:save-setting',
     ];
     if (validChannels.includes(channel as string)) {
       return ipcRenderer.invoke(channel, payload);
