@@ -627,6 +627,25 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_opportunity_scores_overall ON opportunity_scores(overallScore);
     `,
   },
+  {
+    name: '023_audit_trail_and_observability',
+    up: `
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        actor TEXT,
+        action TEXT NOT NULL,
+        entityId TEXT,
+        entityType TEXT,
+        beforeValue TEXT,
+        afterValue TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_workspaceId ON audit_logs(workspaceId);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp);
+    `,
+  },
 ];
 
 

@@ -526,6 +526,52 @@ export interface IpcChannelMap {
     input: { workspaceId: string; key: string; value: string };
     output: { success: boolean };
   };
+  'system-logs:query': {
+    input: { workspaceId: string; query?: string; severity?: string; limit?: number };
+    output: any[];
+  };
+  'audit-logs:list': {
+    input: { workspaceId: string; limit?: number };
+    output: any[];
+  };
+  'diagnostics:run': {
+    input: { workspaceId: string };
+    output: {
+      smtp: { status: 'healthy' | 'warning' | 'error'; message: string; guidance?: string };
+      imap: { status: 'healthy' | 'warning' | 'error'; message: string; guidance?: string };
+      internet: { status: 'healthy' | 'warning' | 'error'; message: string; guidance?: string };
+      dns: { status: 'healthy' | 'warning' | 'error'; message: string; guidance?: string };
+      sqlite: { status: 'healthy' | 'warning' | 'error'; message: string; guidance?: string };
+      workers: { status: 'healthy' | 'warning' | 'error'; message: string; guidance?: string };
+      ai: { status: 'healthy' | 'warning' | 'error'; message: string; guidance?: string };
+      disk: { status: 'healthy' | 'warning' | 'error'; message: string; guidance?: string };
+      memory: { status: 'healthy' | 'warning' | 'error'; message: string; guidance?: string };
+    };
+  };
+  'metrics:get': {
+    input: { workspaceId: string };
+    output: {
+      discoveryDurationAvg: number;
+      crawlerDurationAvg: number;
+      enrichmentDurationAvg: number;
+      workflowDurationAvg: number;
+      workerUtilization: number;
+      queueWaitTimeAvg: number;
+      dbQueryTimeAvg: number;
+    };
+  };
+  'errors:get': {
+    input: { workspaceId: string };
+    output: any[];
+  };
+  'recovery:execute': {
+    input: { workspaceId: string; action: string; targetId?: string };
+    output: { success: boolean; message: string };
+  };
+  'dev-mode:log': {
+    input: { workspaceId: string };
+    output: any[];
+  };
 }
 
 export interface IpcRequest<T> {

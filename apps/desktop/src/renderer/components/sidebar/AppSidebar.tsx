@@ -8,7 +8,7 @@ import {
   BarChart3,
   Settings,
   Hexagon,
-  Terminal,
+  Activity,
 } from "lucide-react";
 import {
   Sidebar,
@@ -32,7 +32,7 @@ const NAV_ITEMS = [
   { to: "/automation", label: "Automation", icon: GitBranch },
   { to: "/reports", label: "Reports", icon: BarChart3 },
   { to: "/settings", label: "Settings", icon: Settings },
-  { to: "/diagnostics", label: "Diagnostics", icon: Terminal },
+  { to: "/operations", label: "Operations Center", icon: Activity },
 ];
 
 export function AppSidebar({ activeWorkspace }: { activeWorkspace: any }) {

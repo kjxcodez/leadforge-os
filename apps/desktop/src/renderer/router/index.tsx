@@ -26,7 +26,7 @@ const ContactsScreen = lazy(() => import('../screens/ContactsScreen'));
 const DiscoveryScreen = lazy(() => import('../screens/DiscoveryScreen'));
 const CampaignsScreen = lazy(() => import('../screens/CampaignsScreen'));
 const AutomationScreen = lazy(() => import('../screens/AutomationScreen'));
-const DiagnosticsScreen = lazy(() => import('../screens/DiagnosticsScreen'));
+const OperationsCenterScreen = lazy(() => import('../screens/OperationsCenterScreen').then(m => ({ default: m.OperationsCenterScreen })));
 const ReportsScreen = lazy(() => import('../screens/ReportsScreen'));
 const OnboardingScreen = lazy(() => import('../screens/OnboardingScreen'));
 
@@ -143,7 +143,8 @@ const router = createHashRouter([
           { path: '/reports', element: <ReportsScreen /> },
           { path: '/settings', element: <WorkspaceSettingsScreen /> },
           { path: '/invites', element: <WorkspaceInvitesScreen /> },
-          { path: '/diagnostics', element: <DiagnosticsScreen /> },
+          { path: '/diagnostics', element: <Navigate to="/operations" replace /> },
+          { path: '/operations', element: <OperationsCenterScreen /> },
         ],
       },
     ],

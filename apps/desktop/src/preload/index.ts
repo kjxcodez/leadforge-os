@@ -120,6 +120,13 @@ contextBridge.exposeInMainWorld('ipc', {
       'onboarding:get-diagnostics',
       'onboarding:generate-sample-data',
       'onboarding:save-setting',
+      'system-logs:query',
+      'audit-logs:list',
+      'diagnostics:run',
+      'metrics:get',
+      'errors:get',
+      'recovery:execute',
+      'dev-mode:log',
     ];
     if (validChannels.includes(channel as string)) {
       return ipcRenderer.invoke(channel, payload);
@@ -161,6 +168,7 @@ contextBridge.exposeInMainWorld('ipc', {
       'automation:failed',
       'automation:recovered',
       'workspace:boot-progress',
+      'scheduler:tick',
     ];
     if (validChannels.includes(channel as string)) {
       const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(args[0] as any);

@@ -112,7 +112,7 @@ export const LocalCRMRepository = {
 
     const runSaveTx = db.transaction(() => {
       // 1. Check if record already exists to determine CREATE vs UPDATE operation
-      const existing = db.prepare(`SELECT 1 FROM ${tableName} WHERE id = ?`).get(record.id);
+      const existing = db.prepare(`SELECT * FROM ${tableName} WHERE id = ?`).get(record.id) as any;
       const operation = existing ? 'UPDATE' : 'CREATE';
 
       // 2. Perform write on target table
@@ -133,6 +133,25 @@ export const LocalCRMRepository = {
           JSON.stringify(record),
           record.version || 1
         );
+      }
+
+      // 4. Audit Trail Logging (Phase 8)
+      try {
+        const auditLogId = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : require('crypto').randomUUID();
+        db.prepare(`
+          INSERT INTO audit_logs (id, workspaceId, actor, action, entityId, entityType, beforeValue, afterValue, timestamp)
+          VALUES (?, ?, 'user', ?, ?, ?, ?, ?, datetime('now'))
+        `).run(
+          auditLogId,
+          workspaceId,
+          `${tableName.toLowerCase()}:${operation.toLowerCase()}`,
+          record.id,
+          tableName,
+          existing ? JSON.stringify(existing) : null,
+          JSON.stringify(record)
+        );
+      } catch (err) {
+        // Table not migrated yet
       }
     });
 
@@ -167,7 +186,7 @@ export const LocalCRMRepository = {
     const query = `INSERT OR REPLACE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
     
     const statement = db.prepare(query);
-    const checkStmt = db.prepare(`SELECT 1 FROM ${tableName} WHERE id = ?`);
+    const checkStmt = db.prepare(`SELECT * FROM ${tableName} WHERE id = ?`);
     const insertSyncQueue = db.prepare(`
       INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
       VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -184,7 +203,7 @@ export const LocalCRMRepository = {
           return val;
         });
 
-        const existing = checkStmt.get(item.id);
+        const existing = checkStmt.get(item.id) as any;
         const operation = existing ? 'UPDATE' : 'CREATE';
 
         statement.run(...params);
@@ -199,6 +218,25 @@ export const LocalCRMRepository = {
             JSON.stringify(item),
             item.version || 1
           );
+        }
+
+        // Audit Trail Logging (Phase 8)
+        try {
+          const auditLogId = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : require('crypto').randomUUID();
+          db.prepare(`
+            INSERT INTO audit_logs (id, workspaceId, actor, action, entityId, entityType, beforeValue, afterValue, timestamp)
+            VALUES (?, ?, 'user', ?, ?, ?, ?, ?, datetime('now'))
+          `).run(
+            auditLogId,
+            workspaceId,
+            `${tableName.toLowerCase()}:${operation.toLowerCase()}`,
+            item.id,
+            tableName,
+            existing ? JSON.stringify(existing) : null,
+            JSON.stringify(item)
+          );
+        } catch (err) {
+          // Table not migrated yet
         }
       }
     });
@@ -217,6 +255,7 @@ export const LocalCRMRepository = {
 
     const transaction = db.transaction(() => {
       // 1. Mark soft delete locally
+      const existing = db.prepare(`SELECT * FROM ${tableName} WHERE id = ?`).get(id) as any;
       db.prepare(`UPDATE ${tableName} SET deletedAt = ?, syncStatus = ? WHERE id = ?`).run(
         new Date().toISOString(),
         'pending',
@@ -237,6 +276,24 @@ export const LocalCRMRepository = {
           null,
           1
         );
+      }
+
+      // 3. Audit Trail Logging (Phase 8)
+      try {
+        const auditLogId = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : require('crypto').randomUUID();
+        db.prepare(`
+          INSERT INTO audit_logs (id, workspaceId, actor, action, entityId, entityType, beforeValue, afterValue, timestamp)
+          VALUES (?, ?, 'user', ?, ?, ?, ?, NULL, datetime('now'))
+        `).run(
+          auditLogId,
+          workspaceId,
+          `${tableName.toLowerCase()}:delete`,
+          id,
+          tableName,
+          existing ? JSON.stringify(existing) : null
+        );
+      } catch (err) {
+        // Table not migrated yet
       }
     });
 
