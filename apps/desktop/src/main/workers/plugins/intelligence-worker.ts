@@ -43,11 +43,18 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
 
     // 4. Check if website html has been crawled
     // We can query from page_crawls or similar if available, or simulate website html analysis
-    const crawlerRow = db.prepare(`
-      SELECT html FROM page_crawls WHERE companyId = ? ORDER BY id DESC LIMIT 1
-    `).get(companyId) as { html: string } | undefined;
+    let htmlContent = '<html><body>Mock site content</body></html>';
+    try {
+      const crawlerRow = db.prepare(`
+        SELECT html FROM page_crawls WHERE companyId = ? ORDER BY id DESC LIMIT 1
+      `).get(companyId) as { html: string } | undefined;
+      if (crawlerRow?.html) {
+        htmlContent = crawlerRow.html;
+      }
+    } catch {
+      // Fallback if table doesn't exist
+    }
 
-    const htmlContent = crawlerRow?.html || '<html><body>Mock site content</body></html>';
     const webIntel = WebsiteAnalyzer.analyze(companyId, htmlContent, company.website || '');
     ctx.updateProgress(45, { description: 'Completed company and website technical analysis' });
 
