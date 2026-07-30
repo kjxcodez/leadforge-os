@@ -1836,10 +1836,14 @@ function loadSettings(
 }
 
 function resolveSettingValue(
+  secrets: Record<string, string> | undefined,
   settings: Map<string, string>,
   ...keys: string[]
 ): string | undefined {
   for (const key of keys) {
+    if (secrets && secrets[key] !== undefined && secrets[key] !== null && secrets[key].trim() !== '') {
+      return secrets[key].trim();
+    }
     const val = settings.get(key);
     if (val !== undefined && val !== null && val.trim() !== "")
       return val.trim();
@@ -1918,15 +1922,17 @@ async function handleSendEmailStep(
     .get(workspaceId) as
     { id: string; email: string; name: string } | undefined;
 
-  let host = resolveSettingValue(settings, "smtp.host", "smtpHost", "host");
-  let portStr = resolveSettingValue(settings, "smtp.port", "smtpPort", "port");
+  let host = resolveSettingValue(ctx.payload._secrets, settings, "smtp.host", "smtpHost", "host");
+  let portStr = resolveSettingValue(ctx.payload._secrets, settings, "smtp.port", "smtpPort", "port");
   let secureStr = resolveSettingValue(
+    ctx.payload._secrets,
     settings,
     "smtp.secure",
     "smtpSecure",
     "secure",
   );
   let username = resolveSettingValue(
+    ctx.payload._secrets,
     settings,
     "smtp.username",
     "smtp.user",
@@ -1934,6 +1940,7 @@ async function handleSendEmailStep(
     "username",
   );
   let password = resolveSettingValue(
+    ctx.payload._secrets,
     settings,
     "smtp.password",
     "smtp.pass",
@@ -1942,6 +1949,7 @@ async function handleSendEmailStep(
   );
   let senderName =
     resolveSettingValue(
+      ctx.payload._secrets,
       settings,
       "smtp.senderName",
       "smtpSenderName",
@@ -1949,6 +1957,7 @@ async function handleSendEmailStep(
     ) || "LeadForge OS";
   let senderEmail =
     resolveSettingValue(
+      ctx.payload._secrets,
       settings,
       "smtp.senderEmail",
       "smtpSenderEmail",

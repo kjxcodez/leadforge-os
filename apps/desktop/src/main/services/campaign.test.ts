@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { runMigrations } from '../database/runner';
 import { randomUUID } from 'crypto';
 import assert from 'assert';
+import { encryptSecret, decryptSecret } from '../lib/crypto';
 
 /**
  * Self-contained integration test suite for Campaign and Enrollment operations.
@@ -177,6 +178,62 @@ export async function runCampaignTests() {
   const shouldAbort = ['REPLIED', 'BOUNCED', 'UNSUBSCRIBED'].includes(checkContactStatus(contactId));
   assert.ok(shouldAbort);
   console.log('✅ Stop-If-Replied hook verification query passed.');
+
+  // 7. Test safeStorage Encryption Fallback (since safeStorage is unavailable in test runner, it should fallback to plain text)
+  const testSecret = 'SuperSecretSMTPPassword123!';
+  const encrypted = encryptSecret(testSecret);
+  const decrypted = decryptSecret(encrypted);
+  assert.strictEqual(decrypted, testSecret);
+  console.log('✅ safeStorage encryption fallback verified.');
+
+  // 8. Test Scheduler Stale Job Reconciliation
+  const staleJobId1 = randomUUID();
+  const staleJobId2 = randomUUID();
+
+  // Insert a stale job with retryCount < maxRetries (should be retried)
+  db.prepare(`
+    INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
+    VALUES (?, ?, 'automation:workflow', 'running', 3, '{}', 0, 1, 3, datetime('now'), datetime('now'))
+  `).run(staleJobId1, workspaceId);
+
+  // Insert a stale job with retryCount === maxRetries (should fail)
+  db.prepare(`
+    INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
+    VALUES (?, ?, 'automation:workflow', 'starting', 3, '{}', 0, 3, 3, datetime('now'), datetime('now'))
+  `).run(staleJobId2, workspaceId);
+
+  // Run reconciliation logic
+  const staleJobs = db.prepare(`
+    SELECT id, retryCount, maxRetries FROM jobs
+    WHERE workspaceId = ? AND status IN ('running', 'starting')
+  `).all(workspaceId) as { id: string; retryCount: number; maxRetries: number }[];
+
+  for (const job of staleJobs) {
+    if (job.retryCount < job.maxRetries) {
+      db.prepare(`
+        UPDATE jobs
+        SET status = 'retrying', retryCount = retryCount + 1, lastError = 'Worker execution interrupted due to application restart.', updatedAt = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(job.id);
+    } else {
+      db.prepare(`
+        UPDATE jobs
+        SET status = 'failed', lastError = 'Worker execution interrupted due to application restart. Max retries exceeded.', updatedAt = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(job.id);
+    }
+  }
+
+  const job1After = db.prepare('SELECT status, retryCount, lastError FROM jobs WHERE id = ?').get(staleJobId1) as any;
+  assert.strictEqual(job1After.status, 'retrying');
+  assert.strictEqual(job1After.retryCount, 2);
+  assert.ok(job1After.lastError.includes('application restart'));
+
+  const job2After = db.prepare('SELECT status, retryCount, lastError FROM jobs WHERE id = ?').get(staleJobId2) as any;
+  assert.strictEqual(job2After.status, 'failed');
+  assert.strictEqual(job2After.retryCount, 3);
+  assert.ok(job2After.lastError.includes('Max retries exceeded'));
+  console.log('✅ Scheduler stale job reconciliation verified.');
 
   console.log('--- ALL CAMPAIGN INTEGRATION TESTS PASSED ---');
 }

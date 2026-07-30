@@ -70,8 +70,8 @@ export async function enrichLinkedIn(ctx: JobContext): Promise<any> {
   const dbPath = join(dbDir, `leadforge_${ctx.workspaceId}.db`);
   const db = new Database(dbPath);
 
-  // 1. Get stored LinkedIn cookie from settings table or process.env
-  let cookie = process.env.LINKEDIN_COOKIE || '';
+  // 1. Get stored LinkedIn cookie from settings table, process.env, or payload secrets
+  let cookie = ctx.payload._secrets?.['linkedin_li_at'] || process.env.LINKEDIN_COOKIE || '';
   if (!cookie) {
     const settingRow = db.prepare('SELECT value FROM settings WHERE workspaceId = ? AND key = ?').get(ctx.workspaceId, 'linkedin_li_at') as { value: string } | undefined;
     if (settingRow && settingRow.value) {

@@ -21,8 +21,11 @@ function loadSettings(db: Database.Database, workspaceId: string): Map<string, s
   return map;
 }
 
-function resolveSettingValue(settings: Map<string, string>, ...keys: string[]): string | undefined {
+function resolveSettingValue(secrets: Record<string, string> | undefined, settings: Map<string, string>, ...keys: string[]): string | undefined {
   for (const key of keys) {
+    if (secrets && secrets[key] !== undefined && secrets[key] !== null && secrets[key].trim() !== '') {
+      return secrets[key].trim();
+    }
     const val = settings.get(key);
     if (val !== undefined && val !== null && val.trim() !== '') {
       return val.trim();
@@ -53,16 +56,16 @@ export async function pollImapReplies(ctx: JobContext): Promise<any> {
     const settings = loadSettings(db, ctx.workspaceId);
 
     // 1. Resolve IMAP configurations (with smart SMTP fallbacks)
-    const smtpHost = resolveSettingValue(settings, 'smtp.host', 'smtpHost', 'host') || '';
+    const smtpHost = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.host', 'smtpHost', 'host') || '';
     const fallbackImapHost = smtpHost.toLowerCase().includes('smtp.') 
       ? smtpHost.replace(/smtp\./i, 'imap.')
       : (smtpHost ? `imap.${smtpHost}` : '');
 
-    const host = resolveSettingValue(settings, 'imap.host', 'imapHost') || fallbackImapHost;
-    const portStr = resolveSettingValue(settings, 'imap.port', 'imapPort');
-    const secureStr = resolveSettingValue(settings, 'imap.secure', 'imapSecure');
-    const username = resolveSettingValue(settings, 'imap.username', 'smtp.username', 'smtp.user', 'username') || '';
-    const password = resolveSettingValue(settings, 'imap.password', 'smtp.password', 'smtp.pass', 'password') || '';
+    const host = resolveSettingValue(ctx.payload._secrets, settings, 'imap.host', 'imapHost') || fallbackImapHost;
+    const portStr = resolveSettingValue(ctx.payload._secrets, settings, 'imap.port', 'imapPort');
+    const secureStr = resolveSettingValue(ctx.payload._secrets, settings, 'imap.secure', 'imapSecure');
+    const username = resolveSettingValue(ctx.payload._secrets, settings, 'imap.username', 'smtp.username', 'smtp.user', 'username') || '';
+    const password = resolveSettingValue(ctx.payload._secrets, settings, 'imap.password', 'smtp.password', 'smtp.pass', 'password') || '';
 
     if (!host || !username || !password) {
       ctx.emitLog('IMAP connection skipped: Incomplete credentials configuration.', 'warn');

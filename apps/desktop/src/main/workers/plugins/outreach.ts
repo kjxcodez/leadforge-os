@@ -63,8 +63,11 @@ function loadSettings(db: Database.Database, workspaceId: string): Map<string, s
  * Resolves a settings value by trying multiple key aliases in order,
  * returning the first non-null, non-empty match.
  */
-function resolveSettingValue(settings: Map<string, string>, ...keys: string[]): string | undefined {
+function resolveSettingValue(secrets: Record<string, string> | undefined, settings: Map<string, string>, ...keys: string[]): string | undefined {
   for (const key of keys) {
+    if (secrets && secrets[key] !== undefined && secrets[key] !== null && secrets[key].trim() !== '') {
+      return secrets[key].trim();
+    }
     const val = settings.get(key);
     if (val !== undefined && val !== null && val.trim() !== '') {
       return val.trim();
@@ -126,13 +129,13 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
 
     const settings = loadSettings(db, ctx.workspaceId);
 
-    const host = resolveSettingValue(settings, 'smtp.host', 'smtpHost', 'host');
-    const portStr = resolveSettingValue(settings, 'smtp.port', 'smtpPort', 'port');
-    const secureStr = resolveSettingValue(settings, 'smtp.secure', 'smtpSecure', 'secure');
-    const username = resolveSettingValue(settings, 'smtp.username', 'smtp.user', 'smtpUsername', 'username');
-    const password = resolveSettingValue(settings, 'smtp.password', 'smtp.pass', 'smtpPassword', 'password');
-    const senderName = resolveSettingValue(settings, 'smtp.senderName', 'smtpSenderName', 'senderName') || 'LeadForge OS';
-    const senderEmail = resolveSettingValue(settings, 'smtp.senderEmail', 'smtpSenderEmail', 'senderEmail') || username;
+    const host = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.host', 'smtpHost', 'host');
+    const portStr = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.port', 'smtpPort', 'port');
+    const secureStr = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.secure', 'smtpSecure', 'secure');
+    const username = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.username', 'smtp.user', 'smtpUsername', 'username');
+    const password = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.password', 'smtp.pass', 'smtpPassword', 'password');
+    const senderName = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.senderName', 'smtpSenderName', 'senderName') || 'LeadForge OS';
+    const senderEmail = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.senderEmail', 'smtpSenderEmail', 'senderEmail') || username;
 
     // Validate required credentials
     if (!host || !username || !password) {

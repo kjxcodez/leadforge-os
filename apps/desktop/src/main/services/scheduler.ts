@@ -6,6 +6,7 @@ import { is } from '@electron-toolkit/utils';
 import Database from 'better-sqlite3';
 import { LocalEventBus } from '../lib/event-bus';
 import { AppLogger } from '../lib/logger';
+import { decryptSecret } from '../lib/crypto';
 import type { JobPayload, SchedulerConfig } from '../../shared/types/job';
 import type { MainToWorkerMsg, WorkerToMainMsg } from '../../shared/types/ipc';
 
@@ -59,6 +60,35 @@ export class JobScheduler {
    */
   public async start(): Promise<void> {
     if (this.intervalId) return;
+
+    // Reconcile stale jobs on startup
+    try {
+      const staleJobs = this.db.prepare(`
+        SELECT id, retryCount, maxRetries FROM jobs
+        WHERE workspaceId = ? AND status IN ('running', 'starting')
+      `).all(this.workspaceId) as { id: string; retryCount: number; maxRetries: number }[];
+
+      for (const job of staleJobs) {
+        if (job.retryCount < job.maxRetries) {
+          this.db.prepare(`
+            UPDATE jobs
+            SET status = 'retrying', retryCount = retryCount + 1, lastError = 'Worker execution interrupted due to application restart.', updatedAt = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `).run(job.id);
+        } else {
+          this.db.prepare(`
+            UPDATE jobs
+            SET status = 'failed', lastError = 'Worker execution interrupted due to application restart. Max retries exceeded.', updatedAt = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `).run(job.id);
+        }
+      }
+      if (staleJobs.length > 0) {
+        AppLogger.info('JobScheduler', `Reconciled ${staleJobs.length} stale starting/running jobs on startup.`, this.workspaceId);
+      }
+    } catch (err) {
+      AppLogger.error('JobScheduler', 'Failed to reconcile stale jobs on startup', this.workspaceId, err);
+    }
 
     this.intervalId = setInterval(() => this.tick(), 1000);
     AppLogger.info('JobScheduler', `Scheduler started for workspace: ${this.workspaceId}`, this.workspaceId);
@@ -503,6 +533,20 @@ export class JobScheduler {
       } catch {
         // Malformed checkpoint data — start fresh without it.
       }
+    }
+
+    // Inject decrypted secrets for the worker
+    try {
+      const rows = this.db.prepare(`SELECT key, value FROM settings WHERE workspaceId = ?`).all(this.workspaceId) as { key: string; value: string }[];
+      const secrets: Record<string, string> = {};
+      for (const row of rows) {
+        if (row.key && row.value) {
+          secrets[row.key] = decryptSecret(row.value);
+        }
+      }
+      parsedPayload._secrets = secrets;
+    } catch (err) {
+      AppLogger.error('JobScheduler', 'Failed to load secrets for worker payload', this.workspaceId, err);
     }
 
     worker.send({
