@@ -179,21 +179,18 @@ export function resolveVariables(
   );
 }
 
-/**
- * Recursively resolves variables inside strings, arrays, and nested objects.
- * Resolves secrets dynamically at execution time. Secrets are never stored or logged.
- */
 export function resolveVariablesRecursive(
   val: any,
   ctx: ExecutionContext,
   db?: Database.Database,
   workspaceId?: string,
+  secrets?: Record<string, string>,
 ): any {
   if (val === null || val === undefined) return val;
 
   if (typeof val === "string") {
-    // 1. Resolve secrets first if db and workspaceId are provided
-    if (db && workspaceId && val.includes("{{secret.")) {
+    // 1. Resolve secrets first
+    if (val.includes("{{secret.")) {
       return val.replace(/\{\{secret\.([^}]+)\}\}/g, (_m, key: string) => {
         const trimmedKey = key.trim();
         const possibleKeys = [
@@ -201,13 +198,24 @@ export function resolveVariablesRecursive(
           `secret.${trimmedKey}`,
           `secrets.${trimmedKey}`,
         ];
-        for (const pk of possibleKeys) {
-          const row = db
-            .prepare(
-              "SELECT value FROM settings WHERE workspaceId = ? AND key = ?",
-            )
-            .get(workspaceId, pk) as { value: string } | undefined;
-          if (row?.value) return row.value;
+        // 1.1 Check injected secrets from payload first (Least Privilege)
+        if (secrets) {
+          for (const pk of possibleKeys) {
+            if (secrets[pk] !== undefined && secrets[pk] !== null) {
+              return secrets[pk];
+            }
+          }
+        }
+        // 1.2 Fallback to database settings table
+        if (db && workspaceId) {
+          for (const pk of possibleKeys) {
+            const row = db
+              .prepare(
+                "SELECT value FROM settings WHERE workspaceId = ? AND key = ?",
+              )
+              .get(workspaceId, pk) as { value: string } | undefined;
+            if (row?.value) return row.value;
+          }
         }
         return "";
       });
@@ -218,14 +226,14 @@ export function resolveVariablesRecursive(
 
   if (Array.isArray(val)) {
     return val.map((item) =>
-      resolveVariablesRecursive(item, ctx, db, workspaceId),
+      resolveVariablesRecursive(item, ctx, db, workspaceId, secrets),
     );
   }
 
   if (typeof val === "object") {
     const res: Record<string, any> = {};
     for (const [k, v] of Object.entries(val)) {
-      res[k] = resolveVariablesRecursive(v, ctx, db, workspaceId);
+      res[k] = resolveVariablesRecursive(v, ctx, db, workspaceId, secrets);
     }
     return res;
   }
@@ -1995,8 +2003,32 @@ async function handleSendEmailStep(
       subject: renderedSubject,
       html: renderedBody,
     });
+    const sentMsgId = sendResult.messageId;
+    if (sentMsgId) {
+      try {
+        const row = db
+          .prepare("SELECT sentMessageIds FROM sequence_executions WHERE id = ?")
+          .get(execCtx.execution.id) as { sentMessageIds: string | null } | undefined;
+        let ids: string[] = [];
+        if (row?.sentMessageIds) {
+          try {
+            ids = JSON.parse(row.sentMessageIds);
+            if (!Array.isArray(ids)) ids = [];
+          } catch {
+            // fallback
+          }
+        }
+        ids.push(sentMsgId);
+        db.prepare(
+          "UPDATE sequence_executions SET sentMessageIds = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
+        ).run(JSON.stringify(ids), execCtx.execution.id);
+      } catch (err: any) {
+        ctx.emitLog(`Failed to record sent messageId: ${err.message}`, "error");
+      }
+    }
+
     ctx.emitLog(
-      `SMTP send success: messageId=${sendResult.messageId || "unknown"}, ` +
+      `SMTP send success: messageId=${sentMsgId || "unknown"}, ` +
         `recipient=${contact.email}, subject=${renderedSubject}`,
       "info",
     );
@@ -2447,7 +2479,7 @@ async function handleHttpRequestStep(
   if (!rawUrl) throw new Error("HTTP_REQUEST: missing url");
 
   const resolvedUrl = String(
-    resolveVariablesRecursive(rawUrl, execCtx, db, workspaceId),
+    resolveVariablesRecursive(rawUrl, execCtx, db, workspaceId, ctx.payload._secrets),
   );
   const redactedHdrs = redactHeaders(
     resolveVariablesRecursive(
@@ -2455,6 +2487,7 @@ async function handleHttpRequestStep(
       execCtx,
       db,
       workspaceId,
+      ctx.payload._secrets,
     ),
   );
   const resolvedBody = resolveVariablesRecursive(
@@ -2462,6 +2495,7 @@ async function handleHttpRequestStep(
     execCtx,
     db,
     workspaceId,
+    ctx.payload._secrets,
   );
 
   // Unredacted configurations for sending
@@ -2470,6 +2504,7 @@ async function handleHttpRequestStep(
     execCtx,
     db,
     workspaceId,
+    ctx.payload._secrets,
   );
 
   let bodyToSend: any = undefined;

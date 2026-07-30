@@ -63,26 +63,67 @@ export class JobScheduler {
 
     // Reconcile stale jobs on startup
     try {
+      // 1. Run SMTP settings automatic migration
+      this.migrateLegacySmtpSettings();
+
       const staleJobs = this.db.prepare(`
-        SELECT id, retryCount, maxRetries FROM jobs
+        SELECT id, type, payload, retryCount, maxRetries FROM jobs
         WHERE workspaceId = ? AND status IN ('running', 'starting')
-      `).all(this.workspaceId) as { id: string; retryCount: number; maxRetries: number }[];
+      `).all(this.workspaceId) as { id: string; type: string; payload: string; retryCount: number; maxRetries: number }[];
 
       for (const job of staleJobs) {
+        let executionId: string | null = null;
+        if (job.type === 'automation:workflow' && job.payload) {
+          try {
+            const p = JSON.parse(job.payload);
+            executionId = p.executionId;
+          } catch {
+            // ignore
+          }
+        }
+
         if (job.retryCount < job.maxRetries) {
           this.db.prepare(`
             UPDATE jobs
             SET status = 'retrying', retryCount = retryCount + 1, lastError = 'Worker execution interrupted due to application restart.', updatedAt = CURRENT_TIMESTAMP
             WHERE id = ?
           `).run(job.id);
+
+          if (executionId) {
+            this.db.prepare(`
+              UPDATE sequence_executions
+              SET status = 'waiting', updatedAt = CURRENT_TIMESTAMP
+              WHERE id = ? AND status IN ('running', 'starting')
+            `).run(executionId);
+          }
         } else {
           this.db.prepare(`
             UPDATE jobs
             SET status = 'failed', lastError = 'Worker execution interrupted due to application restart. Max retries exceeded.', updatedAt = CURRENT_TIMESTAMP
             WHERE id = ?
           `).run(job.id);
+
+          if (executionId) {
+            this.db.prepare(`
+              UPDATE sequence_executions
+              SET status = 'paused', lastError = 'Max retries exceeded due to restart interruption.', updatedAt = CURRENT_TIMESTAMP
+              WHERE id = ? AND status IN ('running', 'starting')
+            `).run(executionId);
+          }
         }
       }
+
+      // Transition any orphaned sequence executions stuck in running/starting back to waiting
+      this.db.prepare(`
+        UPDATE sequence_executions
+        SET status = 'waiting', updatedAt = CURRENT_TIMESTAMP
+        WHERE workspaceId = ? AND status IN ('running', 'starting')
+          AND id NOT IN (
+            SELECT json_extract(payload, '$.executionId') FROM jobs
+            WHERE workspaceId = ? AND status IN ('queued', 'starting', 'running', 'retrying')
+          )
+      `).run(this.workspaceId, this.workspaceId);
+
       if (staleJobs.length > 0) {
         AppLogger.info('JobScheduler', `Reconciled ${staleJobs.length} stale starting/running jobs on startup.`, this.workspaceId);
       }
@@ -535,13 +576,126 @@ export class JobScheduler {
       }
     }
 
-    // Inject decrypted secrets for the worker
+    // Inject decrypted secrets using the Principle of Least Privilege
     try {
-      const rows = this.db.prepare(`SELECT key, value FROM settings WHERE workspaceId = ?`).all(this.workspaceId) as { key: string; value: string }[];
       const secrets: Record<string, string> = {};
-      for (const row of rows) {
-        if (row.key && row.value) {
-          secrets[row.key] = decryptSecret(row.value);
+      if (job.type === 'automation:workflow') {
+        // 1. Resolve specific SMTP/IMAP credentials of the campaign's connected account
+        if (parsedPayload.executionId) {
+          const execRow = this.db.prepare(`
+            SELECT campaignId FROM sequence_executions WHERE id = ?
+          `).get(parsedPayload.executionId) as { campaignId: string | null } | undefined;
+
+          if (execRow?.campaignId) {
+            const campRow = this.db.prepare(`
+              SELECT sendingAccountId FROM campaigns WHERE id = ?
+            `).get(execRow.campaignId) as { sendingAccountId: string | null } | undefined;
+
+            if (campRow?.sendingAccountId) {
+              const accRow = this.db.prepare(`
+                SELECT smtpPassword, imapPassword FROM email_accounts WHERE id = ?
+              `).get(campRow.sendingAccountId) as { smtpPassword: string | null; imapPassword: string | null } | undefined;
+
+              if (accRow) {
+                if (accRow.smtpPassword) {
+                  secrets['smtp.password'] = decryptSecret(accRow.smtpPassword);
+                }
+                if (accRow.imapPassword) {
+                  secrets['imap.password'] = decryptSecret(accRow.imapPassword);
+                }
+              }
+            }
+          }
+        }
+
+        // 2. Scan the sequence steps for any requested {{secret.xxx}} keys
+        if (parsedPayload.sequenceId) {
+          const seqRow = this.db.prepare(`
+            SELECT steps FROM sequences WHERE id = ?
+          `).get(parsedPayload.sequenceId) as { steps: string } | undefined;
+
+          if (seqRow?.steps) {
+            const stepsStr = seqRow.steps;
+            const secretMatches = [...stepsStr.matchAll(/\{\{secret\.([^}]+)\}\}/g)];
+            for (const match of secretMatches) {
+              const rawKey = match[1] ? match[1].trim() : '';
+              if (!rawKey) continue;
+              const possibleKeys = [rawKey, `secret.${rawKey}`, `secrets.${rawKey}`];
+              for (const pk of possibleKeys) {
+                const row = this.db.prepare(`
+                  SELECT value FROM settings WHERE workspaceId = ? AND key = ?
+                `).get(this.workspaceId, pk) as { value: string } | undefined;
+                if (row?.value) {
+                  secrets[pk] = decryptSecret(row.value);
+                  break;
+                }
+              }
+            }
+          }
+        }
+      } else if (job.type === 'outreach:campaign') {
+        const campaignId = parsedPayload.campaignId;
+        if (campaignId) {
+          const campRow = this.db.prepare(`
+            SELECT sendingAccountId FROM campaigns WHERE id = ?
+          `).get(campaignId) as { sendingAccountId: string | null } | undefined;
+
+          if (campRow?.sendingAccountId) {
+            const accRow = this.db.prepare(`
+              SELECT smtpHost, smtpPort, smtpSecure, smtpUsername, smtpPassword,
+                     imapHost, imapPort, imapSecure, imapUsername, imapPassword
+              FROM email_accounts WHERE id = ?
+            `).get(campRow.sendingAccountId) as any;
+
+            if (accRow) {
+              secrets['smtp.host'] = accRow.smtpHost || '';
+              secrets['smtp.port'] = String(accRow.smtpPort || 465);
+              secrets['smtp.secure'] = accRow.smtpSecure || 'true';
+              secrets['smtp.username'] = accRow.smtpUsername || '';
+              secrets['smtp.password'] = decryptSecret(accRow.smtpPassword || '');
+              
+              secrets['imap.host'] = accRow.imapHost || '';
+              secrets['imap.port'] = String(accRow.imapPort || 993);
+              secrets['imap.secure'] = accRow.imapSecure || 'true';
+              secrets['imap.username'] = accRow.imapUsername || '';
+              secrets['imap.password'] = decryptSecret(accRow.imapPassword || '');
+            }
+          }
+        }
+      } else if (job.type === 'outreach:imap-poll' || job.type === 'imap-poll') {
+        const accounts = this.db.prepare(`
+          SELECT smtpHost, smtpPort, smtpSecure, smtpUsername, smtpPassword,
+                 imapHost, imapPort, imapSecure, imapUsername, imapPassword
+          FROM email_accounts WHERE workspaceId = ? AND deletedAt IS NULL
+        `).all(this.workspaceId) as any[];
+
+        if (accounts.length > 0) {
+          let target = accounts[0];
+          if (parsedPayload.accountId) {
+            const match = accounts.find(a => a.id === parsedPayload.accountId);
+            if (match) target = match;
+          }
+          if (target) {
+            secrets['smtp.host'] = target.smtpHost || '';
+            secrets['smtp.port'] = String(target.smtpPort || 465);
+            secrets['smtp.secure'] = target.smtpSecure || 'true';
+            secrets['smtp.username'] = target.smtpUsername || '';
+            secrets['smtp.password'] = decryptSecret(target.smtpPassword || '');
+            
+            secrets['imap.host'] = target.imapHost || '';
+            secrets['imap.port'] = String(target.imapPort || 993);
+            secrets['imap.secure'] = target.imapSecure || 'true';
+            secrets['imap.username'] = target.imapUsername || '';
+            secrets['imap.password'] = decryptSecret(target.imapPassword || '');
+          }
+        }
+      } else if (job.type.includes('linkedin') || job.type.includes('enrich')) {
+        // LinkedIn / enrichment workers only need the linkedin cookie
+        const row = this.db.prepare(`
+          SELECT value FROM settings WHERE workspaceId = ? AND key = 'linkedin_li_at'
+        `).get(this.workspaceId) as { value: string } | undefined;
+        if (row?.value) {
+          secrets['linkedin_li_at'] = decryptSecret(row.value);
         }
       }
       parsedPayload._secrets = secrets;
@@ -847,6 +1001,62 @@ export class JobScheduler {
     if (hb) {
       clearInterval(hb.intervalId);
       this.heartbeats.delete(jobId);
+    }
+  }
+
+  /**
+   * Automatically migrates legacy global SMTP/IMAP settings to the email_accounts table.
+   * Resolves configuration divergence and guarantees single authoritative credentials.
+   */
+  private migrateLegacySmtpSettings(): void {
+    try {
+      const legacyPassRow = this.db.prepare(`
+        SELECT value FROM settings WHERE workspaceId = ? AND key = 'smtp.password'
+      `).get(this.workspaceId) as { value: string } | undefined;
+
+      if (legacyPassRow && legacyPassRow.value) {
+        const firstAccount = this.db.prepare(`
+          SELECT id, email FROM email_accounts WHERE workspaceId = ? AND deletedAt IS NULL LIMIT 1
+        `).get(this.workspaceId) as { id: string; email: string } | undefined;
+
+        if (firstAccount) {
+          const accountDetails = this.db.prepare(`
+            SELECT smtpPassword FROM email_accounts WHERE id = ?
+          `).get(firstAccount.id) as { smtpPassword: string } | undefined;
+
+          if (!accountDetails?.smtpPassword) {
+            const smtpHost = (this.db.prepare(`SELECT value FROM settings WHERE workspaceId = ? AND key = 'smtp.host'`).get(this.workspaceId) as { value: string } | undefined)?.value || 'smtp.gmail.com';
+            const smtpPort = (this.db.prepare(`SELECT value FROM settings WHERE workspaceId = ? AND key = 'smtp.port'`).get(this.workspaceId) as { value: string } | undefined)?.value || '465';
+            const smtpSecure = (this.db.prepare(`SELECT value FROM settings WHERE workspaceId = ? AND key = 'smtp.secure'`).get(this.workspaceId) as { value: string } | undefined)?.value || 'true';
+            const imapHost = (this.db.prepare(`SELECT value FROM settings WHERE workspaceId = ? AND key = 'imap.host'`).get(this.workspaceId) as { value: string } | undefined)?.value || 'imap.gmail.com';
+            const imapPort = (this.db.prepare(`SELECT value FROM settings WHERE workspaceId = ? AND key = 'imap.port'`).get(this.workspaceId) as { value: string } | undefined)?.value || '993';
+            const imapSecure = (this.db.prepare(`SELECT value FROM settings WHERE workspaceId = ? AND key = 'imap.secure'`).get(this.workspaceId) as { value: string } | undefined)?.value || 'true';
+
+            this.db.prepare(`
+              UPDATE email_accounts
+              SET smtpHost = ?, smtpPort = ?, smtpSecure = ?, smtpUsername = ?, smtpPassword = ?,
+                  imapHost = ?, imapPort = ?, imapSecure = ?, imapUsername = ?, imapPassword = ?
+              WHERE id = ?
+            `).run(
+              smtpHost,
+              parseInt(smtpPort, 10) || 465,
+              smtpSecure,
+              firstAccount.email,
+              legacyPassRow.value,
+              imapHost,
+              parseInt(imapPort, 10) || 993,
+              imapSecure,
+              firstAccount.email,
+              legacyPassRow.value,
+              firstAccount.id
+            );
+
+            AppLogger.info('JobScheduler', `Successfully migrated legacy SMTP credentials to email_account: ${firstAccount.email}`, this.workspaceId);
+          }
+        }
+      }
+    } catch (err) {
+      AppLogger.error('JobScheduler', 'Failed to migrate legacy SMTP/IMAP settings on start', this.workspaceId, err);
     }
   }
 }

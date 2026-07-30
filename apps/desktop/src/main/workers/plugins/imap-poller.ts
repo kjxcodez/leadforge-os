@@ -34,6 +34,25 @@ function resolveSettingValue(secrets: Record<string, string> | undefined, settin
   return undefined;
 }
 
+function getHeaderValue(headers: Buffer | undefined, headerName: string): string | null {
+  if (!headers) return null;
+  const text = headers.toString('utf8');
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line && line.toLowerCase().startsWith(`${headerName.toLowerCase()}:`)) {
+      return line.substring(headerName.length + 1).trim();
+    }
+  }
+  return null;
+}
+
+function extractMessageIds(text: string | null): string[] {
+  if (!text) return [];
+  const matches = text.match(/<[^>]+>/g);
+  return matches ? matches.map(m => m.trim()) : [];
+}
+
 /**
  * IMAP Inbox Poller Worker Plugin.
  * Connects to the workspace's configured IMAP server, polls the inbox for recent
@@ -97,27 +116,23 @@ export async function pollImapReplies(ctx: JobContext): Promise<any> {
     let repliedContactsCount = 0;
 
     try {
-      // Find all contacts currently marked as CONTACTED or NEW
-      const activeContacts = db.prepare(`
-        SELECT id, firstName, lastName, email, status FROM contacts
-        WHERE workspaceId = ? AND status IN ('CONTACTED', 'NEW') AND deletedAt IS NULL
-      `).all(ctx.workspaceId) as { id: string; firstName: string | null; lastName: string | null; email: string; status: string }[];
+      // Load active sequence executions to trace startedAt and sentMessageIds
+      const activeExecutions = db.prepare(`
+        SELECT se.id as executionId, se.startedAt, se.sentMessageIds, c.id as contactId, c.email
+        FROM sequence_executions se
+        JOIN contacts c ON se.contactId = c.id
+        WHERE se.workspaceId = ? AND se.status IN ('running', 'waiting', 'queued') AND se.deletedAt IS NULL
+          AND c.status IN ('CONTACTED', 'NEW') AND c.deletedAt IS NULL
+      `).all(ctx.workspaceId) as { executionId: string; startedAt: string | null; sentMessageIds: string | null; contactId: string; email: string }[];
 
-      if (activeContacts.length === 0) {
-        ctx.emitLog('No contacts are currently in CONTACTED or NEW stage. Skipping inbox parse.', 'info');
+      if (activeExecutions.length === 0) {
+        ctx.emitLog('No active outreach executions. Skipping inbox parse.', 'info');
       } else {
-        ctx.emitLog(`Loaded ${activeContacts.length} active outreach contacts for reply checks.`, 'info');
+        ctx.emitLog(`Loaded ${activeExecutions.length} active executions for reply checks.`, 'info');
 
-        const contactEmailMap = new Map<string, typeof activeContacts[0]>();
-        for (const contact of activeContacts) {
-          if (contact.email) {
-            contactEmailMap.set(contact.email.toLowerCase().trim(), contact);
-          }
-        }
-
-        // Fetch envelopes of the last 150 messages in the INBOX
-        ctx.emitLog('Fetching recent inbox message envelopes...', 'info');
-        const messages = await client.fetch('1:*', { envelope: true });
+        // Fetch envelopes and headers of the last 150 messages in the INBOX
+        ctx.emitLog('Fetching recent inbox message envelopes and headers...', 'info');
+        const messages = await client.fetch('1:*', { envelope: true, headers: ['in-reply-to', 'references'] });
         
         // Collect messages in array to process them
         const messageList: any[] = [];
@@ -130,6 +145,8 @@ export async function pollImapReplies(ctx: JobContext): Promise<any> {
         const limitCount = Math.min(messageList.length, 150);
         ctx.emitLog(`Scanning the ${limitCount} most recent emails in inbox.`, 'info');
 
+        const matchedExecutionIds = new Set<string>();
+
         for (let i = 0; i < limitCount; i++) {
           const msg = messageList[i];
           const envelope = msg?.envelope;
@@ -138,9 +155,53 @@ export async function pollImapReplies(ctx: JobContext): Promise<any> {
           const senderEmail = (envelope.from[0].address || '').toLowerCase().trim();
           if (!senderEmail) continue;
 
-          const matchingContact = contactEmailMap.get(senderEmail);
-          if (matchingContact) {
-            ctx.emitLog(`Found reply from contact: ${matchingContact.email} ("${envelope.subject}")`, 'info');
+          // Extract Message-ID headers for precise correlation (Priority 1 & 2)
+          const inReplyToVal = envelope.inReplyTo || getHeaderValue(msg.headers, 'in-reply-to');
+          const inReplyToIds = extractMessageIds(inReplyToVal);
+          const referencesVal = getHeaderValue(msg.headers, 'references');
+          const referencesIds = extractMessageIds(referencesVal);
+
+          const allThreadRelMsgIds = new Set([...inReplyToIds, ...referencesIds]);
+
+          // Attempt to correlate
+          let correlatedExec: typeof activeExecutions[0] | undefined = undefined;
+
+          // 1. Try correlating via In-Reply-To and References (Priorities 1 & 2)
+          if (allThreadRelMsgIds.size > 0) {
+            correlatedExec = activeExecutions.find(exec => {
+              if (!exec.sentMessageIds) return false;
+              try {
+                const sentIds = JSON.parse(exec.sentMessageIds) as string[];
+                return Array.isArray(sentIds) && sentIds.some(sid => allThreadRelMsgIds.has(sid));
+              } catch {
+                return false;
+              }
+            });
+          }
+
+          // 2. Try correlating via Sender Email + Date Fallback (Priority 4)
+          if (!correlatedExec) {
+            // Find active executions for this sender email
+            const emailMatches = activeExecutions.filter(exec => exec.email.toLowerCase().trim() === senderEmail);
+            if (emailMatches.length > 0) {
+              // Assert date is greater than or equal to start date to filter out historical emails
+              const msgDate = envelope.date ? new Date(envelope.date) : null;
+              for (const match of emailMatches) {
+                const startDate = match.startedAt ? new Date(match.startedAt) : null;
+                if (msgDate && startDate && msgDate >= startDate) {
+                  correlatedExec = match;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (correlatedExec && !matchedExecutionIds.has(correlatedExec.executionId)) {
+            ctx.emitLog(`Correlated reply from contact: ${correlatedExec.email} to execution: ${correlatedExec.executionId} (Subject: "${envelope.subject}")`, 'info');
+
+            matchedExecutionIds.add(correlatedExec.executionId);
+            const execId = correlatedExec.executionId;
+            const contactId = correlatedExec.contactId;
 
             // Update contact status to REPLIED
             const now = new Date().toISOString();
@@ -149,7 +210,14 @@ export async function pollImapReplies(ctx: JobContext): Promise<any> {
                 UPDATE contacts
                 SET status = 'REPLIED', updatedAt = ?
                 WHERE id = ? AND workspaceId = ?
-              `).run(now, matchingContact.id, ctx.workspaceId);
+              `).run(now, contactId, ctx.workspaceId);
+
+              // Update execution status to completed (spec: STOP Outreach)
+              db.prepare(`
+                UPDATE sequence_executions
+                SET status = 'completed', replies = replies + 1, updatedAt = ?
+                WHERE id = ?
+              `).run(now, execId);
 
               // Log transition to sync queue
               db.prepare(`
@@ -158,8 +226,8 @@ export async function pollImapReplies(ctx: JobContext): Promise<any> {
               `).run(
                 randomUUID(),
                 ctx.workspaceId,
-                matchingContact.id,
-                JSON.stringify({ id: matchingContact.id, workspaceId: ctx.workspaceId, status: 'REPLIED' })
+                contactId,
+                JSON.stringify({ id: contactId, workspaceId: ctx.workspaceId, status: 'REPLIED' })
               );
 
               // Add CRM activity log entry
@@ -169,14 +237,12 @@ export async function pollImapReplies(ctx: JobContext): Promise<any> {
               `).run(
                 randomUUID(),
                 ctx.workspaceId,
-                matchingContact.id,
-                `Email reply detected from ${matchingContact.email}. Subject: "${envelope.subject}". Contact status set to REPLIED.`
+                contactId,
+                `Email reply detected from ${correlatedExec.email}. Subject: "${envelope.subject}". Contact status set to REPLIED.`
               );
             })();
 
             repliedContactsCount++;
-            // Remove contact from map to prevent double-processing in the same batch
-            contactEmailMap.delete(senderEmail);
           }
         }
       }

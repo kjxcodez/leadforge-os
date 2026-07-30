@@ -626,6 +626,27 @@ var MIGRATIONS = [
       -- Add indexes for fast lookup
       CREATE INDEX IF NOT EXISTS idx_sequence_executions_campaignId ON sequence_executions(campaignId);
     `
+  },
+  {
+    name: "019_email_accounts_credentials",
+    up: `
+      ALTER TABLE email_accounts ADD COLUMN smtpHost TEXT;
+      ALTER TABLE email_accounts ADD COLUMN smtpPort INTEGER;
+      ALTER TABLE email_accounts ADD COLUMN smtpSecure TEXT;
+      ALTER TABLE email_accounts ADD COLUMN smtpUsername TEXT;
+      ALTER TABLE email_accounts ADD COLUMN smtpPassword TEXT;
+      ALTER TABLE email_accounts ADD COLUMN imapHost TEXT;
+      ALTER TABLE email_accounts ADD COLUMN imapPort INTEGER;
+      ALTER TABLE email_accounts ADD COLUMN imapSecure TEXT;
+      ALTER TABLE email_accounts ADD COLUMN imapUsername TEXT;
+      ALTER TABLE email_accounts ADD COLUMN imapPassword TEXT;
+    `
+  },
+  {
+    name: "020_sent_message_ids",
+    up: `
+      ALTER TABLE sequence_executions ADD COLUMN sentMessageIds TEXT;
+    `
   }
 ];
 var MigrationError = class extends Error {

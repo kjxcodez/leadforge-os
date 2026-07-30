@@ -38,37 +38,34 @@ export function registerOutreachIpc(sdk: SdkClient) {
 
     const id = dto.id || require('crypto').randomUUID();
 
-    // Encrypt password before storing in global settings
+    // Encrypt password before storing
     const encryptedPassword = encryptSecret(dto.password);
 
-    const db = getDatabase(runtime.workspaceId);
-    
-    // Save to settings table
-    const saveSetting = db.prepare(`
-      INSERT INTO settings (key, value, workspaceId, updatedAt)
-      VALUES (?, ?, ?, datetime('now'))
-      ON CONFLICT(key, workspaceId) DO UPDATE SET value = excluded.value, updatedAt = datetime('now')
-    `);
-
-    db.transaction(() => {
-      saveSetting.run('smtp.host', 'smtp.gmail.com', runtime.workspaceId);
-      saveSetting.run('smtp.port', '465', runtime.workspaceId);
-      saveSetting.run('smtp.secure', 'true', runtime.workspaceId);
-      saveSetting.run('smtp.username', dto.email, runtime.workspaceId);
-      saveSetting.run('smtp.password', encryptedPassword, runtime.workspaceId);
-
-      saveSetting.run('imap.host', 'imap.gmail.com', runtime.workspaceId);
-      saveSetting.run('imap.port', '993', runtime.workspaceId);
-      saveSetting.run('imap.secure', 'true', runtime.workspaceId);
-      saveSetting.run('imap.username', dto.email, runtime.workspaceId);
-      saveSetting.run('imap.password', encryptedPassword, runtime.workspaceId);
-    })();
-
-    // Remove password from cached email_accounts record
+    // Remove plain password
     const cleanDto = { ...dto };
     delete cleanDto.password;
 
-    const record = { ...cleanDto, id, workspaceId: runtime.workspaceId, status: 'unverified', syncStatus: 'pending' };
+    const record = {
+      ...cleanDto,
+      id,
+      workspaceId: runtime.workspaceId,
+      status: 'unverified',
+      syncStatus: 'pending',
+      
+      // Store credentials directly on the account record (authoritative configuration)
+      smtpHost: 'smtp.gmail.com',
+      smtpPort: 465,
+      smtpSecure: 'true',
+      smtpUsername: dto.email,
+      smtpPassword: encryptedPassword,
+      
+      imapHost: 'imap.gmail.com',
+      imapPort: 993,
+      imapSecure: 'true',
+      imapUsername: dto.email,
+      imapPassword: encryptedPassword,
+    };
+
     await LocalCRMRepository.save('email_accounts', record);
     return record;
   });
@@ -86,38 +83,32 @@ export function registerOutreachIpc(sdk: SdkClient) {
 
     const db = getDatabase(runtime.workspaceId);
     
-    // Load SMTP settings from settings table
-    const rows = db.prepare(`SELECT key, value FROM settings WHERE workspaceId = ?`).all(runtime.workspaceId) as { key: string; value: string }[];
-    const settings = new Map<string, string>();
-    for (const row of rows) {
-      if (row.key) settings.set(row.key, row.value);
-    }
+    // Load SMTP settings directly from the target email_accounts row
+    const account = db.prepare(`
+      SELECT smtpHost, smtpPort, smtpSecure, smtpUsername, smtpPassword
+      FROM email_accounts
+      WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
+    `).get(id, runtime.workspaceId) as any;
 
-    const host = settings.get('smtp.host') || settings.get('smtpHost') || settings.get('host');
-    const portStr = settings.get('smtp.port') || settings.get('smtpPort') || settings.get('port');
-    const secureStr = settings.get('smtp.secure') || settings.get('smtpSecure') || settings.get('secure');
-    const username = settings.get('smtp.username') || settings.get('smtp.user') || settings.get('smtpUsername') || settings.get('username');
-    const encryptedPassword = settings.get('smtp.password') || settings.get('smtp.pass') || settings.get('smtpPassword') || settings.get('password');
-
-    if (!host || !username || !encryptedPassword) {
+    if (!account || !account.smtpHost || !account.smtpUsername || !account.smtpPassword) {
       throw new Error(
-        'Incomplete SMTP configuration in settings. ' +
-        'Please verify smtp.host, smtp.username, and smtp.password are configured.'
+        'Incomplete SMTP configuration for the selected email account. ' +
+        'Please verify smtpHost, smtpUsername, and smtpPassword are configured.'
       );
     }
 
     // Decrypt password
-    const password = decryptSecret(encryptedPassword);
+    const password = decryptSecret(account.smtpPassword);
 
-    const port = portStr ? parseInt(portStr, 10) : 465;
-    const secure = secureStr !== undefined ? secureStr === 'true' : port === 465;
+    const port = account.smtpPort ? parseInt(account.smtpPort, 10) : 465;
+    const secure = account.smtpSecure !== undefined ? account.smtpSecure === 'true' : port === 465;
 
     const transporter = nodemailer.createTransport({
-      host,
+      host: account.smtpHost,
       port,
       secure,
       auth: {
-        user: username,
+        user: account.smtpUsername,
         pass: password,
       },
       connectionTimeout: 8000,
