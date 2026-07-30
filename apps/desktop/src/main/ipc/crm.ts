@@ -242,5 +242,65 @@ export function registerCrmIpc() {
     if (!workspaceId) throw new Error('workspaceId is required.');
     return LocalCRMRepository.findMany('activities', workspaceId, filter);
   });
+
+  safeRegister('intelligence:get', async (_event, { workspaceId, companyId }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    if (!companyId) throw new Error('companyId is required.');
+
+    const db = getDatabase(workspaceId);
+    
+    const companyIntelligence = db.prepare('SELECT * FROM company_intelligence WHERE companyId = ?').get(companyId);
+    const websiteIntelligence = db.prepare('SELECT * FROM website_intelligence WHERE companyId = ?').get(companyId);
+    const contactIntelligences = db.prepare(`
+      SELECT ci.*, c.firstName, c.lastName, c.title
+      FROM contact_intelligence ci
+      JOIN contacts c ON c.id = ci.contactId
+      WHERE c.companyId = ?
+    `).all(companyId);
+    const opportunityScore = db.prepare('SELECT * FROM opportunity_scores WHERE companyId = ?').get(companyId);
+
+    const safeParse = (str: any) => {
+      if (!str) return [];
+      try { return JSON.parse(str); } catch { return []; }
+    };
+
+    return {
+      companyIntelligence: companyIntelligence ? {
+        ...companyIntelligence,
+        techStack: safeParse((companyIntelligence as any).techStack),
+        growthSignals: safeParse((companyIntelligence as any).growthSignals),
+        hiringSignals: safeParse((companyIntelligence as any).hiringSignals),
+        missingInformation: safeParse((companyIntelligence as any).missingInformation)
+      } : null,
+      websiteIntelligence: websiteIntelligence ? {
+        ...websiteIntelligence,
+        buyingSignals: safeParse((websiteIntelligence as any).buyingSignals),
+        seoSignals: safeParse((websiteIntelligence as any).seoSignals),
+        technicalIssues: safeParse((websiteIntelligence as any).technicalIssues),
+        productsServices: safeParse((websiteIntelligence as any).productsServices),
+        testimonialsCaseStudies: safeParse((websiteIntelligence as any).testimonialsCaseStudies)
+      } : null,
+      contactIntelligences: contactIntelligences.map((c: any) => ({
+        ...c,
+        personalizationOpportunities: safeParse(c.personalizationOpportunities)
+      })),
+      opportunityScore: opportunityScore || null
+    };
+  });
+
+  safeRegister('intelligence:trigger', async (_event, { workspaceId, companyId }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    if (!companyId) throw new Error('companyId is required.');
+
+    const db = getDatabase(workspaceId);
+    const jobId = require('crypto').randomUUID();
+    
+    db.prepare(`
+      INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
+      VALUES (?, ?, 'enrich:intelligence', 'queued', 5, ?, 0, 0, 3, datetime('now'), datetime('now'))
+    `).run(jobId, workspaceId, JSON.stringify({ companyId }));
+
+    return { success: true, jobId };
+  });
 }
 

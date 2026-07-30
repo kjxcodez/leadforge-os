@@ -578,6 +578,55 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE sequence_executions ADD COLUMN sentMessageIds TEXT;
     `,
   },
+  {
+    name: '021_lead_intelligence_engine',
+    up: `
+      CREATE TABLE IF NOT EXISTS company_intelligence (
+        companyId TEXT PRIMARY KEY,
+        summary TEXT,
+        techStack TEXT,
+        businessModel TEXT,
+        estimatedRevenue TEXT,
+        growthSignals TEXT,
+        hiringSignals TEXT,
+        decisionMakerLikelihood REAL,
+        leadConfidence TEXT,
+        missingInformation TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS website_intelligence (
+        companyId TEXT PRIMARY KEY,
+        brandVoice TEXT,
+        contentQuality TEXT,
+        buyingSignals TEXT,
+        seoSignals TEXT,
+        technicalIssues TEXT,
+        productsServices TEXT,
+        testimonialsCaseStudies TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS contact_intelligence (
+        contactId TEXT PRIMARY KEY,
+        decisionMakerScore REAL,
+        seniority TEXT,
+        buyingInfluence TEXT,
+        personalizationOpportunities TEXT,
+        relationshipStrength REAL
+      );
+
+      CREATE TABLE IF NOT EXISTS opportunity_scores (
+        companyId TEXT PRIMARY KEY,
+        overallScore REAL,
+        fitScore REAL,
+        sizeScore REAL,
+        intentScore REAL,
+        urgencyScore REAL,
+        explanation TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_opportunity_scores_overall ON opportunity_scores(overallScore);
+    `,
+  },
 ];
 
 
@@ -742,110 +791,144 @@ function executeIdempotentStatement(db: Database.Database, sql: string): boolean
  */
 export function runMigrations(customDb?: Database.Database): void {
   const db = customDb || getDatabase();
+  const dbPath = db.name;
+  let backupPath = '';
 
-  console.log('[SQLite] Database opened');
-
-  // Determine current schema version
-  let currentVersion = 'none';
-  const tableExistsInDb = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_migrations'").get();
-  if (tableExistsInDb) {
+  // 1. Create a workspace database backup before applying migrations
+  if (dbPath && dbPath !== ':memory:') {
     try {
-      const row = db.prepare('SELECT name FROM _migrations ORDER BY id DESC LIMIT 1').get() as { name: string } | undefined;
-      if (row) {
-        currentVersion = row.name;
-      }
-    } catch {
-      // ignore
+      backupPath = `${dbPath}.migration.bak`;
+      fs.copyFileSync(dbPath, backupPath);
+      console.log(`[SQLite] Pre-migration database backup created at: ${backupPath}`);
+    } catch (backupErr) {
+      console.error('[SQLite] Failed to create pre-migration database backup:', backupErr);
     }
   }
-  console.log(`[SQLite] Current schema version: ${currentVersion}`);
 
-  // Create migration tracking table if missing
-  db.prepare(`
-    CREATE TABLE IF NOT EXISTS _migrations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE,
-      runAt DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `).run();
+  try {
+    console.log('[SQLite] Database opened');
 
-  const runMigration = db.transaction((migration: Migration, statements: string[]) => {
-    for (const stmt of statements) {
+    // Determine current schema version
+    let currentVersion = 'none';
+    const tableExistsInDb = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_migrations'").get();
+    if (tableExistsInDb) {
       try {
-        executeIdempotentStatement(db, stmt);
-      } catch (err: any) {
-        throw new MigrationError(
-          `Failed to execute SQL statement: ${err.message || err}`,
-          stmt,
-          err
-        );
+        const row = db.prepare('SELECT name FROM _migrations ORDER BY id DESC LIMIT 1').get() as { name: string } | undefined;
+        if (row) {
+          currentVersion = row.name;
+        }
+      } catch {
+        // ignore
       }
     }
-    // 2. Register migration in tracking table
-    db.prepare('INSERT INTO _migrations (name) VALUES (?)').run(migration.name);
-  });
+    console.log(`[SQLite] Current schema version: ${currentVersion}`);
 
-  for (const migration of MIGRATIONS) {
-    const numPrefix = migration.name.split('_')[0]; // e.g. '001'
-    console.log(`[SQLite] Checking migration ${numPrefix}...`);
+    // Create migration tracking table if missing
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS _migrations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE,
+        runAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run();
 
-    let isApplied = false;
-    try {
-      isApplied = !!db.prepare('SELECT 1 FROM _migrations WHERE name = ?').get(migration.name);
-    } catch {
-      // If table doesn't exist or is locked, treat as not applied
-    }
+    const runMigration = db.transaction((migration: Migration, statements: string[]) => {
+      for (const stmt of statements) {
+        try {
+          executeIdempotentStatement(db, stmt);
+        } catch (err: any) {
+          throw new MigrationError(
+            `Failed to execute SQL statement: ${err.message || err}`,
+            stmt,
+            err
+          );
+        }
+      }
+      // 2. Register migration in tracking table
+      db.prepare('INSERT INTO _migrations (name) VALUES (?)').run(migration.name);
+    });
 
-    if (isApplied) {
-      console.log('[SQLite] Skipped');
-    } else {
-      console.log(`[SQLite] Applying ${numPrefix}...`);
-      const cleanedSql = stripComments(migration.up);
-      const statements = splitSqlStatements(cleanedSql);
+    for (const migration of MIGRATIONS) {
+      const numPrefix = migration.name.split('_')[0]; // e.g. '001'
+      console.log(`[SQLite] Checking migration ${numPrefix}...`);
 
+      let isApplied = false;
       try {
-        if (migration.name === '008_job_lifecycle_hardening') {
-          try {
+        isApplied = !!db.prepare('SELECT 1 FROM _migrations WHERE name = ?').get(migration.name);
+      } catch {
+        // If table doesn't exist or is locked, treat as not applied
+      }
+
+      if (isApplied) {
+        console.log('[SQLite] Skipped');
+      } else {
+        console.log(`[SQLite] Applying ${numPrefix}...`);
+        const cleanedSql = stripComments(migration.up);
+        const statements = splitSqlStatements(cleanedSql);
+
+        try {
+          if (migration.name === '008_job_lifecycle_hardening') {
+            try {
+              const dbPath = db.name;
+              if (dbPath && dbPath !== ':memory:') {
+                const backupPath = `${dbPath}.pre008.bak`;
+                fs.copyFileSync(dbPath, backupPath);
+                console.log(`[SQLite] Pre-migration backup created at: ${backupPath}`);
+              }
+            } catch (backupErr) {
+              console.error('[SQLite] Failed to create pre-migration backup for job lifecycle hardening:', backupErr);
+            }
+          }
+
+          runMigration(migration, statements);
+          console.log('[SQLite] Success');
+        } catch (err: any) {
+          let failedStmt = 'unknown';
+          let originalErr = err;
+          if (err instanceof MigrationError) {
+            failedStmt = err.statement;
+            originalErr = err.originalError;
+          }
+
+          console.error(`[SQLite] Migration failure: ${migration.name}`);
+          console.error(`- migration: ${migration.name}`);
+          console.error(`- SQL statement: ${failedStmt}`);
+          console.error(`- error: ${originalErr.message || originalErr}`);
+          console.error(`- rollback status: rolled back`);
+
+          if (migration.name === '008_job_lifecycle_hardening') {
             const dbPath = db.name;
             if (dbPath && dbPath !== ':memory:') {
-              const backupPath = `${dbPath}.pre008.bak`;
-              fs.copyFileSync(dbPath, backupPath);
-              console.log(`[SQLite] Pre-migration backup created at: ${backupPath}`);
+              console.error(`[SQLite] Rollback manual recovery backup file is available at: ${dbPath}.pre008.bak`);
             }
-          } catch (backupErr) {
-            console.error('[SQLite] Failed to create pre-migration backup for job lifecycle hardening:', backupErr);
           }
+
+          throw err;
         }
-
-        runMigration(migration, statements);
-        console.log('[SQLite] Success');
-      } catch (err: any) {
-        let failedStmt = 'unknown';
-        let originalErr = err;
-        if (err instanceof MigrationError) {
-          failedStmt = err.statement;
-          originalErr = err.originalError;
-        }
-
-        console.error(`[SQLite] Migration failure: ${migration.name}`);
-        console.error(`- migration: ${migration.name}`);
-        console.error(`- SQL statement: ${failedStmt}`);
-        console.error(`- error: ${originalErr.message || originalErr}`);
-        console.error(`- rollback status: rolled back`);
-
-        if (migration.name === '008_job_lifecycle_hardening') {
-          const dbPath = db.name;
-          if (dbPath && dbPath !== ':memory:') {
-            console.error(`[SQLite] Rollback manual recovery backup file is available at: ${dbPath}.pre008.bak`);
-          }
-        }
-
-        throw err;
       }
     }
-  }
 
-  console.log('[SQLite] Completed');
+    // Delete pre-migration backup on success
+    if (backupPath && fs.existsSync(backupPath)) {
+      try {
+        fs.unlinkSync(backupPath);
+        console.log('[SQLite] Pre-migration database backup cleaned up.');
+      } catch {}
+    }
+    console.log('[SQLite] Completed');
+  } catch (err: any) {
+    console.error('[SQLite] Migration failed. Restoring from pre-migration backup...', err);
+    if (backupPath && fs.existsSync(backupPath) && dbPath && dbPath !== ':memory:') {
+      try {
+        db.close();
+        fs.copyFileSync(backupPath, dbPath);
+        console.log('[SQLite] Database successfully rolled back and restored from backup.');
+      } catch (restoreErr) {
+        console.error('[SQLite] CRITICAL: Database restore failed during rollback!', restoreErr);
+      }
+    }
+    throw err;
+  }
 }
 
 

@@ -57,6 +57,10 @@ export class WorkspaceRuntime {
 
     this.eventBus = new LocalEventBus(workspaceId);
     this.scheduler = new JobScheduler(workspaceId, this.sqliteDb, this.eventBus);
+    try {
+      const { UpdateManager } = require('../services/updater');
+      UpdateManager.getInstance().registerScheduler(this.scheduler);
+    } catch {}
     this.syncEngine = new SyncEngine(workspaceId, this.sqliteDb, this.eventBus, sdk);
     this.eventBridge = new EventBridge(this.eventBus);
     this.triggerEvaluator = new AutomationTriggerEvaluator(workspaceId, this.sqliteDb, this.eventBus);
@@ -196,7 +200,7 @@ export class WorkspaceRuntime {
       let totalSkipped = 0;
       let totalFailures = 0;
 
-      const recoverableTypes = ['scraper:maps', 'crawler:website', 'enrich:website', 'automation:workflow'];
+      const recoverableTypes = ['scraper:maps', 'crawler:website', 'enrich:website', 'enrich:intelligence', 'automation:workflow'];
 
       for (const job of jobs) {
         try {

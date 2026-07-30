@@ -228,6 +228,14 @@ app.whenReady().then(() => {
 
   createWindow();
 
+  // Initialise UpdateManager
+  try {
+    const { UpdateManager } = require('./services/updater');
+    UpdateManager.getInstance();
+  } catch (err) {
+    AppLogger.error('Updater', 'Failed to initialize UpdateManager on start', undefined, err);
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();

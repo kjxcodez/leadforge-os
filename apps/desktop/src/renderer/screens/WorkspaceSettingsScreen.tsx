@@ -188,6 +188,9 @@ export default function WorkspaceSettingsScreen() {
       {/* ── SECTION 3: LinkedIn Integration ─────────────────────────────── */}
       <LinkedInIntegrationCard workspaceId={activeWorkspace.id || ''} />
 
+      {/* ── SECTION 3.5: Auto Updates ───────────────────────────────────── */}
+      <AutoUpdateSection />
+
       {/* ── SECTION 4: Danger Zone ────────────────────────────────────── */}
       <div className="bg-card border border-destructive/20 rounded-xl p-5 space-y-4">
         <div>
@@ -398,6 +401,145 @@ function LinkedInIntegrationCard({ workspaceId }: { workspaceId: string }) {
           <div>3. Find <code className="font-mono bg-sunken px-1 rounded text-foreground">li_at</code> → Copy the Cookie Value → Paste here</div>
         </div>
       </form>
+    </div>
+  );
+}
+
+function AutoUpdateSection() {
+  const [status, setStatus] = useState<any>({
+    status: 'idle',
+    progress: 0,
+    currentVersion: '0.0.1',
+    availableVersion: '',
+    releaseNotes: '',
+    channel: 'stable'
+  });
+  const [checking, setChecking] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const fetchStatus = async () => {
+    try {
+      const res = await window.ipc.invoke('updater:get-status', undefined);
+      setStatus(res);
+    } catch {}
+  };
+
+  React.useEffect(() => {
+    fetchStatus();
+
+    const unsubscribe = window.ipc.on('updater:status-changed' as any, (newStatus: any) => {
+      setStatus(newStatus);
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
+
+  const handleCheck = async () => {
+    setChecking(true);
+    try {
+      const res = await window.ipc.invoke('updater:check', undefined);
+      if (res.updateAvailable) {
+        alert(`Update v${res.version} is available!`);
+      } else {
+        alert('You are already running the latest version.');
+      }
+      await fetchStatus();
+    } catch (err: any) {
+      alert(`Check failed: ${err.message || err}`);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      await window.ipc.invoke('updater:download', undefined);
+      await fetchStatus();
+    } catch (err: any) {
+      alert(`Download failed: ${err.message || err}`);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleInstall = async () => {
+    try {
+      await window.ipc.invoke('updater:install', undefined);
+    } catch (err: any) {
+      alert(`Installation failed: ${err.message || err}`);
+    }
+  };
+
+  return (
+    <div className="bg-card border border-border-subtle rounded-xl p-5 space-y-4">
+      <div>
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <RefreshCw className="w-4 h-4 text-accent" />
+          <span>Application Updates</span>
+        </h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Verify and install latest features, patches, and security updates for LeadForge OS.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+        <div className="space-y-1">
+          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Current Version</span>
+          <p className="text-xs font-semibold text-foreground">v{status.currentVersion}</p>
+        </div>
+        <div className="space-y-1">
+          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Release Channel</span>
+          <p className="text-xs font-mono text-muted-foreground capitalize">{status.channel}</p>
+        </div>
+        <div className="space-y-1">
+          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Updater Status</span>
+          <p className="text-xs font-semibold text-foreground capitalize">{status.status}</p>
+        </div>
+      </div>
+
+      {status.status === 'available' && (
+        <div className="bg-accent/5 border border-accent/15 rounded-lg p-3 text-xs flex items-center justify-between">
+          <div>
+            <div className="font-semibold text-foreground">New Version Available: v{status.availableVersion}</div>
+            {status.releaseNotes && <div className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{status.releaseNotes}</div>}
+          </div>
+          <Button size="sm" onClick={handleDownload} disabled={downloading}>
+            {downloading ? 'Downloading...' : 'Download Update'}
+          </Button>
+        </div>
+      )}
+
+      {status.status === 'downloading' && (
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs font-bold text-muted-foreground">
+            <span>Downloading Update...</span>
+            <span>{status.progress}%</span>
+          </div>
+          <div className="w-full bg-sunken rounded-full h-1.5 overflow-hidden">
+            <div className="bg-accent h-1.5 transition-all duration-300" style={{ width: `${status.progress}%` }}></div>
+          </div>
+        </div>
+      )}
+
+      {status.status === 'ready' && (
+        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-xs flex items-center justify-between">
+          <div>
+            <div className="font-semibold text-emerald-400">Update Downloaded & Verified</div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">Ready to install on restart.</div>
+          </div>
+          <Button size="sm" onClick={handleInstall} className="bg-emerald-600 hover:bg-emerald-700 text-white border-none">
+            Restart & Install
+          </Button>
+        </div>
+      )}
+
+      <div className="flex gap-3 pt-2">
+        <Button variant="outline" size="sm" onClick={handleCheck} disabled={checking}>
+          {checking ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Check for Updates'}
+        </Button>
+      </div>
     </div>
   );
 }

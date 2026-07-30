@@ -479,6 +479,30 @@ export interface IpcChannelMap {
     input: { cookie?: string };
     output: { valid: boolean; message: string; csrfToken?: string };
   };
+  'updater:get-status': {
+    input: void;
+    output: { status: string; progress: number; currentVersion: string; availableVersion: string; releaseNotes: string; channel: string };
+  };
+  'updater:check': {
+    input: void;
+    output: { updateAvailable: boolean; version: string; releaseNotes?: string; downloadUrl?: string; checksum?: string };
+  };
+  'updater:download': {
+    input: void;
+    output: void;
+  };
+  'updater:install': {
+    input: void;
+    output: void;
+  };
+  'intelligence:get': {
+    input: { workspaceId: string; companyId: string };
+    output: { companyIntelligence: any; websiteIntelligence: any; contactIntelligences: any[]; opportunityScore: any };
+  };
+  'intelligence:trigger': {
+    input: { workspaceId: string; companyId: string };
+    output: { success: boolean; jobId: string };
+  };
 }
 
 export interface IpcRequest<T> {

@@ -697,6 +697,12 @@ export class JobScheduler {
         if (row?.value) {
           secrets['linkedin_li_at'] = decryptSecret(row.value);
         }
+        const orRow = this.db.prepare(`
+          SELECT value FROM settings WHERE workspaceId = ? AND key = 'openrouter_key'
+        `).get(this.workspaceId) as { value: string } | undefined;
+        if (orRow?.value) {
+          secrets['openrouter_key'] = decryptSecret(orRow.value);
+        }
       }
       parsedPayload._secrets = secrets;
     } catch (err) {
@@ -722,8 +728,25 @@ export class JobScheduler {
       WHERE id = ?
     `).run(new Date().toISOString(), jobId);
 
-    // BC-011: Do NOT kill the worker here — it already called process.exit(0)
-    // after sending { type: 'success' }. The exit handler handles activeWorkers cleanup.
+    // Auto-queue intelligence enrichment on website crawl completion
+    try {
+      const job = this.db.prepare('SELECT type, payload FROM jobs WHERE id = ?').get(jobId) as { type: string; payload: string } | undefined;
+      if (job?.type === 'crawler:website') {
+        const payload = JSON.parse(job.payload || '{}');
+        const companyId = payload.companyId;
+        if (companyId) {
+          const newJobId = randomUUID();
+          this.db.prepare(`
+            INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
+            VALUES (?, ?, 'enrich:intelligence', 'queued', 5, ?, 0, 0, 3, datetime('now'), datetime('now'))
+          `).run(newJobId, this.workspaceId, JSON.stringify({ companyId }));
+          AppLogger.info('JobScheduler', `Auto-queued enrich:intelligence job for Company: ${companyId}`, this.workspaceId);
+        }
+      }
+    } catch (err) {
+      AppLogger.error('JobScheduler', 'Failed to auto-queue intelligence enrichment after website crawl', this.workspaceId, err);
+    }
+
     this.activeWorkers.delete(jobId);
 
     this.eventBus.publish('job:completed', { jobId, result });

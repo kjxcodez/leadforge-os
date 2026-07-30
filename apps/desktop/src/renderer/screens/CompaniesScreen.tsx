@@ -11,10 +11,11 @@ import { EntityToolbar } from '../components/crm/EntityToolbar';
 import { CompanyForm } from '../components/crm/CompanyForm';
 import { TagSystem } from '../components/crm/TagSystem';
 import { NotesSystem } from '../components/crm/NotesSystem';
+import LeadIntelligenceDetails from '../components/crm/LeadIntelligenceDetails';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
-import { Building2, X, Globe, MapPin, Briefcase, Phone, Star, ExternalLink, Mail, Users2 } from 'lucide-react';
+import { Building2, X, Globe, MapPin, Briefcase, Phone, Star, ExternalLink, Mail, Users2, Cpu } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { CompanyStatus, ContactStatus } from '@leadforge/schema';
 import { useWorkspace } from '../hooks/useWorkspace';
@@ -31,6 +32,7 @@ export default function CompaniesScreen() {
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<any | null>(null);
+  const [detailTab, setDetailTab] = useState<'overview' | 'intelligence'>('overview');
 
   // Campaign enrollment states
   const [enrollOpen, setEnrollOpen] = useState(false);
@@ -300,9 +302,39 @@ export default function CompaniesScreen() {
             </Button>
           </div>
 
+          {/* Tab switcher */}
+          <div className="flex bg-sunken/50 border border-border-subtle rounded-lg p-0.5 gap-0.5">
+            <button
+              onClick={() => setDetailTab('overview')}
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold transition-all ${
+                detailTab === 'overview' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Building2 className="w-3 h-3" />
+              CRM
+            </button>
+            <button
+              onClick={() => setDetailTab('intelligence')}
+              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold transition-all ${
+                detailTab === 'intelligence' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Cpu className="w-3 h-3" />
+              Intelligence
+            </button>
+          </div>
+
           <div className="flex-1 overflow-y-auto space-y-5 pr-1">
-            {/* Overview / Metadata */}
-            <div className="space-y-2.5">
+            {/* Intelligence tab */}
+            {detailTab === 'intelligence' && (
+              <LeadIntelligenceDetails companyId={selectedCompany.id} />
+            )}
+
+            {/* CRM Overview tab */}
+            {detailTab === 'overview' && (
+              <>
+              {/* Overview / Metadata */}
+              <div className="space-y-2.5">
               <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Overview</h4>
               <div className="bg-sunken/20 border border-border-subtle rounded-lg p-2.5 space-y-2">
                 {selectedCompany.website && (
@@ -482,9 +514,11 @@ export default function CompaniesScreen() {
                 }}
               />
             </div>
-          </div>
-        </aside>
-      )}
+          </>
+        )}
+      </div>
+    </aside>
+  )}
 
       {/* ── Create / Edit Dialogs ────────────────────────────────────────── */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

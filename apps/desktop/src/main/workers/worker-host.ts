@@ -9,6 +9,7 @@ import { dispatchOutreach } from './plugins/outreach';
 import { executeAutomationWorkflow } from './plugins/automation';
 import { enrichLinkedIn } from './plugins/linkedin';
 import { pollImapReplies } from './plugins/imap-poller';
+import { executeIntelligenceEnrichment } from './plugins/intelligence-worker';
 
 // ---------------------------------------------------------------------------
 // Mock Test Plugin
@@ -52,6 +53,7 @@ registry.register('scraper:maps', scrapeMaps);
 registry.register('crawler:website', crawlWebsite);
 registry.register('enrich:website', enrichWebsite);
 registry.register('enrich:linkedin', enrichLinkedIn);
+registry.register('enrich:intelligence', executeIntelligenceEnrichment);
 registry.register('outreach:campaign', dispatchOutreach);
 registry.register('automation:workflow', executeAutomationWorkflow);
 registry.register('outreach:imap-poll', pollImapReplies);
