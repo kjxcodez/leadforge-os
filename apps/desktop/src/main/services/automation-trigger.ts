@@ -16,9 +16,94 @@ const TRIGGER_TYPES = {
   EMAIL_BOUNCED:              'EMAIL_BOUNCED',
   JOB_COMPLETED:              'JOB_COMPLETED',
   JOB_FAILED:                 'JOB_FAILED',
+  CAMPAIGN_FINISHED:          'CAMPAIGN_FINISHED',
+  CRAWLER_FINISHED:           'CRAWLER_FINISHED',
+  DISCOVERY_FINISHED:         'DISCOVERY_FINISHED',
+  REPLY_RECEIVED:             'REPLY_RECEIVED',
+  LEAD_SCORE_CHANGED:         'LEAD_SCORE_CHANGED',
+  IMPORT_FINISHED:            'IMPORT_FINISHED',
+  UPDATE_INSTALLED:           'UPDATE_INSTALLED',
+  WORKSPACE_OPENED:           'WORKSPACE_OPENED',
+  SCHEDULE:                   'SCHEDULE',
+  MANUAL:                     'MANUAL',
 } as const;
 
 type AutomationTriggerType = typeof TRIGGER_TYPES[keyof typeof TRIGGER_TYPES];
+
+function evaluateConditionValue(actual: any, op: string, expected: any): boolean {
+  if (Array.isArray(actual)) {
+    const valStr = String(expected).toLowerCase();
+    if (op === 'contains' || op === '==') {
+      return actual.map(v => String(v).toLowerCase()).includes(valStr);
+    }
+    return false;
+  }
+  
+  if (typeof actual === 'string' && actual.startsWith('[') && actual.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(actual);
+      if (Array.isArray(parsed)) {
+        return evaluateConditionValue(parsed, op, expected);
+      }
+    } catch {}
+  }
+
+  const actNum = parseFloat(String(actual));
+  const expNum = parseFloat(String(expected));
+
+  if (!isNaN(actNum) && !isNaN(expNum)) {
+    switch (op) {
+      case '==': return actNum === expNum;
+      case '!=': return actNum !== expNum;
+      case '>': return actNum > expNum;
+      case '<': return actNum < expNum;
+      case '>=': return actNum >= expNum;
+      case '<=': return actNum <= expNum;
+    }
+  }
+
+  const actStr = String(actual).toLowerCase();
+  const expStr = String(expected).toLowerCase();
+  switch (op) {
+    case '==': return actStr === expStr;
+    case '!=': return actStr !== expStr;
+    case 'contains': return actStr.includes(expStr);
+    case 'startsWith': return actStr.startsWith(expStr);
+  }
+  return false;
+}
+
+function loadEntityData(
+  db: Database.Database,
+  entityId: string,
+  entityType: string,
+  workspaceId: string,
+): { contact: Record<string, any>; company: Record<string, any> } {
+  let contact: Record<string, any> = {};
+  let company: Record<string, any> = {};
+
+  if (entityType === "contact") {
+    const row = db
+      .prepare(`SELECT id, firstName, lastName, email, phone, title, status, companyId FROM contacts WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`)
+      .get(entityId, workspaceId) as any;
+    if (row) {
+      contact = row;
+      if (row.companyId) {
+        const compRow = db
+          .prepare(`SELECT id, name, domain, industry, size FROM companies WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`)
+          .get(row.companyId, workspaceId) as any;
+        if (compRow) company = compRow;
+      }
+    }
+  } else if (entityType === "company" || entityType === "companies") {
+    const row = db
+      .prepare(`SELECT id, name, domain, industry, size FROM companies WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`)
+      .get(entityId, workspaceId) as any;
+    if (row) company = row;
+  }
+
+  return { contact, company };
+}
 
 // ── Event → Trigger mapping helper ───────────────────────────────────────────
 
@@ -44,34 +129,43 @@ function mapEventToTriggerType(event: AppEvent): AutomationTriggerType | null {
       return null;
 
     case 'crm:updated':
-      // Pipeline stage change is indicated by a status changeType on contact
       if (
         (entityType === 'contact' || entityType === 'contacts') &&
         (changeType === 'status' || changeType === 'pipelineStage' || changeType === 'pipeline_stage')
       ) {
         return TRIGGER_TYPES.PIPELINE_STAGE_CHANGED;
       }
+      if (changeType === 'score' || changeType === 'opportunityScore' || changeType === 'overallScore') {
+        return TRIGGER_TYPES.LEAD_SCORE_CHANGED;
+      }
       return null;
 
     case 'crm:deleted':
-      return null; // No trigger types defined for deletes in spec §5
+      return null;
 
     case 'job:completed':
-      if (jobType === 'scraper:maps' || jobType?.startsWith('scraper')) {
-        return TRIGGER_TYPES.DISCOVERY_IMPORT_COMPLETED;
+      if (jobType === 'scraper:maps') {
+        return TRIGGER_TYPES.DISCOVERY_FINISHED;
+      }
+      if (jobType === 'crawler:website') {
+        return TRIGGER_TYPES.CRAWLER_FINISHED;
+      }
+      if (jobType === 'enrich:intelligence') {
+        return TRIGGER_TYPES.LEAD_SCORE_CHANGED;
       }
       return TRIGGER_TYPES.JOB_COMPLETED;
 
     case 'job:failed':
       return TRIGGER_TYPES.JOB_FAILED;
 
-    case 'job:cancelled':
-    case 'job:paused':
-    case 'job:resumed':
-    case 'job:heartbeat:timeout':
-    case 'automation:triggered':
-      // These events are observed but have no direct trigger type mapping in spec §5
-      return null;
+    case 'sync:completed':
+      return TRIGGER_TYPES.IMPORT_FINISHED;
+
+    case 'workspace:opened':
+      return TRIGGER_TYPES.WORKSPACE_OPENED;
+
+    case 'update:installed':
+      return TRIGGER_TYPES.UPDATE_INSTALLED;
 
     default:
       return null;
@@ -176,6 +270,9 @@ export class AutomationTriggerEvaluator {
       'job:resumed',
       'job:heartbeat:timeout',
       'automation:triggered',
+      'sync:completed',
+      'workspace:opened',
+      'update:installed',
     ];
 
     for (const eventType of eventsToSubscribe) {
@@ -300,6 +397,45 @@ export class AutomationTriggerEvaluator {
     }
 
     console.log(`[AutomationTriggerEvaluator] Sequence "${seq.id}" matched trigger "${triggerType}"`);
+
+    // Evaluate trigger conditions if present
+    const conditions = triggerConfig.conditions || [];
+    if (conditions.length > 0) {
+      const { contact, company } = loadEntityData(this.db, entityId, entityType, this.workspaceId);
+      const intel = this.db.prepare('SELECT * FROM company_intelligence WHERE companyId = ?').get(company.id || entityId) as any;
+      const scoreRow = this.db.prepare('SELECT * FROM opportunity_scores WHERE companyId = ?').get(company.id || entityId) as any;
+
+      for (const cond of conditions) {
+        const field = cond.field;
+        const op = cond.op || '==';
+        const expected = cond.value;
+        let actual: any = undefined;
+
+        if (field === 'leadScore' || field === 'score') {
+          actual = scoreRow?.overallScore;
+        } else if (field === 'intentScore') {
+          actual = scoreRow?.intentScore;
+        } else if (field === 'industry') {
+          actual = company?.industry;
+        } else if (field === 'location') {
+          actual = company?.location;
+        } else if (field === 'technology' || field === 'techStack') {
+          actual = intel?.techStack;
+        } else if (field === 'companySize' || field === 'size') {
+          actual = company?.size;
+        } else if (field === 'emailExists') {
+          actual = contact?.email ? 'true' : 'false';
+        }
+
+        if (actual !== undefined) {
+          const matched = evaluateConditionValue(actual, op, expected);
+          if (!matched) {
+            console.log(`[AutomationTriggerEvaluator] Condition failed: ${field} (${actual}) ${op} ${expected} for sequence ${seq.id}`);
+            return; // Exit early: condition not met!
+          }
+        }
+      }
+    }
 
     // ── Duplicate prevention ─────────────────────────────────────────────────
 

@@ -468,6 +468,14 @@ export class JobScheduler {
           });
           break;
 
+        case 'notify': {
+          const { Notification } = require('electron');
+          if (Notification.isSupported()) {
+            new Notification({ title: msg.title || 'LeadForge OS', body: msg.body }).show();
+          }
+          break;
+        }
+
         // ---------------------------------------------------------------
         // CHECKPOINT — plugin called ctx.saveCheckpoint(). Persist to SQLite.
         // file_level_tasks item 8 / worker_runtime_spec.md §4.2

@@ -34,7 +34,13 @@ import {
   History,
   Info,
   Copy,
-  Layers
+  Layers,
+  Search,
+  Globe,
+  Sparkles,
+  FolderOpen,
+  Download,
+  Bell
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -177,12 +183,24 @@ export default function AutomationScreen() {
       CREATE_ACTIVITY: { type: 'automation', content: '' },
       FINISH_SEQUENCE: {},
       CONDITION: { conditionType: 'NO_REPLY_RECEIVED' },
+      RUN_DISCOVERY: { query: '', limit: 50 },
+      RUN_CRAWLER: { companyId: '', website: '' },
+      RUN_INTELLIGENCE: { companyId: '' },
+      GENERATE_AI_SUMMARY: { companyId: '' },
+      GENERATE_OPENING_LINE: { companyId: '' },
+      CREATE_CAMPAIGN: { name: '', subject: '', body: '' },
+      ENROLL_CONTACT: { campaignId: '', contactId: '' },
+      PAUSE_CAMPAIGN: { campaignId: '' },
+      RESUME_CAMPAIGN: { campaignId: '' },
+      SEND_NOTIFICATION: { message: '', type: 'info' },
+      EXPORT_CSV: {},
+      BACKUP_WORKSPACE: {},
     };
 
     setSeqSteps([
       ...seqSteps,
       {
-        id: crypto.randomUUID(),
+        id: window.crypto?.randomUUID ? window.crypto.randomUUID() : 'step_' + Math.random().toString(36).substring(2, 9),
         type,
         config: defaultStepConfigs[type] || {},
       },
@@ -239,6 +257,18 @@ export default function AutomationScreen() {
       case 'ASSIGN_OWNER': return <UserCheck className="h-4.5 w-4.5 text-indigo-500" />;
       case 'CONDITION': return <Layers className="h-4.5 w-4.5 text-cyan-500" />;
       case 'FINISH_SEQUENCE': return <CheckCircle className="h-4.5 w-4.5 text-emerald-500" />;
+      case 'RUN_DISCOVERY': return <Search className="h-4.5 w-4.5 text-orange-500" />;
+      case 'RUN_CRAWLER': return <Globe className="h-4.5 w-4.5 text-sky-500" />;
+      case 'RUN_INTELLIGENCE':
+      case 'GENERATE_AI_SUMMARY':
+      case 'GENERATE_OPENING_LINE': return <Sparkles className="h-4.5 w-4.5 text-amber-400" />;
+      case 'CREATE_CAMPAIGN':
+      case 'ENROLL_CONTACT':
+      case 'PAUSE_CAMPAIGN':
+      case 'RESUME_CAMPAIGN': return <Mail className="h-4.5 w-4.5 text-pink-500" />;
+      case 'SEND_NOTIFICATION': return <Bell className="h-4.5 w-4.5 text-yellow-500" />;
+      case 'EXPORT_CSV': return <Download className="h-4.5 w-4.5 text-green-500" />;
+      case 'BACKUP_WORKSPACE': return <FolderOpen className="h-4.5 w-4.5 text-slate-400" />;
       default: return <Zap className="h-4.5 w-4.5 text-muted" />;
     }
   };
@@ -501,13 +531,14 @@ export default function AutomationScreen() {
               <select value={seqTriggerType} onChange={(e) => setSeqTriggerType(e.target.value)} className="w-full bg-sunken border border-border-subtle p-2 rounded text-xs">
                 <option value="CONTACT_CREATED">Contact Created</option>
                 <option value="COMPANY_CREATED">Company Created</option>
-                <option value="DISCOVERY_IMPORT_COMPLETED">Discovery Import Completed</option>
-                <option value="CAMPAIGN_COMPLETED">Campaign Completed</option>
-                <option value="EMAIL_SENT">Email Sent</option>
-                <option value="EMAIL_REPLIED">Email Replied</option>
-                <option value="EMAIL_BOUNCED">Email Bounced</option>
-                <option value="TAG_ADDED">Tag Added</option>
-                <option value="PIPELINE_STAGE_CHANGED">Pipeline Stage Changed</option>
+                <option value="DISCOVERY_FINISHED">Discovery Finished</option>
+                <option value="CRAWLER_FINISHED">Crawler Finished</option>
+                <option value="REPLY_RECEIVED">Reply Received</option>
+                <option value="LEAD_SCORE_CHANGED">Lead Score Changed</option>
+                <option value="IMPORT_FINISHED">Import Finished</option>
+                <option value="UPDATE_INSTALLED">Update Installed</option>
+                <option value="WORKSPACE_OPENED">Workspace Opened</option>
+                <option value="SCHEDULE">Schedule Cron / Timer</option>
                 <option value="MANUAL">Manual Trigger Only</option>
               </select>
             </div>
@@ -529,6 +560,18 @@ export default function AutomationScreen() {
                     <option value="STOP_CAMPAIGN">Stop Campaign</option>
                     <option value="ASSIGN_OWNER">Assign Owner</option>
                     <option value="CREATE_ACTIVITY">Create Activity</option>
+                    <option value="RUN_DISCOVERY">Run Discovery</option>
+                    <option value="RUN_CRAWLER">Run Website Crawl</option>
+                    <option value="RUN_INTELLIGENCE">Run Lead Intelligence</option>
+                    <option value="GENERATE_AI_SUMMARY">Generate AI Summary</option>
+                    <option value="GENERATE_OPENING_LINE">Generate Opening Line</option>
+                    <option value="CREATE_CAMPAIGN">Create Campaign</option>
+                    <option value="ENROLL_CONTACT">Enroll Contact</option>
+                    <option value="PAUSE_CAMPAIGN">Pause Campaign</option>
+                    <option value="RESUME_CAMPAIGN">Resume Campaign</option>
+                    <option value="SEND_NOTIFICATION">Send Notification</option>
+                    <option value="EXPORT_CSV">Export CSV</option>
+                    <option value="BACKUP_WORKSPACE">Backup Workspace</option>
                     <option value="FINISH_SEQUENCE">Finish Sequence</option>
                   </select>
                 </div>
@@ -628,6 +671,115 @@ export default function AutomationScreen() {
                               <option value="LEAD">Lead</option>
                               <option value="CUSTOMER">Customer</option>
                             </select>
+                          </div>
+                        )}
+
+                        {step.type === 'RUN_DISCOVERY' && (
+                          <div className="space-y-1.5 mt-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted">Search Query:</span>
+                              <Input
+                                value={step.config.query || ''}
+                                onChange={(e) => handleStepConfigChange(idx, 'query', e.target.value)}
+                                className="h-7 px-2 py-0.5 text-xs w-48"
+                                placeholder="e.g. dentists in Boston"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted font-medium">Limit:</span>
+                              <Input
+                                type="number"
+                                value={step.config.limit || ''}
+                                onChange={(e) => handleStepConfigChange(idx, 'limit', parseInt(e.target.value))}
+                                className="h-7 w-20 px-2 py-0.5 text-xs"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {step.type === 'RUN_CRAWLER' && (
+                          <div className="flex items-center gap-2 mt-1 w-full">
+                            <span className="text-[10px] text-muted shrink-0">Website URL:</span>
+                            <Input
+                              value={step.config.website || ''}
+                              onChange={(e) => handleStepConfigChange(idx, 'website', e.target.value)}
+                              placeholder="e.g. {{company.domain}}"
+                              className="h-7 px-2 py-0.5 text-xs w-full"
+                            />
+                          </div>
+                        )}
+
+                        {step.type === 'CREATE_CAMPAIGN' && (
+                          <div className="space-y-1.5 mt-1 w-full">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted shrink-0 w-12">Name:</span>
+                              <Input
+                                value={step.config.name || ''}
+                                onChange={(e) => handleStepConfigChange(idx, 'name', e.target.value)}
+                                className="h-7 px-2 py-0.5 text-xs w-full"
+                                placeholder="Campaign Name"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted shrink-0 w-12">Subject:</span>
+                              <Input
+                                value={step.config.subject || ''}
+                                onChange={(e) => handleStepConfigChange(idx, 'subject', e.target.value)}
+                                className="h-7 px-2 py-0.5 text-xs w-full"
+                                placeholder="Subject template"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted shrink-0 w-12">Body:</span>
+                              <Input
+                                value={step.config.body || ''}
+                                onChange={(e) => handleStepConfigChange(idx, 'body', e.target.value)}
+                                className="h-7 px-2 py-0.5 text-xs w-full"
+                                placeholder="Body template content"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {['ENROLL_CONTACT', 'PAUSE_CAMPAIGN', 'RESUME_CAMPAIGN'].includes(step.type) && (
+                          <div className="flex items-center gap-2 mt-1 w-full">
+                            <span className="text-[10px] text-muted shrink-0">Campaign:</span>
+                            <select
+                              value={step.config.campaignId || ''}
+                              onChange={(e) => handleStepConfigChange(idx, 'campaignId', e.target.value)}
+                              className="bg-sunken border border-border-subtle rounded px-1.5 py-0.5 text-[10px] max-w-[200px]"
+                            >
+                              <option value="">Select Campaign</option>
+                              {campaignsQuery.data?.map((c: any) => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        {step.type === 'SEND_NOTIFICATION' && (
+                          <div className="space-y-1.5 mt-1 w-full">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted shrink-0 w-14">Message:</span>
+                              <Input
+                                value={step.config.message || ''}
+                                onChange={(e) => handleStepConfigChange(idx, 'message', e.target.value)}
+                                className="h-7 px-2 py-0.5 text-xs w-full"
+                                placeholder="Alert text"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted shrink-0 w-14">Type:</span>
+                              <select
+                                value={step.config.type || 'info'}
+                                onChange={(e) => handleStepConfigChange(idx, 'type', e.target.value)}
+                                className="bg-sunken border border-border-subtle rounded px-1.5 py-0.5 text-[10px]"
+                              >
+                                <option value="info">Info</option>
+                                <option value="warning">Warning</option>
+                                <option value="success">Success</option>
+                              </select>
+                            </div>
                           </div>
                         )}
                       </div>

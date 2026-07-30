@@ -908,6 +908,97 @@ export function runMigrations(customDb?: Database.Database): void {
       }
     }
 
+    // Seed workflow presets if sequences table exists
+    if (tableExists(db, 'sequences')) {
+      const match = db.name.match(/leadforge_([a-zA-Z0-9_-]+)\.db/);
+      const wsId = match ? match[1] : 'default';
+      
+      const count = db.prepare('SELECT count(*) as cnt FROM sequences').get() as { cnt: number };
+      if (count && count.cnt === 0) {
+        console.log(`[SQLite] Seeding workflow presets for workspace: ${wsId}`);
+        const presets = [
+          {
+            id: 'preset_daily_discovery',
+            name: 'Daily Lead Discovery',
+            description: 'Scan Google Maps for leads, crawl websites, and export CSV daily.',
+            status: 'active',
+            trigger: JSON.stringify({ type: 'SCHEDULE', config: { cron: '0 9 * * *' } }),
+            steps: JSON.stringify([
+              { id: 'step_1', type: 'RUN_DISCOVERY', config: { query: 'Software Companies', limit: 20 } },
+              { id: 'step_2', type: 'WAIT', config: { delaySeconds: 300 } },
+              { id: 'step_3', type: 'EXPORT_CSV', config: {} }
+            ])
+          },
+          {
+            id: 'preset_auto_qualify',
+            name: 'Auto Qualify Leads',
+            description: 'Trigger website crawl and lead intelligence when a company is created.',
+            status: 'active',
+            trigger: JSON.stringify({ type: 'COMPANY_CREATED', config: {} }),
+            steps: JSON.stringify([
+              { id: 'step_1', type: 'RUN_CRAWLER', config: {} },
+              { id: 'step_2', type: 'WAIT', config: { delaySeconds: 60 } },
+              { id: 'step_3', type: 'RUN_INTELLIGENCE', config: {} }
+            ])
+          },
+          {
+            id: 'preset_auto_enroll',
+            name: 'Auto Enroll High Scores',
+            description: 'Generate personalized opening lines and enroll hot leads into campaigns.',
+            status: 'active',
+            trigger: JSON.stringify({
+              type: 'LEAD_SCORE_CHANGED',
+              conditions: [{ field: 'leadScore', op: '>=', value: 75 }]
+            }),
+            steps: JSON.stringify([
+              { id: 'step_1', type: 'GENERATE_OPENING_LINE', config: {} },
+              { id: 'step_2', type: 'ENROLL_CONTACT', config: { campaignId: 'default_campaign' } }
+            ])
+          },
+          {
+            id: 'preset_follow_up',
+            name: 'Follow Up After 3 Days',
+            description: 'Check reply status after 3 days and automatically send follow-up templates.',
+            status: 'active',
+            trigger: JSON.stringify({ type: 'EMAIL_SENT', config: {} }),
+            steps: JSON.stringify([
+              { id: 'step_1', type: 'WAIT', config: { delaySeconds: 259200 } },
+              { id: 'step_2', type: 'CONDITION', config: { conditionType: 'NO_REPLY_RECEIVED' } },
+              { id: 'step_3', type: 'SEND_EMAIL', config: { templateId: 'follow_up' } }
+            ])
+          },
+          {
+            id: 'preset_notify_replies',
+            name: 'Notify on Replies',
+            description: 'Send desktop and in-app alerts on prospect replies.',
+            status: 'active',
+            trigger: JSON.stringify({ type: 'REPLY_RECEIVED', config: {} }),
+            steps: JSON.stringify([
+              { id: 'step_1', type: 'SEND_NOTIFICATION', config: { message: 'Lead replied to campaign!', type: 'success' } }
+            ])
+          },
+          {
+            id: 'preset_nightly_backup',
+            name: 'Backup Every Night',
+            description: 'Trigger automatic nightly database snapshot backups.',
+            status: 'active',
+            trigger: JSON.stringify({ type: 'SCHEDULE', config: { cron: '0 1 * * *' } }),
+            steps: JSON.stringify([
+              { id: 'step_1', type: 'BACKUP_WORKSPACE', config: {} }
+            ])
+          }
+        ];
+
+        const insertStmt = db.prepare(`
+          INSERT INTO sequences (id, workspaceId, name, description, status, trigger, steps, createdAt, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        `);
+        for (const p of presets) {
+          insertStmt.run(p.id, wsId, p.name, p.description, p.status, p.trigger, p.steps);
+        }
+      }
+    }
+
     // Delete pre-migration backup on success
     if (backupPath && fs.existsSync(backupPath)) {
       try {

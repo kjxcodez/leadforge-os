@@ -29,7 +29,9 @@ export type EventType =
   | 'automation:completed'
   | 'automation:cancelled'
   | 'automation:failed'
-  | 'automation:recovered';
+  | 'automation:recovered'
+  | 'workspace:opened'
+  | 'update:installed';
 
 export interface AppEvent {
   type: EventType;
