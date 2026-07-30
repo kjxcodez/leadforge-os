@@ -46,4 +46,7 @@ export function registerAllIpc(
   registerDashboardIpc();
   registerLinkedInIpc();
   registerCampaignsIpc();
+  
+  const { registerOnboardingIpc } = require('./onboarding-ipc');
+  registerOnboardingIpc();
 }

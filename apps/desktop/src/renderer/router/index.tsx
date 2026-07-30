@@ -28,6 +28,7 @@ const CampaignsScreen = lazy(() => import('../screens/CampaignsScreen'));
 const AutomationScreen = lazy(() => import('../screens/AutomationScreen'));
 const DiagnosticsScreen = lazy(() => import('../screens/DiagnosticsScreen'));
 const ReportsScreen = lazy(() => import('../screens/ReportsScreen'));
+const OnboardingScreen = lazy(() => import('../screens/OnboardingScreen'));
 
 
 // ---------------------------------------------------------------------------
@@ -91,6 +92,12 @@ const router = createHashRouter([
   {
     path: '/splash',
     element: <BlankLayout><SplashScreen /></BlankLayout>,
+  },
+
+  // ── Onboarding Experience ────────────────────────────────────────────────
+  {
+    path: '/onboarding',
+    element: <BlankLayout><OnboardingScreen /></BlankLayout>,
   },
 
   // ── Session expired ──────────────────────────────────────────────────────

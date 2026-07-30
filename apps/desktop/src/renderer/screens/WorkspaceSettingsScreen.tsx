@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useWorkspace } from '../hooks/useWorkspace';
 import {
   useWorkspaceMembers,
@@ -19,6 +20,7 @@ import { ShieldAlert, Trash2, UserPlus, LogOut, ArrowLeftRight, Key, CheckCircle
  */
 export default function WorkspaceSettingsScreen() {
   const { activeWorkspace } = useWorkspace();
+  const navigate = useNavigate();
   const { role, isOwner, isAdmin } = usePermissions();
 
   const membersQuery = useWorkspaceMembers(activeWorkspace?.id || '');
@@ -190,6 +192,53 @@ export default function WorkspaceSettingsScreen() {
 
       {/* ── SECTION 3.5: Auto Updates ───────────────────────────────────── */}
       <AutoUpdateSection />
+
+      {/* ── SECTION 3.6: Onboarding & Interactive Guides ──────────────── */}
+      <div className="bg-card border border-border-subtle rounded-xl p-5 space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+            <Sparkles className="w-4 h-4 text-accent" />
+            <span>Interactive Guides & Onboarding</span>
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Replay app tours or reset workspace initialization configuration.</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+          <div className="flex items-center justify-between border border-border rounded-lg p-3 bg-sunken/15">
+            <div>
+              <p className="text-xs font-semibold text-foreground">Interactive Product Tour</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Highlights discovery, CRM, and campaigns navigation.</p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                localStorage.setItem('product_tour_active', 'true');
+                navigate('/');
+              }}
+            >
+              Start Tour
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between border border-border rounded-lg p-3 bg-sunken/15">
+            <div>
+              <p className="text-xs font-semibold text-foreground">Workspace Setup Wizard</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Rerun the health check diagnostics and setup steps.</p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                localStorage.removeItem('onboarding_completed');
+                navigate('/onboarding');
+              }}
+            >
+              Reset Setup
+            </Button>
+          </div>
+        </div>
+      </div>
 
       {/* ── SECTION 4: Danger Zone ────────────────────────────────────── */}
       <div className="bg-card border border-destructive/20 rounded-xl p-5 space-y-4">

@@ -34,5 +34,9 @@ nsis:
   allowElevation: true
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: "LeadForge OS"
+  runAfterFinish: true
 
 publish: null

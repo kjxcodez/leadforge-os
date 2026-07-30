@@ -503,6 +503,29 @@ export interface IpcChannelMap {
     input: { workspaceId: string; companyId: string };
     output: { success: boolean; jobId: string };
   };
+  'onboarding:get-diagnostics': {
+    input: void;
+    output: {
+      os: string;
+      electronVersion: string;
+      workspaceDir: string;
+      writePermissions: boolean;
+      sqliteAvailable: boolean;
+      freeDiskSpaceGB: number;
+      internetConnected: boolean;
+      ollamaInstalled: boolean;
+      ollamaModels: string[];
+      workersReady: boolean;
+    };
+  };
+  'onboarding:generate-sample-data': {
+    input: { workspaceId: string };
+    output: { success: boolean };
+  };
+  'onboarding:save-setting': {
+    input: { workspaceId: string; key: string; value: string };
+    output: { success: boolean };
+  };
 }
 
 export interface IpcRequest<T> {

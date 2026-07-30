@@ -1,10 +1,11 @@
 import { useEffect, Suspense } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import ProductTour from "../components/onboarding/ProductTour";
 
 import { useWorkspace } from "../hooks/useWorkspace";
 import { Button } from "../components/ui/button";
@@ -77,6 +78,14 @@ function CreateWorkspaceInlineForm() {
 export function AppLayout() {
   const { activeWorkspace } = useWorkspace();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const isCompleted = localStorage.getItem('onboarding_completed') === 'true';
+    if (!isCompleted) {
+      navigate('/onboarding');
+    }
+  }, [navigate]);
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -145,6 +154,7 @@ export function AppLayout() {
           </div>
         </SidebarInset>
       </div>
+      <ProductTour />
     </SidebarProvider>
   );
 }
