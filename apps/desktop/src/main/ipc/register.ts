@@ -10,6 +10,7 @@ import { registerSchedulerIpc } from './scheduler';
 import { registerDashboardIpc } from './dashboard';
 import { registerLinkedInIpc } from './linkedin';
 import { registerCampaignsIpc } from './campaigns-ipc';
+import { registerOnboardingIpc } from './onboarding-ipc';
 import { WorkspaceManager } from '../lib/workspace-manager';
 
 /**
@@ -46,7 +47,5 @@ export function registerAllIpc(
   registerDashboardIpc();
   registerLinkedInIpc();
   registerCampaignsIpc();
-  
-  const { registerOnboardingIpc } = require('./onboarding-ipc');
   registerOnboardingIpc();
 }
