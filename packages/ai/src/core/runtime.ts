@@ -121,8 +121,10 @@ export class AIRuntime {
       return JSON.stringify({
         openingLine: `Saw that you guys are building out your digital infrastructure using ${techText} at ${input.companyName}—really impressive work.`,
         painPoint: `Potential friction in customer acquisition cycles and technical scale constraints related to ${issueText}.`,
-        outreachAngle: `Highlight how optimizing their current stack can reduce conversion drop-offs and drive higher demo conversions.`,
       });
+    }
+    if (promptId === 'research_summary') {
+      return `Research Summary Report for "${input.query}": Discovered companies and extracted emails.`;
     }
     return '';
   }
