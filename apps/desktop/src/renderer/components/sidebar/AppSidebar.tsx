@@ -7,7 +7,6 @@ import {
   GitBranch,
   BarChart3,
   Settings,
-  Hexagon,
   Activity,
 } from "lucide-react";
 import {
@@ -22,6 +21,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import SidebarLinks from "./SidebarLinks";
 import SidebarBottomNav from "./SidebarBottomNav";
+import logoLight from "../../assets/app-icon-light.png";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -50,11 +50,11 @@ export function AppSidebar({ activeWorkspace }: { activeWorkspace: any }) {
       className="h-screen flex flex-col shrink-0 border-r border-border-subtle bg-card transition-all duration-200 ease-in-out"
     >
       <SidebarHeader className="flex flex-row items-center gap-2.5 px-3 pt-4 pb-5">
-        <div className="w-7 h-7 rounded-md bg-accent flex items-center justify-center shrink-0">
-          <Hexagon
-            className="h-5 w-5 text-neutral-300"
-            strokeWidth={1.75}
-            aria-hidden="true"
+        <div className="w-7 h-7 flex items-center justify-center shrink-0 overflow-hidden">
+          <img
+            src={logoLight}
+            className="h-6 w-6 object-contain"
+            alt="LeadForge Logo"
           />
         </div>
         <div className="min-w-0 overflow-hidden">
