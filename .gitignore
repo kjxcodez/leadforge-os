@@ -35,7 +35,7 @@ yarn-error.log*
 
 # Misc
 .DS_Store
-*.pem
-
-
 stitch_leadforge_dashboard_design_system
+
+# TS build info cache
+*.tsbuildinfo
