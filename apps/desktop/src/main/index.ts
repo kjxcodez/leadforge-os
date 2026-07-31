@@ -11,6 +11,7 @@ import { AppLogger } from './lib/logger';
 import { loadWindowState, trackWindowState } from './lib/window-state';
 import { createSplashWindow } from './lib/splash-window';
 import { telemetry } from './lib/telemetry';
+import { UpdateManager } from './services/updater';
 
 // Main window reference
 let mainWindow: BrowserWindow | null = null;
@@ -231,7 +232,6 @@ app.whenReady().then(() => {
 
   // Initialise UpdateManager
   try {
-    const { UpdateManager } = require('./services/updater');
     UpdateManager.getInstance();
   } catch (err) {
     AppLogger.error('Updater', 'Failed to initialize UpdateManager on start', undefined, err);

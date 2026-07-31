@@ -11,6 +11,7 @@ import { AutomationTriggerEvaluator } from '../services/automation-trigger';
 import type { SdkClient } from '@leadforge/sdk';
 
 import { telemetry } from './telemetry';
+import { UpdateManager } from '../services/updater';
 
 /**
  * WorkspaceRuntime manages a single workspace isolated connection, local event bus,
@@ -58,7 +59,6 @@ export class WorkspaceRuntime {
     this.eventBus = new LocalEventBus(workspaceId);
     this.scheduler = new JobScheduler(workspaceId, this.sqliteDb, this.eventBus);
     try {
-      const { UpdateManager } = require('../services/updater');
       UpdateManager.getInstance().registerScheduler(this.scheduler);
     } catch {}
     this.syncEngine = new SyncEngine(workspaceId, this.sqliteDb, this.eventBus, sdk);
