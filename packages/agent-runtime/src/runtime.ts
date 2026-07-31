@@ -1,6 +1,6 @@
 import type { ToolRegistry, BaseAgent, ExecutionContext } from '@leadforge/agent-core';
 import type { AIConfig, WorkflowResult } from '@leadforge/workflow-engine';
-import { WorkflowRunner } from '@leadforge/workflow-engine';
+import { WorkflowRunner, ToolDispatcher } from '@leadforge/workflow-engine';
 import { AgentSession } from './agent-session';
 import { ContextBuilder } from './context-builder';
 import { ResponseAssembler } from './response-assembler';
@@ -82,7 +82,8 @@ export class AgentRuntime {
       }
 
       // ── Create runner and wire lifecycle events into session ──────────────
-      const runner = new WorkflowRunner(this.registry, this.aiConfig);
+      const dispatcher = new ToolDispatcher(this.registry);
+      const runner = new WorkflowRunner(dispatcher, this.aiConfig);
 
       runner.events.onStepStarted((ev) => {
         session.transition('EXECUTING_TOOL', `Running step: ${ev.stepName}`);

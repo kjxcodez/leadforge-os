@@ -1,9 +1,12 @@
 import { AIRuntime } from '@leadforge/ai';
-import type { ToolRegistry, ExecutionContext, ToolResult } from '@leadforge/agent-core';
+import type { ExecutionContext, ToolResult } from '@leadforge/agent-core';
 import type { Workflow, ToolStep, LLMStep, TransformStep, ValidationStep } from './workflow';
 import { WorkflowContext } from './workflow-context';
 import { WorkflowEvents } from './workflow-events';
 import type { WorkflowResult, WorkflowStepResult } from './types';
+import { ToolDispatcher } from './tool-invocation/tool-dispatcher';
+import type { ToolRequest } from './tool-invocation/types';
+import crypto from 'crypto';
 
 // ─── AIConfig shape (mirrors @leadforge/ai usage) ────────────────────────────
 
@@ -33,11 +36,11 @@ export interface AIConfig {
  */
 export class WorkflowRunner {
   public readonly events: WorkflowEvents;
-  private readonly registry: ToolRegistry;
+  private readonly dispatcher: ToolDispatcher;
   private readonly aiConfig: AIConfig;
 
-  constructor(registry: ToolRegistry, aiConfig: AIConfig = { aiMode: 'mock' }) {
-    this.registry = registry;
+  constructor(dispatcher: ToolDispatcher, aiConfig: AIConfig = { aiMode: 'mock' }) {
+    this.dispatcher = dispatcher;
     this.aiConfig = aiConfig;
     this.events = new WorkflowEvents();
   }
@@ -215,10 +218,23 @@ export class WorkflowRunner {
       const toolResults: ToolResult[] = [];
 
       for (const input of inputs) {
-        const res = await this.runTool(step.toolName, input, execCtx);
-        toolResults.push(res);
+        const req: ToolRequest = {
+          requestId: crypto.randomUUID(),
+          toolName: step.toolName,
+          arguments: input as Record<string, unknown>,
+          traceId: execCtx.traceId,
+          workspaceId: execCtx.workspaceId,
+          invokedBy: step.id,
+          timestamp: new Date().toISOString(),
+          requiresApproval: this.dispatcher.toolRequiresApproval(step.toolName)
+        };
+
+        const res = await this.dispatcher.dispatch(req, execCtx);
         if (!res.success) {
           throw new Error(res.error?.message ?? `Tool "${step.toolName}" failed`);
+        }
+        if (res.toolResult) {
+          toolResults.push(res.toolResult);
         }
       }
 
@@ -234,10 +250,25 @@ export class WorkflowRunner {
 
     // Single invocation
     const input = step.buildInput ? step.buildInput(ctx) : {};
-    const res = await this.runTool(step.toolName, input, execCtx);
+    const req: ToolRequest = {
+      requestId: crypto.randomUUID(),
+      toolName: step.toolName,
+      arguments: input as Record<string, unknown>,
+      traceId: execCtx.traceId,
+      workspaceId: execCtx.workspaceId,
+      invokedBy: step.id,
+      timestamp: new Date().toISOString(),
+      requiresApproval: this.dispatcher.toolRequiresApproval(step.toolName)
+    };
 
+    const res = await this.dispatcher.dispatch(req, execCtx);
     if (!res.success) {
       throw new Error(res.error?.message ?? `Tool "${step.toolName}" failed`);
+    }
+
+    const toolResults: ToolResult[] = [];
+    if (res.toolResult) {
+      toolResults.push(res.toolResult);
     }
 
     return {
@@ -246,60 +277,8 @@ export class WorkflowRunner {
       status: 'COMPLETED',
       startedAt,
       output: res.data,
-      toolResults: [res]
+      toolResults
     };
-  }
-
-  private async runTool(
-    toolName: string,
-    input: unknown,
-    execCtx: ExecutionContext
-  ): Promise<ToolResult> {
-    const tool = this.registry.get(toolName);
-    if (!tool) {
-      const now = new Date().toISOString();
-      return {
-        success: false,
-        error: {
-          code: 'UNAVAILABLE',
-          message: `Tool "${toolName}" not found in registry.`,
-          isRetryable: false
-        },
-        metadata: {
-          startedAt: now,
-          completedAt: now,
-          durationMs: 0,
-          attempt: 1,
-          workspaceId: execCtx.workspaceId,
-          traceId: execCtx.traceId,
-          cached: false,
-          retryCount: 0
-        }
-      };
-    }
-    try {
-      return await tool.execute(input, execCtx);
-    } catch (err: unknown) {
-      const now = new Date().toISOString();
-      return {
-        success: false,
-        error: {
-          code: 'WORKER_ERROR',
-          message: err instanceof Error ? err.message : String(err),
-          isRetryable: true
-        },
-        metadata: {
-          startedAt: now,
-          completedAt: now,
-          durationMs: 0,
-          attempt: 1,
-          workspaceId: execCtx.workspaceId,
-          traceId: execCtx.traceId,
-          cached: false,
-          retryCount: 0
-        }
-      };
-    }
   }
 
   // ─── LLMStep ──────────────────────────────────────────────────────────────

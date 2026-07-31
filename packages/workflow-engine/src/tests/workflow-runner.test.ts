@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { WorkflowRunner } from '../workflow-runner';
+import { WorkflowRunner, ToolDispatcher } from '../index';
 import { WorkflowContext } from '../workflow-context';
 import { WorkflowEvents } from '../workflow-events';
 import type { Workflow } from '../workflow';
@@ -153,7 +153,7 @@ const mockFailingTool: Tool = {
     ]
   };
 
-  const runner = new WorkflowRunner(registry, { aiMode: 'mock' });
+  const runner = new WorkflowRunner(new ToolDispatcher(registry), { aiMode: 'mock' });
 
   const eventsEmitted: string[] = [];
   runner.events.onStarted(() => eventsEmitted.push('workflow:started'));
@@ -207,7 +207,7 @@ const mockFailingTool: Tool = {
     ]
   };
 
-  const runner = new WorkflowRunner(registry, { aiMode: 'mock' });
+  const runner = new WorkflowRunner(new ToolDispatcher(registry), { aiMode: 'mock' });
   const result = await runner.run(workflow, EXEC_CTX, { query: 'Austin companies' });
 
   assert.strictEqual(result.status, 'COMPLETED', 'Context workflow should complete');
@@ -245,7 +245,7 @@ const mockFailingTool: Tool = {
     ]
   };
 
-  const runner = new WorkflowRunner(registry, { aiMode: 'mock' });
+  const runner = new WorkflowRunner(new ToolDispatcher(registry), { aiMode: 'mock' });
   const failEventsEmitted: string[] = [];
   runner.events.onFailed(() => failEventsEmitted.push('workflow:failed'));
 
@@ -296,7 +296,7 @@ const mockFailingTool: Tool = {
     ]
   };
 
-  const runner = new WorkflowRunner(registry, { aiMode: 'mock' });
+  const runner = new WorkflowRunner(new ToolDispatcher(registry), { aiMode: 'mock' });
   const result = await runner.run(workflow, EXEC_CTX, {});
 
   assert.strictEqual(result.status, 'COMPLETED', 'Fan-out workflow should complete');
@@ -330,7 +330,7 @@ const mockFailingTool: Tool = {
     ]
   };
 
-  const runner = new WorkflowRunner(registry, { aiMode: 'mock' });
+  const runner = new WorkflowRunner(new ToolDispatcher(registry), { aiMode: 'mock' });
 
   // Should pass with valid query
   const pass = await runner.run(workflow, EXEC_CTX, { query: 'valid query' });

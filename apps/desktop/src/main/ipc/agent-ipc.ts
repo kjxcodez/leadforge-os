@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { AgentRuntime, ResearchAgent } from '@leadforge/agent-runtime';
-import { WorkflowRunner } from '@leadforge/workflow-engine';
+import { WorkflowRunner, ToolDispatcher } from '@leadforge/workflow-engine';
 import { ResearchWorkflow } from '@leadforge/agent-runtime';
 import { ResearchSummaryPrompt } from '@leadforge/agent-runtime';
 import { ContextBuilder } from '@leadforge/agent-runtime';
@@ -83,7 +83,8 @@ export function registerAgentIPCHandlers(): void {
       const eventBus = runtimeInstance.eventBus;
       const registry = createWorkspaceToolRegistry(db, eventBus);
 
-      const runner = new WorkflowRunner(registry, params.aiConfig ?? { aiMode: 'mock' });
+      const dispatcher = new ToolDispatcher(registry);
+      const runner = new WorkflowRunner(dispatcher, params.aiConfig ?? { aiMode: 'mock' });
 
       // ── Wire workflow events → renderer progress channel ─────────────────
       const sendProgress = (stage: string, payload: Record<string, unknown>) => {
