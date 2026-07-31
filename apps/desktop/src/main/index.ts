@@ -90,6 +90,7 @@ function createWindow() {
     titleBarStyle: 'default',
     frame: true,
     trafficLightPosition: { x: 10, y: 10 },
+    icon: join(__dirname, '../../resources/icon.png'),
   };
 
   if (windowState.x !== undefined && windowState.y !== undefined) {
