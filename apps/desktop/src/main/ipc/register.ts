@@ -12,6 +12,7 @@ import { registerLinkedInIpc } from './linkedin';
 import { registerCampaignsIpc } from './campaigns-ipc';
 import { registerOnboardingIpc } from './onboarding-ipc';
 import { registerObservabilityIpc } from './observability-ipc';
+import { registerAgentIPCHandlers } from './agent-ipc';
 import { WorkspaceManager } from '../lib/workspace-manager';
 
 /**
@@ -50,4 +51,5 @@ export function registerAllIpc(
   registerCampaignsIpc();
   registerOnboardingIpc();
   registerObservabilityIpc();
+  registerAgentIPCHandlers();
 }

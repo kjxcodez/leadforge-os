@@ -646,6 +646,25 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp);
     `,
   },
+  {
+    name: '024_agent_memory',
+    up: `
+      CREATE TABLE IF NOT EXISTS workspace_memory (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        key TEXT NOT NULL,
+        value TEXT,
+        syncStatus TEXT DEFAULT 'synced',
+        version INTEGER DEFAULT 1,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        deletedAt DATETIME DEFAULT NULL
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_memory_key ON workspace_memory(workspaceId, scope, key);
+    `,
+  },
 ];
 
 

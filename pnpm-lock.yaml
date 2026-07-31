@@ -138,6 +138,12 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.9.1
         version: 3.10.0(react-hook-form@7.81.0(react@19.2.7))
+      '@leadforge/agent-core':
+        specifier: workspace:*
+        version: link:../../packages/agent-core
+      '@leadforge/agent-runtime':
+        specifier: workspace:*
+        version: link:../../packages/agent-runtime
       '@leadforge/ai':
         specifier: workspace:*
         version: link:../../packages/ai
@@ -150,6 +156,9 @@ importers:
       '@leadforge/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@leadforge/workflow-engine':
+        specifier: workspace:*
+        version: link:../../packages/workflow-engine
       '@shadcn/react':
         specifier: ^0.2.1
         version: 0.2.1(@types/react@19.2.17)(react@19.2.7)
@@ -329,6 +338,30 @@ importers:
         specifier: ^6.0.5
         version: 6.4.3(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.0)(yaml@2.9.0)
 
+  packages/agent-core:
+    dependencies:
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+
+  packages/agent-runtime:
+    dependencies:
+      '@leadforge/agent-core':
+        specifier: workspace:*
+        version: link:../agent-core
+      '@leadforge/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@leadforge/schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@leadforge/workflow-engine':
+        specifier: workspace:*
+        version: link:../workflow-engine
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+
   packages/ai:
     dependencies:
       zod:
@@ -412,6 +445,18 @@ importers:
       '@leadforge/schema':
         specifier: workspace:*
         version: link:../schema
+
+  packages/workflow-engine:
+    dependencies:
+      '@leadforge/agent-core':
+        specifier: workspace:*
+        version: link:../agent-core
+      '@leadforge/ai':
+        specifier: workspace:*
+        version: link:../ai
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
 
   packages/workflows:
     dependencies:
