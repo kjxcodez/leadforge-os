@@ -1,6 +1,6 @@
 # LeadForge OS — AI & Agent Platform Architecture
 
-This document specifies the permanent AI & Agent Platform architecture for LeadForge OS. It establishes a strict separation between low-level model inference infrastructure (AI Runtime), orchestrating frameworks, agent capability schemas (Agent SDK), and business workflows.
+This document specifies the permanent AI & Agent Platform architecture for LeadForge OS. It establishes a strict separation between model inference infrastructure (AI Runtime), orchestrating frameworks, agent capability schemas (Agent SDK), and business workflows.
 
 ---
 
@@ -37,7 +37,7 @@ We audit all existing and stubbed components of the LeadForge OS monorepo to cla
 
 ---
 
-## Phase 1 & 3: Runtime Boundaries
+## Runtime Boundaries
 
 The **AI Runtime** (`@leadforge/ai-runtime`) owns ONLY low-level model access utilities. It acts as an isolation barrier between the LLM and the application logic.
 
@@ -58,7 +58,7 @@ The **AI Runtime** (`@leadforge/ai-runtime`) owns ONLY low-level model access ut
 
 ---
 
-## Phase 4: Agent Platform Architecture
+## Agent Platform Architecture
 
 We separate the Agent Platform into two distinct modules:
 1. **`agent-core`**: Defines pure **contracts** and metadata schemas.
@@ -76,27 +76,27 @@ We separate the Agent Platform into two distinct modules:
 
 ---
 
-## Phase 5: Agent Core Definitions
+## Agent Core Definitions
 
 This section defines the core concepts and invariants of the platform without committing to a concrete TypeScript API.
 
 ### 1. `BaseAgent`
-* **Purpose**: Abstract representation of an agent identity.
-* **Lifecycle**: Instantiated by the application workspace; active during a single pipeline run or a persistent user-chat session.
-* **Responsibilities**:
-  * Exposes agent metadata (name, description, role, icon).
-  * Exposes system instructions and persona constraints.
-  * Declares required capabilities and tool configurations.
-* **Invariants**:
-  * Must never import provider credentials (API keys) or endpoint configurations.
-  * Must remain completely independent of the execution loop (e.g. it does not know if it is run inside a Graph or a linear chain).
-* **Dependencies**: `AgentContext`, `AgentMemory`, `Tool`.
+* **Purpose**: Metadata-only representation of an agent identity.
+* **Invariants**: Must NEVER perform planning, looping, provider access, or database/network execution.
+* **Metadata Fields**:
+  * `id`: Unique agent identity key.
+  * `name`: User-facing name.
+  * `description`: Purpose explanation.
+  * `systemPrompt`: Instruction template.
+  * `tools`: List of catalog tool keys.
+  * `memoryScopes`: Array of scopes needed.
+  * `capabilities`: Provider capability flags needed.
 
 ### 2. `Tool`
 * **Purpose**: Defines an interface for actions that can be executed by an LLM or planner.
 * **Lifecycle**: Registered globally at application startup.
 * **Responsibilities**:
-  * Declares input validation requirements.
+  * Declares input validation requirements using Zod.
   * Declares safety risk classification (Low, Medium, High).
   * Wraps execution callbacks.
 * **Invariants**:
@@ -105,214 +105,76 @@ This section defines the core concepts and invariants of the platform without co
 * **Dependencies**: `ZodSchema`, `ExecutionContext`.
 
 ### 3. `ToolRegistry`
-* **Purpose**: A lookup table matching tools to their keys.
-* **Responsibilities**:
-  * Registers and resolves tools.
-  * Lists available tools to help the LLM choose actions.
+* **Purpose**: A runtime lookup table matching tool implementations to their keys.
+* **Invariants**: Metadata lookup must contain zero database/scheduler dependencies. The registry must never execute or dispatch tools itself.
 
 ---
 
-## Phase 6: Business Agent Boundaries
+## Scheduler Gateway
 
-This section defines the operational scopes of the six business agents.
-
-### 1. `ResearchAgent`
-* **Responsibilities**: Discovers local businesses matching target niches and locations.
-* **Inputs**: Search query (e.g. "Software agencies in Austin"), geographical radius limit.
-* **Outputs**: List of company profiles with verified domains and business details.
-* **Memory Needs**: Conversation (to refine search filters) and Scratchpad (to track pagination offsets).
-* **Tool Requirements**: `search_local_businesses` (maps scraper).
-* **Safety Considerations**: Must obey Google Maps terms of service.
-* **Human Approval**: Automated (requires no human gate).
-
-### 2. `LeadResearchAgent`
-* **Responsibilities**: Crawls target company websites and parses online profiles to discover key decision makers.
-* **Inputs**: Company details, target job titles (e.g., "CEO", "Marketing Director").
-* **Outputs**: List of enriched contacts with names, titles, email addresses, and LinkedIn profiles.
-* **Memory Needs**: Workspace memory (to avoid crawling recently parsed websites).
-* **Tool Requirements**: `crawl_company_website`, `search_linkedin_profiles`.
-* **Safety Considerations**: LinkedIn scraping must run with rate limits to protect session cookies (`li_at`).
-* **Human Approval**: Automated, unless a session error is caught (which pauses the task and alerts the user).
-
-### 3. `CampaignAssistant`
-* **Responsibilities**: Writes personalized cold email templates, maps schedules, and queues outreach.
-* **Inputs**: Target contacts, product description, value proposition, campaign parameters.
-* **Outputs**: Formatted email templates with parsed tags.
-* **Memory Needs**: Long-term memory (historical templates) and Conversation memory.
-* **Tool Requirements**: None (pure LLM template generation).
-* **Safety Considerations**: Prevents generation of misleading or spam-like email copy.
-* **Human Approval**: **Mandatory Gate**. Draft templates must be reviewed and approved by the user before campaign enrollment.
-
-### 4. `CRMNavigator`
-* **Responsibilities**: Maintains CRM database records and logs timelines.
-* **Inputs**: Target entity, field update payloads (e.g. tags, notes, lead stages).
-* **Outputs**: Sync confirmations.
-* **Memory Needs**: Execution memory.
-* **Tool Requirements**: `update_crm_record`, `add_activity_log`.
-* **Safety Considerations**: Prevents bulk deletes or accidental stage modifications.
-* **Human Approval**: High-risk operations (such as bulk data wipes or archive triggers) require human approval.
-
-### 5. `WorkflowAssistant`
-* **Responsibilities**: Builds and edits automation sequences.
-* **Inputs**: Trigger details, desired outcomes (e.g. "when lead replies, send webhook").
-* **Outputs**: JSON execution steps for the workflow engine.
-* **Memory Needs**: Scratchpad (to build node trees).
-* **Tool Requirements**: None (produces validated sequence schemas).
-* **Safety Considerations**: Validates sequences to prevent infinite GOTO loops.
-* **Human Approval**: **Mandatory Gate**. New or updated automation structures require user approval before deployment.
-
-### 6. `SupportAssistant`
-* **Responsibilities**: Answers user questions and troubleshoots app errors.
-* **Inputs**: Natural language questions, error logs.
-* **Outputs**: Step-by-step instructions.
-* **Memory Needs**: Conversation memory.
-* **Tool Requirements**: `query_system_diagnostics`, `search_local_docs`.
-* **Safety Considerations**: Must not modify any system configuration.
-* **Human Approval**: Automated.
-
----
-
-## Phase 7: Framework Adapter Layer
-
-The **Framework Adapter Layer** (located in `packages/agent-framework`) wraps third-party orchestration libraries (such as Mastra or LangGraph) in standard platform interfaces. 
-
-Adapters query the framework's features and return a comprehensive capabilities matrix:
-
-```typescript
-interface FrameworkCapabilities {
-  supportsStreaming: boolean;
-  supportsPlanning: boolean;
-  supportsCheckpointing: boolean;
-  supportsInterrupts: boolean;
-  supportsCancellation: boolean;
-  supportsMultiAgent: boolean;
-  supportsHumanApproval: boolean;
-  supportsStructuredOutputs: boolean;
-  supportsRetries: boolean;
-  supportsTracing: boolean;
-  supportsMCP: boolean;
-  supportsBackgroundExecution: boolean;
-  supportsPersistence: boolean;
-  supportsBranching: boolean;
-  supportsReflection: boolean;
-  supportsGuardrails: boolean;
-}
-```
-
-If a framework lacks native support for a capability (e.g., local state checkpointing), the adapter must implement a fallback (such as serializing state to the local SQLite database).
-
----
-
-## Phase 8: Memory Model Dimensions
-
-LeadForge OS defines memory scopes across four distinct dimensions: **Owner**, **Lifetime**, **Visibility**, and **Persistence**.
-
-| Memory Scope | Owner | Lifetime | Visibility (Shared?) | Persistence (Storage) |
-| :--- | :--- | :--- | :--- | :--- |
-| **Conversation** | Active Session | Session | Single User (No) | SQLite (`messages` table) |
-| **Workspace** | Workspace | Permanent | Shared across Workspace (Yes) | SQLite (`settings` table) |
-| **Execution** | Job | Job | Single Worker (No) | In-Memory (Job payload context) |
-| **Scratchpad** | Planner | Loop Iteration | Single Step (No) | In-Memory (State variables) |
-| **Semantic** | Workspace | Permanent | Shared across Workspace (Yes) | SQLite + `sqlite-vec` index |
-
----
-
-## Phase 9: Execution Model
-
-The workflow from user action to LLM response and back:
+To enforce strict boundary isolation (ADR-009), tools are forbidden from accessing the SQLite database or scheduler table schemas directly. All dispatches flow through a `SchedulerGateway` (or `JobSubmissionService`):
 
 ```text
-[1. User Interface]  -- Triggers task (e.g. "Find leads in Austin")
-       │
-       ▼
-[2. Business Agent]  -- Resolves tools and system prompts
-       │
-       ▼
-[3. Planner]         -- Generates step-by-step execution plan
-       │
-       ▼
-[4. Tool Registry]   -- Resolves tools (e.g. "search_local_businesses")
-       │
-       ▼
-[5. JobScheduler]    -- Claims job, forks sandboxed child worker
-       │
-       ▼
-[6. Worker Process]  -- Executes worker plugin (e.g. Maps Playwright scraper)
-       │
-       ▼
-[7. SQLite Database] -- Writes newly discovered leads to database
-       │
-       ▼
-[8. Agent Executor]  -- Reads database changes, formats output payload
-       │
-       ▼
-[9. AI Runtime]      -- Sends data to LLM provider (Ollama/OpenRouter)
-       │
-       ▼
-[10. LLM Engine]     -- Generates qualified lead DTO
-       │
-       ▼
-[11. User Interface] -- Displays results in local CRM dashboard
+Tool Execution ──► SchedulerGateway ──► SQL INSERT jobs ──► JobScheduler ──► Worker Process
 ```
+
+### Responsibilities
+* Accept job submission payloads.
+* Validate parameter structures.
+* Execute database entries.
+* Subscribe to EventBus and return normalized `ToolResult` on complete/fail.
+* Hide SQLite schema details from tools.
 
 ---
 
-## Phase 10: Tracing Architecture
+## Expanded ExecutionContext
 
-All agent actions, LLM calls, and tool runs are logged in the `system_logs` and `audit_logs` tables in SQLite.
+The execution context exposes correlation IDs and actor identities without leaking credentials:
+* `workspaceId`: Target tenant identifier.
+* `executionId`: Execution transaction identifier.
+* `traceId`: Observability correlation tracker.
+* `jobId`: Optional scheduler job ID.
+* `actorId`: User or agent key.
+* `actorType`: 'user' | 'agent' | 'system'.
+* `requestedBy`: Invocation source label.
+* `permissions`: Array of user scopes.
+* `executionMode`: 'offline' | 'online'.
+* `abortSignal`: Propagation for cancellation.
+* `metadata`: Free-form metrics.
 
-```typescript
-interface AgentTrace {
-  traceId: string;
-  jobId?: string;
-  agentId: string;
-  provider: string;
-  model: string;
-  promptText: string;
-  responseText?: string;
-  tokensConsumed?: { prompt: number; completion: number };
-  latencyMs: number;
-  toolCalls: Array<{ toolName: string; durationMs: number; success: boolean }>;
-  error?: string;
-}
-```
-
-The Operations Center queries these logs to build trace visualizers, tracking LLM latency, cost calculations (for cloud models), and tool runs.
+*Explicitly excludes: API keys, SMTP passwords, session cookies, database handles.*
 
 ---
 
-## Phase 11: Safety & Guardrails
+## Expanded ToolResult & ToolError Taxonomy
 
-The safety model protects users from rate limits, IP blacklisting, and credential leaks.
+### 1. ToolResult Envelope
+* `success`: Boolean.
+* `data`: Typed success payload.
+* `error`: Discriminated `ToolError`.
+* `metadata`:
+  * `startedAt` / `completedAt`: ISO-8601 timestamps.
+  * `durationMs`: Latency tracking.
+  * `attempt`: Current try index.
+  * `workerId`: Executing process PID.
+  * `traceId` / `jobId` / `workspaceId`: Correlation scopes.
+  * `cached`: Boolean flag.
+  * `provider`: LLM provider name.
+  * `checkpointUsed`: Last verified checkpoint.
+  * `retryCount`: Integer value.
 
-### Tool Permission Levels
-Tools are categorized by risk level:
-* **Low Risk**: Read-only database queries, local document searches, website HTML crawls. (Automated execution).
-* **Medium Risk**: CRM record updates, tag assignments. (Requires validation checks, but runs automatically).
-* **High Risk**: Sending emails, LinkedIn actions, changing workflow steps. (Requires manual approval).
+### 2. ToolError Taxonomy
+* `VALIDATION_ERROR`: Schema validation fails.
+* `PERMISSION_DENIED`: Unauthorized operation.
+* `APPROVAL_REQUIRED`: Paused awaiting user gate.
+* `TIMEOUT`: Execution exceeded deadline limit.
+* `RATE_LIMITED`: Target API rate limit hit.
+* `RESOURCE_EXHAUSTED`: Disk/CPU boundaries exceeded.
+* `UNAVAILABLE`: Remote network or model offline.
+* `SCHEDULER_ERROR`: Spawn failure or SQLite lock.
+* `WORKER_ERROR`: Node child process crashed.
+* `CHECKPOINT_RESTORED`: Resumed from checkpoint.
+* `CANCELLED_BY_USER`: AbortSignal triggered.
+* `UNKNOWN`: Generic errors.
 
-```text
-[ High Risk Action Triggered ]
-              │
-              ▼
-  [ Check Approval Table ] ──(Approved)──► [ Execute Tool ]
-              │
-         (Unapproved)
-              ▼
-  [ Write to approvals table ]
-  [ Emit IPC status notification ]
-  [ Pause job scheduler execution ]
-              │
-      (User Clicks 'Approve')
-              ▼
-  [ Set state to 'approved' ]
-  [ Resume job scheduler execution ]
-```
-
-### Approval Gates
-High-risk tools write a request to the `approvals` table, pause the running job, and notify the user via IPC. The scheduler resumes execution only after the user approves the action.
-
-### Recovery and Rollbacks
-If a tool fails:
-* **Scrapers/Crawlers**: The worker saves a checkpoint, releases database locks, and exits. The scheduler handles retries using exponential backoffs.
-* **Database Updates**: Database writes run inside SQL transactions. If an update fails, the transaction is rolled back to prevent corrupted data states.
+*Each error exposes an `isRetryable: boolean` property to determine backoff paths.*

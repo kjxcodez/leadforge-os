@@ -1,79 +1,57 @@
-# Tool Model & Worker Integration
+# Agent Tool Model & Execution Lifecycle
 
-This document specifies how LeadForge OS exposes its existing background worker plugins as AI Tools within the Agent Platform. It avoids duplicating scheduler, worker-process, or recovery logic.
-
----
-
-## Architectural Principle
-LeadForge OS relies on a decoupled, multi-process execution engine. Heavy actions (such as scraping, crawling, and outreach dispatch) run in sandboxed child processes controlled by the `JobScheduler`. 
-
-To prevent memory bloat, CPU saturation, and concurrency bugs, **the Agent Platform must never execute heavy tasks directly inside its reasoning loop.** Instead, it uses the existing `JobScheduler` to run tasks asynchronously.
+This document describes how worker capabilities are exposed as LLM tools, wrapped in safety checks, and executed asynchronously via the Scheduler Gateway.
 
 ---
 
-## Worker Plugins as AI Tools
+## Tool Execution Lifecycle
 
-AI Tools are lightweight wrappers that submit jobs to the `JobScheduler`, wait for execution, and return the job result.
+Tools must not access database schemas, Electron handles, or process spawning APIs directly. All actions flow through a structured execution boundary:
 
 ```text
-[ Agent Planner ] ──► Calls Tool.execute()
-                             │
-                             ▼ (Submits Job)
-                      [ JobScheduler ] ──► (Writes to 'jobs' table)
-                             │
-                             ▼ (Ticks & Forks)
-                      [ Sandboxed Worker ] ──► (Runs Playwright/Cheerio)
-                             │
-                             ▼ (Writes result & exits)
-                      [ SQLite DB ]
-                             │
-                             ▼ (Detects job complete)
-[ Agent Planner ] ◄── Returns Tool Result
+    [ Agent Planner ]
+           │
+           ▼ [1. Execute]
+      [ Tool Class ] (Validated Zod Inputs)
+           │
+           ▼ [2. Request Job]
+   [ SchedulerGateway ] (Hides SQLite Schema Details)
+           │
+           ▼ [3. SQL Write]
+     [ SQLite jobs ] (Inserted status='queued')
+           │
+           ▼ [4. Poll & Fork]
+     [ JobScheduler ] ──► Spawns ──► [ Worker Process ] (Playwright Scraper)
+                                             │
+                                             ▼ [5. Write Result]
+                                       [ SQLite jobs ] (status='completed')
+                                             │
+                                             ▼ [6. Publish Event]
+                                       [ LocalEventBus ]
+                                             │
+                                             ▼ [7. Resolve Promise]
+                                    [ SchedulerGateway ]
+                                             │
+                                             ▼
+                                     Normalized Result
 ```
 
-### The AI Tool Wrapper
-Every background worker plugin is registered in the Agent SDK's `ToolRegistry` via an asynchronous tool wrapper:
+---
+
+## The Scheduler Gateway Bridge
+
+The `SchedulerGateway` (or `JobSubmissionService`) acts as a boundary abstraction. It replaces direct database inserts in tool logic.
 
 ```typescript
-class SchedulerJobTool implements Tool {
-  constructor(
-    private readonly jobType: string,
-    private readonly scheduler: JobScheduler,
-    public readonly name: string,
-    public readonly description: string,
-    public readonly inputSchema: ZodSchema,
-    public readonly isHighRisk: boolean
-  ) {}
-
-  async execute(input: unknown, context: ExecutionContext): Promise<unknown> {
-    // 1. Submit job to the scheduler
-    const jobId = await this.scheduler.submitJob({
-      workspaceId: context.workspaceId,
-      type: this.jobType,
-      payload: input,
-      priority: 10, // High priority for agent-driven actions
-    });
-
-    // 2. Poll the database or wait for the scheduler's completion event
-    const result = await this.scheduler.waitForJobCompletion(jobId);
-
-    if (result.status === 'failed') {
-      throw new Error(`Tool execution failed: ${result.error}`);
-    }
-
-    return result.data;
-  }
+export interface SchedulerGateway {
+  submitAndAwait<TInput, TOutput>(
+    jobType: string,
+    payload: TInput,
+    context: ExecutionContext
+  ): Promise<ToolResult<TOutput>>;
 }
 ```
 
----
-
-## Leveraging Scheduler Features
-
-By wrapping jobs in this tool model, the Agent Platform leverages the existing scheduler's features without duplicating code:
-
-1. **Heartbeats**: The main process continues to ping the worker every 10 seconds. If the worker hangs, the scheduler kills it and reports a failure to the agent.
-2. **Retries**: If a network request fails, the scheduler handles retries using exponential backoffs.
-3. **Checkpointing**: If the application is paused, the worker saves its state to `checkpointData` in SQLite, allowing it to resume later.
-4. **Recovery**: If the application crashes, the scheduler cleans up active jobs on startup, returning an error to the agent on restart.
-5. **Observability**: Tool runs write logs directly to the `system_logs` and `audit_logs` tables, making them visible in the Operations Center.
+* **Database Decoupling**: If the database schema of the `jobs` table or the queue mechanism changes (e.g. migrating from SQLite queues to a memory queue or an external job queue), only the implementation of the `SchedulerGateway` changes.
+* **Typing Safety**: Inputs are type-checked at the gateway boundary, avoiding raw payload corruption.
+* **Tracing Correlation**: The gateway automatically propagates `traceId`, `executionId`, and `jobId` parameters from the `ExecutionContext` to the SQLite queue fields, guaranteeing end-to-end trace correlation in audit logs.
