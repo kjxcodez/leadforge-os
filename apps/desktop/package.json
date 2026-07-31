@@ -5,9 +5,9 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build && electron-builder --win",
-    "build:dir": "electron-vite build && electron-builder --dir --win",
-    "package": "pnpm -r build && electron-vite build && electron-builder --win",
+    "build": "node ../../scripts/clean-tsbuildinfo.js && electron-vite build && electron-builder --win",
+    "build:dir": "node ../../scripts/clean-tsbuildinfo.js && electron-vite build && electron-builder --dir --win",
+    "package": "node ../../scripts/clean-tsbuildinfo.js && pnpm -r build && electron-vite build && electron-builder --win",
     "preview": "electron-vite preview",
     "lint": "echo 'Skipping desktop lint'",
     "check-types": "tsc --noEmit",

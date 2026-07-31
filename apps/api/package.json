@@ -3,7 +3,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "node ../../scripts/clean-tsbuildinfo.js && tsc",
     "start": "node dist/index.js",
     "lint": "echo 'Skipping api lint'",
     "check-types": "tsc --noEmit"
