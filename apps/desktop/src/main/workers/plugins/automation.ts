@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
 import nodemailer from "nodemailer";
+import { AIRuntime, PromptsLibrary } from '@leadforge/ai';
 import type { JobContext } from "../../../shared/types/job";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -2909,29 +2910,26 @@ export const ActionRegistry: Record<string, AutomationAction> = {
 
       const settings = loadSettings(db, workspaceId);
       const openRouterKey = resolveSettingValue(ctx.payload._secrets, settings, 'openrouter_key') || '';
+      const aiMode = resolveSettingValue(ctx.payload._secrets, settings, 'ai_mode') as any;
 
       let summaryText = 'AI summary generation completed.';
-      if (openRouterKey) {
-        try {
-          const prompt = `Write a short 2-sentence executive summary for company "${companyName}" in "${industry}" based on lead intelligence data.`;
-          const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${openRouterKey}`
-            },
-            body: JSON.stringify({
-              model: 'meta-llama/llama-3-8b-instruct:free',
-              messages: [{ role: 'user', content: prompt }]
-            })
-          });
-          if (res.ok) {
-            const json = await res.json() as any;
-            summaryText = json.choices?.[0]?.message?.content || summaryText;
+      try {
+        const result = await AIRuntime.execute(
+          PromptsLibrary.GENERATE_AI_SUMMARY,
+          { companyName, industry },
+          {
+            openRouterKey,
+            aiMode,
+            ollamaModel: resolveSettingValue(ctx.payload._secrets, settings, 'ollama_model')
           }
-        } catch (err: any) {
-          ctx.emitLog(`GENERATE_AI_SUMMARY: LLM API error: ${err.message}`, 'warn');
+        );
+        if (result.success) {
+          summaryText = result.data;
+        } else {
+          ctx.emitLog(`GENERATE_AI_SUMMARY: LLM API error: ${result.error}`, 'warn');
         }
+      } catch (err: any) {
+        ctx.emitLog(`GENERATE_AI_SUMMARY: Execution error: ${err.message}`, 'warn');
       }
 
       db.prepare(`
@@ -2958,29 +2956,26 @@ export const ActionRegistry: Record<string, AutomationAction> = {
 
       const settings = loadSettings(db, workspaceId);
       const openRouterKey = resolveSettingValue(ctx.payload._secrets, settings, 'openrouter_key') || '';
+      const aiMode = resolveSettingValue(ctx.payload._secrets, settings, 'ai_mode') as any;
 
       let openingLine = 'Hi there, reaching out to see if you have technical needs.';
-      if (openRouterKey) {
-        try {
-          const prompt = `Write a high-converting, cold email personalization opening line for company "${companyName}" in "${industry}". Return only the opening line.`;
-          const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${openRouterKey}`
-            },
-            body: JSON.stringify({
-              model: 'meta-llama/llama-3-8b-instruct:free',
-              messages: [{ role: 'user', content: prompt }]
-            })
-          });
-          if (res.ok) {
-            const json = await res.json() as any;
-            openingLine = json.choices?.[0]?.message?.content || openingLine;
+      try {
+        const result = await AIRuntime.execute(
+          PromptsLibrary.GENERATE_OPENING_LINE,
+          { companyName, industry },
+          {
+            openRouterKey,
+            aiMode,
+            ollamaModel: resolveSettingValue(ctx.payload._secrets, settings, 'ollama_model')
           }
-        } catch (err: any) {
-          ctx.emitLog(`GENERATE_OPENING_LINE: LLM API error: ${err.message}`, 'warn');
+        );
+        if (result.success) {
+          openingLine = result.data;
+        } else {
+          ctx.emitLog(`GENERATE_OPENING_LINE: LLM API error: ${result.error}`, 'warn');
         }
+      } catch (err: any) {
+        ctx.emitLog(`GENERATE_OPENING_LINE: Execution error: ${err.message}`, 'warn');
       }
 
       db.prepare(`

@@ -138,6 +138,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.9.1
         version: 3.10.0(react-hook-form@7.81.0(react@19.2.7))
+      '@leadforge/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@leadforge/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -325,6 +328,12 @@ importers:
       vite:
         specifier: ^6.0.5
         version: 6.4.3(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.0)(yaml@2.9.0)
+
+  packages/ai:
+    dependencies:
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
 
   packages/auth:
     dependencies:

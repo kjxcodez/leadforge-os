@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { AppLogger } from '../lib/logger';
+import { AIRuntime, PromptsLibrary } from '@leadforge/ai';
 
 export interface CompanyIntelligence {
   companyId: string;
@@ -278,32 +279,13 @@ export class AIInsightGenerator {
   ): Promise<{ openingLine: string; painPoint: string; outreachAngle: string }> {
     if (openRouterKey && openRouterKey.trim() !== '') {
       try {
-        const prompt = `Analyze company "${companyName}" in "${industry}" using tech stack: [${techStack.join(', ')}]. Has issues: [${technicalIssues.join(', ')}].
-Generate:
-1. One personalized opening line for cold outreach.
-2. One key pain point hypothesis.
-3. Recommended email Outreach angle.
-Return JSON format: { "openingLine": "...", "painPoint": "...", "outreachAngle": "..." }`;
-
-        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${openRouterKey}`
-          },
-          body: JSON.stringify({
-            model: 'meta-llama/llama-3-8b-instruct:free',
-            messages: [{ role: 'user', content: prompt }]
-          })
-        });
-
-        if (res.ok) {
-          const json = await res.json() as any;
-          const text = json.choices?.[0]?.message?.content || '';
-          const match = text.match(/\{[\s\S]*?\}/);
-          if (match) {
-            return JSON.parse(match[0]);
-          }
+        const result = await AIRuntime.execute(
+          PromptsLibrary.AI_INSIGHTS,
+          { companyName, industry, techStack, technicalIssues },
+          { openRouterKey }
+        );
+        if (result.success && result.data) {
+          return result.data;
         }
       } catch (err) {
         AppLogger.error('AIInsightGenerator', 'OpenRouter request failed, falling back to rule-based mock engine', undefined, err);
