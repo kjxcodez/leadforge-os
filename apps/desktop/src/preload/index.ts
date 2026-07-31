@@ -127,6 +127,12 @@ contextBridge.exposeInMainWorld('ipc', {
       'errors:get',
       'recovery:execute',
       'dev-mode:log',
+      'updater:get-status',
+      'updater:check',
+      'updater:download',
+      'updater:install',
+      'agent:execute',
+      'agent:workflow:execute',
     ];
     if (validChannels.includes(channel as string)) {
       return ipcRenderer.invoke(channel, payload);
@@ -169,6 +175,8 @@ contextBridge.exposeInMainWorld('ipc', {
       'automation:recovered',
       'workspace:boot-progress',
       'scheduler:tick',
+      'updater:status-changed',
+      'agent:workflow:progress',
     ];
     if (validChannels.includes(channel as string)) {
       const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(args[0] as any);

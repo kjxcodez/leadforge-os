@@ -15,14 +15,31 @@ export default defineConfig({
     },
     plugins: [
       externalizeDepsPlugin({
-        exclude: ['@leadforge/schema', '@leadforge/sdk', '@leadforge/core', 'p-limit']
+        exclude: [
+          '@leadforge/schema',
+          '@leadforge/sdk',
+          '@leadforge/core',
+          '@leadforge/ai',
+          '@leadforge/agent-core',
+          '@leadforge/agent-runtime',
+          '@leadforge/workflow-engine',
+          'p-limit'
+        ]
       })
     ]
   },
   preload: {
     plugins: [
       externalizeDepsPlugin({
-        exclude: ['@leadforge/schema', '@leadforge/sdk', '@leadforge/core']
+        exclude: [
+          '@leadforge/schema',
+          '@leadforge/sdk',
+          '@leadforge/core',
+          '@leadforge/ai',
+          '@leadforge/agent-core',
+          '@leadforge/agent-runtime',
+          '@leadforge/workflow-engine'
+        ]
       })
     ]
   },
