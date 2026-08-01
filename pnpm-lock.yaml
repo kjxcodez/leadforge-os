@@ -346,6 +346,9 @@ importers:
 
   packages/agent-core:
     dependencies:
+      '@leadforge/schema':
+        specifier: workspace:*
+        version: link:../schema
       zod:
         specifier: ^3.24.1
         version: 3.25.76
