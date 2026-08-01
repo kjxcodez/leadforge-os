@@ -427,39 +427,81 @@ export function Hero() {
             {/* Panel Body */}
             <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] min-h-[340px]">
               {/* Sidebar */}
-              <div className="hidden border-r border-[var(--border-subtle)] bg-[var(--background)] p-5 md:block">
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2.5 rounded px-2.5 py-1.5 text-xs font-medium text-[var(--foreground)] bg-[var(--accent)] bg-opacity-[0.12] border-l-2 border-[var(--primary)] pl-[8px]">
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <div className="hidden border-r border-[var(--border-subtle)] bg-[var(--background)] p-4 md:flex flex-col justify-between select-none">
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <rect x="3" y="3" width="7" height="9" rx="1" />
+                      <rect x="14" y="3" width="7" height="5" rx="1" />
+                      <rect x="14" y="12" width="7" height="9" rx="1" />
+                      <rect x="3" y="16" width="7" height="5" rx="1" />
+                    </svg>
+                    Dashboard
+                  </div>
+                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--foreground)] bg-[var(--accent)] bg-opacity-[0.12] border-l-2 border-[var(--primary)] pl-[6px]">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                       <rect x="3" y="4" width="18" height="16" rx="2" />
                       <path d="M3 9h18" />
                     </svg>
-                    Local CRM
+                    Companies
                   </div>
-                  <div className="flex items-center gap-2.5 rounded px-2.5 py-1.5 text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    Contacts
+                  </div>
+                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z" />
+                    </svg>
+                    Campaigns
+                  </div>
+                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                       <circle cx="11" cy="11" r="7" />
                       <path d="M21 21l-4.3-4.3" />
                     </svg>
                     Discovery
                   </div>
-                  <div className="flex items-center gap-2.5 rounded px-2.5 py-1.5 text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                      <path d="M4 4l16 8-16 8V4z" />
+                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path d="m12 3-1.912 5.886H3.888L8.93 12.518 7.018 18.4l5-3.63 4.98 3.63-1.91-5.88 5.04-3.63h-6.2Z" />
                     </svg>
-                    Campaigns
+                    Automation
                   </div>
-                  <div className="flex items-center gap-2.5 rounded px-2.5 py-1.5 text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                      <path d="M12 3v18M3 12h18" />
+                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path d="M3 3v18h18" />
+                      <path d="m19 9-5 5-4-4-3 3" />
                     </svg>
-                    Sequences
+                    Reports
                   </div>
-                  <div className="flex items-center gap-2.5 rounded px-2.5 py-1.5 text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                      <path d="M4 12h4l2 6 4-16 2 10h4" />
+                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                     </svg>
-                    Operations
+                    Settings
+                  </div>
+                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                    </svg>
+                    Operations Center
+                  </div>
+                </div>
+
+                <div className="mt-8 border-t border-[var(--border-subtle)] pt-3 flex items-center gap-2">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[var(--primary)] text-[10px] font-bold text-[var(--primary-foreground)] select-none">
+                    AD
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-[10px] font-medium text-[var(--foreground)] leading-tight">admin@leadfo...</div>
+                    <div className="truncate text-[8px] text-[var(--muted-foreground)]">My Leads Workspace</div>
                   </div>
                 </div>
               </div>
