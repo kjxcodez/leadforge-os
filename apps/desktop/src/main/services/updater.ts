@@ -26,13 +26,28 @@ export class GitHubUpdateProvider implements UpdateProvider {
 
   async checkForUpdate(currentVersion: string, _channel: string): Promise<UpdateCheckResult> {
     try {
-      const url = `https://api.github.com/repos/${this.owner}/${this.repo}/releases/latest`;
+      const url = `https://api.github.com/repos/${this.owner}/${this.repo}/releases`;
       const res = await fetch(url, { headers: { 'User-Agent': 'LeadForge-OS' } });
+      if (res.status === 404) {
+        AppLogger.info('Updater', 'No releases found on GitHub for this repository.', undefined);
+        return { updateAvailable: false, version: app.getVersion() };
+      }
       if (!res.ok) {
         throw new Error(`GitHub releases API returned HTTP ${res.status}`);
       }
 
-      const release = (await res.json()) as any;
+      const releases = (await res.json()) as any[];
+      if (!Array.isArray(releases) || releases.length === 0) {
+        AppLogger.info('Updater', 'No releases published yet on GitHub for this repository.', undefined);
+        return { updateAvailable: false, version: app.getVersion() };
+      }
+
+      const release = releases.find((r: any) => !r.draft);
+      if (!release) {
+        AppLogger.info('Updater', 'No non-draft releases found.', undefined);
+        return { updateAvailable: false, version: app.getVersion() };
+      }
+
       const tag = release.tag_name || '';
       const version = tag.replace(/^v/, '');
 

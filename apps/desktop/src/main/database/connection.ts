@@ -75,17 +75,17 @@ export function closeDatabase(workspaceId?: string): void {
     if (db) {
       db.close();
       workspaceDbs.delete(workspaceId);
-      logSQLite(`Workspace database for "${workspaceId}" closed cleanly.`, workspaceId);
+      console.log(`[SQLite] Workspace database for "${workspaceId}" closed cleanly.`);
     }
   } else {
     if (globalDb) {
       globalDb.close();
       globalDb = null;
-      logSQLite('Global database closed cleanly.');
+      console.log('[SQLite] Global database closed cleanly.');
     }
     for (const [id, db] of workspaceDbs.entries()) {
       db.close();
-      logSQLite(`Workspace database for "${id}" closed cleanly.`, id);
+      console.log(`[SQLite] Workspace database for "${id}" closed cleanly.`);
     }
     workspaceDbs.clear();
   }
