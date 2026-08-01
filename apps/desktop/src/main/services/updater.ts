@@ -62,14 +62,28 @@ export class GitHubUpdateProvider implements UpdateProvider {
   }
 
   private isNewerVersion(newer: string, current: string): boolean {
-    const n = String(newer).split('.').map(Number);
-    const c = String(current).split('.').map(Number);
-    for (let i = 0; i < Math.max(n.length, c.length); i++) {
-      const nv = n[i] || 0;
-      const cv = c[i] || 0;
+    const parse = (v: string) => {
+      const [main = '', prerelease = ''] = v.split('-');
+      const parts = main.split('.').map(Number);
+      return { parts, prerelease };
+    };
+
+    const n = parse(newer);
+    const c = parse(current);
+
+    for (let i = 0; i < Math.max(n.parts.length, c.parts.length); i++) {
+      const nv = n.parts[i] || 0;
+      const cv = c.parts[i] || 0;
       if (nv > cv) return true;
       if (nv < cv) return false;
     }
+
+    if (n.prerelease && !c.prerelease) return false;
+    if (!n.prerelease && c.prerelease) return true;
+    if (n.prerelease && c.prerelease) {
+      return n.prerelease.localeCompare(c.prerelease, undefined, { numeric: true, sensitivity: 'base' }) > 0;
+    }
+
     return false;
   }
 

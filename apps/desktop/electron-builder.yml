@@ -1,4 +1,4 @@
-appId: com.leadforge.desktop
+appId: com.leadforge.os
 
 productName: "LeadForge OS"
 
@@ -38,6 +38,16 @@ nsis:
   createStartMenuShortcut: true
   shortcutName: "LeadForge OS"
   runAfterFinish: true
+
+mac:
+  target:
+    - dmg
+  icon: resources/icon.png
+
+linux:
+  target:
+    - AppImage
+  icon: resources/icon.png
 
 publish:
   provider: github
