@@ -45,6 +45,13 @@ export function OperationsCenterScreen() {
   const [devModeActive, setDevModeActive] = useState(false);
   const [devEvents, setDevEvents] = useState<any[]>([]);
 
+  // Beta feedback state hooks
+  const [feedbackType, setFeedbackType] = useState('bug');
+  const [feedbackDescription, setFeedbackDescription] = useState('');
+  const [bugSeverity, setBugSeverity] = useState('medium');
+  const [bugReproducibility, setBugReproducibility] = useState('always');
+  const [isExportingBundle, setIsExportingBundle] = useState(false);
+
   // 1. Fetch live jobs scheduler list
   const queueQuery = useQuery({
     queryKey: ['scheduler_queue', workspaceId],
@@ -88,6 +95,17 @@ export function OperationsCenterScreen() {
     queryFn: async () => {
       if (!workspaceId) return null;
       return window.ipc.invoke('diagnostics:run', { workspaceId });
+    },
+    enabled: !!workspaceId,
+    refetchInterval: 8000
+  });
+
+  // 4b. Fetch detailed system information diagnostics
+  const systemInfoQuery = useQuery({
+    queryKey: ['system_info', workspaceId],
+    queryFn: async () => {
+      if (!workspaceId) return null;
+      return window.ipc.invoke('diagnostics:get-system-info', { workspaceId });
     },
     enabled: !!workspaceId,
     refetchInterval: 8000
@@ -173,6 +191,58 @@ export function OperationsCenterScreen() {
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+  };
+
+  const handleExportSupportBundle = async () => {
+    setIsExportingBundle(true);
+    try {
+      const res = await window.ipc.invoke('diagnostics:export-support-bundle', { workspaceId });
+      if (res.success) {
+        toast.success(res.message);
+      } else {
+        toast.error(res.message);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Support bundle export failed.');
+    } finally {
+      setIsExportingBundle(false);
+    }
+  };
+
+  const handleSubmitFeedback = async () => {
+    if (!feedbackDescription.trim()) {
+      toast.error('Feedback description is required.');
+      return;
+    }
+
+    let body = '';
+    let title = '';
+
+    if (feedbackType === 'bug') {
+      title = `[BUG] ${feedbackDescription.substring(0, 50)}`;
+      body = `### Bug Description\n${feedbackDescription}\n\n### Metadata\n- **Severity**: ${bugSeverity.toUpperCase()}\n- **Reproducibility**: ${bugReproducibility}\n- **OS Platform**: ${navigator.platform}\n- **Workspace ID**: ${workspaceId}\n\n*Diagnostics have been copied to your clipboard. Please paste them in this issue.*`;
+    } else if (feedbackType === 'feature') {
+      title = `[FEATURE] ${feedbackDescription.substring(0, 50)}`;
+      body = `### Feature Proposal\n${feedbackDescription}\n\n### Metadata\n- **OS Platform**: ${navigator.platform}\n\n*Diagnostics have been copied to your clipboard. Please paste them in this issue.*`;
+    } else {
+      title = `[FEEDBACK] General thoughts`;
+      body = `### Feedback\n${feedbackDescription}\n\n*Diagnostics have been copied to your clipboard. Please paste them in this issue.*`;
+    }
+
+    // Fetch and Copy diagnostics
+    try {
+      const info = await window.ipc.invoke('diagnostics:get-system-info', { workspaceId });
+      navigator.clipboard.writeText(JSON.stringify(info, null, 2));
+      toast.success('Diagnostics copied to clipboard!');
+    } catch {
+      toast.error('Failed to automatically copy diagnostics to clipboard.');
+    }
+
+    const repoUrl = 'https://github.com/kjxcodez/leadforge-os/issues/new';
+    const url = `${repoUrl}?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+    window.open(url);
+    toast.success('Opening GitHub Issue page in browser...');
+    setFeedbackDescription('');
   };
 
   return (
@@ -454,44 +524,203 @@ export function OperationsCenterScreen() {
 
         {/* 4. Diagnostics Tab */}
         <TabsContent value="diagnostics" className="space-y-4 outline-none">
-          <div className="bg-card border border-border-subtle rounded-xl p-4 space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                <ShieldCheck className="h-4 w-4 text-indigo-500" />
-                System Diagnostic Test Results
-              </h3>
-              <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => diagnosticsQuery.refetch()}>
-                Run Diagnostic Tests
-              </Button>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            
+            {/* Left Col: Metadata Table & Diagnostic Actions */}
+            <div className="lg:col-span-2 space-y-4">
+              
+              {/* System Metadata Cockpit */}
+              <div className="bg-card border border-border-subtle rounded-xl p-4 space-y-3">
+                <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5 border-b border-border-subtle pb-2">
+                  <Server className="h-4 w-4 text-indigo-500" />
+                  System Diagnostics & Specifications
+                </h3>
+
+                {systemInfoQuery.isLoading ? (
+                  <p className="text-muted text-[10px] italic py-4 text-center">Loading system specifications...</p>
+                ) : systemInfoQuery.data ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[10px]">
+                    <div className="space-y-1 bg-sunken p-2 rounded-lg border border-border-subtle/50">
+                      <span className="text-muted block uppercase text-[8px] font-bold tracking-wider">Application Version</span>
+                      <span className="font-semibold text-foreground">v{systemInfoQuery.data.appVersion}-beta.1 (Unsigned Build)</span>
+                    </div>
+                    <div className="space-y-1 bg-sunken p-2 rounded-lg border border-border-subtle/50">
+                      <span className="text-muted block uppercase text-[8px] font-bold tracking-wider">Git Commit Hash</span>
+                      <span className="font-mono text-foreground">{systemInfoQuery.data.gitCommit}</span>
+                    </div>
+                    <div className="space-y-1 bg-sunken p-2 rounded-lg border border-border-subtle/50">
+                      <span className="text-muted block uppercase text-[8px] font-bold tracking-wider">Electron / Node Runtime</span>
+                      <span className="font-semibold text-foreground">v{systemInfoQuery.data.electronVersion} / {systemInfoQuery.data.nodeVersion} ({systemInfoQuery.data.platform})</span>
+                    </div>
+                    <div className="space-y-1 bg-sunken p-2 rounded-lg border border-border-subtle/50">
+                      <span className="text-muted block uppercase text-[8px] font-bold tracking-wider">Workspace Database Info</span>
+                      <span className="font-semibold text-foreground">SQLite v{systemInfoQuery.data.databaseVersion} ({systemInfoQuery.data.activeWorkspaceId.substring(0, 8)}...)</span>
+                    </div>
+                    <div className="space-y-1 bg-sunken p-2 rounded-lg border border-border-subtle/50">
+                      <span className="text-muted block uppercase text-[8px] font-bold tracking-wider">Database Migration Schema</span>
+                      <span className="font-mono text-foreground">{systemInfoQuery.data.migrationVersion}</span>
+                    </div>
+                    <div className="space-y-1 bg-sunken p-2 rounded-lg border border-border-subtle/50">
+                      <span className="text-muted block uppercase text-[8px] font-bold tracking-wider">Background Engines Status</span>
+                      <span className="font-semibold text-foreground">Scheduler: {systemInfoQuery.data.schedulerStatus} \| Sync: {systemInfoQuery.data.syncEngineStatus}</span>
+                    </div>
+                    <div className="space-y-1 bg-sunken p-2 rounded-lg border border-border-subtle/50 sm:col-span-2">
+                      <span className="text-muted block uppercase text-[8px] font-bold tracking-wider">AI Execution Settings (OpenRouter Key MASKED)</span>
+                      <span className="font-semibold text-foreground">Mode: {systemInfoQuery.data.aiProviderConfig.mode} \| API Key Status: {systemInfoQuery.data.aiProviderConfig.openRouterKey}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-muted text-[10px] italic py-4 text-center">Failed to fetch system specifications.</p>
+                )}
+
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => copyToClipboard(JSON.stringify(systemInfoQuery.data, null, 2))}>
+                    <Copy className="h-3 w-3 mr-1" /> Copy Diagnostics
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => handleExportJson(systemInfoQuery.data, 'diagnostics')}>
+                    <Download className="h-3 w-3 mr-1" /> Export Diagnostics JSON
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    disabled={isExportingBundle}
+                    className="h-7 text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white"
+                    onClick={handleExportSupportBundle}
+                  >
+                    <Download className="h-3 w-3 mr-1" />
+                    {isExportingBundle ? 'Exporting...' : 'Export Support Bundle ZIP'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* SRE Observability Verification Tests */}
+              <div className="bg-card border border-border-subtle rounded-xl p-4 space-y-4">
+                <div className="flex justify-between items-center border-b border-border-subtle pb-2">
+                  <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
+                    <ShieldCheck className="h-4 w-4 text-indigo-500" />
+                    Local Diagnostics Triggers
+                  </h3>
+                  <Button size="sm" variant="outline" className="h-7 text-[10px]" onClick={() => diagnosticsQuery.refetch()}>
+                    Run Health Checks
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {diagnosticsQuery.data ? (
+                    Object.entries(diagnosticsQuery.data).map(([key, val]: [string, any]) => (
+                      <div key={key} className="bg-sunken border border-border-subtle rounded-lg p-2.5 flex flex-col justify-between gap-1">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-foreground uppercase text-[8px] tracking-wider">{key}</span>
+                          <Badge className={`text-[8px] px-1 py-0 ${
+                            val.status === 'healthy' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
+                            val.status === 'warning' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                            'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                          }`}>
+                            {val.status}
+                          </Badge>
+                        </div>
+                        <p className="text-muted text-[9px] mt-0.5">{val.message}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-muted text-[10px] italic py-4 text-center col-span-2">Execute diagnostics test suite to verify connectivity and ports...</p>
+                  )}
+                </div>
+              </div>
+
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {diagnosticsQuery.data ? (
-                Object.entries(diagnosticsQuery.data).map(([key, val]: [string, any]) => (
-                  <div key={key} className="bg-sunken border border-border-subtle rounded-xl p-3 flex flex-col justify-between gap-2">
-                    <div className="flex justify-between items-start">
-                      <span className="font-bold text-foreground uppercase text-[10px] tracking-wide">{key}</span>
-                      <Badge className={
-                        val.status === 'healthy' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
-                        val.status === 'warning' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
-                        'bg-rose-500/10 text-rose-500 border-rose-500/20'
-                      }>
-                        {val.status}
-                      </Badge>
-                    </div>
-                    <p className="text-muted-foreground text-[10px]">{val.message}</p>
-                    {val.guidance && (
-                      <div className="bg-card/50 border border-border-subtle/50 p-2 rounded text-[9px] text-amber-500">
-                        <span className="font-semibold block mb-0.5">Remediation Guide:</span>
-                        {val.guidance}
-                      </div>
-                    )}
+            {/* Right Col: Feedback Panel */}
+            <div className="bg-card border border-border-subtle rounded-xl p-4 space-y-4 h-fit">
+              <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5 border-b border-border-subtle pb-2">
+                <Terminal className="h-4 w-4 text-indigo-500" />
+                Beta Feedback Cockpit
+              </h3>
+
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold uppercase text-muted tracking-wider block">Feedback Category</label>
+                  <div className="flex gap-1.5">
+                    <button
+                      className={`flex-1 py-1 text-[10px] font-medium border rounded-md transition-colors ${
+                        feedbackType === 'bug' ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400' : 'bg-sunken border-border-subtle text-muted hover:text-foreground'
+                      }`}
+                      onClick={() => setFeedbackType('bug')}
+                    >
+                      Report Bug
+                    </button>
+                    <button
+                      className={`flex-1 py-1 text-[10px] font-medium border rounded-md transition-colors ${
+                        feedbackType === 'feature' ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400' : 'bg-sunken border-border-subtle text-muted hover:text-foreground'
+                      }`}
+                      onClick={() => setFeedbackType('feature')}
+                    >
+                      Suggest Feature
+                    </button>
                   </div>
-                ))
-              ) : (
-                <p className="text-muted text-[10px] italic py-6 text-center col-span-3">Running diagnostics test suite...</p>
-              )}
+                </div>
+
+                {feedbackType === 'bug' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold uppercase text-muted tracking-wider block">Severity</label>
+                      <select
+                        value={bugSeverity}
+                        onChange={(e) => setBugSeverity(e.target.value)}
+                        className="w-full bg-sunken border border-border-subtle rounded p-1 text-[10px]"
+                      >
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold uppercase text-muted tracking-wider block">Reproducibility</label>
+                      <select
+                        value={bugReproducibility}
+                        onChange={(e) => setBugReproducibility(e.target.value)}
+                        className="w-full bg-sunken border border-border-subtle rounded p-1 text-[10px]"
+                      >
+                        <option value="always">Always</option>
+                        <option value="sometimes">Sometimes</option>
+                        <option value="rarely">Rarely</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold uppercase text-muted tracking-wider block">Description</label>
+                  <textarea
+                    rows={4}
+                    placeholder={
+                      feedbackType === 'bug' 
+                        ? 'Describe the steps to reproduce the bug...' 
+                        : 'Describe your proposal and the problem it solves...'
+                    }
+                    value={feedbackDescription}
+                    onChange={(e) => setFeedbackDescription(e.target.value)}
+                    className="w-full bg-sunken border border-border-subtle rounded p-2 text-[10px] text-foreground placeholder:text-muted/60 resize-none outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="bg-sunken border border-border-subtle/50 rounded-lg p-2.5 space-y-1 text-[9px] text-muted">
+                  <span className="font-semibold block text-indigo-400">Note:</span>
+                  Submitting copies masked diagnostics to your clipboard and redirects to the GitHub issue page.
+                </div>
+
+                <Button
+                  size="sm"
+                  className="w-full h-8 text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+                  onClick={handleSubmitFeedback}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                  Submit Feedback & Copy Diagnostics
+                </Button>
+              </div>
             </div>
+
           </div>
         </TabsContent>
 

@@ -7,6 +7,14 @@ import type { WorkspaceRole } from '../enums/index.js';
 
 
 export interface IpcChannelMap {
+  'diagnostics:get-system-info': {
+    input: { workspaceId?: string };
+    output: any;
+  };
+  'diagnostics:export-support-bundle': {
+    input: { workspaceId?: string };
+    output: { success: boolean; message: string };
+  };
   'companies:list': {
     input: CompanyFilters;
     output: Company[];

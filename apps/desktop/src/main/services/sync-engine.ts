@@ -37,6 +37,10 @@ export class SyncEngine {
     private sdk: SdkClient
   ) {}
 
+  public get isActive(): boolean {
+    return this.intervalId !== null;
+  }
+
   /**
    * Starts periodic polling loop.
    */
@@ -385,5 +389,5 @@ export class SyncEngine {
 }
 
 function ctxLog(msg: string) {
-  console.log(`[SyncEngine] ${msg}`);
+  AppLogger.info('SyncEngine', msg);
 }

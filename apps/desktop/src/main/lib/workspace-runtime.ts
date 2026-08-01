@@ -144,6 +144,8 @@ export class WorkspaceRuntime {
     telemetry.syncDuration = this.syncDuration;
     telemetry.automationDuration = this.automationDuration;
 
+    telemetry.saveAnalyticsMetricsLocal(this.workspaceId);
+
     console.log(`[WorkspaceRuntime] Workspace runtime "${this.workspaceId}" successfully booted.`);
     sendBootProgress('ready', '✓ Ready');
   }
