@@ -23,6 +23,7 @@ export function registerElectronIpc(
       await WorkspaceManager.setActiveWorkspace(workspaceId);
     } catch (err) {
       console.error('[IPC] Failed to switch workspace in runtime manager:', err);
+      throw err;
     }
   });
 
