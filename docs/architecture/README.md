@@ -1,0 +1,160 @@
+# LeadForge OS - System Architecture
+
+This document details the software architecture, process boundaries, scheduling runtimes, data synchronization models, and package dependencies of LeadForge OS.
+
+---
+
+## 🏗️ Overall Architecture
+
+LeadForge OS is built on a **Local-First Architecture**. The client machine's desktop hardware serves as the primary engine for heavy operations—running headless browser scrapes, website crawling, database queries, and AI qualifications—while external networks act as synchronization layers.
+
+```mermaid
+graph TD
+  subgraph Client Machine (Local-First Context)
+    Renderer[React UI - Chromium Renderer]
+    Main[Main Process - Electron / Node]
+    Worker[Worker Host - Forked Node Process]
+    SQLite[(SQLite DB - WAL Mode)]
+    safeStorage[safeStorage - OS Keychain]
+  end
+
+  subgraph Cloud Context
+    API[Hono REST API Server]
+    Mongo[(MongoDB)]
+  end
+
+  Renderer <-->|ipcRenderer.invoke| Main
+  Main <-->|safeStorage| safeStorage
+  Main <-->|better-sqlite3| SQLite
+  Main -->|fork child| Worker
+  Worker <-->|IPC messaging| Main
+  Worker <-->|better-sqlite3| SQLite
+  Worker -->|Playwright / Cheerio| Web[Internet Crawl / Scrape]
+  Main <-->|SyncEngine SdkClient| API
+  API <-->|Mongoose| Mongo
+```
+
+---
+
+## 📁 Monorepo Structure & Package Boundaries
+
+The workspace is organized as a monorepo powered by **pnpm workspaces** and **Turborepo**.
+
+```text
+├── apps/
+│   ├── api/                   # REST API Server built with Hono and MongoDB
+│   └── desktop/               # Desktop application built with Electron, React, and SQLite
+└── packages/
+    ├── agent-core/            # LLM orchestrator (agents, tools, memory, tracing)
+    ├── agent-runtime/         # Dynamic agent session runtime & tool executors
+    ├── ai/                    # LLM Provider integrations (OpenRouter & Ollama)
+    ├── auth/                  # Hono middleware and better-auth configurations
+    ├── core/                  # Core guards, pagination helpers, and schemas
+    ├── logger/                # Daily-rotating file logging utilities
+    ├── schema/                # TypeScript interfaces and IPC contract definitions
+    ├── sdk/                   # HTTP transport wrapper for desktop sync engine
+    └── workflow-engine/       # Drip sequence action runner
+```
+
+### Dependency Rules & Cruisers
+- **`schema`** has zero dependencies and is imported by all packages.
+- **`core`** depends only on `schema`.
+- **`ai`** depends on `schema`.
+- **`agent-core`** depends on `schema`, `core`, and `ai`.
+- **`agent-runtime`** depends on `agent-core` and `workflow-engine`.
+- **`apps/desktop`** is the master consumer that imports all packages, but no package may import from `apps/desktop` or `apps/api`.
+- These boundaries are validated automatically in CI using `dependency-cruiser` (`.dependency-cruiser.cjs`).
+
+---
+
+## 🖥️ Desktop Architecture
+
+The Electron desktop application is split into three processes to enforce security and maintain UI responsiveness:
+
+1. **Renderer Process (Chromium)**: Renders the React UI dashboard. It cannot access Node APIs directly and communicates only via safe channel bridges.
+2. **Preload Script (contextBridge)**: Exposes a whitelisted set of IPC invoke methods to the window context, preventing arbitrary shell command executions.
+3. **Main Process (Node.js)**: Runs SRE diagnostics, database migrations, updates settings, pings network sockets, and manages background worker child processes.
+
+---
+
+## ⚙️ Background Job Scheduler
+
+The `JobScheduler` coordinates heavy crawler jobs without overloading the CPU.
+
+```text
+  [ Job Created ] ──► [ status = 'queued' ]
+                             │
+                             ▼ (JobScheduler Ticks)
+                       [ status = 'starting' ]
+                             │
+                             ├─► (spawns child worker process)
+                             ▼
+                       [ status = 'running' ]
+                             │
+                             ├─► (ping/pong heartbeat verification every 10s)
+                             ├─► (worker updates progress / saves checkpoints)
+                             ├─► (worker exits cleanly) ──► [ status = 'completed' ]
+                             │
+                             └─► (worker crashes / no pong in 30s)
+                                       │
+                                       ▼ (retryCount < maxRetries)
+                                 [ status = 'retrying' ] ──► (exponential backoff)
+                                       │
+                                       ▼ (retryCount >= maxRetries)
+                                 [ status = 'failed' ]
+```
+
+### Lifecycle Controls
+- **Heartbeat Watchdog**: Every 10 seconds, the main process pings the worker. The worker must respond with `pong`. If no reply is received within 30 seconds, the scheduler considers the worker stalled, terminates it with `SIGKILL`, and marks the job for retry.
+- **State Checkpointing**: Long-running jobs regularly write progress to the `checkpointData` column in SQLite. If paused or interrupted, the job starts from the last recorded offset.
+- **Graceful Cancellation**: Sends a `cancel` IPC command. The worker is given 15 seconds to gracefully close Playwright browsers and write database logs before being killed with `SIGKILL`.
+
+---
+
+## 🤖 AI & Agent Runtime
+
+The AI runtime supports both cloud integrations and offline operations.
+
+### Provider Architecture
+- **OpenRouter (Cloud)**: Used if `openRouterKey` is present in settings (defaults to Gemini Flash and Llama).
+- **Ollama (Local)**: Integrates via local HTTP endpoint `http://localhost:11434` for complete offline and privacy-orientedqualification.
+- **Mock Fallback**: A rule-based template engine that serves as a fallback if keys are missing or API boundaries timeout.
+
+### Tool Registry & Catalog
+The `ToolRegistry` defines standard executable wrappers for core scrapers, making them available as LLM tools:
+- `search_local_businesses` (Playwright Maps Scraper)
+- `crawl_company_website` (Cheerio crawler)
+- `search_linkedin_profiles` (Voyager LinkedIn API)
+- `send_outreach_email` (Nodemailer SMTP dispatcher)
+- `score_lead_opportunity` (Opportunity scoring analyzer)
+
+---
+
+## 🔄 Local-First Data Model & Cloud Sync
+
+LeadForge OS provides multi-workspace isolation. Each workspace represents a separate physical SQLite database file (`leadforge_${workspaceId}.db`).
+
+### SQLite + MongoDB Synchronizer
+1. Whenever a mutation (Create, Update, Delete) is applied to the local SQLite database, a sync event is added to the `sync_queue` table inside the same transaction.
+2. The `SyncEngine` polls the queue periodically.
+3. If an internet connection is active, the engine uses the `SdkClient` to send the changes sequentially to the Hono REST API server (`apps/api/`).
+4. The Hono server writes the changes to MongoDB.
+5. In case of sync failures, the engine halts queue processing, records the error in `lastError`, and retries with backoff to prevent data corruption.
+6. **Conflict Resolution**: The system uses Last-Write-Wins (LWW) resolution based on the `updatedAt` timestamp.
+
+---
+
+## 📊 Logging, Telemetry & Diagnostics
+
+### Daily-Rotating Logging
+- System logs are written to rotating files using `@leadforge/logger`.
+- When exporting a **Support Bundle**, the log files and current configuration are packed into a ZIP file. All sensitive parameters (passwords, SMTP credentials, OpenRouter API keys) are replaced with `[MASKED]`.
+
+### Telemetry & Diagnostics
+- No metrics are automatically uploaded to remote servers. All telemetry is stored locally.
+- SRE diagnostics query the local system state, testing:
+  - SMTP Nodemailer port connection.
+  - IMAP login and reply folder checks.
+  - DNS resolution of OpenRouter endpoints.
+  - SQLite database integrity check (`PRAGMA integrity_check`).
+  - System memory consumption (RSS threshold: 800MB).
