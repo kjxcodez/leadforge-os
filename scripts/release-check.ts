@@ -166,8 +166,56 @@ async function main() {
   try {
     const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
     const version = pkg.version || '0.0.1';
-    tagMsg = `Root version declared: ${version}`;
+
+    // Check Git tag on HEAD
+    let gitTag = '';
+    try {
+      gitTag = execSync(
+        'git describe --tags --exact-match HEAD 2>/dev/null || git describe --tags --exact-match HEAD',
+        { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }
+      ).trim();
+    } catch {
+      // Not on a tag
+    }
+
+    // Check Git branch
+    let gitBranch = '';
+    try {
+      gitBranch = execSync('git rev-parse --abbrev-ref HEAD', {
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'ignore']
+      }).trim();
+    } catch {
+      // Ignore
+    }
+
     tagOk = true;
+    const parts: string[] = [`Root version declared: ${version}`];
+
+    if (gitTag) {
+      if (gitTag === `v${version}`) {
+        parts.push(`Git tag "${gitTag}" matches version.`);
+      } else {
+        parts.push(`Mismatch: Git tag "${gitTag}" does not match package version "v${version}".`);
+        tagOk = false;
+      }
+    }
+
+    if (gitBranch && gitBranch.startsWith('release/v')) {
+      const branchVersion = gitBranch.replace('release/v', '');
+      if (branchVersion === version) {
+        parts.push(`Branch "${gitBranch}" matches version.`);
+      } else {
+        parts.push(`Mismatch: Branch "${gitBranch}" does not match package version "${version}".`);
+        tagOk = false;
+      }
+    }
+
+    if (tagOk && !gitTag && (!gitBranch || !gitBranch.startsWith('release/v'))) {
+      parts.push(`Skipped tag validation (not on tag or release branch).`);
+    }
+
+    tagMsg = parts.join(' | ');
   } catch (err: any) {
     tagMsg = `Version parse error: ${err.message}`;
   }
