@@ -1,5 +1,5 @@
-import { BaseRepository } from "../base/base.repository.js";
-import { CompanyModel, type CompanyDocument } from "../../db/models/company.model.js";
+import { BaseRepository } from '../base/base.repository.js';
+import { CompanyModel, type CompanyDocument } from '../../db/models/company.model.js';
 
 export class CompanyRepository extends BaseRepository<CompanyDocument> {
   constructor(workspaceId?: string) {

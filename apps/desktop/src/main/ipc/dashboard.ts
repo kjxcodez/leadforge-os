@@ -10,19 +10,45 @@ export function registerDashboardIpc(): void {
   safeRegister('dashboard:stats', async (_event, { workspaceId }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     const db = getDatabase(workspaceId);
-    
-    const totalCompanies = (db.prepare('SELECT COUNT(*) as count FROM companies WHERE workspaceId = ? AND deletedAt IS NULL').get(workspaceId) as any).count;
-    const totalContacts = (db.prepare('SELECT COUNT(*) as count FROM contacts WHERE workspaceId = ? AND deletedAt IS NULL').get(workspaceId) as any).count;
-    const totalCampaigns = (db.prepare('SELECT COUNT(*) as count FROM campaigns WHERE workspaceId = ? AND deletedAt IS NULL').get(workspaceId) as any).count;
-    
+
+    const totalCompanies = (
+      db
+        .prepare(
+          'SELECT COUNT(*) as count FROM companies WHERE workspaceId = ? AND deletedAt IS NULL'
+        )
+        .get(workspaceId) as any
+    ).count;
+    const totalContacts = (
+      db
+        .prepare(
+          'SELECT COUNT(*) as count FROM contacts WHERE workspaceId = ? AND deletedAt IS NULL'
+        )
+        .get(workspaceId) as any
+    ).count;
+    const totalCampaigns = (
+      db
+        .prepare(
+          'SELECT COUNT(*) as count FROM campaigns WHERE workspaceId = ? AND deletedAt IS NULL'
+        )
+        .get(workspaceId) as any
+    ).count;
+
     // Today's Sends (sequence_logs)
-    const todaySends = (db.prepare(`
+    const todaySends = (
+      db
+        .prepare(
+          `
       SELECT COUNT(*) as count FROM sequence_logs 
       WHERE workspaceId = ? AND action = 'EMAIL_SEND' AND status = 'success' AND date(timestamp) = date('now', 'localtime')
-    `).get(workspaceId) as any).count;
+    `
+        )
+        .get(workspaceId) as any
+    ).count;
 
     // Enrollment metrics (sequence_executions)
-    const executionStats = db.prepare(`
+    const executionStats = db
+      .prepare(
+        `
       SELECT 
         SUM(CASE WHEN status = 'waiting' THEN 1 ELSE 0 END) as waiting,
         SUM(CASE WHEN status IN ('running', 'queued', 'starting') THEN 1 ELSE 0 END) as running,
@@ -32,29 +58,50 @@ export function registerDashboardIpc(): void {
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
       FROM sequence_executions
       WHERE workspaceId = ? AND deletedAt IS NULL
-    `).get(workspaceId) as { waiting: number; running: number; replied: number; failed: number; paused: number; completed: number };
+    `
+      )
+      .get(workspaceId) as {
+      waiting: number;
+      running: number;
+      replied: number;
+      failed: number;
+      paused: number;
+      completed: number;
+    };
 
     // Jobs and Queue Size
-    const jobsStats = db.prepare(`
+    const jobsStats = db
+      .prepare(
+        `
       SELECT 
         COUNT(*) as totalJobs,
         SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END) as queuedJobs
       FROM jobs
       WHERE workspaceId = ? AND status != 'completed' AND status != 'cancelled' AND status != 'failed'
-    `).get(workspaceId) as { totalJobs: number; queuedJobs: number };
+    `
+      )
+      .get(workspaceId) as { totalJobs: number; queuedJobs: number };
 
     // Sync status (sync_queue count)
-    const syncQueueCount = (db.prepare('SELECT COUNT(*) as count FROM sync_queue WHERE workspaceId = ?').get(workspaceId) as any).count;
+    const syncQueueCount = (
+      db
+        .prepare('SELECT COUNT(*) as count FROM sync_queue WHERE workspaceId = ?')
+        .get(workspaceId) as any
+    ).count;
 
     // SMTP & IMAP Status (from email_accounts)
-    const emailAccount = db.prepare(`
+    const emailAccount = db
+      .prepare(
+        `
       SELECT status FROM email_accounts 
       WHERE workspaceId = ? AND deletedAt IS NULL
       ORDER BY createdAt ASC LIMIT 1
-    `).get(workspaceId) as { status: string } | undefined;
+    `
+      )
+      .get(workspaceId) as { status: string } | undefined;
 
     const emailStatus = emailAccount?.status || 'disconnected';
-    
+
     return {
       totalCompanies,
       totalContacts,
@@ -78,8 +125,10 @@ export function registerDashboardIpc(): void {
   safeRegister('dashboard:activity-feed', async (_event, { workspaceId, limit = 50 }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     const db = getDatabase(workspaceId);
-    
-    const rows = db.prepare(`
+
+    const rows = db
+      .prepare(
+        `
       SELECT 'activity' as log_type, id, type, content as message, createdAt as timestamp, 'crm' as entity, 'success' as status
       FROM activities
       WHERE workspaceId = ?
@@ -93,8 +142,10 @@ export function registerDashboardIpc(): void {
       WHERE workspaceId = ?
       ORDER BY timestamp DESC
       LIMIT ?
-    `).all(workspaceId, workspaceId, workspaceId, limit);
-    
+    `
+      )
+      .all(workspaceId, workspaceId, workspaceId, limit);
+
     return rows;
   });
 
@@ -102,10 +153,13 @@ export function registerDashboardIpc(): void {
   safeRegister('dashboard:chart-data', async (_event, { workspaceId, days = 7 }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     const db = getDatabase(workspaceId);
-    
+
     const resultList: any[] = [];
-    const dateMap = new Map<string, { emailsSent: number; contactsCreated: number; executions: number }>();
-    
+    const dateMap = new Map<
+      string,
+      { emailsSent: number; contactsCreated: number; executions: number }
+    >();
+
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
@@ -116,12 +170,16 @@ export function registerDashboardIpc(): void {
     const startDateStr = (Array.from(dateMap.keys())[0] || '') + ' 00:00:00';
 
     // Emails sent (sequence_logs)
-    const emails = db.prepare(`
+    const emails = db
+      .prepare(
+        `
       SELECT date(timestamp) as day, COUNT(*) as count
       FROM sequence_logs
       WHERE workspaceId = ? AND action = 'EMAIL_SEND' AND status = 'success' AND timestamp >= ?
       GROUP BY day
-    `).all(workspaceId, startDateStr) as Array<{ day: string; count: number }>;
+    `
+      )
+      .all(workspaceId, startDateStr) as Array<{ day: string; count: number }>;
     for (const row of emails) {
       if (row.day && dateMap.has(row.day)) {
         dateMap.get(row.day)!.emailsSent = row.count;
@@ -129,12 +187,16 @@ export function registerDashboardIpc(): void {
     }
 
     // Contacts created
-    const contacts = db.prepare(`
+    const contacts = db
+      .prepare(
+        `
       SELECT date(createdAt) as day, COUNT(*) as count
       FROM contacts
       WHERE workspaceId = ? AND deletedAt IS NULL AND createdAt >= ?
       GROUP BY day
-    `).all(workspaceId, startDateStr) as Array<{ day: string; count: number }>;
+    `
+      )
+      .all(workspaceId, startDateStr) as Array<{ day: string; count: number }>;
     for (const row of contacts) {
       if (row.day && dateMap.has(row.day)) {
         dateMap.get(row.day)!.contactsCreated = row.count;
@@ -142,12 +204,16 @@ export function registerDashboardIpc(): void {
     }
 
     // Automation executions started
-    const executions = db.prepare(`
+    const executions = db
+      .prepare(
+        `
       SELECT date(startedAt) as day, COUNT(*) as count
       FROM sequence_executions
       WHERE workspaceId = ? AND startedAt >= ?
       GROUP BY day
-    `).all(workspaceId, startDateStr) as Array<{ day: string; count: number }>;
+    `
+      )
+      .all(workspaceId, startDateStr) as Array<{ day: string; count: number }>;
     for (const row of executions) {
       if (row.day && dateMap.has(row.day)) {
         dateMap.get(row.day)!.executions = row.count;
@@ -167,7 +233,7 @@ export function registerDashboardIpc(): void {
   // 4. Infrastructure Status Tracker
   safeRegister('system:infrastructure-status', async (_event, { workspaceId }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
-    
+
     const runtime = WorkspaceManager.getActiveRuntime();
     const stats: any = {
       workspaceId,
@@ -228,7 +294,8 @@ export function registerDashboardIpc(): void {
 
       // Automation Runtime
       const triggerEvaluator = runtime.triggerEvaluator as any;
-      const isEvaluatorRunning = triggerEvaluator.unsubscribers && triggerEvaluator.unsubscribers.length > 0;
+      const isEvaluatorRunning =
+        triggerEvaluator.unsubscribers && triggerEvaluator.unsubscribers.length > 0;
       stats.automationRuntime = {
         status: isEvaluatorRunning ? 'Running' : 'Stopped',
         uptimeMs: runtime.startedAt ? Date.now() - runtime.startedAt.getTime() : 0
@@ -237,7 +304,7 @@ export function registerDashboardIpc(): void {
       // Worker Host (from scheduler active workers)
       const workerCount = scheduler.activeWorkers ? scheduler.activeWorkers.size : 0;
       stats.workerHost = {
-        status: workerCount > 0 ? 'Running' : (isSchedulerRunning ? 'Running' : 'Stopped'),
+        status: workerCount > 0 ? 'Running' : isSchedulerRunning ? 'Running' : 'Stopped',
         activeWorkers: workerCount
       };
 

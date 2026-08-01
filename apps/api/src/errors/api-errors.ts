@@ -40,8 +40,8 @@ export class ApiError extends Error {
  * Validation Error indicating invalid payload parameters (HTTP 400).
  */
 export class ValidationError extends ApiError {
-  constructor(message = "Validation failed", details: unknown = null) {
-    super(400, "VALIDATION_ERROR", message, details);
+  constructor(message = 'Validation failed', details: unknown = null) {
+    super(400, 'VALIDATION_ERROR', message, details);
   }
 }
 
@@ -49,8 +49,8 @@ export class ValidationError extends ApiError {
  * Unauthorized Error indicating missing or invalid credentials (HTTP 401).
  */
 export class UnauthorizedError extends ApiError {
-  constructor(message = "Unauthorized access", details: unknown = null) {
-    super(401, "UNAUTHORIZED", message, details);
+  constructor(message = 'Unauthorized access', details: unknown = null) {
+    super(401, 'UNAUTHORIZED', message, details);
   }
 }
 
@@ -58,8 +58,8 @@ export class UnauthorizedError extends ApiError {
  * Forbidden Error indicating insufficient user privileges (HTTP 403).
  */
 export class ForbiddenError extends ApiError {
-  constructor(message = "Access forbidden", details: unknown = null) {
-    super(403, "FORBIDDEN", message, details);
+  constructor(message = 'Access forbidden', details: unknown = null) {
+    super(403, 'FORBIDDEN', message, details);
   }
 }
 
@@ -67,8 +67,8 @@ export class ForbiddenError extends ApiError {
  * NotFound Error indicating target resource was not found (HTTP 404).
  */
 export class NotFoundError extends ApiError {
-  constructor(message = "Resource not found", details: unknown = null) {
-    super(404, "NOT_FOUND", message, details);
+  constructor(message = 'Resource not found', details: unknown = null) {
+    super(404, 'NOT_FOUND', message, details);
   }
 }
 
@@ -76,8 +76,8 @@ export class NotFoundError extends ApiError {
  * Conflict Error indicating database state conflict (HTTP 409).
  */
 export class ConflictError extends ApiError {
-  constructor(message = "Resource conflict occurred", details: unknown = null) {
-    super(409, "CONFLICT", message, details);
+  constructor(message = 'Resource conflict occurred', details: unknown = null) {
+    super(409, 'CONFLICT', message, details);
   }
 }
 
@@ -85,8 +85,8 @@ export class ConflictError extends ApiError {
  * Internal Server Error indicating system-level failure (HTTP 500).
  */
 export class InternalServerError extends ApiError {
-  constructor(message = "Internal server error", details: unknown = null) {
-    super(500, "INTERNAL_SERVER_ERROR", message, details);
+  constructor(message = 'Internal server error', details: unknown = null) {
+    super(500, 'INTERNAL_SERVER_ERROR', message, details);
   }
 }
 
@@ -94,8 +94,7 @@ export class InternalServerError extends ApiError {
  * Database Error indicating Mongo or query failure (HTTP 500).
  */
 export class DatabaseError extends ApiError {
-  constructor(message = "Database operation failed", details: unknown = null) {
-    super(500, "DATABASE_ERROR", message, details);
+  constructor(message = 'Database operation failed', details: unknown = null) {
+    super(500, 'DATABASE_ERROR', message, details);
   }
 }
-

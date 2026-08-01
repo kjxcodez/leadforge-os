@@ -122,7 +122,10 @@ const mockApprovalTool: Tool = {
 
   assert.strictEqual(res.success, false, 'Dispatch should fail');
   assert.strictEqual(res.error?.code, 'UNAVAILABLE', 'Error code should be UNAVAILABLE');
-  assert.ok(res.error?.message.includes('not found'), 'Error message should explain missing status');
+  assert.ok(
+    res.error?.message.includes('not found'),
+    'Error message should explain missing status'
+  );
   assert.strictEqual(logger.getLogs().length, 1, 'Logger should log the error response');
   console.log('  ✅ UNAVAILABLE check: returns structured error when tool not found');
 }
@@ -178,6 +181,10 @@ const mockApprovalTool: Tool = {
 
   assert.strictEqual(res.success, false, 'Should fail without granted approval');
   assert.strictEqual(res.approvalStatus, 'PENDING', 'Approval status should be PENDING');
-  assert.strictEqual(res.error?.code, 'APPROVAL_REQUIRED', 'Error code should be APPROVAL_REQUIRED');
+  assert.strictEqual(
+    res.error?.code,
+    'APPROVAL_REQUIRED',
+    'Error code should be APPROVAL_REQUIRED'
+  );
   console.log('  ✅ APPROVAL_REQUIRED check: stops execution and flags PENDING status');
 }

@@ -23,10 +23,12 @@ export const LocalQueueRepository = {
    */
   async push(item: Omit<QueueItem, 'retryCount'>): Promise<void> {
     const db = getDatabase(item.workspaceId);
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
       VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?)
-    `).run(
+    `
+    ).run(
       item.id,
       item.workspaceId,
       item.entityType,
@@ -44,12 +46,16 @@ export const LocalQueueRepository = {
    */
   async pop(workspaceId: string): Promise<QueueItem | null> {
     const db = getDatabase(workspaceId);
-    const row = db.prepare(`
+    const row = db
+      .prepare(
+        `
       SELECT * FROM sync_queue
       WHERE workspaceId = ? AND retryCount < 5
       ORDER BY createdAt ASC
       LIMIT 1
-    `).get(workspaceId) as any;
+    `
+      )
+      .get(workspaceId) as any;
 
     if (!row) return null;
     return row as QueueItem;
@@ -60,11 +66,15 @@ export const LocalQueueRepository = {
    */
   async list(workspaceId: string): Promise<QueueItem[]> {
     const db = getDatabase(workspaceId);
-    const rows = db.prepare(`
+    const rows = db
+      .prepare(
+        `
       SELECT * FROM sync_queue
       WHERE workspaceId = ?
       ORDER BY createdAt ASC
-    `).all(workspaceId) as any[];
+    `
+      )
+      .all(workspaceId) as any[];
 
     return rows as QueueItem[];
   },
@@ -72,13 +82,20 @@ export const LocalQueueRepository = {
   /**
    * Updates error logs and retry attempts for a failed push task.
    */
-  async updateProgress(workspaceId: string, id: string, retryCount: number, error: string): Promise<void> {
+  async updateProgress(
+    workspaceId: string,
+    id: string,
+    retryCount: number,
+    error: string
+  ): Promise<void> {
     const db = getDatabase(workspaceId);
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE sync_queue
       SET retryCount = ?, lastError = ?, updatedAt = ?
       WHERE id = ?
-    `).run(retryCount, error, new Date().toISOString(), id);
+    `
+    ).run(retryCount, error, new Date().toISOString(), id);
   },
 
   /**
@@ -87,6 +104,5 @@ export const LocalQueueRepository = {
   async remove(workspaceId: string, id: string): Promise<void> {
     const db = getDatabase(workspaceId);
     db.prepare('DELETE FROM sync_queue WHERE id = ?').run(id);
-  },
+  }
 };
-

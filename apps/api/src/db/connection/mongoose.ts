@@ -1,19 +1,19 @@
-import mongoose from "mongoose";
-import { logger, dbConfig } from "../../config/index.js";
+import mongoose from 'mongoose';
+import { logger, dbConfig } from '../../config/index.js';
 
 // Register global Mongoose plugin to normalize all serialized MongoDB documents
 mongoose.plugin((schema: mongoose.Schema) => {
-  const existingJSON = schema.get("toJSON") ?? {};
-  schema.set("toJSON", {
+  const existingJSON = schema.get('toJSON') ?? {};
+  schema.set('toJSON', {
     ...existingJSON,
     virtuals: true,
     versionKey: false,
     transform(doc: any, ret: any, options: any) {
-      if (existingJSON && typeof existingJSON.transform === "function") {
+      if (existingJSON && typeof existingJSON.transform === 'function') {
         ret = existingJSON.transform(doc, ret, options) || ret;
       }
       if (ret._id) {
-        ret.id = typeof ret._id === "object" ? ret._id.toString() : ret._id;
+        ret.id = typeof ret._id === 'object' ? ret._id.toString() : ret._id;
       }
       delete (ret as any)._id;
       delete (ret as any).__v;
@@ -21,17 +21,17 @@ mongoose.plugin((schema: mongoose.Schema) => {
     }
   } as any);
 
-  const existingObject = schema.get("toObject") ?? {};
-  schema.set("toObject", {
+  const existingObject = schema.get('toObject') ?? {};
+  schema.set('toObject', {
     ...existingObject,
     virtuals: true,
     versionKey: false,
     transform(doc: any, ret: any, options: any) {
-      if (existingObject && typeof existingObject.transform === "function") {
+      if (existingObject && typeof existingObject.transform === 'function') {
         ret = existingObject.transform(doc, ret, options) || ret;
       }
       if (ret._id) {
-        ret.id = typeof ret._id === "object" ? ret._id.toString() : ret._id;
+        ret.id = typeof ret._id === 'object' ? ret._id.toString() : ret._id;
       }
       delete (ret as any)._id;
       delete (ret as any).__v;
@@ -49,19 +49,19 @@ class DatabaseManager {
 
   private constructor() {
     // Register Mongoose connection events
-    mongoose.connection.on("connected", () => {
+    mongoose.connection.on('connected', () => {
       this.isConnected = true;
-      logger.info("🔌 MongoDB database connection established successfully.");
+      logger.info('🔌 MongoDB database connection established successfully.');
     });
 
-    mongoose.connection.on("error", (err) => {
+    mongoose.connection.on('error', (err) => {
       this.isConnected = false;
-      logger.error({ err }, "❌ MongoDB database connection error:");
+      logger.error({ err }, '❌ MongoDB database connection error:');
     });
 
-    mongoose.connection.on("disconnected", () => {
+    mongoose.connection.on('disconnected', () => {
       this.isConnected = false;
-      logger.warn("🔌 MongoDB database disconnected.");
+      logger.warn('🔌 MongoDB database disconnected.');
     });
   }
 
@@ -80,12 +80,12 @@ class DatabaseManager {
    */
   public async connect(): Promise<void> {
     if (this.isConnected || mongoose.connection.readyState === 1) {
-      logger.debug("MongoDB connection is already active. Reusing existing connection.");
+      logger.debug('MongoDB connection is already active. Reusing existing connection.');
       return;
     }
 
     if (mongoose.connection.readyState === 2) {
-      logger.info("MongoDB connection is currently connecting. Awaiting completion...");
+      logger.info('MongoDB connection is currently connecting. Awaiting completion...');
       return;
     }
 
@@ -99,12 +99,9 @@ class DatabaseManager {
         await mongoose.connect(dbConfig.uri, dbConfig.options);
         return;
       } catch (error) {
-        logger.error(
-          { error, attempt },
-          `Failed to connect to MongoDB on attempt ${attempt}.`
-        );
+        logger.error({ error, attempt }, `Failed to connect to MongoDB on attempt ${attempt}.`);
         if (attempt >= retryLimit) {
-          logger.fatal("Database connection attempts exhausted. Shutting down.");
+          logger.fatal('Database connection attempts exhausted. Shutting down.');
           throw error;
         }
         await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -117,10 +114,10 @@ class DatabaseManager {
    */
   public async disconnect(): Promise<void> {
     if (mongoose.connection.readyState !== 0) {
-      logger.info("Disconnecting from MongoDB gracefully...");
+      logger.info('Disconnecting from MongoDB gracefully...');
       await mongoose.disconnect();
       this.isConnected = false;
-      logger.info("MongoDB disconnected successfully.");
+      logger.info('MongoDB disconnected successfully.');
     }
   }
 
@@ -132,7 +129,7 @@ class DatabaseManager {
     const isHealthy = state === 1;
     return {
       isHealthy,
-      readyState: state,
+      readyState: state
     };
   }
 }

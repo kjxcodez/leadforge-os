@@ -21,7 +21,7 @@ export const companySchema = z.object({
   tags: z.array(z.string()).default([]),
   notes: z.string().nullable().optional(),
   createdAt: z.date(),
-  updatedAt: z.date(),
+  updatedAt: z.date()
 });
 
 export type Company = z.infer<typeof companySchema>;

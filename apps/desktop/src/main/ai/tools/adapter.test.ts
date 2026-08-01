@@ -66,13 +66,16 @@ const mockContext: ExecutionContext = {
   const bus = new MockEventBus();
   const gateway = new SchedulerGatewayImpl(db, bus as any);
 
-  gateway.submit('scraper:maps', { query: 'test' }, mockContext).then((jobId) => {
-    assert.strictEqual(jobId, 'job-test', 'Job ID should match context');
-    assert.ok(db.queries[0].includes('INSERT INTO jobs'), 'Should insert into jobs');
-    console.log('  ✅ Gateway submit method check passed.');
-  }).catch((err) => {
-    assert.fail(`Submit check failed: ${err.message}`);
-  });
+  gateway
+    .submit('scraper:maps', { query: 'test' }, mockContext)
+    .then((jobId) => {
+      assert.strictEqual(jobId, 'job-test', 'Job ID should match context');
+      assert.ok(db.queries[0].includes('INSERT INTO jobs'), 'Should insert into jobs');
+      console.log('  ✅ Gateway submit method check passed.');
+    })
+    .catch((err) => {
+      assert.fail(`Submit check failed: ${err.message}`);
+    });
 }
 
 // 2. Test submitAndAwait success
@@ -88,14 +91,16 @@ const mockContext: ExecutionContext = {
     bus.publish('job:completed', { jobId: 'job-test', result: { success: true, count: 5 } });
   }, 10);
 
-  execPromise.then((result) => {
-    assert.strictEqual(result.success, true, 'Result should be success');
-    assert.strictEqual(result.metadata.jobId, 'job-test', 'Job ID should match context');
-    assert.ok(result.metadata.durationMs >= 10, 'Duration should reflect wait time');
-    console.log('  ✅ Gateway success await check passed.');
-  }).catch((err) => {
-    assert.fail(`Success await check failed: ${err.message}`);
-  });
+  execPromise
+    .then((result) => {
+      assert.strictEqual(result.success, true, 'Result should be success');
+      assert.strictEqual(result.metadata.jobId, 'job-test', 'Job ID should match context');
+      assert.ok(result.metadata.durationMs >= 10, 'Duration should reflect wait time');
+      console.log('  ✅ Gateway success await check passed.');
+    })
+    .catch((err) => {
+      assert.fail(`Success await check failed: ${err.message}`);
+    });
 }
 
 // 3. Test submitAndAwait failure
@@ -110,14 +115,20 @@ const mockContext: ExecutionContext = {
     bus.publish('job:failed', { jobId: 'job-test', error: 'Failed intentionally' });
   }, 10);
 
-  execPromise.then((result) => {
-    assert.strictEqual(result.success, false, 'Result should fail');
-    assert.strictEqual(result.error?.code, 'WORKER_ERROR', 'Error code should be WORKER_ERROR');
-    assert.strictEqual(result.error?.message, 'Failed intentionally', 'Error message should match published error');
-    console.log('  ✅ Gateway failure await check passed.');
-  }).catch((err) => {
-    assert.fail(`Failure await check failed: ${err.message}`);
-  });
+  execPromise
+    .then((result) => {
+      assert.strictEqual(result.success, false, 'Result should fail');
+      assert.strictEqual(result.error?.code, 'WORKER_ERROR', 'Error code should be WORKER_ERROR');
+      assert.strictEqual(
+        result.error?.message,
+        'Failed intentionally',
+        'Error message should match published error'
+      );
+      console.log('  ✅ Gateway failure await check passed.');
+    })
+    .catch((err) => {
+      assert.fail(`Failure await check failed: ${err.message}`);
+    });
 }
 
 // 4. Test cancellation
@@ -127,22 +138,32 @@ const mockContext: ExecutionContext = {
   const gateway = new SchedulerGatewayImpl(db, bus as any);
 
   const controller = new AbortController();
-  const execPromise = gateway.submitAndAwait('scraper:maps', { query: 'test' }, {
-    ...mockContext,
-    abortSignal: controller.signal
-  });
+  const execPromise = gateway.submitAndAwait(
+    'scraper:maps',
+    { query: 'test' },
+    {
+      ...mockContext,
+      abortSignal: controller.signal
+    }
+  );
 
   setTimeout(() => {
     controller.abort();
   }, 10);
 
-  execPromise.then((result) => {
-    assert.strictEqual(result.success, false, 'Result should fail on cancel');
-    assert.strictEqual(result.error?.code, 'CANCELLED_BY_USER', 'Error code should be CANCELLED_BY_USER');
-    console.log('  ✅ Gateway cancellation check passed.');
-  }).catch((err) => {
-    assert.fail(`Cancellation check failed: ${err.message}`);
-  });
+  execPromise
+    .then((result) => {
+      assert.strictEqual(result.success, false, 'Result should fail on cancel');
+      assert.strictEqual(
+        result.error?.code,
+        'CANCELLED_BY_USER',
+        'Error code should be CANCELLED_BY_USER'
+      );
+      console.log('  ✅ Gateway cancellation check passed.');
+    })
+    .catch((err) => {
+      assert.fail(`Cancellation check failed: ${err.message}`);
+    });
 }
 
 // 5. Test status query
@@ -151,10 +172,13 @@ const mockContext: ExecutionContext = {
   const bus = new MockEventBus();
   const gateway = new SchedulerGatewayImpl(db, bus as any);
 
-  gateway.status('job-test', 'ws-test').then((status) => {
-    assert.strictEqual(status, 'running', 'Status should be running');
-    console.log('  ✅ Gateway status query check passed.');
-  }).catch((err) => {
-    assert.fail(`Status query check failed: ${err.message}`);
-  });
+  gateway
+    .status('job-test', 'ws-test')
+    .then((status) => {
+      assert.strictEqual(status, 'running', 'Status should be running');
+      console.log('  ✅ Gateway status query check passed.');
+    })
+    .catch((err) => {
+      assert.fail(`Status query check failed: ${err.message}`);
+    });
 }

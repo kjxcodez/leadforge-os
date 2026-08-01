@@ -4,7 +4,7 @@ import type {
   CreateSequenceDto,
   UpdateSequenceDto,
   SequenceExecution,
-  SequenceLog,
+  SequenceLog
 } from '@leadforge/schema';
 
 export class SequencesModule {
@@ -42,11 +42,15 @@ export class ExecutionsModule {
     return this.client.get<SequenceExecution>(`/automation/executions/${id}`);
   }
 
-  public async start(sequenceId: string, contactId?: string | null, companyId?: string | null): Promise<SequenceExecution> {
+  public async start(
+    sequenceId: string,
+    contactId?: string | null,
+    companyId?: string | null
+  ): Promise<SequenceExecution> {
     return this.client.post<SequenceExecution>('/automation/executions/start', {
       sequenceId,
       contactId,
-      companyId,
+      companyId
     });
   }
 

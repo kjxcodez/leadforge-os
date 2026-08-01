@@ -84,7 +84,8 @@ export default function WorkspaceInvitesScreen() {
                 <div>
                   <h3 className="text-xs font-semibold text-foreground leading-tight">{ws.name}</h3>
                   <p className="text-[10px] text-muted-foreground mt-0.5">
-                    Invited to join as <span className="font-medium text-foreground">{inviteMember?.role}</span>
+                    Invited to join as{' '}
+                    <span className="font-medium text-foreground">{inviteMember?.role}</span>
                   </p>
                 </div>
               </div>

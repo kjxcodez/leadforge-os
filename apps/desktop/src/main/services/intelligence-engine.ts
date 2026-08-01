@@ -62,7 +62,11 @@ export class CompanyAnalyzer {
 
     // 2. Business model estimation
     let businessModel: 'B2B' | 'B2C' | 'Hybrid' | 'Unknown' = 'B2B';
-    if (industry.includes('retail') || industry.includes('restaurant') || industry.includes('shop')) {
+    if (
+      industry.includes('retail') ||
+      industry.includes('restaurant') ||
+      industry.includes('shop')
+    ) {
       businessModel = 'B2C';
     }
 
@@ -73,9 +77,14 @@ export class CompanyAnalyzer {
     if (company.phone) websiteQualityScore += 15;
 
     // 4. Contact Confidence & Decision Maker Likelihood
-    const decisionMakerCount = contacts.filter(c => {
+    const decisionMakerCount = contacts.filter((c) => {
       const title = (c.title || '').toLowerCase();
-      return title.includes('ceo') || title.includes('founder') || title.includes('director') || title.includes('owner');
+      return (
+        title.includes('ceo') ||
+        title.includes('founder') ||
+        title.includes('director') ||
+        title.includes('owner')
+      );
     }).length;
 
     const decisionMakerLikelihood = decisionMakerCount > 0 ? 0.9 : 0.3;
@@ -116,7 +125,11 @@ export class WebsiteAnalyzer {
     const technicalIssues: string[] = [];
 
     // 1. Buying intent signals
-    if (lowerHtml.includes('pricing') || lowerHtml.includes('book a call') || lowerHtml.includes('book a demo')) {
+    if (
+      lowerHtml.includes('pricing') ||
+      lowerHtml.includes('book a call') ||
+      lowerHtml.includes('book a demo')
+    ) {
       buyingSignals.push('Active Sales CTA detected');
     }
     if (lowerHtml.includes('free trial') || lowerHtml.includes('sign up')) {
@@ -124,12 +137,20 @@ export class WebsiteAnalyzer {
     }
 
     // 2. Testimonials
-    if (lowerHtml.includes('testimonial') || lowerHtml.includes('case study') || lowerHtml.includes('what our clients say')) {
+    if (
+      lowerHtml.includes('testimonial') ||
+      lowerHtml.includes('case study') ||
+      lowerHtml.includes('what our clients say')
+    ) {
       testimonialsCaseStudies.push('Client success section found');
     }
 
     // 3. Products / Services
-    if (lowerHtml.includes('services') || lowerHtml.includes('solutions') || lowerHtml.includes('what we do')) {
+    if (
+      lowerHtml.includes('services') ||
+      lowerHtml.includes('solutions') ||
+      lowerHtml.includes('what we do')
+    ) {
       productsServices.push('Core services/solutions list');
     }
 
@@ -170,7 +191,12 @@ export class ContactAnalyzer {
     let seniority: ContactIntelligence['seniority'] = 'Individual Contributor';
     let buyingInfluence: ContactIntelligence['buyingInfluence'] = 'Champion';
 
-    if (title.includes('ceo') || title.includes('founder') || title.includes('owner') || title.includes('president')) {
+    if (
+      title.includes('ceo') ||
+      title.includes('founder') ||
+      title.includes('owner') ||
+      title.includes('president')
+    ) {
       decisionMakerScore = 1.0;
       seniority = 'Executive';
       buyingInfluence = 'Decision Maker';
@@ -246,7 +272,7 @@ export class ScoringEngine {
     }
 
     const overallScore = Math.round(
-      (fitScore * 0.3) + (sizeScore * 0.2) + (intentScore * 0.3) + (urgencyScore * 0.2)
+      fitScore * 0.3 + sizeScore * 0.2 + intentScore * 0.3 + urgencyScore * 0.2
     );
 
     return {
@@ -288,13 +314,19 @@ export class AIInsightGenerator {
           return result.data;
         }
       } catch (err) {
-        AppLogger.error('AIInsightGenerator', 'OpenRouter request failed, falling back to rule-based mock engine', undefined, err);
+        AppLogger.error(
+          'AIInsightGenerator',
+          'OpenRouter request failed, falling back to rule-based mock engine',
+          undefined,
+          err
+        );
       }
     }
 
     // High quality, highly tailored rule-based template fallback
     const techText = techStack.length > 0 ? techStack[0] : 'modern systems';
-    const issueText = technicalIssues.length > 0 ? technicalIssues[0] : 'inefficient digital pipelines';
+    const issueText =
+      technicalIssues.length > 0 ? technicalIssues[0] : 'inefficient digital pipelines';
 
     return {
       openingLine: `Saw that you guys are building out your digital infrastructure using ${techText} at ${companyName}—really impressive work.`,

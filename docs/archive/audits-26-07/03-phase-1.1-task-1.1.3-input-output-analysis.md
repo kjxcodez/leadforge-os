@@ -11,6 +11,7 @@ This document presents the forensic input/output flow analysis for the manual au
 Every input field participating in the manual execution path is tracked across its lifecycle:
 
 ### 1. `sequenceId`
+
 - **Field Name**: `sequenceId`
 - **Type**: `string`
 - **Owner**: Frontend UI (`AutomationScreen.tsx` sequence list row item).
@@ -23,6 +24,7 @@ Every input field participating in the manual execution path is tracked across i
 - **Persistence Target**: `sequence_executions` (MongoDB & SQLite).
 
 ### 2. `contactId`
+
 - **Field Name**: `contactId`
 - **Type**: `string | null`
 - **Owner**: Frontend UI user prompt.
@@ -35,6 +37,7 @@ Every input field participating in the manual execution path is tracked across i
 - **Persistence Target**: `sequence_executions.contactId` (MongoDB & SQLite).
 
 ### 3. `companyId`
+
 - **Field Name**: `companyId`
 - **Type**: `string | null`
 - **Owner**: Frontend UI trigger handler.
@@ -47,12 +50,13 @@ Every input field participating in the manual execution path is tracked across i
 - **Persistence Target**: `sequence_executions.companyId` (MongoDB & SQLite).
 
 ### 4. `workspaceId`
+
 - **Field Name**: `workspaceId`
 - **Type**: `string`
 - **Owner**: Active Workspace Context (`useWorkspace` hook in Renderer / `WorkspaceManager` in Main Process / Hono Context in API).
 - **Origin**: Injected by context providers at each process layer.
 - **Created By**: Workspace selection state store.
-- **Validated By**: 
+- **Validated By**:
   - `use-automation.ts` (checks `if (!workspaceId) return`).
   - `main/ipc/automation.ts` (checks `WorkspaceManager.getActiveRuntime()`).
   - `routes/automation.ts` (`getWorkspaceId(c)` throws `ForbiddenError` if missing).
@@ -63,6 +67,7 @@ Every input field participating in the manual execution path is tracked across i
 - **Persistence Target**: Scopes `sequence_executions` and `sequence_logs` records in MongoDB and SQLite.
 
 ### 5. `executionId` (`id` / `_id`)
+
 - **Field Name**: `id` (Client / IPC / SDK) / `_id` (MongoDB)
 - **Type**: `string`
 - **Owner**: Client Repository (`sync.ts`) / MongoDB Model (`SequenceExecutionModel`).
@@ -75,6 +80,7 @@ Every input field participating in the manual execution path is tracked across i
 - **Persistence Target**: Primary key (`id` in SQLite, `_id` in MongoDB).
 
 ### 6. `status`
+
 - **Field Name**: `status`
 - **Type**: `string`
 - **Owner**: API Domain Service (`AutomationService.startExecution`).
@@ -87,6 +93,7 @@ Every input field participating in the manual execution path is tracked across i
 - **Persistence Target**: `sequence_executions.status` (MongoDB & SQLite).
 
 ### 7. `currentStep`
+
 - **Field Name**: `currentStep`
 - **Type**: `number`
 - **Owner**: API Domain Service (`AutomationService.startExecution`).
@@ -105,6 +112,7 @@ Every input field participating in the manual execution path is tracked across i
 Every output object produced during the execution flow is tracked:
 
 ### 1. `SequenceExecution` MongoDB Document
+
 - **Produced By**: `AutomationService.startExecution()` (`exec.save()`).
 - **Owned By**: Central MongoDB Engine (`sequence_executions` collection).
 - **Returned To**: `automationRouter.post('/executions/start')` router.
@@ -113,6 +121,7 @@ Every output object produced during the execution flow is tracked:
 - **Consumed By**: Desktop Main process IPC handler -> SDK -> Renderer UI execution table.
 
 ### 2. `SequenceLog` MongoDB Document
+
 - **Produced By**: `AutomationService.logStep()` (`log.save()`).
 - **Owned By**: Central MongoDB Engine (`sequence_logs` collection).
 - **Returned To**: `AutomationService` internal caller.
@@ -121,6 +130,7 @@ Every output object produced during the execution flow is tracked:
 - **Consumed By**: Execution history logs timeline dialog (`execution:logs` IPC).
 
 ### 3. API HTTP JSON Response (`ApiResponse<SequenceExecution>`)
+
 - **Produced By**: `routes/automation.ts` (`c.json(successResponse(exec))`).
 - **Owned By**: Hono API Server HTTP Gateway.
 - **Returned To**: `HttpClient` (SDK transport) over network interface.
@@ -129,6 +139,7 @@ Every output object produced during the execution flow is tracked:
 - **Consumed By**: `ExecutionsModule.start()` in SDK.
 
 ### 4. Desktop SQLite Cache Record
+
 - **Produced By**: `LocalCRMRepository.save('sequence_executions', { ...res, workspaceId }, true)`.
 - **Owned By**: Desktop SQLite Database file.
 - **Returned To**: `main/ipc/automation.ts` handler.
@@ -137,6 +148,7 @@ Every output object produced during the execution flow is tracked:
 - **Consumed By**: Desktop local fallback query handlers (`LocalCRMRepository.findMany`).
 
 ### 5. IPC Execution Response Object
+
 - **Produced By**: `main/ipc/automation.ts` handler callback return statement (`return res`).
 - **Owned By**: Electron IPC Channel Bridge.
 - **Returned To**: `preload/index.ts` -> `window.ipc.invoke()` Promise.
@@ -145,6 +157,7 @@ Every output object produced during the execution flow is tracked:
 - **Consumed By**: `useStartSequence()` mutation `onSuccess` callback.
 
 ### 6. React Query Cache State
+
 - **Produced By**: `useStartSequence()` mutation success trigger.
 - **Owned By**: TanStack Query QueryClient instance in Renderer.
 - **Returned To**: `AutomationScreen.tsx` UI subscriber.
@@ -236,21 +249,21 @@ Every output object produced during the execution flow is tracked:
 
 ## Data Transformation Table
 
-| Layer | Input Received | Transformation Applied | Output Emitted | Ownership Transfer |
-| :--- | :--- | :--- | :--- | :--- |
-| **Renderer UI** | Click on sequence card (`seq.id`) | Prompts user for `contactId` string | `{ sequenceId, contactId, companyId: null }` | UI -> React Hook |
-| **Renderer Hook** | `{ sequenceId, contactId, companyId }` | Fetches `activeWorkspace.id` and appends `workspaceId` | `{ sequenceId, contactId, companyId, workspaceId }` | Hook -> Repository |
-| **Renderer Repo** | `{ sequenceId, contactId, companyId, workspaceId }` | Attaches `id = crypto.randomUUID()` if missing | Record object passed to `window.ipc.invoke('sequence:start', record)` | Repository -> IPC Preload |
-| **Preload Bridge** | Channel string `'sequence:start'`, record | Validates channel against `validChannels` whitelist | Forwards to `ipcRenderer.invoke('sequence:start', record)` | Preload -> Main Process IPC |
-| **Main Process IPC** | IPC event, `{ sequenceId, contactId, companyId }` | Obtains workspace runtime; calls SDK `executions.start()` | Receives `res` execution object from SDK | Main IPC -> SDK |
-| **SDK Module** | `sequenceId`, `contactId`, `companyId` | Encapsulates parameters into body object | Passes `/automation/executions/start` & body to `HttpClient.post()` | SDK Module -> HttpClient |
-| **SDK Transport** | Path, body object | Appends auth token header; stringifies body via `JSON.stringify` | HTTP POST request packet sent via native `fetch()` | HttpClient -> HTTP Network |
-| **API Router** | HTTP POST request packet | Extracts `workspaceId` from context; parses body JSON via `c.req.json()` | Passes `sequenceId` and body to `AutomationService.startExecution()` | Router -> Service |
-| **API Service** | `sequenceId`, `payload` | 1. Checks sequence in MongoDB. 2. Checks active duplicates. 3. Instantiates `new SequenceExecutionModel({ status: "PENDING", currentStep: 0, ... })`. 4. Calls `logStep()` | Saves document via `exec.save()` and returns Mongoose document | Service -> MongoDB Model |
-| **MongoDB Model** | Mongoose document instance | Converts Mongoose document to BSON storage record | Writes document to `sequence_executions` MongoDB collection | Model -> MongoDB Engine |
-| **API Router Return** | Mongoose document `exec` | Wraps object in `successResponse(exec)` | Returns HTTP 200 JSON `{ success: true, data: exec }` | API Router -> SDK Transport |
-| **Main IPC Return** | SDK returned `SequenceExecution` | Constructs `{ ...res, workspaceId }` and calls `LocalCRMRepository.save()` | Writes SQLite row and returns `res` across IPC | Main IPC -> SQLite & Preload |
-| **Renderer Return** | IPC resolved Promise result | Invalidates TanStack Query key `['sequence_executions', 'list', workspaceId]` | Updates UI execution table with new execution row | Preload -> Renderer UI |
+| Layer                 | Input Received                                      | Transformation Applied                                                                                                                                                     | Output Emitted                                                        | Ownership Transfer           |
+| :-------------------- | :-------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------- | :--------------------------- |
+| **Renderer UI**       | Click on sequence card (`seq.id`)                   | Prompts user for `contactId` string                                                                                                                                        | `{ sequenceId, contactId, companyId: null }`                          | UI -> React Hook             |
+| **Renderer Hook**     | `{ sequenceId, contactId, companyId }`              | Fetches `activeWorkspace.id` and appends `workspaceId`                                                                                                                     | `{ sequenceId, contactId, companyId, workspaceId }`                   | Hook -> Repository           |
+| **Renderer Repo**     | `{ sequenceId, contactId, companyId, workspaceId }` | Attaches `id = crypto.randomUUID()` if missing                                                                                                                             | Record object passed to `window.ipc.invoke('sequence:start', record)` | Repository -> IPC Preload    |
+| **Preload Bridge**    | Channel string `'sequence:start'`, record           | Validates channel against `validChannels` whitelist                                                                                                                        | Forwards to `ipcRenderer.invoke('sequence:start', record)`            | Preload -> Main Process IPC  |
+| **Main Process IPC**  | IPC event, `{ sequenceId, contactId, companyId }`   | Obtains workspace runtime; calls SDK `executions.start()`                                                                                                                  | Receives `res` execution object from SDK                              | Main IPC -> SDK              |
+| **SDK Module**        | `sequenceId`, `contactId`, `companyId`              | Encapsulates parameters into body object                                                                                                                                   | Passes `/automation/executions/start` & body to `HttpClient.post()`   | SDK Module -> HttpClient     |
+| **SDK Transport**     | Path, body object                                   | Appends auth token header; stringifies body via `JSON.stringify`                                                                                                           | HTTP POST request packet sent via native `fetch()`                    | HttpClient -> HTTP Network   |
+| **API Router**        | HTTP POST request packet                            | Extracts `workspaceId` from context; parses body JSON via `c.req.json()`                                                                                                   | Passes `sequenceId` and body to `AutomationService.startExecution()`  | Router -> Service            |
+| **API Service**       | `sequenceId`, `payload`                             | 1. Checks sequence in MongoDB. 2. Checks active duplicates. 3. Instantiates `new SequenceExecutionModel({ status: "PENDING", currentStep: 0, ... })`. 4. Calls `logStep()` | Saves document via `exec.save()` and returns Mongoose document        | Service -> MongoDB Model     |
+| **MongoDB Model**     | Mongoose document instance                          | Converts Mongoose document to BSON storage record                                                                                                                          | Writes document to `sequence_executions` MongoDB collection           | Model -> MongoDB Engine      |
+| **API Router Return** | Mongoose document `exec`                            | Wraps object in `successResponse(exec)`                                                                                                                                    | Returns HTTP 200 JSON `{ success: true, data: exec }`                 | API Router -> SDK Transport  |
+| **Main IPC Return**   | SDK returned `SequenceExecution`                    | Constructs `{ ...res, workspaceId }` and calls `LocalCRMRepository.save()`                                                                                                 | Writes SQLite row and returns `res` across IPC                        | Main IPC -> SQLite & Preload |
+| **Renderer Return**   | IPC resolved Promise result                         | Invalidates TanStack Query key `['sequence_executions', 'list', workspaceId]`                                                                                              | Updates UI execution table with new execution row                     | Preload -> Renderer UI       |
 
 ---
 
@@ -300,12 +313,12 @@ sequenceDiagram
 
 ## Confidence Assessment
 
-| Analysis Area | Audit Status | Source Code Reference | Confidence Level |
-| :--- | :--- | :--- | :--- |
-| **Complete Input Audit** | Verified | `AutomationScreen.tsx`, `use-automation.ts`, `automation.service.ts` | **HIGH** |
-| **Complete Output Audit** | Verified | `automation.service.ts`, `routes/automation.ts`, `local-crm.ts` | **HIGH** |
-| **Data Ownership Chains** | Verified | Trace from UI prompt to MongoDB BSON record | **HIGH** |
-| **Transformation Table** | Verified | Code transformations in `sync.ts`, `client.ts`, `automation.service.ts` | **HIGH** |
-| **I/O Flow Diagram** | Verified | Mermaid sequence mapping exact function parameters and returns | **HIGH** |
+| Analysis Area             | Audit Status | Source Code Reference                                                   | Confidence Level |
+| :------------------------ | :----------- | :---------------------------------------------------------------------- | :--------------- |
+| **Complete Input Audit**  | Verified     | `AutomationScreen.tsx`, `use-automation.ts`, `automation.service.ts`    | **HIGH**         |
+| **Complete Output Audit** | Verified     | `automation.service.ts`, `routes/automation.ts`, `local-crm.ts`         | **HIGH**         |
+| **Data Ownership Chains** | Verified     | Trace from UI prompt to MongoDB BSON record                             | **HIGH**         |
+| **Transformation Table**  | Verified     | Code transformations in `sync.ts`, `client.ts`, `automation.service.ts` | **HIGH**         |
+| **I/O Flow Diagram**      | Verified     | Mermaid sequence mapping exact function parameters and returns          | **HIGH**         |
 
 **Overall Audit Confidence Level**: **HIGH**

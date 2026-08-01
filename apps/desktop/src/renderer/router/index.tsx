@@ -12,11 +12,21 @@ import { queryClient } from '../providers/AppProviders';
 import { SplashScreen } from '../screens/SplashScreen';
 
 // Lazy load screens
-const LoginScreen = lazy(() => import('../screens/LoginScreen').then(m => ({ default: m.LoginScreen })));
-const RegisterScreen = lazy(() => import('../screens/RegisterScreen').then(m => ({ default: m.RegisterScreen })));
-const ForgotPasswordScreen = lazy(() => import('../screens/ForgotPasswordScreen').then(m => ({ default: m.ForgotPasswordScreen })));
-const VerifyEmailScreen = lazy(() => import('../screens/VerifyEmailScreen').then(m => ({ default: m.VerifyEmailScreen })));
-const SessionExpiredScreen = lazy(() => import('../screens/SessionExpiredScreen').then(m => ({ default: m.SessionExpiredScreen })));
+const LoginScreen = lazy(() =>
+  import('../screens/LoginScreen').then((m) => ({ default: m.LoginScreen }))
+);
+const RegisterScreen = lazy(() =>
+  import('../screens/RegisterScreen').then((m) => ({ default: m.RegisterScreen }))
+);
+const ForgotPasswordScreen = lazy(() =>
+  import('../screens/ForgotPasswordScreen').then((m) => ({ default: m.ForgotPasswordScreen }))
+);
+const VerifyEmailScreen = lazy(() =>
+  import('../screens/VerifyEmailScreen').then((m) => ({ default: m.VerifyEmailScreen }))
+);
+const SessionExpiredScreen = lazy(() =>
+  import('../screens/SessionExpiredScreen').then((m) => ({ default: m.SessionExpiredScreen }))
+);
 
 const WorkspaceSettingsScreen = lazy(() => import('../screens/WorkspaceSettingsScreen'));
 const WorkspaceInvitesScreen = lazy(() => import('../screens/WorkspaceInvitesScreen'));
@@ -26,10 +36,11 @@ const ContactsScreen = lazy(() => import('../screens/ContactsScreen'));
 const DiscoveryScreen = lazy(() => import('../screens/DiscoveryScreen'));
 const CampaignsScreen = lazy(() => import('../screens/CampaignsScreen'));
 const AutomationScreen = lazy(() => import('../screens/AutomationScreen'));
-const OperationsCenterScreen = lazy(() => import('../screens/OperationsCenterScreen').then(m => ({ default: m.OperationsCenterScreen })));
+const OperationsCenterScreen = lazy(() =>
+  import('../screens/OperationsCenterScreen').then((m) => ({ default: m.OperationsCenterScreen }))
+);
 const ReportsScreen = lazy(() => import('../screens/ReportsScreen'));
 const OnboardingScreen = lazy(() => import('../screens/OnboardingScreen'));
-
 
 // ---------------------------------------------------------------------------
 // Session Bootstrap
@@ -91,19 +102,31 @@ const router = createHashRouter([
   // ── Splash / session idle ────────────────────────────────────────────────
   {
     path: '/splash',
-    element: <BlankLayout><SplashScreen /></BlankLayout>,
+    element: (
+      <BlankLayout>
+        <SplashScreen />
+      </BlankLayout>
+    )
   },
 
   // ── Onboarding Experience ────────────────────────────────────────────────
   {
     path: '/onboarding',
-    element: <BlankLayout><OnboardingScreen /></BlankLayout>,
+    element: (
+      <BlankLayout>
+        <OnboardingScreen />
+      </BlankLayout>
+    )
   },
 
   // ── Session expired ──────────────────────────────────────────────────────
   {
     path: '/session-expired',
-    element: <BlankLayout><SessionExpiredScreen /></BlankLayout>,
+    element: (
+      <BlankLayout>
+        <SessionExpiredScreen />
+      </BlankLayout>
+    )
   },
 
   // ── Auth routes (guests only) ────────────────────────────────────────────
@@ -116,10 +139,10 @@ const router = createHashRouter([
           { path: '/auth/login', element: <LoginScreen /> },
           { path: '/auth/register', element: <RegisterScreen /> },
           { path: '/auth/forgot-password', element: <ForgotPasswordScreen /> },
-          { path: '/auth/verify-email', element: <VerifyEmailScreen /> },
-        ],
-      },
-    ],
+          { path: '/auth/verify-email', element: <VerifyEmailScreen /> }
+        ]
+      }
+    ]
   },
 
   // ── App routes (authenticated only) ─────────────────────────────────────
@@ -132,7 +155,7 @@ const router = createHashRouter([
           { path: '/', element: <Navigate to="/dashboard" replace /> },
           {
             path: '/dashboard',
-            element: <DashboardScreen />,
+            element: <DashboardScreen />
           },
           { path: '/companies', element: <CompaniesScreen /> },
           { path: '/contacts', element: <ContactsScreen /> },
@@ -144,14 +167,14 @@ const router = createHashRouter([
           { path: '/settings', element: <WorkspaceSettingsScreen /> },
           { path: '/invites', element: <WorkspaceInvitesScreen /> },
           { path: '/diagnostics', element: <Navigate to="/operations" replace /> },
-          { path: '/operations', element: <OperationsCenterScreen /> },
-        ],
-      },
-    ],
+          { path: '/operations', element: <OperationsCenterScreen /> }
+        ]
+      }
+    ]
   },
 
   // ── Fallback ─────────────────────────────────────────────────────────────
-  { path: '*', element: <Navigate to="/" replace /> },
+  { path: '*', element: <Navigate to="/" replace /> }
 ]);
 
 // ---------------------------------------------------------------------------

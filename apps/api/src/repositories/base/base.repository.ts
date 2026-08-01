@@ -1,8 +1,12 @@
-import { type Model, type Document, type ClientSession } from "mongoose";
-import { NotFoundError, ConflictError, ValidationError, DatabaseError } from "../../errors/index.js";
+import { type Model, type Document, type ClientSession } from 'mongoose';
+import {
+  NotFoundError,
+  ConflictError,
+  ValidationError,
+  DatabaseError
+} from '../../errors/index.js';
 
 type FilterQuery<T> = any;
-
 
 export class BaseRepository<T extends Document> {
   constructor(
@@ -14,16 +18,19 @@ export class BaseRepository<T extends Document> {
    * Translates mongoose exceptions to domain errors.
    */
   protected handleError(error: any): never {
-    if (error.name === "ValidationError") {
+    if (error.name === 'ValidationError') {
       throw new ValidationError(error.message, error.errors);
     }
     if (error.code === 11000) {
-      throw new ConflictError("A record with this unique constraint already exists.", error.keyValue);
+      throw new ConflictError(
+        'A record with this unique constraint already exists.',
+        error.keyValue
+      );
     }
-    if (error.name === "CastError") {
+    if (error.name === 'CastError') {
       throw new NotFoundError(`Resource not found.`);
     }
-    throw new DatabaseError(error.message || "Database operation failed", error);
+    throw new DatabaseError(error.message || 'Database operation failed', error);
   }
 
   /**
@@ -80,7 +87,7 @@ export class BaseRepository<T extends Document> {
     try {
       const payload = this.workspaceId ? { ...data, workspaceId: this.workspaceId } : data;
       const doc = new this.model(payload);
-      
+
       const saveOptions = session ? { session } : {};
       await doc.save(saveOptions);
       return doc;
@@ -89,14 +96,18 @@ export class BaseRepository<T extends Document> {
     }
   }
 
-  public async update(id: string, updateData: Partial<T> | any, session?: ClientSession): Promise<T> {
+  public async update(
+    id: string,
+    updateData: Partial<T> | any,
+    session?: ClientSession
+  ): Promise<T> {
     try {
       const filter = this.applyScope({ _id: id } as any);
       const options: any = { new: true, runValidators: true };
       if (session) {
         options.session = session;
       }
-      
+
       const doc = (await this.model.findOneAndUpdate(
         filter,
         { $set: updateData },
@@ -121,7 +132,7 @@ export class BaseRepository<T extends Document> {
         throw new NotFoundError(`Resource with id ${id} not found.`);
       }
 
-      if (typeof (doc as any).softDelete === "function") {
+      if (typeof (doc as any).softDelete === 'function') {
         await (doc as any).softDelete();
         return true;
       }
@@ -146,7 +157,7 @@ export class BaseRepository<T extends Document> {
 
       const [data, total] = await Promise.all([
         this.model.find(scopedFilter).sort(sort).skip(skip).limit(limit),
-        this.model.countDocuments(scopedFilter),
+        this.model.countDocuments(scopedFilter)
       ]);
 
       return { data, total };

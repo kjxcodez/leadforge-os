@@ -36,7 +36,14 @@ export function NotesSystem({ notesJson, onUpdate, readOnly = false }: NotesSyst
   } catch {
     // If it was raw string text from old migrations, construct a single note
     if (notesJson) {
-      notes = [{ id: 'legacy', content: notesJson, authorName: 'System', createdAt: new Date().toISOString() }];
+      notes = [
+        {
+          id: 'legacy',
+          content: notesJson,
+          authorName: 'System',
+          createdAt: new Date().toISOString()
+        }
+      ];
     }
   }
 
@@ -47,7 +54,7 @@ export function NotesSystem({ notesJson, onUpdate, readOnly = false }: NotesSyst
       id: crypto.randomUUID(),
       content: content.trim(),
       authorName: user?.displayName || user?.name || user?.email || 'User',
-      createdAt: new Date().toISOString(),
+      createdAt: new Date().toISOString()
     };
 
     const updated = [newNote, ...notes];
@@ -89,7 +96,9 @@ export function NotesSystem({ notesJson, onUpdate, readOnly = false }: NotesSyst
               key={note.id}
               className="p-3 bg-card border border-border-subtle rounded-lg space-y-1.5 relative group hover:shadow-sm transition-shadow"
             >
-              <p className="text-xs text-foreground leading-normal whitespace-pre-wrap">{note.content}</p>
+              <p className="text-xs text-foreground leading-normal whitespace-pre-wrap">
+                {note.content}
+              </p>
 
               <div className="flex items-center gap-3 text-[9px] text-muted-foreground">
                 <span className="flex items-center gap-1">

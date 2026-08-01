@@ -7,7 +7,7 @@ export async function callOllama(
   const response = await fetch(`${baseUrl}/api/generate`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json'
     },
     signal: options?.signal || null,
     body: JSON.stringify({
@@ -16,9 +16,9 @@ export async function callOllama(
       stream: false,
       options: {
         temperature: options?.temperature ?? 0.7,
-        num_predict: options?.maxTokens,
-      },
-    }),
+        num_predict: options?.maxTokens
+      }
+    })
   });
 
   if (!response.ok) {
@@ -26,6 +26,6 @@ export async function callOllama(
     throw new Error(`Ollama Error (${response.status}): ${errorText}`);
   }
 
-  const json = await response.json() as any;
+  const json = (await response.json()) as any;
   return json.response || '';
 }

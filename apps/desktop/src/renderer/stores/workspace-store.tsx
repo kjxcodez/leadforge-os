@@ -33,7 +33,7 @@ const initialState: WorkspaceState = {
   workspaces: [],
   activeWorkspace: null,
   isLoading: false,
-  error: null,
+  error: null
 };
 
 function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
@@ -45,7 +45,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
         ...state,
         isLoading: false,
         workspaces: action.payload.workspaces,
-        activeWorkspace: action.payload.active,
+        activeWorkspace: action.payload.active
       };
     case 'WORKSPACE_SWITCHED':
       return { ...state, activeWorkspace: action.payload };
@@ -88,25 +88,31 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   const setLoading = useCallback(() => dispatch({ type: 'WORKSPACES_LOADING' }), []);
 
-  const setWorkspaces = useCallback((workspaces: Workspace[], active: Workspace | null) => {
-    dispatch({ type: 'WORKSPACES_LOADED', payload: { workspaces, active } });
-    if (state.activeWorkspace?.id !== active?.id) {
-      WorkspaceService.syncActiveWorkspace(active?.id || null);
-    }
-  }, [state.activeWorkspace]);
+  const setWorkspaces = useCallback(
+    (workspaces: Workspace[], active: Workspace | null) => {
+      dispatch({ type: 'WORKSPACES_LOADED', payload: { workspaces, active } });
+      if (state.activeWorkspace?.id !== active?.id) {
+        WorkspaceService.syncActiveWorkspace(active?.id || null);
+      }
+    },
+    [state.activeWorkspace]
+  );
 
-  const switchWorkspace = useCallback(async (workspace: Workspace) => {
-    const workspaceId = workspace.id || null;
-    
-    // 1. Sync token to main process headers and config storage
-    await WorkspaceService.syncActiveWorkspace(workspaceId);
-    
-    // 2. Commit to react state
-    dispatch({ type: 'WORKSPACE_SWITCHED', payload: workspace });
-    
-    // 3. Clear all cached data across all queries to prevent leakages
-    await queryClient.resetQueries();
-  }, [queryClient]);
+  const switchWorkspace = useCallback(
+    async (workspace: Workspace) => {
+      const workspaceId = workspace.id || null;
+
+      // 1. Sync token to main process headers and config storage
+      await WorkspaceService.syncActiveWorkspace(workspaceId);
+
+      // 2. Commit to react state
+      dispatch({ type: 'WORKSPACE_SWITCHED', payload: workspace });
+
+      // 3. Clear all cached data across all queries to prevent leakages
+      await queryClient.resetQueries();
+    },
+    [queryClient]
+  );
 
   const setError = useCallback((error: string) => {
     dispatch({ type: 'WORKSPACES_ERROR', payload: error });
@@ -118,7 +124,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <WorkspaceContext.Provider value={{ state, setLoading, setWorkspaces, switchWorkspace, setError, reset }}>
+    <WorkspaceContext.Provider
+      value={{ state, setLoading, setWorkspaces, switchWorkspace, setError, reset }}
+    >
       {children}
     </WorkspaceContext.Provider>
   );

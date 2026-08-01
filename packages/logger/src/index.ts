@@ -18,7 +18,7 @@ export function createLogger(config: LoggerConfig) {
   }
 
   const options: Record<string, any> = {
-    level: config.logLevel,
+    level: config.logLevel
   };
 
   if (config.env === 'development') {
@@ -27,8 +27,8 @@ export function createLogger(config: LoggerConfig) {
       options: {
         colorize: true,
         translateTime: 'HH:MM:ss Z',
-        ignore: 'pid,hostname',
-      },
+        ignore: 'pid,hostname'
+      }
     };
   }
 
@@ -41,7 +41,7 @@ try {
   if (typeof process !== 'undefined' && process.env) {
     defaultLogger = createLogger({
       env: (process.env.NODE_ENV as any) || 'development',
-      logLevel: (process.env.LOG_LEVEL as any) || 'info',
+      logLevel: (process.env.LOG_LEVEL as any) || 'info'
     });
   } else {
     defaultLogger = pino({ browser: { asObject: true } });

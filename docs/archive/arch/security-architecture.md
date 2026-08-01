@@ -7,6 +7,7 @@ LeadForge OS hosts native database queries and API keys on client machines. This
 ## 1. Electron Isolation & Sandboxing
 
 The Renderer process has zero direct operating system access.
+
 - **Context Isolation**: `contextIsolation: true` is enforced.
 - **Process Sandboxing**: `sandbox: true` runs Chromium in a limited user profile.
 - **CSP Constraints**: Restricts frame-ancestors, web connections, and script origins to local file sources:

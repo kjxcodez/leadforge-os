@@ -5,7 +5,12 @@ export class SdkError extends Error {
   public readonly details: unknown | null;
   public readonly status: number | null;
 
-  constructor(message: string, code: string = ErrorCode.INTERNAL_SERVER_ERROR, status: number | null = null, details: unknown | null = null) {
+  constructor(
+    message: string,
+    code: string = ErrorCode.INTERNAL_SERVER_ERROR,
+    status: number | null = null,
+    details: unknown | null = null
+  ) {
     super(message);
     this.name = 'SdkError';
     this.code = code;

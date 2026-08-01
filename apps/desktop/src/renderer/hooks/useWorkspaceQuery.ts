@@ -9,7 +9,7 @@ import type { InviteMemberDto, WorkspaceRole } from '@leadforge/schema';
 
 export const workspaceQueryKeys = {
   members: (workspaceId: string) => ['workspace', workspaceId, 'members'] as const,
-  invites: () => ['user', 'invites', 'pending'] as const,
+  invites: () => ['user', 'invites', 'pending'] as const
 };
 
 // ---------------------------------------------------------------------------
@@ -23,7 +23,7 @@ export function useWorkspaceMembers(workspaceId: string) {
   return useQuery({
     queryKey: workspaceQueryKeys.members(workspaceId),
     queryFn: () => WorkspaceService.listMembers(workspaceId),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId
   });
 }
 
@@ -33,7 +33,7 @@ export function useWorkspaceMembers(workspaceId: string) {
 export function useWorkspaceInvites() {
   return useQuery({
     queryKey: workspaceQueryKeys.invites(),
-    queryFn: () => WorkspaceService.listPendingInvites(),
+    queryFn: () => WorkspaceService.listPendingInvites()
   });
 }
 
@@ -51,7 +51,7 @@ export function useInviteMember(workspaceId: string) {
     },
     onError: (err: any) => {
       toast.error(err.message || 'Failed to send invitation.');
-    },
+    }
   });
 }
 
@@ -70,7 +70,7 @@ export function useUpdateMemberRole(workspaceId: string) {
     },
     onError: (err: any) => {
       toast.error(err.message || 'Failed to update member role.');
-    },
+    }
   });
 }
 
@@ -88,7 +88,7 @@ export function useRemoveMember(workspaceId: string) {
     },
     onError: (err: any) => {
       toast.error(err.message || 'Failed to remove member.');
-    },
+    }
   });
 }
 
@@ -103,7 +103,7 @@ export function useLeaveWorkspace(workspaceId: string) {
     },
     onError: (err: any) => {
       toast.error(err.message || 'Failed to leave workspace.');
-    },
+    }
   });
 }
 
@@ -121,7 +121,7 @@ export function useTransferOwnership(workspaceId: string) {
     },
     onError: (err: any) => {
       toast.error(err.message || 'Failed to transfer workspace ownership.');
-    },
+    }
   });
 }
 
@@ -139,7 +139,7 @@ export function useAcceptInvite() {
     },
     onError: (err: any) => {
       toast.error(err.message || 'Failed to accept invitation.');
-    },
+    }
   });
 }
 
@@ -157,6 +157,6 @@ export function useDeclineInvite() {
     },
     onError: (err: any) => {
       toast.error(err.message || 'Failed to decline invitation.');
-    },
+    }
   });
 }

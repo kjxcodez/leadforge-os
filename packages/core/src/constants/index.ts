@@ -10,25 +10,25 @@ export const COLLECTION_NAMES = {
   USERS: 'users',
   SESSIONS: 'sessions',
   OPPORTUNITIES: 'opportunities',
-  OUTREACH: 'outreach',
+  OUTREACH: 'outreach'
 } as const;
 
 export const LIMITS = {
   PAGINATION: {
     DEFAULT_LIMIT: 20,
-    MAX_LIMIT: 100,
+    MAX_LIMIT: 100
   },
   FILE_SIZE: {
-    MAX_UPLOAD_MB: 10,
+    MAX_UPLOAD_MB: 10
   },
   RATE_LIMIT: {
     PUBLIC_WINDOW_MS: 15 * 60 * 1000,
-    PUBLIC_MAX_REQUESTS: 100,
-  },
+    PUBLIC_MAX_REQUESTS: 100
+  }
 };
 
 export const TIMEOUTS = {
   API_REQUEST: 30000,
   DB_CONNECTION: 10000,
-  WORKFLOW_STEP: 60000,
+  WORKFLOW_STEP: 60000
 };

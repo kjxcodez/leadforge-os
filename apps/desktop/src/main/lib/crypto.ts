@@ -15,14 +15,22 @@ try {
 export function encryptSecret(plainText: string): string {
   if (!plainText) return '';
   if (!safeStorage || !safeStorage.isEncryptionAvailable()) {
-    AppLogger.warn('security', 'Electron safeStorage encryption is not available. Saving secret in plain text.');
+    AppLogger.warn(
+      'security',
+      'Electron safeStorage encryption is not available. Saving secret in plain text.'
+    );
     return plainText;
   }
   try {
     const buffer = safeStorage.encryptString(plainText);
     return `_enc_base64:${buffer.toString('base64')}`;
   } catch (err) {
-    AppLogger.error('security', 'Electron safeStorage encryption failed. Saving secret in plain text.', undefined, err);
+    AppLogger.error(
+      'security',
+      'Electron safeStorage encryption failed. Saving secret in plain text.',
+      undefined,
+      err
+    );
     return plainText;
   }
 }
@@ -37,7 +45,10 @@ export function decryptSecret(encryptedOrPlain: string): string {
     return encryptedOrPlain; // plain text fallback
   }
   if (!safeStorage || !safeStorage.isEncryptionAvailable()) {
-    AppLogger.warn('security', 'Electron safeStorage decryption requested but encryption is not available.');
+    AppLogger.warn(
+      'security',
+      'Electron safeStorage decryption requested but encryption is not available.'
+    );
     return '';
   }
   try {

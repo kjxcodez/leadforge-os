@@ -9,12 +9,12 @@ export interface StartupMetrics {
   whenReadyDuration: number;
   sessionRestoreDuration: number;
   workspaceActivationDuration: number;
-  
+
   // Renderer reported metrics
   rendererInitStart: number;
   reactMountTime: number;
   dashboardReadyTime: number;
-  
+
   // Workspace specific durations (populated from runtime start)
   databaseOpenDuration: number;
   migrationsDuration: number;
@@ -29,7 +29,7 @@ class TelemetryTracker {
   public whenReadyTime = 0;
   public sessionRestoreDuration = 0;
   public workspaceActivationDuration = 0;
-  
+
   // Renderer timings
   public rendererInitStart = 0;
   public reactMountTime = 0;
@@ -42,14 +42,18 @@ class TelemetryTracker {
   public syncDuration = 0;
   public automationDuration = 0;
 
-  public getMetrics(workspaceId?: string): StartupMetrics & { memory: any; os: any; deadLetters: number } {
+  public getMetrics(
+    workspaceId?: string
+  ): StartupMetrics & { memory: any; os: any; deadLetters: number } {
     const memory = process.memoryUsage();
-    
+
     let deadLetters = 0;
     if (workspaceId) {
       try {
         const db = getDatabase(workspaceId);
-        const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_dead_letter'").get();
+        const tableCheck = db
+          .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_dead_letter'")
+          .get();
         if (tableCheck) {
           const row = db.prepare('SELECT COUNT(*) as count FROM sync_dead_letter').get() as any;
           deadLetters = row ? row.count : 0;
@@ -64,11 +68,11 @@ class TelemetryTracker {
       whenReadyDuration: this.whenReadyTime > 0 ? this.whenReadyTime - this.processStartTime : 0,
       sessionRestoreDuration: this.sessionRestoreDuration,
       workspaceActivationDuration: this.workspaceActivationDuration,
-      
+
       rendererInitStart: this.rendererInitStart,
       reactMountTime: this.reactMountTime,
       dashboardReadyTime: this.dashboardReadyTime,
-      
+
       databaseOpenDuration: this.databaseOpenDuration,
       migrationsDuration: this.migrationsDuration,
       schedulerDuration: this.schedulerDuration,
@@ -80,14 +84,14 @@ class TelemetryTracker {
         heapUsed: memory.heapUsed,
         heapTotal: memory.heapTotal,
         rss: memory.rss,
-        external: memory.external,
+        external: memory.external
       },
       os: {
         platform: process.platform,
         arch: process.arch,
         cpus: os.cpus().length,
         freeMem: os.freemem(),
-        totalMem: os.totalmem(),
+        totalMem: os.totalmem()
       }
     };
   }
@@ -97,7 +101,7 @@ class TelemetryTracker {
       const dataPath = app.getPath('userData');
       const analyticsFile = join(dataPath, 'analytics.json');
       const metrics = this.getMetrics(workspaceId);
-      
+
       let existing: any[] = [];
       if (fs.existsSync(analyticsFile)) {
         try {

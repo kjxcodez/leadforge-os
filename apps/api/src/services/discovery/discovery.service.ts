@@ -1,10 +1,10 @@
-import { DiscoveryJobModel } from "../../db/models/discovery-job.model.js";
-import type { DiscoveryJobDocument } from "../../db/models/discovery-job.model.js";
-import { DiscoveryResultModel } from "../../db/models/discovery-result.model.js";
-import { CompanyModel } from "../../db/models/company.model.js";
-import { ContactModel } from "../../db/models/contact.model.js";
-import { ActivityModel } from "../../db/models/activity.model.js";
-import mongoose from "mongoose";
+import { DiscoveryJobModel } from '../../db/models/discovery-job.model.js';
+import type { DiscoveryJobDocument } from '../../db/models/discovery-job.model.js';
+import { DiscoveryResultModel } from '../../db/models/discovery-result.model.js';
+import { CompanyModel } from '../../db/models/company.model.js';
+import { ContactModel } from '../../db/models/contact.model.js';
+import { ActivityModel } from '../../db/models/activity.model.js';
+import mongoose from 'mongoose';
 
 export class DiscoveryService {
   constructor(private workspaceId: string) {}
@@ -12,24 +12,28 @@ export class DiscoveryService {
   /**
    * Creates a new discovery job in the active workspace and triggers background execution.
    */
-  public async createJob(name: string, provider: string, query: string): Promise<DiscoveryJobDocument> {
+  public async createJob(
+    name: string,
+    provider: string,
+    query: string
+  ): Promise<DiscoveryJobDocument> {
     const job = new DiscoveryJobModel({
       workspaceId: this.workspaceId as any,
       name,
       provider,
       query,
-      status: "queued",
+      status: 'queued',
       progress: 0,
       statistics: {
         companiesFound: 0,
         contactsFound: 0,
         duplicates: 0,
-        imported: 0,
-      },
+        imported: 0
+      }
     });
 
     await job.save();
-    
+
     // Trigger simulation in the background
     this.runJobSimulation(job.id).catch((err) => {
       console.error(`[DiscoveryService] Background job ${job.id} failure:`, err);
@@ -44,7 +48,7 @@ export class DiscoveryService {
   public async listJobs(page = 1, limit = 100): Promise<{ data: any[]; total: number }> {
     const filter = { workspaceId: this.workspaceId } as any;
     const query = DiscoveryJobModel.find(filter).sort({ createdAt: -1 });
-    
+
     const data = await query.skip((page - 1) * limit).limit(limit);
     const total = await DiscoveryJobModel.countDocuments(filter);
 
@@ -57,7 +61,7 @@ export class DiscoveryService {
   public async getJobById(id: string): Promise<any> {
     return DiscoveryJobModel.findOne({
       _id: id,
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     } as any);
   }
 
@@ -67,7 +71,7 @@ export class DiscoveryService {
   public async getJobResults(jobId: string): Promise<any[]> {
     return DiscoveryResultModel.find({
       jobId: jobId,
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     } as any);
   }
 
@@ -78,9 +82,9 @@ export class DiscoveryService {
     return DiscoveryResultModel.findOneAndUpdate(
       {
         _id: resultId,
-        workspaceId: this.workspaceId,
+        workspaceId: this.workspaceId
       } as any,
-      { status: "skipped" },
+      { status: 'skipped' },
       { new: true }
     );
   }
@@ -91,14 +95,14 @@ export class DiscoveryService {
   public async importResult(resultId: string): Promise<any> {
     const result = await DiscoveryResultModel.findOne({
       _id: resultId,
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     } as any);
 
     if (!result) {
-      throw new Error("Discovery result not found.");
+      throw new Error('Discovery result not found.');
     }
 
-    if (result.status === "imported") {
+    if (result.status === 'imported') {
       return result;
     }
 
@@ -106,10 +110,10 @@ export class DiscoveryService {
     const company = new CompanyModel({
       workspaceId: this.workspaceId as any,
       name: result.companyName,
-      domain: result.website || "",
-      industry: "Discovered",
-      status: "LEAD",
-      notes: "Imported from Discovery Job.",
+      domain: result.website || '',
+      industry: 'Discovered',
+      status: 'LEAD',
+      notes: 'Imported from Discovery Job.'
     });
     await company.save();
 
@@ -120,32 +124,32 @@ export class DiscoveryService {
           workspaceId: this.workspaceId as any,
           companyId: company.id,
           firstName: rawCont.firstName,
-          lastName: rawCont.lastName || "",
-          email: rawCont.email || "",
-          phone: rawCont.phone || "",
-          title: rawCont.title || "",
-          linkedin: rawCont.linkedinUrl || "",
-          status: "NEW",
-          source: "discovery",
+          lastName: rawCont.lastName || '',
+          email: rawCont.email || '',
+          phone: rawCont.phone || '',
+          title: rawCont.title || '',
+          linkedin: rawCont.linkedinUrl || '',
+          status: 'NEW',
+          source: 'discovery'
         });
         await contact.save();
       }
     }
 
     // 3. Mark as imported
-    result.status = "imported";
+    result.status = 'imported';
     await result.save();
 
     // 4. Update job statistics count
     await DiscoveryJobModel.findByIdAndUpdate(result.jobId, {
-      $inc: { "statistics.imported": 1 },
+      $inc: { 'statistics.imported': 1 }
     });
 
     // 5. Create activity log
     const activity = new ActivityModel({
       workspaceId: this.workspaceId as any,
-      type: "company_created",
-      content: `Imported Company ${company.name} and ${result.contacts.length} contacts from Discovery.`,
+      type: 'company_created',
+      content: `Imported Company ${company.name} and ${result.contacts.length} contacts from Discovery.`
     });
     await activity.save();
 
@@ -159,16 +163,16 @@ export class DiscoveryService {
     const job = await DiscoveryJobModel.findById(jobId);
     if (!job) return;
 
-    job.status = "running";
+    job.status = 'running';
     job.startedAt = new Date();
     await job.save();
 
     // Simulating progress states (20%, 40%, 60%, 80%, 100%)
     for (let progress = 20; progress <= 100; progress += 20) {
       await new Promise((resolve) => setTimeout(resolve, 1500));
-      
+
       const currentJob = await DiscoveryJobModel.findById(jobId);
-      if (!currentJob || currentJob.status === "cancelled" || currentJob.status === "paused") {
+      if (!currentJob || currentJob.status === 'cancelled' || currentJob.status === 'paused') {
         return; // Aborted
       }
 
@@ -181,40 +185,40 @@ export class DiscoveryService {
             workspaceId: currentJob.workspaceId,
             jobId: currentJob._id,
             companyName: `${currentJob.query} Tech Corp`,
-            website: `http://tech.${currentJob.query.toLowerCase().replace(/\s+/g, "")}.com`,
-            email: `info@tech.${currentJob.query.toLowerCase().replace(/\s+/g, "")}.com`,
-            linkedinUrl: `linkedin.com/company/tech-${currentJob.query.toLowerCase().replace(/\s+/g, "")}`,
+            website: `http://tech.${currentJob.query.toLowerCase().replace(/\s+/g, '')}.com`,
+            email: `info@tech.${currentJob.query.toLowerCase().replace(/\s+/g, '')}.com`,
+            linkedinUrl: `linkedin.com/company/tech-${currentJob.query.toLowerCase().replace(/\s+/g, '')}`,
             description: `Innovative solutions in the field of ${currentJob.query}.`,
-            status: "pending",
+            status: 'pending',
             contacts: [
               {
-                firstName: "Alex",
-                lastName: "Johnson",
-                email: `alex@tech.${currentJob.query.toLowerCase().replace(/\s+/g, "")}.com`,
-                title: "CTO",
-                linkedinUrl: "linkedin.com/in/alex-johnson",
-              },
-            ],
+                firstName: 'Alex',
+                lastName: 'Johnson',
+                email: `alex@tech.${currentJob.query.toLowerCase().replace(/\s+/g, '')}.com`,
+                title: 'CTO',
+                linkedinUrl: 'linkedin.com/in/alex-johnson'
+              }
+            ]
           },
           {
             workspaceId: currentJob.workspaceId,
             jobId: currentJob._id,
             companyName: `${currentJob.query} Global`,
-            website: `http://global.${currentJob.query.toLowerCase().replace(/\s+/g, "")}.com`,
-            email: `contact@global.${currentJob.query.toLowerCase().replace(/\s+/g, "")}.com`,
-            linkedinUrl: `linkedin.com/company/global-${currentJob.query.toLowerCase().replace(/\s+/g, "")}`,
+            website: `http://global.${currentJob.query.toLowerCase().replace(/\s+/g, '')}.com`,
+            email: `contact@global.${currentJob.query.toLowerCase().replace(/\s+/g, '')}.com`,
+            linkedinUrl: `linkedin.com/company/global-${currentJob.query.toLowerCase().replace(/\s+/g, '')}`,
             description: `Global consulting and services tailored to ${currentJob.query}.`,
-            status: "pending",
+            status: 'pending',
             contacts: [
               {
-                firstName: "Sarah",
-                lastName: "Miller",
-                email: `sarah@global.${currentJob.query.toLowerCase().replace(/\s+/g, "")}.com`,
-                title: "VP of Growth",
-                linkedinUrl: "linkedin.com/in/sarah-miller",
-              },
-            ],
-          },
+                firstName: 'Sarah',
+                lastName: 'Miller',
+                email: `sarah@global.${currentJob.query.toLowerCase().replace(/\s+/g, '')}.com`,
+                title: 'VP of Growth',
+                linkedinUrl: 'linkedin.com/in/sarah-miller'
+              }
+            ]
+          }
         ];
 
         for (const res of mockResults) {
@@ -227,7 +231,7 @@ export class DiscoveryService {
       }
 
       if (progress === 100) {
-        currentJob.status = "completed";
+        currentJob.status = 'completed';
         currentJob.finishedAt = new Date();
       }
 

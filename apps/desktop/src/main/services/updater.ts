@@ -19,7 +19,10 @@ export interface UpdateProvider {
 
 // Initial GitHub Release Provider implementation
 export class GitHubUpdateProvider implements UpdateProvider {
-  constructor(private owner: string, private repo: string) {}
+  constructor(
+    private owner: string,
+    private repo: string
+  ) {}
 
   async checkForUpdate(currentVersion: string, _channel: string): Promise<UpdateCheckResult> {
     try {
@@ -28,7 +31,7 @@ export class GitHubUpdateProvider implements UpdateProvider {
       if (!res.ok) {
         throw new Error(`GitHub releases API returned HTTP ${res.status}`);
       }
-      
+
       const release = (await res.json()) as any;
       const tag = release.tag_name || '';
       const version = tag.replace(/^v/, '');
@@ -47,7 +50,9 @@ export class GitHubUpdateProvider implements UpdateProvider {
           version,
           releaseNotes: release.body || '',
           downloadUrl: asset?.browser_download_url,
-          checksum: checksumAsset ? await this.fetchChecksum(checksumAsset.browser_download_url) : undefined
+          checksum: checksumAsset
+            ? await this.fetchChecksum(checksumAsset.browser_download_url)
+            : undefined
         };
       }
     } catch (err: any) {
@@ -149,7 +154,11 @@ export class UpdateManager {
         this.releaseNotes = res.releaseNotes || '';
         this.downloadUrl = res.downloadUrl || '';
         this.expectedChecksum = res.checksum || '';
-        AppLogger.info('Updater', `New version ${res.version} is available for download.`, undefined);
+        AppLogger.info(
+          'Updater',
+          `New version ${res.version} is available for download.`,
+          undefined
+        );
       } else {
         this.status = 'idle';
       }
@@ -206,20 +215,28 @@ export class UpdateManager {
         const fileHash = await this.calculateFileHash(targetPath);
         if (fileHash.toLowerCase() !== this.expectedChecksum.toLowerCase()) {
           unlinkSync(targetPath);
-          throw new Error(`Checksum mismatch. Expected: ${this.expectedChecksum}, Got: ${fileHash}`);
+          throw new Error(
+            `Checksum mismatch. Expected: ${this.expectedChecksum}, Got: ${fileHash}`
+          );
         }
         AppLogger.info('Updater', 'Package checksum verified successfully.', undefined);
       }
 
       this.status = 'ready';
       this.notifyRenderer();
-      AppLogger.info('Updater', `Version ${this.availableVersion} downloaded and ready for installation.`, undefined);
+      AppLogger.info(
+        'Updater',
+        `Version ${this.availableVersion} downloaded and ready for installation.`,
+        undefined
+      );
     } catch (err: any) {
       this.status = 'error';
       this.notifyRenderer();
       AppLogger.error('Updater', `Download failed: ${err.message}`, undefined);
       if (existsSync(targetPath)) {
-        try { unlinkSync(targetPath); } catch {}
+        try {
+          unlinkSync(targetPath);
+        } catch {}
       }
       throw err;
     }
@@ -239,11 +256,19 @@ export class UpdateManager {
     if (this.status !== 'ready' || !this.downloadedFilePath) return;
 
     if (!this.isSafeToInstall()) {
-      AppLogger.warn('Updater', 'Install deferred: campaigns or background scheduler jobs are currently active.', undefined);
+      AppLogger.warn(
+        'Updater',
+        'Install deferred: campaigns or background scheduler jobs are currently active.',
+        undefined
+      );
       return;
     }
 
-    AppLogger.info('Updater', 'Shutting down active schedulers and installing update...', undefined);
+    AppLogger.info(
+      'Updater',
+      'Shutting down active schedulers and installing update...',
+      undefined
+    );
 
     const platform = process.platform;
     if (platform === 'win32') {
@@ -253,7 +278,11 @@ export class UpdateManager {
       }).unref();
       app.quit();
     } else {
-      AppLogger.warn('Updater', `Platform ${platform} auto-installer not implemented. Please install manually: ${this.downloadedFilePath}`, undefined);
+      AppLogger.warn(
+        'Updater',
+        `Platform ${platform} auto-installer not implemented. Please install manually: ${this.downloadedFilePath}`,
+        undefined
+      );
     }
   }
 

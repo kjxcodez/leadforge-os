@@ -8,7 +8,7 @@ export const campaignStepSchema = z.object({
   id: objectIdField,
   type: z.string(),
   delayDays: z.number().int().nonnegative(),
-  templateId: objectIdField,
+  templateId: objectIdField
 });
 export type CampaignStep = z.infer<typeof campaignStepSchema>;
 
@@ -22,6 +22,6 @@ export const campaignSchema = z.object({
   schedule: z.any().nullable().optional(),
   settings: z.any().nullable().optional(),
   createdAt: z.date(),
-  updatedAt: z.date(),
+  updatedAt: z.date()
 });
 export type Campaign = z.infer<typeof campaignSchema>;

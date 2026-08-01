@@ -1,4 +1,4 @@
-import { Hexagon } from "lucide-react";
+import { Hexagon } from 'lucide-react';
 
 interface LogoProps {
   className?: string;
@@ -9,7 +9,7 @@ interface LogoProps {
  * Standard product logo mark.
  * Uses a clean geometric Hexagon representation matching the design system.
  */
-export function Logo({ className = "", size = 20 }: LogoProps) {
+export function Logo({ className = '', size = 20 }: LogoProps) {
   return (
     <Hexagon
       className={`text-neutral-200 ${className}`}

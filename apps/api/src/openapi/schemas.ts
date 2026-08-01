@@ -1,4 +1,4 @@
-import { z } from "@hono/zod-openapi";
+import { z } from '@hono/zod-openapi';
 
 /**
  * Standard HTTP Error Response schema template for OpenAPI schemas.
@@ -10,19 +10,19 @@ export const ErrorResponseSchema = z
     error: z.object({
       code: z.string(),
       message: z.string(),
-      details: z.any().nullable(),
-    }),
+      details: z.any().nullable()
+    })
   })
-  .openapi("ErrorResponse", {
+  .openapi('ErrorResponse', {
     example: {
       success: false,
       data: null,
       error: {
-        code: "BAD_REQUEST",
-        message: "The request could not be understood or was missing parameters.",
-        details: null,
-      },
-    },
+        code: 'BAD_REQUEST',
+        message: 'The request could not be understood or was missing parameters.',
+        details: null
+      }
+    }
   });
 
 /**
@@ -42,9 +42,9 @@ export function createSuccessResponseSchema<T extends z.ZodTypeAny>(dataSchema: 
         .object({
           code: z.string(),
           message: z.string(),
-          details: z.any().nullable(),
+          details: z.any().nullable()
         })
-        .nullable(),
+        .nullable()
     })
     .openapi(name);
 }

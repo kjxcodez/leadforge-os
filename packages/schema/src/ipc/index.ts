@@ -5,7 +5,6 @@ import type { CreateWorkspaceDto, UpdateWorkspaceDto, InviteMemberDto } from '..
 import type { Workspace, WorkspaceMember } from '../entities/workspace.js';
 import type { WorkspaceRole } from '../enums/index.js';
 
-
 export interface IpcChannelMap {
   'diagnostics:get-system-info': {
     input: { workspaceId?: string };
@@ -259,7 +258,14 @@ export interface IpcChannelMap {
     output: any[];
   };
   'scheduler:jobs:submit': {
-    input: { id?: string; workspaceId: string; type: string; payload: any; priority?: number; maxRetries?: number };
+    input: {
+      id?: string;
+      workspaceId: string;
+      type: string;
+      payload: any;
+      priority?: number;
+      maxRetries?: number;
+    };
     output: any;
   };
   'scheduler:jobs:cancel': {
@@ -401,39 +407,110 @@ export interface IpcChannelMap {
   };
   'automation:queued': {
     input: void;
-    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; timestamp: string };
+    output: {
+      executionId: string;
+      sequenceId: string;
+      workspaceId: string;
+      entityId: string;
+      currentStep: number;
+      timestamp: string;
+    };
   };
   'automation:started': {
     input: void;
-    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; workerPid: number; timestamp: string };
+    output: {
+      executionId: string;
+      sequenceId: string;
+      workspaceId: string;
+      entityId: string;
+      currentStep: number;
+      workerPid: number;
+      timestamp: string;
+    };
   };
   'automation:resumed': {
     input: void;
-    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; workerPid: number; timestamp: string };
+    output: {
+      executionId: string;
+      sequenceId: string;
+      workspaceId: string;
+      entityId: string;
+      currentStep: number;
+      workerPid: number;
+      timestamp: string;
+    };
   };
   'automation:paused': {
     input: void;
-    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; workerPid: number; timestamp: string };
+    output: {
+      executionId: string;
+      sequenceId: string;
+      workspaceId: string;
+      entityId: string;
+      currentStep: number;
+      workerPid: number;
+      timestamp: string;
+    };
   };
   'automation:waiting': {
     input: void;
-    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; workerPid: number; timestamp: string };
+    output: {
+      executionId: string;
+      sequenceId: string;
+      workspaceId: string;
+      entityId: string;
+      currentStep: number;
+      workerPid: number;
+      timestamp: string;
+    };
   };
   'automation:completed': {
     input: void;
-    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; workerPid: number; timestamp: string };
+    output: {
+      executionId: string;
+      sequenceId: string;
+      workspaceId: string;
+      entityId: string;
+      currentStep: number;
+      workerPid: number;
+      timestamp: string;
+    };
   };
   'automation:cancelled': {
     input: void;
-    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; workerPid: number; timestamp: string };
+    output: {
+      executionId: string;
+      sequenceId: string;
+      workspaceId: string;
+      entityId: string;
+      currentStep: number;
+      workerPid: number;
+      timestamp: string;
+    };
   };
   'automation:failed': {
     input: void;
-    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; workerPid: number; error?: string; timestamp: string };
+    output: {
+      executionId: string;
+      sequenceId: string;
+      workspaceId: string;
+      entityId: string;
+      currentStep: number;
+      workerPid: number;
+      error?: string;
+      timestamp: string;
+    };
   };
   'automation:recovered': {
     input: void;
-    output: { executionId: string; sequenceId: string; workspaceId: string; entityId: string; currentStep: number; timestamp: string };
+    output: {
+      executionId: string;
+      sequenceId: string;
+      workspaceId: string;
+      entityId: string;
+      currentStep: number;
+      timestamp: string;
+    };
   };
   'ipc:test': {
     input: void;
@@ -489,11 +566,24 @@ export interface IpcChannelMap {
   };
   'updater:get-status': {
     input: void;
-    output: { status: string; progress: number; currentVersion: string; availableVersion: string; releaseNotes: string; channel: string };
+    output: {
+      status: string;
+      progress: number;
+      currentVersion: string;
+      availableVersion: string;
+      releaseNotes: string;
+      channel: string;
+    };
   };
   'updater:check': {
     input: void;
-    output: { updateAvailable: boolean; version: string; releaseNotes?: string; downloadUrl?: string; checksum?: string };
+    output: {
+      updateAvailable: boolean;
+      version: string;
+      releaseNotes?: string;
+      downloadUrl?: string;
+      checksum?: string;
+    };
   };
   'updater:download': {
     input: void;
@@ -505,7 +595,12 @@ export interface IpcChannelMap {
   };
   'intelligence:get': {
     input: { workspaceId: string; companyId: string };
-    output: { companyIntelligence: any; websiteIntelligence: any; contactIntelligences: any[]; opportunityScore: any };
+    output: {
+      companyIntelligence: any;
+      websiteIntelligence: any;
+      contactIntelligences: any[];
+      opportunityScore: any;
+    };
   };
   'intelligence:trigger': {
     input: { workspaceId: string; companyId: string };

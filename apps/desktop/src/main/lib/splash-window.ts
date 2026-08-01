@@ -29,9 +29,9 @@ export function createSplashWindow(): void {
     webPreferences: {
       sandbox: true,
       contextIsolation: true,
-      nodeIntegration: false,
+      nodeIntegration: false
     },
-    backgroundColor: '#09090b',
+    backgroundColor: '#09090b'
   });
 
   const splashHtml = `
@@ -106,13 +106,17 @@ export function createSplashWindow(): void {
       <body>
         <div class="logo-container">
           <div class="logo">
-            ${iconBase64 ? `<img src="data:image/png;base64,${iconBase64}" />` : `
+            ${
+              iconBase64
+                ? `<img src="data:image/png;base64,${iconBase64}" />`
+                : `
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275Z"/>
               <path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 5.5Z"/>
               <path d="m19 17 1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1Z"/>
             </svg>
-            `}
+            `
+            }
           </div>
         </div>
         <h1 class="title">LeadForge Desktop</h1>

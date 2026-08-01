@@ -36,7 +36,7 @@ export interface ISyncRepository<T> extends IRepository<T> {
    * Reads cached local SQLite values and kicks off background remote pull.
    */
   listAndSync(workspaceId: string, filter?: Record<string, any>): Promise<T[]>;
-  
+
   /**
    * Pushes local pending mutations to the remote API.
    */

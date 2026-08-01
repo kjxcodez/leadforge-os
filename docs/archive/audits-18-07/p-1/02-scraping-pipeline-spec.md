@@ -17,8 +17,9 @@ The current `scraper.ts` plugin (`scraper:maps`) and `enricher.ts` plugin (`enri
 ### Architecture Violation: API Contains Automation Logic
 
 A critical violation is present in `apps/api/src/services/automation/automation.service.ts`:
+
 - The API executes sequence steps including `SEND_EMAIL`
-- The API calls `OutreachService.sendSingleEmail()` 
+- The API calls `OutreachService.sendSingleEmail()`
 - The API contains WAIT step scheduling logic (`nextExecutionAt`)
 - Execution is driven by the API's `process.nextTick()` recursion
 
@@ -98,6 +99,7 @@ User Input (query, location, limit)
 ### 3.2 Why Playwright for Discovery
 
 Google Maps is a JavaScript-rendered SPA. Static HTTP fetch returns no useful data. Playwright is the only viable option. Cheerio cannot be used here because:
+
 - The listing results are loaded via XHR/Fetch, not in the initial HTML
 - Infinite scroll requires real browser automation
 - Rate limiting is enforced via user-agent and behavioral heuristics
@@ -134,7 +136,7 @@ For multiple sequential scraping sessions, launching a browser per job is expens
 class BrowserPool {
   private browser: Browser | null = null;
   private refCount = 0;
-  
+
   async acquire(): Promise<BrowserContext> {
     if (!this.browser) {
       this.browser = await chromium.launch({ headless: true });
@@ -142,10 +144,10 @@ class BrowserPool {
     this.refCount++;
     return this.browser.newContext({
       userAgent: randomUserAgent(),
-      viewport: { width: 1280, height: 720 },
+      viewport: { width: 1280, height: 720 }
     });
   }
-  
+
   async release(context: BrowserContext): Promise<void> {
     await context.close();
     this.refCount--;
@@ -163,11 +165,11 @@ The BrowserPool lives in the **worker process**, not Main. Each forked worker ma
 
 ```typescript
 interface GoogleMapsScraperConfig {
-  requestDelayMs: number;        // min 1500ms between scrolls
-  requestJitterMs: number;       // +/- 500ms random jitter
-  maxConsecutiveErrors: number;  // abort after 5 consecutive errors
-  maxDurationMs: number;         // kill after 15 minutes
-  userAgentRotation: boolean;    // rotate UA per session
+  requestDelayMs: number; // min 1500ms between scrolls
+  requestJitterMs: number; // +/- 500ms random jitter
+  maxConsecutiveErrors: number; // abort after 5 consecutive errors
+  maxDurationMs: number; // kill after 15 minutes
+  userAgentRotation: boolean; // rotate UA per session
 }
 ```
 
@@ -185,15 +187,18 @@ interface GoogleMapsScraperConfig {
 ### 4.2 Why Cheerio for Crawling (Not Playwright)
 
 Website crawling (navigating page-by-page to find contacts) does **not** require JavaScript execution for most business websites. Cheerio + fetch is:
+
 - 10–50x faster than Playwright per page
 - Uses 95% less memory per concurrent session
 - Sufficient for extracting emails, phones, team pages from static/SSR content
 
 Playwright should only be used when:
+
 - The site specifically requires JavaScript to render meaningful content
 - The crawler detects an empty Cheerio result and falls back
 
 The recommended approach: **Cheerio-first, Playwright-fallback per domain**:
+
 ```
 fetch(url) → parse with Cheerio
 if (pageIsEmpty || hasJsRedirect) → fallback to Playwright context
@@ -273,12 +278,12 @@ interface CrawledContact {
 
 function scoreConfidence(contact: CrawledContact): 'high' | 'medium' | 'low' {
   if (contact.type === 'human' && contact.firstName && contact.lastName && contact.title) {
-    return 'high';   // Named person with title — highest quality lead
+    return 'high'; // Named person with title — highest quality lead
   }
   if (contact.type === 'department') {
     return 'medium'; // info@, hello@, support@ — valid but not personalized
   }
-  return 'low';      // Unknown pattern, likely noise
+  return 'low'; // Unknown pattern, likely noise
 }
 ```
 
@@ -301,14 +306,14 @@ async function canCrawl(baseUrl: string, targetUrl: string): Promise<boolean> {
 
 ```typescript
 interface CrawlerConfig {
-  maxDepth: number;           // default: 3
-  maxPages: number;           // default: 50
-  maxConcurrency: number;     // default: 3 (p-limit)
-  requestDelayMs: number;     // default: 500ms
-  requestTimeoutMs: number;   // default: 10000ms
-  userAgent: string;          // 'LeadForgeBot/1.0 (+https://leadforge.ai/bot)'
-  respectRobotsTxt: boolean;  // default: true
-  extractLinkedIn: boolean;   // default: true
+  maxDepth: number; // default: 3
+  maxPages: number; // default: 50
+  maxConcurrency: number; // default: 3 (p-limit)
+  requestDelayMs: number; // default: 500ms
+  requestTimeoutMs: number; // default: 10000ms
+  userAgent: string; // 'LeadForgeBot/1.0 (+https://leadforge.ai/bot)'
+  respectRobotsTxt: boolean; // default: true
+  extractLinkedIn: boolean; // default: true
   maxEmailsPerDomain: number; // default: 10 (cap noise)
 }
 ```
@@ -321,12 +326,13 @@ interface CrawlerConfig {
 
 ```sql
 -- Check by domain (primary deduplication key)
-SELECT id FROM companies 
+SELECT id FROM companies
 WHERE workspaceId = ? AND (domain = ? OR website = ?)
 LIMIT 1;
 ```
 
 Domain extraction must normalize URLs:
+
 - Strip `https://`, `www.`, trailing slashes
 - Handle `m.domain.com` → `domain.com`
 - Handle international TLDs
@@ -335,7 +341,7 @@ Domain extraction must normalize URLs:
 
 ```sql
 -- Check by email (absolute unique key per workspace)
-SELECT id FROM contacts 
+SELECT id FROM contacts
 WHERE workspaceId = ? AND email = ?
 LIMIT 1;
 
@@ -351,9 +357,10 @@ Duplication check must occur **before persistence**, inside the same SQLite tran
 
 ```typescript
 db.transaction(() => {
-  const existing = db.prepare('SELECT id FROM contacts WHERE workspaceId = ? AND email = ?')
+  const existing = db
+    .prepare('SELECT id FROM contacts WHERE workspaceId = ? AND email = ?')
     .get(workspaceId, email);
-  
+
   if (existing) {
     // Merge: add email as secondary, update missing fields
     mergeContact(existing.id, scraped);
@@ -411,15 +418,27 @@ After `scraper:maps` completes for a batch, the job result triggers the next sta
 // In scheduler.ts handleJobSuccess():
 if (job.type === 'scraper:maps') {
   // Auto-queue website crawl for newly discovered companies
-  const newCompanies = db.prepare(`
+  const newCompanies = db
+    .prepare(
+      `
     SELECT id FROM companies 
     WHERE workspaceId = ? AND crawlStatus = 'pending' AND website IS NOT NULL
     ORDER BY createdAt DESC LIMIT 50
-  `).all(workspaceId);
-  
+  `
+    )
+    .all(workspaceId);
+
   if (newCompanies.length > 0) {
-    db.prepare(`INSERT INTO jobs (id, workspaceId, type, status, priority, payload, ...) VALUES (...)`)
-      .run(uuid(), workspaceId, 'crawler:website', 'queued', 2, JSON.stringify({ companyIds: newCompanies.map(c=>c.id) }));
+    db.prepare(
+      `INSERT INTO jobs (id, workspaceId, type, status, priority, payload, ...) VALUES (...)`
+    ).run(
+      uuid(),
+      workspaceId,
+      'crawler:website',
+      'queued',
+      2,
+      JSON.stringify({ companyIds: newCompanies.map((c) => c.id) })
+    );
   }
 }
 ```

@@ -1,12 +1,12 @@
 import type { ToolError, ToolResult } from '@leadforge/agent-core';
 
 export interface ToolRequest {
-  readonly requestId: string;          // UUID per invocation
+  readonly requestId: string; // UUID per invocation
   readonly toolName: string;
   readonly arguments: Record<string, unknown>;
   readonly traceId: string;
   readonly workspaceId: string;
-  readonly invokedBy: string;          // step ID that triggered this
+  readonly invokedBy: string; // step ID that triggered this
   readonly timestamp: string;
   readonly requiresApproval: boolean;
 }

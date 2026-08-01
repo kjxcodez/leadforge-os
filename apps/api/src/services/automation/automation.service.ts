@@ -1,7 +1,7 @@
-import { SequenceModel } from "../../db/models/sequence.model.js";
-import { SequenceExecutionModel } from "../../db/models/sequence-execution.model.js";
-import { SequenceLogModel } from "../../db/models/sequence-log.model.js";
-import { SequenceStatus, ExecutionStatus } from "@leadforge/schema";
+import { SequenceModel } from '../../db/models/sequence.model.js';
+import { SequenceExecutionModel } from '../../db/models/sequence-execution.model.js';
+import { SequenceLogModel } from '../../db/models/sequence-log.model.js';
+import { SequenceStatus, ExecutionStatus } from '@leadforge/schema';
 
 export class AutomationService {
   constructor(private workspaceId: string) {}
@@ -13,11 +13,11 @@ export class AutomationService {
       _id: data.id || data._id || undefined,
       workspaceId: this.workspaceId as any,
       name: data.name,
-      description: data.description || "",
+      description: data.description || '',
       status: data.status || SequenceStatus.DRAFT,
       trigger: data.trigger,
       steps: data.steps || [],
-      createdBy: data.createdBy || null,
+      createdBy: data.createdBy || null
     });
     await seq.save();
     return seq;
@@ -25,16 +25,16 @@ export class AutomationService {
 
   public async listSequences(): Promise<any[]> {
     return SequenceModel.find({
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     } as any).sort({ createdAt: -1 });
   }
 
   public async getSequence(id: string): Promise<any> {
     const seq = await SequenceModel.findOne({
       _id: id,
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     } as any);
-    if (!seq) throw new Error("Sequence not found.");
+    if (!seq) throw new Error('Sequence not found.');
     return seq;
   }
 
@@ -44,14 +44,14 @@ export class AutomationService {
       { $set: data },
       { new: true }
     );
-    if (!seq) throw new Error("Sequence not found.");
+    if (!seq) throw new Error('Sequence not found.');
     return seq;
   }
 
   public async deleteSequence(id: string): Promise<void> {
     await SequenceModel.findOneAndDelete({
       _id: id,
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     } as any);
   }
 
@@ -59,24 +59,27 @@ export class AutomationService {
 
   public async listExecutions(): Promise<any[]> {
     return SequenceExecutionModel.find({
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     } as any).sort({ startedAt: -1 });
   }
 
   public async getExecution(id: string): Promise<any> {
     return SequenceExecutionModel.findOne({
       _id: id,
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     } as any);
   }
 
-  public async startExecution(sequenceId: string, payload: { contactId?: string; companyId?: string }): Promise<any> {
+  public async startExecution(
+    sequenceId: string,
+    payload: { contactId?: string; companyId?: string }
+  ): Promise<any> {
     const seq = await SequenceModel.findOne({
       _id: sequenceId,
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     } as any);
 
-    if (!seq) throw new Error("Sequence not found.");
+    if (!seq) throw new Error('Sequence not found.');
 
     // Avoid duplicate executions running for the same contact/company
     const existing = await SequenceExecutionModel.findOne({
@@ -84,7 +87,7 @@ export class AutomationService {
       sequenceId,
       status: { $in: [ExecutionStatus.RUNNING, ExecutionStatus.WAITING, ExecutionStatus.PENDING] },
       contactId: payload.contactId || null,
-      companyId: payload.companyId || null,
+      companyId: payload.companyId || null
     } as any);
 
     if (existing) {
@@ -100,12 +103,18 @@ export class AutomationService {
       status: ExecutionStatus.PENDING,
       currentStep: 0,
       startedAt: new Date(),
-      logs: [],
+      logs: []
     });
 
     await exec.save();
 
-    await this.logStep(exec._id.toString(), 0, "TRIGGER", "SUCCESS", `Sequence manually triggered.`);
+    await this.logStep(
+      exec._id.toString(),
+      0,
+      'TRIGGER',
+      'SUCCESS',
+      `Sequence manually triggered.`
+    );
 
     return exec;
   }
@@ -116,22 +125,28 @@ export class AutomationService {
       {
         $set: {
           status: ExecutionStatus.CANCELLED,
-          completedAt: new Date(),
-        },
+          completedAt: new Date()
+        }
       },
       { new: true }
     );
 
-    if (!exec) throw new Error("Sequence execution not found.");
+    if (!exec) throw new Error('Sequence execution not found.');
 
-    await this.logStep(executionId, exec.currentStep, "STOP", "SUCCESS", "Sequence execution stopped by user.");
+    await this.logStep(
+      executionId,
+      exec.currentStep,
+      'STOP',
+      'SUCCESS',
+      'Sequence execution stopped by user.'
+    );
     return exec;
   }
 
   public async getExecutionLogs(executionId: string): Promise<any[]> {
     return SequenceLogModel.find({
       workspaceId: this.workspaceId,
-      executionId,
+      executionId
     } as any).sort({ timestamp: 1 });
   }
 
@@ -149,7 +164,7 @@ export class AutomationService {
       step: stepIndex,
       action,
       status,
-      message,
+      message
     });
     await log.save();
 
@@ -161,9 +176,9 @@ export class AutomationService {
           step: stepIndex,
           action,
           status,
-          message,
-        },
-      },
+          message
+        }
+      }
     });
   }
 }

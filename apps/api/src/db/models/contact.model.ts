@@ -1,8 +1,23 @@
-import mongoose, { Schema } from "mongoose";
-import { softDeletePlugin, auditPlugin, timestampPlugin, workspacePlugin, type SoftDeleteDocument, type AuditDocument, type TimestampDocument, type WorkspaceScopedDocument } from "../plugins/index.js";
-import { ContactStatus } from "@leadforge/schema";
+import mongoose, { Schema } from 'mongoose';
+import {
+  softDeletePlugin,
+  auditPlugin,
+  timestampPlugin,
+  workspacePlugin,
+  type SoftDeleteDocument,
+  type AuditDocument,
+  type TimestampDocument,
+  type WorkspaceScopedDocument
+} from '../plugins/index.js';
+import { ContactStatus } from '@leadforge/schema';
 
-export interface ContactDocument extends mongoose.Document, SoftDeleteDocument, AuditDocument, TimestampDocument, WorkspaceScopedDocument {
+export interface ContactDocument
+  extends
+    mongoose.Document,
+    SoftDeleteDocument,
+    AuditDocument,
+    TimestampDocument,
+    WorkspaceScopedDocument {
   companyId?: string | null;
   firstName: string;
   lastName?: string | null;
@@ -21,61 +36,61 @@ const contactSchema = new Schema<ContactDocument>(
     companyId: {
       type: String,
       default: null,
-      index: true,
+      index: true
     },
     firstName: {
       type: String,
       required: true,
-      trim: true,
+      trim: true
     },
     lastName: {
       type: String,
       default: null,
-      trim: true,
+      trim: true
     },
     email: {
       type: String,
       default: null,
       lowercase: true,
-      trim: true,
+      trim: true
     },
     phone: {
       type: String,
       default: null,
-      trim: true,
+      trim: true
     },
     title: {
       type: String,
       default: null,
-      trim: true,
+      trim: true
     },
     linkedin: {
       type: String,
       default: null,
-      trim: true,
+      trim: true
     },
     linkedinUrl: {
       type: String,
       default: null,
-      trim: true,
+      trim: true
     },
     source: {
       type: String,
-      default: null,
+      default: null
     },
     status: {
       type: String,
       enum: Object.values(ContactStatus),
-      default: ContactStatus.NEW,
+      default: ContactStatus.NEW
     },
     notes: {
       type: String,
-      default: null,
-    },
+      default: null
+    }
   },
   {
     strict: true,
-    optimisticConcurrency: true,
+    optimisticConcurrency: true
   }
 );
 
@@ -87,7 +102,7 @@ contactSchema.index(
   { workspaceId: 1, email: 1 },
   {
     unique: true,
-    partialFilterExpression: { email: { $type: "string" } },
+    partialFilterExpression: { email: { $type: 'string' } }
   }
 );
 
@@ -98,4 +113,4 @@ contactSchema.plugin(timestampPlugin);
 
 export const ContactModel = mongoose.models.Contact
   ? (mongoose.models.Contact as mongoose.Model<ContactDocument>)
-  : mongoose.model<ContactDocument>("Contact", contactSchema);
+  : mongoose.model<ContactDocument>('Contact', contactSchema);

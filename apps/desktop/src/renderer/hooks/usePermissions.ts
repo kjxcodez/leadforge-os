@@ -14,25 +14,18 @@ const ROLE_PERMISSIONS: Record<WorkspaceRole, WorkspacePermission[]> = {
     WorkspacePermission.MANAGE_MEMBERS,
     WorkspacePermission.TRANSFER_OWNERSHIP,
     WorkspacePermission.VIEW_SETTINGS,
-    WorkspacePermission.CREATE_CAMPAIGNS,
+    WorkspacePermission.CREATE_CAMPAIGNS
   ],
   [WorkspaceRole.ADMIN]: [
     WorkspacePermission.MANAGE_WORKSPACE,
     WorkspacePermission.INVITE_MEMBERS,
     WorkspacePermission.MANAGE_MEMBERS,
     WorkspacePermission.VIEW_SETTINGS,
-    WorkspacePermission.CREATE_CAMPAIGNS,
+    WorkspacePermission.CREATE_CAMPAIGNS
   ],
-  [WorkspaceRole.MEMBER]: [
-    WorkspacePermission.VIEW_SETTINGS,
-    WorkspacePermission.CREATE_CAMPAIGNS,
-  ],
-  [WorkspaceRole.READ_ONLY]: [
-    WorkspacePermission.VIEW_SETTINGS,
-  ],
-  [WorkspaceRole.BILLING]: [
-    WorkspacePermission.VIEW_SETTINGS,
-  ],
+  [WorkspaceRole.MEMBER]: [WorkspacePermission.VIEW_SETTINGS, WorkspacePermission.CREATE_CAMPAIGNS],
+  [WorkspaceRole.READ_ONLY]: [WorkspacePermission.VIEW_SETTINGS],
+  [WorkspaceRole.BILLING]: [WorkspacePermission.VIEW_SETTINGS]
 };
 
 // ---------------------------------------------------------------------------
@@ -79,7 +72,7 @@ export function usePermissions() {
     can,
     hasRole,
     isOwner: role === WorkspaceRole.OWNER,
-    isAdmin: role === WorkspaceRole.ADMIN || role === WorkspaceRole.OWNER,
+    isAdmin: role === WorkspaceRole.ADMIN || role === WorkspaceRole.OWNER
   };
 }
 
@@ -97,7 +90,12 @@ interface PermissionGateProps {
 /**
  * PermissionGate conditionally renders its children based on workspace permissions.
  */
-export function PermissionGate({ permission, role, fallback = null, children }: PermissionGateProps) {
+export function PermissionGate({
+  permission,
+  role,
+  fallback = null,
+  children
+}: PermissionGateProps) {
   const { can, hasRole } = usePermissions();
 
   if (permission && !can(permission)) {

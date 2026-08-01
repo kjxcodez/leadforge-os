@@ -1,4 +1,8 @@
-import type { ExecutionContext, ToolCatalogEntry, ProviderCapabilities } from '@leadforge/agent-core';
+import type {
+  ExecutionContext,
+  ToolCatalogEntry,
+  ProviderCapabilities
+} from '@leadforge/agent-core';
 
 export interface CompiledAgentContext {
   readonly executionContext: ExecutionContext;
@@ -22,7 +26,8 @@ export class ContextBuilder {
     readonly actorId: string;
     readonly query: string;
     readonly workspaceSettings?: Record<string, unknown> | undefined;
-    readonly conversationHistory?: Array<{ readonly role: string; readonly content: string }> | undefined;
+    readonly conversationHistory?:
+      Array<{ readonly role: string; readonly content: string }> | undefined;
     readonly availableTools?: ToolCatalogEntry[] | undefined;
     readonly capabilities?: ProviderCapabilities | undefined;
   }): CompiledAgentContext {
@@ -34,7 +39,7 @@ export class ContextBuilder {
       actorType: 'user',
       requestedBy: 'agent-runtime',
       permissions: ['network', 'filesystem'],
-      executionMode: 'offline',
+      executionMode: 'offline'
     };
 
     const defaultCapabilities: ProviderCapabilities = {

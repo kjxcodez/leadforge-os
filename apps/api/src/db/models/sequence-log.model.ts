@@ -1,5 +1,5 @@
-import mongoose, { Schema } from "mongoose";
-import { workspacePlugin, type WorkspaceScopedDocument } from "../plugins/index.js";
+import mongoose, { Schema } from 'mongoose';
+import { workspacePlugin, type WorkspaceScopedDocument } from '../plugins/index.js';
 
 export interface SequenceLogDocument extends mongoose.Document, WorkspaceScopedDocument {
   executionId: string;
@@ -17,33 +17,33 @@ const sequenceLogSchema = new Schema<SequenceLogDocument>(
     executionId: {
       type: String,
       required: true,
-      index: true,
+      index: true
     },
     timestamp: {
       type: Date,
       required: true,
-      default: Date.now,
+      default: Date.now
     },
     step: {
       type: Number,
-      required: true,
+      required: true
     },
     action: {
       type: String,
-      required: true,
+      required: true
     },
     status: {
       type: String,
-      required: true,
+      required: true
     },
     message: {
       type: String,
-      default: "",
-    },
+      default: ''
+    }
   },
   {
     strict: true,
-    timestamps: true,
+    timestamps: true
   }
 );
 
@@ -52,5 +52,5 @@ sequenceLogSchema.plugin(workspacePlugin);
 
 export const SequenceLogModel = mongoose.models.SequenceLog
   ? (mongoose.models.SequenceLog as mongoose.Model<SequenceLogDocument>)
-  : mongoose.model<SequenceLogDocument>("SequenceLog", sequenceLogSchema);
+  : mongoose.model<SequenceLogDocument>('SequenceLog', sequenceLogSchema);
 export { sequenceLogSchema };

@@ -10,9 +10,25 @@ import { usePermissions } from '../hooks/usePermissions';
 import { UserAvatar } from '../components/ui/UserAvatar';
 import { Button } from '../components/ui/button';
 import { RenameWorkspaceDialog, DeleteWorkspaceDialog } from '../components/ui/WorkspaceDialogs';
-import { InviteMemberDialog, LeaveWorkspaceDialog, TransferOwnershipDialog } from '../components/ui/MemberDialogs';
+import {
+  InviteMemberDialog,
+  LeaveWorkspaceDialog,
+  TransferOwnershipDialog
+} from '../components/ui/MemberDialogs';
 import { WorkspaceRole, WorkspaceMemberStatus, type WorkspaceMember } from '@leadforge/schema';
-import { ShieldAlert, Trash2, UserPlus, LogOut, ArrowLeftRight, Key, CheckCircle, AlertCircle, RefreshCw, Linkedin, Sparkles } from 'lucide-react';
+import {
+  ShieldAlert,
+  Trash2,
+  UserPlus,
+  LogOut,
+  ArrowLeftRight,
+  Key,
+  CheckCircle,
+  AlertCircle,
+  RefreshCw,
+  Linkedin,
+  Sparkles
+} from 'lucide-react';
 
 /**
  * WorkspaceSettingsScreen enables team management, invitation oversight,
@@ -32,7 +48,7 @@ export default function WorkspaceSettingsScreen() {
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
-  
+
   // Ownership Transfer state
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
@@ -75,7 +91,9 @@ export default function WorkspaceSettingsScreen() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-semibold text-foreground">General</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Basic details for this workspace.</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Basic details for this workspace.
+            </p>
           </div>
           {isAdmin && (
             <Button variant="outline" size="sm" onClick={() => setRenameOpen(true)}>
@@ -86,11 +104,15 @@ export default function WorkspaceSettingsScreen() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
           <div className="space-y-1">
-            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Workspace Name</span>
+            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+              Workspace Name
+            </span>
             <p className="text-xs font-medium text-foreground">{activeWorkspace.name}</p>
           </div>
           <div className="space-y-1">
-            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Unique URL Slug</span>
+            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+              Unique URL Slug
+            </span>
             <p className="text-xs font-mono text-muted-foreground">/{activeWorkspace.slug}</p>
           </div>
         </div>
@@ -116,13 +138,16 @@ export default function WorkspaceSettingsScreen() {
           <div className="py-4 text-center text-xs text-muted-foreground">Loading members...</div>
         ) : (
           <div className="divide-y divide-border-subtle">
-            {(membersQuery.data as WorkspaceMember[] || []).map((m) => {
+            {((membersQuery.data as WorkspaceMember[]) || []).map((m) => {
               const emailStr = m.email || '';
               const memberName = emailStr.split('@')[0] || 'User';
               const isSelf = m.userId === activeWorkspace.ownerId; // placeholder check
 
               return (
-                <div key={m.id || m.userId || m.email} className="flex items-center justify-between py-3">
+                <div
+                  key={m.id || m.userId || m.email}
+                  className="flex items-center justify-between py-3"
+                >
                   <div className="flex items-center gap-3">
                     <UserAvatar initials={memberName.substring(0, 2).toUpperCase()} size="sm" />
                     <div>
@@ -134,7 +159,9 @@ export default function WorkspaceSettingsScreen() {
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] text-muted-foreground">Joined {m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : 'N/A'}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        Joined {m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : 'N/A'}
+                      </span>
                     </div>
                   </div>
 
@@ -158,16 +185,18 @@ export default function WorkspaceSettingsScreen() {
                     )}
 
                     {/* Ownership transfer */}
-                    {isOwner && m.role !== WorkspaceRole.OWNER && m.status === WorkspaceMemberStatus.ACTIVE && (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        title="Transfer Ownership"
-                        onClick={() => startTransfer(m.userId || '', m.email)}
-                      >
-                        <ArrowLeftRight className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
-                      </Button>
-                    )}
+                    {isOwner &&
+                      m.role !== WorkspaceRole.OWNER &&
+                      m.status === WorkspaceMemberStatus.ACTIVE && (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          title="Transfer Ownership"
+                          onClick={() => startTransfer(m.userId || '', m.email)}
+                        >
+                          <ArrowLeftRight className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
+                        </Button>
+                      )}
 
                     {/* Remove member button */}
                     {isAdmin && m.role !== WorkspaceRole.OWNER && (
@@ -200,14 +229,18 @@ export default function WorkspaceSettingsScreen() {
             <Sparkles className="w-4 h-4 text-accent" />
             <span>Interactive Guides & Onboarding</span>
           </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Replay app tours or reset workspace initialization configuration.</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Replay app tours or reset workspace initialization configuration.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
           <div className="flex items-center justify-between border border-border rounded-lg p-3 bg-sunken/15">
             <div>
               <p className="text-xs font-semibold text-foreground">Interactive Product Tour</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Highlights discovery, CRM, and campaigns navigation.</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Highlights discovery, CRM, and campaigns navigation.
+              </p>
             </div>
             <Button
               size="sm"
@@ -224,7 +257,9 @@ export default function WorkspaceSettingsScreen() {
           <div className="flex items-center justify-between border border-border rounded-lg p-3 bg-sunken/15">
             <div>
               <p className="text-xs font-semibold text-foreground">Workspace Setup Wizard</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Rerun the health check diagnostics and setup steps.</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Rerun the health check diagnostics and setup steps.
+              </p>
             </div>
             <Button
               size="sm"
@@ -255,9 +290,16 @@ export default function WorkspaceSettingsScreen() {
             <div className="flex items-center justify-between w-full border border-border rounded-lg p-3 bg-sunken/45">
               <div>
                 <p className="text-xs font-semibold text-foreground">Leave Workspace</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">You will lose access to all campaigns in this workspace.</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  You will lose access to all campaigns in this workspace.
+                </p>
               </div>
-              <Button variant="destructive" size="sm" onClick={() => setLeaveOpen(true)} className="gap-1">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setLeaveOpen(true)}
+                className="gap-1"
+              >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Leave</span>
               </Button>
@@ -268,7 +310,9 @@ export default function WorkspaceSettingsScreen() {
             <div className="flex items-center justify-between w-full border border-destructive/20 rounded-lg p-3 bg-destructive/[0.02]">
               <div>
                 <p className="text-xs font-semibold text-danger-text">Delete Workspace</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Permanently delete this workspace and all associated CRM data.</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Permanently delete this workspace and all associated CRM data.
+                </p>
               </div>
               <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
                 Delete Workspace
@@ -329,9 +373,14 @@ export default function WorkspaceSettingsScreen() {
 
 function LinkedInIntegrationCard({ workspaceId }: { workspaceId: string }) {
   const [cookie, setCookie] = React.useState('');
-  const [status, setStatus] = React.useState<{ configured: boolean; preview: string }>({ configured: false, preview: '' });
+  const [status, setStatus] = React.useState<{ configured: boolean; preview: string }>({
+    configured: false,
+    preview: ''
+  });
   const [testing, setTesting] = React.useState(false);
-  const [testResult, setTestResult] = React.useState<{ valid: boolean; message: string } | null>(null);
+  const [testResult, setTestResult] = React.useState<{ valid: boolean; message: string } | null>(
+    null
+  );
   const [saving, setSaving] = React.useState(false);
 
   const fetchStatus = React.useCallback(async () => {
@@ -387,7 +436,9 @@ function LinkedInIntegrationCard({ workspaceId }: { workspaceId: string }) {
             <span>LinkedIn Executive Enrichment</span>
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Store your LinkedIn session cookie (<code className="font-mono text-[10px] bg-sunken px-1 py-0.5 rounded">li_at</code>) to automatically scrape executive decision-makers (CEOs, VPs, Directors).
+            Store your LinkedIn session cookie (
+            <code className="font-mono text-[10px] bg-sunken px-1 py-0.5 rounded">li_at</code>) to
+            automatically scrape executive decision-makers (CEOs, VPs, Directors).
           </p>
         </div>
         <div>
@@ -405,19 +456,32 @@ function LinkedInIntegrationCard({ workspaceId }: { workspaceId: string }) {
 
       <form onSubmit={handleSave} className="space-y-3 pt-1">
         <div className="space-y-1">
-          <label htmlFor="liCookieInput" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+          <label
+            htmlFor="liCookieInput"
+            className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block"
+          >
             LinkedIn Session Cookie (li_at)
           </label>
           <div className="flex gap-2">
             <input
               id="liCookieInput"
               type="password"
-              placeholder={status.configured ? 'Paste new li_at cookie to update...' : 'AQED... (paste li_at cookie value from DevTools)'}
+              placeholder={
+                status.configured
+                  ? 'Paste new li_at cookie to update...'
+                  : 'AQED... (paste li_at cookie value from DevTools)'
+              }
               value={cookie}
               onChange={(e) => setCookie(e.target.value)}
               className="flex-1 bg-sunken border border-border rounded px-3 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
-            <Button type="button" variant="outline" size="sm" onClick={handleTest} disabled={testing}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleTest}
+              disabled={testing}
+            >
               {testing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Test Cookie'}
             </Button>
             <Button type="submit" size="sm" disabled={saving || !cookie.trim()}>
@@ -427,14 +491,22 @@ function LinkedInIntegrationCard({ workspaceId }: { workspaceId: string }) {
         </div>
 
         {testResult && (
-          <div className={`p-3 rounded-lg border text-xs flex items-start gap-2 ${
-            testResult.valid
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-              : 'bg-destructive/10 text-destructive border-destructive/20'
-          }`}>
-            {testResult.valid ? <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" /> : <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />}
+          <div
+            className={`p-3 rounded-lg border text-xs flex items-start gap-2 ${
+              testResult.valid
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                : 'bg-destructive/10 text-destructive border-destructive/20'
+            }`}
+          >
+            {testResult.valid ? (
+              <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            )}
             <div>
-              <div className="font-semibold">{testResult.valid ? 'Session Active' : 'Validation Failed'}</div>
+              <div className="font-semibold">
+                {testResult.valid ? 'Session Active' : 'Validation Failed'}
+              </div>
               <div className="text-[11px] opacity-90">{testResult.message}</div>
             </div>
           </div>
@@ -446,8 +518,15 @@ function LinkedInIntegrationCard({ workspaceId }: { workspaceId: string }) {
             How to get your li_at cookie:
           </div>
           <div>1. Log into LinkedIn in Google Chrome or Edge</div>
-          <div>2. Press <code className="font-mono bg-sunken px-1 rounded text-foreground">F12</code> → Open <strong>Application</strong> tab → <strong>Cookies</strong> → <code className="font-mono text-foreground">https://www.linkedin.com</code></div>
-          <div>3. Find <code className="font-mono bg-sunken px-1 rounded text-foreground">li_at</code> → Copy the Cookie Value → Paste here</div>
+          <div>
+            2. Press <code className="font-mono bg-sunken px-1 rounded text-foreground">F12</code> →
+            Open <strong>Application</strong> tab → <strong>Cookies</strong> →{' '}
+            <code className="font-mono text-foreground">https://www.linkedin.com</code>
+          </div>
+          <div>
+            3. Find <code className="font-mono bg-sunken px-1 rounded text-foreground">li_at</code>{' '}
+            → Copy the Cookie Value → Paste here
+          </div>
         </div>
       </form>
     </div>
@@ -535,15 +614,21 @@ function AutoUpdateSection() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
         <div className="space-y-1">
-          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Current Version</span>
+          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+            Current Version
+          </span>
           <p className="text-xs font-semibold text-foreground">v{status.currentVersion}</p>
         </div>
         <div className="space-y-1">
-          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Release Channel</span>
+          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+            Release Channel
+          </span>
           <p className="text-xs font-mono text-muted-foreground capitalize">{status.channel}</p>
         </div>
         <div className="space-y-1">
-          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Updater Status</span>
+          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+            Updater Status
+          </span>
           <p className="text-xs font-semibold text-foreground capitalize">{status.status}</p>
         </div>
       </div>
@@ -551,8 +636,14 @@ function AutoUpdateSection() {
       {status.status === 'available' && (
         <div className="bg-accent/5 border border-accent/15 rounded-lg p-3 text-xs flex items-center justify-between">
           <div>
-            <div className="font-semibold text-foreground">New Version Available: v{status.availableVersion}</div>
-            {status.releaseNotes && <div className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{status.releaseNotes}</div>}
+            <div className="font-semibold text-foreground">
+              New Version Available: v{status.availableVersion}
+            </div>
+            {status.releaseNotes && (
+              <div className="text-[10px] text-muted-foreground mt-1 line-clamp-2">
+                {status.releaseNotes}
+              </div>
+            )}
           </div>
           <Button size="sm" onClick={handleDownload} disabled={downloading}>
             {downloading ? 'Downloading...' : 'Download Update'}
@@ -567,7 +658,10 @@ function AutoUpdateSection() {
             <span>{status.progress}%</span>
           </div>
           <div className="w-full bg-sunken rounded-full h-1.5 overflow-hidden">
-            <div className="bg-accent h-1.5 transition-all duration-300" style={{ width: `${status.progress}%` }}></div>
+            <div
+              className="bg-accent h-1.5 transition-all duration-300"
+              style={{ width: `${status.progress}%` }}
+            ></div>
           </div>
         </div>
       )}
@@ -576,9 +670,15 @@ function AutoUpdateSection() {
         <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-xs flex items-center justify-between">
           <div>
             <div className="font-semibold text-emerald-400">Update Downloaded & Verified</div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">Ready to install on restart.</div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              Ready to install on restart.
+            </div>
           </div>
-          <Button size="sm" onClick={handleInstall} className="bg-emerald-600 hover:bg-emerald-700 text-white border-none">
+          <Button
+            size="sm"
+            onClick={handleInstall}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white border-none"
+          >
             Restart & Install
           </Button>
         </div>

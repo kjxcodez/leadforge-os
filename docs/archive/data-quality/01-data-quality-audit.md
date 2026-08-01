@@ -47,40 +47,51 @@ Google Maps (Playwright)
 
 ## Problems Found
 
-| # | Problem | Layer | Severity |
-|---|---------|-------|----------|
-| 1 | Address contains raw Google Maps separators (·, hours text) | Scraper | High |
-| 2 | status never set on companies (shows null in renderer) | Scraper | High |
-| 3 | Company column missing from Contacts list table | Renderer | Medium |
-| 4 | Duplicate phone-only contacts created on re-scrape | Scraper | Medium |
-| 5 | Contact status never set by scraper | Scraper | Medium |
-| 6 | firstName/lastName never extracted — contacts have no name | Scraper + Crawler | Medium |
-| 7 | industry, size, rating never persisted from scraper | Scraper | Medium |
-| 8 | phone from contacts not normalized | Scraper | Low |
+| #   | Problem                                                     | Layer             | Severity |
+| --- | ----------------------------------------------------------- | ----------------- | -------- |
+| 1   | Address contains raw Google Maps separators (·, hours text) | Scraper           | High     |
+| 2   | status never set on companies (shows null in renderer)      | Scraper           | High     |
+| 3   | Company column missing from Contacts list table             | Renderer          | Medium   |
+| 4   | Duplicate phone-only contacts created on re-scrape          | Scraper           | Medium   |
+| 5   | Contact status never set by scraper                         | Scraper           | Medium   |
+| 6   | firstName/lastName never extracted — contacts have no name  | Scraper + Crawler | Medium   |
+| 7   | industry, size, rating never persisted from scraper         | Scraper           | Medium   |
+| 8   | phone from contacts not normalized                          | Scraper           | Low      |
 
 ---
 
 ## Root Cause Analysis
 
 ### 1. Address Corruption
+
 `innerText()` on `[data-item-id="address"]` returns full text of the DOM node including Google Maps UI separators. The · character (U+00B7 MIDDLE DOT) is used by Google Maps as a separator between address text and business hours metadata.
 
 Source: `scraper.ts:307`
+
 ```typescript
-const location = await page.locator('[data-item-id="address"]').first().innerText({ timeout: 2000 }).catch(() => null);
+const location = await page
+  .locator('[data-item-id="address"]')
+  .first()
+  .innerText({ timeout: 2000 })
+  .catch(() => null);
 ```
+
 Fix layer: Scraper — normalize `location` string before INSERT.
 
 ### 2. Company Status Null
+
 `status` is never included in the companies INSERT statement.
 
 Source: `scraper.ts:330`
+
 ```typescript
 INSERT INTO companies (id, workspaceId, name, domain, website, location, phone, syncStatus, ...)
 ```
+
 Fix layer: Scraper — add `status: 'LEAD'` to INSERT.
 
 ### 3. Company Column Missing from Contact List
+
 The contacts table header at `ContactsScreen.tsx:159-165` has columns: Name, Email, Phone, Job Title, Status. No Company column exists.
 
 The side panel does resolve the company name via `companies.find((c) => c.id === selectedContact.companyId)?.name` at line 283, but the list table does not.
@@ -88,17 +99,21 @@ The side panel does resolve the company name via `companies.find((c) => c.id ===
 Fix layer: Renderer — add Company column to ContactsScreen.tsx table.
 
 ### 4. Duplicate Phone Contacts
+
 No deduplication guard exists before the scraper inserts phone contacts.
 
 Source: `scraper.ts:346-363`
+
 ```typescript
 if (phone || website) {
   db.prepare(`INSERT INTO contacts (id, workspaceId, companyId, phone, ...)`).run(...)
 }
 ```
+
 Fix layer: Scraper — add `SELECT id FROM contacts WHERE workspaceId = ? AND companyId = ? AND phone = ?` guard before insert.
 
 ### 5. Contact Names Missing
+
 No name extraction logic exists in either scraper.ts or crawler.ts. The `firstName` and `lastName` columns are always null for scraped contacts.
 
 For department emails: company name is a reasonable fallback.
@@ -110,11 +125,11 @@ Fix layer: Scraper + Crawler.
 
 ## Confidence Levels
 
-| Finding | Evidence Source | Confidence |
-|---------|----------------|------------|
-| Address corruption from innerText() | scraper.ts:307 exact selector | HIGH |
-| Status null from missing INSERT field | scraper.ts:330 exact SQL | HIGH |
-| companyId relationship works in DB | crawler.ts:316, scraper.ts:349 | HIGH |
-| Company column missing from contacts list | ContactsScreen.tsx thead L159-165 | HIGH |
-| Duplicate phone contacts — no guard | scraper.ts:346, no SELECT before INSERT | HIGH |
-| industry/size not in Google Maps DOM | Google Maps DOM — not reliably exposed | MEDIUM |
+| Finding                                   | Evidence Source                         | Confidence |
+| ----------------------------------------- | --------------------------------------- | ---------- |
+| Address corruption from innerText()       | scraper.ts:307 exact selector           | HIGH       |
+| Status null from missing INSERT field     | scraper.ts:330 exact SQL                | HIGH       |
+| companyId relationship works in DB        | crawler.ts:316, scraper.ts:349          | HIGH       |
+| Company column missing from contacts list | ContactsScreen.tsx thead L159-165       | HIGH       |
+| Duplicate phone contacts — no guard       | scraper.ts:346, no SELECT before INSERT | HIGH       |
+| industry/size not in Google Maps DOM      | Google Maps DOM — not reliably exposed  | MEDIUM     |

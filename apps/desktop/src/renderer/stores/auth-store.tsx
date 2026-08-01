@@ -42,7 +42,7 @@ const initialState: AuthState = {
   status: 'idle',
   user: null,
   token: null,
-  error: null,
+  error: null
 };
 
 function authReducer(state: AuthState, action: AuthAction): AuthState {
@@ -55,7 +55,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         status: 'authenticated',
         user: action.payload.user,
         token: action.payload.token,
-        error: null,
+        error: null
       };
     case 'AUTH_FAILURE':
       return {
@@ -63,7 +63,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         status: 'unauthenticated',
         user: null,
         token: null,
-        error: action.payload.error,
+        error: action.payload.error
       };
     case 'AUTH_LOGOUT':
       return { ...initialState, status: 'unauthenticated' };
@@ -109,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setUnauthenticated = useCallback((error?: string) => {
     dispatch({
       type: 'AUTH_FAILURE',
-      payload: { error: error ?? 'Not authenticated' },
+      payload: { error: error ?? 'Not authenticated' }
     });
   }, []);
 

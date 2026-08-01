@@ -295,7 +295,7 @@ export class WorkflowRunner {
     if (!promptDef) {
       throw new Error(
         `LLMStep "${step.name}": prompt definition for "${step.promptId}" not found in WorkflowContext. ` +
-        `Seed it via initial["prompt:${step.promptId}"] = promptDefinition before calling run().`
+          `Seed it via initial["prompt:${step.promptId}"] = promptDefinition before calling run().`
       );
     }
 

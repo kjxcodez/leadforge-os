@@ -2,7 +2,7 @@ export const AIContextBuilders = {
   buildCompanyContext: (company: { name: string; industry: string }) => {
     return {
       companyName: company.name,
-      industry: company.industry || 'Software',
+      industry: company.industry || 'Software'
     };
   },
 
@@ -16,7 +16,7 @@ export const AIContextBuilders = {
       companyName: company.name,
       industry: company.industry || 'Software',
       techStack: company.techStack || [],
-      technicalIssues: company.technicalIssues || [],
+      technicalIssues: company.technicalIssues || []
     };
   }
 };

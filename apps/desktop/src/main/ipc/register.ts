@@ -39,8 +39,19 @@ export function registerAllIpc(
 
   // Register domain specific handlers
   registerDatabaseIpc();
-  registerAuthIpc(sdk, setToken, setWorkspaceHeader, persistActiveWorkspace, getPersistedActiveWorkspace);
-  registerWorkspaceIpc(sdk, setWorkspaceHeader, persistActiveWorkspace, getPersistedActiveWorkspace);
+  registerAuthIpc(
+    sdk,
+    setToken,
+    setWorkspaceHeader,
+    persistActiveWorkspace,
+    getPersistedActiveWorkspace
+  );
+  registerWorkspaceIpc(
+    sdk,
+    setWorkspaceHeader,
+    persistActiveWorkspace,
+    getPersistedActiveWorkspace
+  );
   registerCrmIpc();
   registerElectronIpc(setWorkspaceHeader, persistActiveWorkspace, getPersistedActiveWorkspace);
   registerOutreachIpc(sdk);

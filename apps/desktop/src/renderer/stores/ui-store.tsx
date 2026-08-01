@@ -30,7 +30,10 @@ type UIAction =
 function getInitialTheme(): Theme {
   try {
     const settings = window.ipc.getInitialSettings();
-    if (settings && (settings.theme === 'dark' || settings.theme === 'light' || settings.theme === 'system')) {
+    if (
+      settings &&
+      (settings.theme === 'dark' || settings.theme === 'light' || settings.theme === 'system')
+    ) {
       return settings.theme;
     }
   } catch (err) {
@@ -111,7 +114,7 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(uiReducer, {
     theme: getInitialTheme(),
     sidebarCollapsed: getInitialSidebarCollapsed(),
-    commandPaletteOpen: false,
+    commandPaletteOpen: false
   });
 
   const setTheme = useCallback((theme: Theme) => {
@@ -119,12 +122,24 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toggleSidebar = useCallback(() => dispatch({ type: 'TOGGLE_SIDEBAR' }), []);
-  const setSidebar = useCallback((collapsed: boolean) => dispatch({ type: 'SET_SIDEBAR', payload: collapsed }), []);
+  const setSidebar = useCallback(
+    (collapsed: boolean) => dispatch({ type: 'SET_SIDEBAR', payload: collapsed }),
+    []
+  );
   const toggleCommandPalette = useCallback(() => dispatch({ type: 'TOGGLE_COMMAND_PALETTE' }), []);
   const closeCommandPalette = useCallback(() => dispatch({ type: 'CLOSE_COMMAND_PALETTE' }), []);
 
   return (
-    <UIContext.Provider value={{ state, setTheme, toggleSidebar, setSidebar, toggleCommandPalette, closeCommandPalette }}>
+    <UIContext.Provider
+      value={{
+        state,
+        setTheme,
+        toggleSidebar,
+        setSidebar,
+        toggleCommandPalette,
+        closeCommandPalette
+      }}
+    >
       {children}
     </UIContext.Provider>
   );

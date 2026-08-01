@@ -132,7 +132,7 @@ contextBridge.exposeInMainWorld('ipc', {
       'updater:download',
       'updater:install',
       'agent:execute',
-      'agent:workflow:execute',
+      'agent:workflow:execute'
     ];
     if (validChannels.includes(channel as string)) {
       return ipcRenderer.invoke(channel, payload);
@@ -176,15 +176,16 @@ contextBridge.exposeInMainWorld('ipc', {
       'workspace:boot-progress',
       'scheduler:tick',
       'updater:status-changed',
-      'agent:workflow:progress',
+      'agent:workflow:progress'
     ];
     if (validChannels.includes(channel as string)) {
-      const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(args[0] as any);
+      const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]) =>
+        callback(args[0] as any);
       ipcRenderer.on(channel, listener);
       return () => ipcRenderer.removeListener(channel, listener);
     }
     throw new Error(`Unauthorized IPC channel: ${channel}`);
-  },
+  }
 });
 
 export interface IpcApi {

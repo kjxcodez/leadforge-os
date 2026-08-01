@@ -18,7 +18,7 @@ export class ToolDispatcher {
   public toolRequiresApproval(toolName: string): boolean {
     const tool = this.registry.get(toolName);
     if (!tool) return false;
-    return tool.schema?.requiresApproval ?? (tool.riskLevel === 'HIGH');
+    return tool.schema?.requiresApproval ?? tool.riskLevel === 'HIGH';
   }
 
   /**
@@ -76,7 +76,9 @@ export class ToolDispatcher {
     const parsed = schema.safeParse(request.arguments);
     if (!parsed.success) {
       const durationMs = Date.now() - startTimeMs;
-      const validationErrorMsg = parsed.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ');
+      const validationErrorMsg = parsed.error.errors
+        .map((e) => `${e.path.join('.')}: ${e.message}`)
+        .join(', ');
       const response: ToolResponse<T> = {
         requestId: request.requestId,
         toolName: request.toolName,
@@ -112,7 +114,7 @@ export class ToolDispatcher {
     }
 
     // 3. Human Approval check
-    const requiresApproval = tool.schema?.requiresApproval ?? (tool.riskLevel === 'HIGH');
+    const requiresApproval = tool.schema?.requiresApproval ?? tool.riskLevel === 'HIGH';
     if (requiresApproval && request.requiresApproval) {
       const durationMs = Date.now() - startTimeMs;
       const response: ToolResponse<T> = {
@@ -151,7 +153,7 @@ export class ToolDispatcher {
 
     // 4. Tool Execution
     try {
-      const result: ToolResult<T> = await tool.execute(parsed.data as any, execCtx) as any;
+      const result: ToolResult<T> = (await tool.execute(parsed.data as any, execCtx)) as any;
       const durationMs = Date.now() - startTimeMs;
       const completedAt = new Date().toISOString();
 

@@ -1,5 +1,5 @@
-import { BaseRepository } from "../base/base.repository.js";
-import { OutreachModel, type OutreachDocument } from "../../db/models/outreach.model.js";
+import { BaseRepository } from '../base/base.repository.js';
+import { OutreachModel, type OutreachDocument } from '../../db/models/outreach.model.js';
 
 export class OutreachRepository extends BaseRepository<OutreachDocument> {
   constructor(workspaceId?: string) {
@@ -11,6 +11,6 @@ export class OutreachRepository extends BaseRepository<OutreachDocument> {
   }
 
   public async findPendingOutreach(): Promise<OutreachDocument[]> {
-    return this.findMany({ status: "pending" });
+    return this.findMany({ status: 'pending' });
   }
 }

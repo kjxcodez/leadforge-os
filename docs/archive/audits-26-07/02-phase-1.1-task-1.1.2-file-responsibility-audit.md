@@ -835,14 +835,14 @@ A total of 19 files across 7 architectural layers (Renderer UI, Renderer Hooks/R
 
 ## Architectural Boundary Audit
 
-| File | Origin Boundary | Destination Boundary | Boundary Respected? | Boundary Violation Evidence |
-| :--- | :--- | :--- | :--- | :--- |
-| `AutomationScreen.tsx` | Renderer UI | Renderer Hooks | YES | Calls `useStartSequence()` hook; does not touch IPC or Node.js directly. |
-| `use-automation.ts` | Renderer Hook | Renderer Repository | YES | Calls `SyncSequenceExecutionRepository.create()`; does not invoke IPC directly. |
-| `sync.ts` | Renderer Repository | Preload IPC Bridge | YES | Invokes `window.ipc.invoke('sequence:start')`; delegates process crossing to preload. |
-| `preload/index.ts` | Preload Script | Main Process IPC | YES | Validates channel against whitelist and delegates to `ipcRenderer.invoke()`. |
-| `main/ipc/automation.ts` | Main Process IPC | Remote SDK & Local SQLite | NO | **Boundary Crossing Violation**: IPC handler receives trigger from UI, calls remote SDK over HTTP, AND writes directly to local SQLite database in one callback. Bypasses `JobScheduler`. |
-| `sdk/modules/automation.ts` | SDK Module | SDK HTTP Transport | YES | Formats endpoint path `/automation/executions/start` and passes to `HttpClient.post()`. |
-| `sdk/http/client.ts` | SDK Client | Remote API Server | YES | Executes HTTP POST request over network using native `fetch()`. |
-| `routes/automation.ts` | API HTTP Router | API Domain Service | YES | Extracts workspace ID from HTTP context and delegates to `AutomationService`. |
-| `automation.service.ts` | API Domain Service | MongoDB Database | NO | **Dual Persistence Violation**: Creates `SequenceExecutionModel` document, creates `SequenceLogModel` document, AND pushes duplicate log object to `SequenceExecution.logs` array via `$push`. |
+| File                        | Origin Boundary     | Destination Boundary      | Boundary Respected? | Boundary Violation Evidence                                                                                                                                                                    |
+| :-------------------------- | :------------------ | :------------------------ | :------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AutomationScreen.tsx`      | Renderer UI         | Renderer Hooks            | YES                 | Calls `useStartSequence()` hook; does not touch IPC or Node.js directly.                                                                                                                       |
+| `use-automation.ts`         | Renderer Hook       | Renderer Repository       | YES                 | Calls `SyncSequenceExecutionRepository.create()`; does not invoke IPC directly.                                                                                                                |
+| `sync.ts`                   | Renderer Repository | Preload IPC Bridge        | YES                 | Invokes `window.ipc.invoke('sequence:start')`; delegates process crossing to preload.                                                                                                          |
+| `preload/index.ts`          | Preload Script      | Main Process IPC          | YES                 | Validates channel against whitelist and delegates to `ipcRenderer.invoke()`.                                                                                                                   |
+| `main/ipc/automation.ts`    | Main Process IPC    | Remote SDK & Local SQLite | NO                  | **Boundary Crossing Violation**: IPC handler receives trigger from UI, calls remote SDK over HTTP, AND writes directly to local SQLite database in one callback. Bypasses `JobScheduler`.      |
+| `sdk/modules/automation.ts` | SDK Module          | SDK HTTP Transport        | YES                 | Formats endpoint path `/automation/executions/start` and passes to `HttpClient.post()`.                                                                                                        |
+| `sdk/http/client.ts`        | SDK Client          | Remote API Server         | YES                 | Executes HTTP POST request over network using native `fetch()`.                                                                                                                                |
+| `routes/automation.ts`      | API HTTP Router     | API Domain Service        | YES                 | Extracts workspace ID from HTTP context and delegates to `AutomationService`.                                                                                                                  |
+| `automation.service.ts`     | API Domain Service  | MongoDB Database          | NO                  | **Dual Persistence Violation**: Creates `SequenceExecutionModel` document, creates `SequenceLogModel` document, AND pushes duplicate log object to `SequenceExecution.logs` array via `$push`. |

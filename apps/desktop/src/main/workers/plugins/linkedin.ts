@@ -6,7 +6,9 @@ import type { JobContext } from '../../../shared/types/job';
 /**
  * Validates a LinkedIn li_at cookie by making an auth check request.
  */
-export async function validateLinkedInCookie(cookie: string): Promise<{ valid: boolean; message: string; csrfToken?: string }> {
+export async function validateLinkedInCookie(
+  cookie: string
+): Promise<{ valid: boolean; message: string; csrfToken?: string }> {
   const cleanCookie = cookie.trim().replace(/^li_at=/i, '');
   if (!cleanCookie || cleanCookie.length < 20) {
     return { valid: false, message: 'Invalid cookie length' };
@@ -15,10 +17,11 @@ export async function validateLinkedInCookie(cookie: string): Promise<{ valid: b
   try {
     const res = await fetch('https://www.linkedin.com/feed/', {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Cookie': `li_at=${cleanCookie}`,
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Cookie: `li_at=${cleanCookie}`
       },
-      redirect: 'manual',
+      redirect: 'manual'
     });
 
     if (res.status === 302 || res.status === 301) {
@@ -29,7 +32,9 @@ export async function validateLinkedInCookie(cookie: string): Promise<{ valid: b
     }
 
     // Extract JSESSIONID from Set-Cookie headers for CSRF
-    const rawSetCookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('set-cookie') || ''];
+    const rawSetCookies = res.headers.getSetCookie
+      ? res.headers.getSetCookie()
+      : [res.headers.get('set-cookie') || ''];
     let csrfToken = '';
     for (const sc of rawSetCookies) {
       const match = sc.match(/JSESSIONID="?([^";]+)"?/);
@@ -61,7 +66,10 @@ export async function enrichLinkedIn(ctx: JobContext): Promise<any> {
     throw new Error('companyId and companyName are required for LinkedIn enrichment.');
   }
 
-  ctx.emitLog(`Initializing Executive LinkedIn Plugin for company "${companyName}" (${companyId})`, 'info');
+  ctx.emitLog(
+    `Initializing Executive LinkedIn Plugin for company "${companyName}" (${companyId})`,
+    'info'
+  );
 
   const dbDir = process.env.WORKSPACES_DB_DIR || '';
   if (!dbDir) {
@@ -73,7 +81,9 @@ export async function enrichLinkedIn(ctx: JobContext): Promise<any> {
   // 1. Get stored LinkedIn cookie from settings table, process.env, or payload secrets
   let cookie = ctx.payload._secrets?.['linkedin_li_at'] || process.env.LINKEDIN_COOKIE || '';
   if (!cookie) {
-    const settingRow = db.prepare('SELECT value FROM settings WHERE workspaceId = ? AND key = ?').get(ctx.workspaceId, 'linkedin_li_at') as { value: string } | undefined;
+    const settingRow = db
+      .prepare('SELECT value FROM settings WHERE workspaceId = ? AND key = ?')
+      .get(ctx.workspaceId, 'linkedin_li_at') as { value: string } | undefined;
     if (settingRow && settingRow.value) {
       cookie = settingRow.value;
     }
@@ -81,8 +91,13 @@ export async function enrichLinkedIn(ctx: JobContext): Promise<any> {
 
   if (!cookie) {
     db.close();
-    ctx.emitLog('No LinkedIn cookie (li_at) configured in Settings or LINKEDIN_COOKIE env var.', 'error');
-    throw new Error('LinkedIn cookie not configured. Please add your li_at cookie in Settings > Integrations.');
+    ctx.emitLog(
+      'No LinkedIn cookie (li_at) configured in Settings or LINKEDIN_COOKIE env var.',
+      'error'
+    );
+    throw new Error(
+      'LinkedIn cookie not configured. Please add your li_at cookie in Settings > Integrations.'
+    );
   }
 
   const cleanCookie = cookie.trim().replace(/^li_at=/i, '');
@@ -98,7 +113,12 @@ export async function enrichLinkedIn(ctx: JobContext): Promise<any> {
 
   const csrfToken = authCheck.csrfToken || 'ajax:0000000000000000000';
 
-  ctx.updateProgress(20, { step: 1, current: 1, total: 3, description: `Searching LinkedIn profiles for ${companyName}` });
+  ctx.updateProgress(20, {
+    step: 1,
+    current: 1,
+    total: 3,
+    description: `Searching LinkedIn profiles for ${companyName}`
+  });
 
   // 3. Search decision makers on LinkedIn Voyager API
   const searchUrl = `https://www.linkedin.com/voyager/api/identity/dash/profiles?q=memberIdentity&memberIdentity=${encodeURIComponent(companyName)}`;
@@ -114,13 +134,14 @@ export async function enrichLinkedIn(ctx: JobContext): Promise<any> {
   try {
     const searchRes = await fetch(searchUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Cookie': `li_at=${cleanCookie}; JSESSIONID="${csrfToken}"`,
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Cookie: `li_at=${cleanCookie}; JSESSIONID="${csrfToken}"`,
         'csrf-token': csrfToken,
-        'Accept': 'application/vnd.linkedin.normalized+json+2.1',
+        Accept: 'application/vnd.linkedin.normalized+json+2.1',
         'x-li-lang': 'en_US',
-        'x-restli-protocol-version': '2.0.0',
-      },
+        'x-restli-protocol-version': '2.0.0'
+      }
     });
 
     if (searchRes.ok) {
@@ -139,7 +160,7 @@ export async function enrichLinkedIn(ctx: JobContext): Promise<any> {
               firstName: fn,
               lastName: ln,
               headline,
-              publicIdentifier: publicId,
+              publicIdentifier: publicId
             });
           }
         }
@@ -151,13 +172,17 @@ export async function enrichLinkedIn(ctx: JobContext): Promise<any> {
 
   // Fallback: If Voyager API endpoint returns limited items or is restricted, perform a targeted web query search
   if (profilesFound.length === 0) {
-    ctx.emitLog(`Attempting web directory discovery for "${companyName}" executive team...`, 'info');
+    ctx.emitLog(
+      `Attempting web directory discovery for "${companyName}" executive team...`,
+      'info'
+    );
     try {
       const googleSearchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(`site:linkedin.com/in "${companyName}" (CEO OR Founder OR President OR Owner OR Director OR VP)`)}`;
       const htmlRes = await fetch(googleSearchUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        },
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
       });
 
       if (htmlRes.ok) {
@@ -171,13 +196,15 @@ export async function enrichLinkedIn(ctx: JobContext): Promise<any> {
               uniqueIds.add(id);
               // Derive plausible name from public slug
               const parts = id.split('-');
-              const fn = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1) : 'Executive';
+              const fn = parts[0]
+                ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1)
+                : 'Executive';
               const ln = parts[1] ? parts[1].charAt(0).toUpperCase() + parts[1].slice(1) : '';
               profilesFound.push({
                 firstName: fn,
                 lastName: ln,
                 headline: `Decision Maker at ${companyName}`,
-                publicIdentifier: id,
+                publicIdentifier: id
               });
             }
           }
@@ -188,7 +215,12 @@ export async function enrichLinkedIn(ctx: JobContext): Promise<any> {
     }
   }
 
-  ctx.updateProgress(70, { step: 2, current: 2, total: 3, description: `Processing ${profilesFound.length} executive profiles` });
+  ctx.updateProgress(70, {
+    step: 2,
+    current: 2,
+    total: 3,
+    description: `Processing ${profilesFound.length} executive profiles`
+  });
 
   let storedCount = 0;
 
@@ -200,27 +232,45 @@ export async function enrichLinkedIn(ctx: JobContext): Promise<any> {
       : `https://www.linkedin.com/in/${prof.publicIdentifier}/`;
 
     // Deduplication check
-    const existing = db.prepare(
-      'SELECT id FROM contacts WHERE workspaceId = ? AND companyId = ? AND (linkedinUrl = ? OR (firstName = ? AND lastName = ?))'
-    ).get(ctx.workspaceId, companyId, linkedinUrl, prof.firstName, prof.lastName);
+    const existing = db
+      .prepare(
+        'SELECT id FROM contacts WHERE workspaceId = ? AND companyId = ? AND (linkedinUrl = ? OR (firstName = ? AND lastName = ?))'
+      )
+      .get(ctx.workspaceId, companyId, linkedinUrl, prof.firstName, prof.lastName);
 
     if (existing) {
-      ctx.emitLog(`Skipped duplicate executive contact: ${prof.firstName} ${prof.lastName}`, 'info');
+      ctx.emitLog(
+        `Skipped duplicate executive contact: ${prof.firstName} ${prof.lastName}`,
+        'info'
+      );
       continue;
     }
 
     const contactId = randomUUID();
 
     db.transaction(() => {
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO contacts (id, workspaceId, companyId, firstName, lastName, title, headline, linkedinUrl, status, type, sourcePlatform, syncStatus, createdAt, updatedAt)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'NEW', 'executive', 'linkedin', 'pending', datetime('now'), datetime('now'))
-      `).run(contactId, ctx.workspaceId, companyId, prof.firstName, prof.lastName, prof.headline, prof.headline, linkedinUrl);
+      `
+      ).run(
+        contactId,
+        ctx.workspaceId,
+        companyId,
+        prof.firstName,
+        prof.lastName,
+        prof.headline,
+        prof.headline,
+        linkedinUrl
+      );
 
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
         VALUES (?, ?, ?, ?, 'CREATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
-      `).run(
+      `
+      ).run(
         randomUUID(),
         ctx.workspaceId,
         'contacts',
@@ -230,19 +280,30 @@ export async function enrichLinkedIn(ctx: JobContext): Promise<any> {
           workspaceId: ctx.workspaceId,
           firstName: prof.firstName || '',
           lastName: prof.lastName || undefined,
-          status: 'NEW',
+          status: 'NEW'
         })
       );
     })();
 
     storedCount++;
-    ctx.emitLog(`Saved executive contact: ${prof.firstName} ${prof.lastName} (${prof.headline || 'Decision Maker'})`, 'info');
+    ctx.emitLog(
+      `Saved executive contact: ${prof.firstName} ${prof.lastName} (${prof.headline || 'Decision Maker'})`,
+      'info'
+    );
   }
 
   db.close();
 
-  ctx.updateProgress(100, { step: 3, current: 3, total: 3, description: `Enriched ${storedCount} executive contacts` });
-  ctx.emitLog(`LinkedIn Executive Enrichment completed for "${companyName}". Found and saved: ${storedCount} decision makers.`, 'info');
+  ctx.updateProgress(100, {
+    step: 3,
+    current: 3,
+    total: 3,
+    description: `Enriched ${storedCount} executive contacts`
+  });
+  ctx.emitLog(
+    `LinkedIn Executive Enrichment completed for "${companyName}". Found and saved: ${storedCount} decision makers.`,
+    'info'
+  );
 
   return { status: 'success', companyId, companyName, enrichedCount: storedCount };
 }

@@ -1,6 +1,11 @@
-import { CampaignRepository } from "../../repositories/campaign/campaign.repository.js";
-import type { CampaignDocument } from "../../db/models/campaign.model.js";
-import { createCampaignDtoSchema, updateCampaignDtoSchema, type CreateCampaignDto, type UpdateCampaignDto } from "@leadforge/schema";
+import { CampaignRepository } from '../../repositories/campaign/campaign.repository.js';
+import type { CampaignDocument } from '../../db/models/campaign.model.js';
+import {
+  createCampaignDtoSchema,
+  updateCampaignDtoSchema,
+  type CreateCampaignDto,
+  type UpdateCampaignDto
+} from '@leadforge/schema';
 
 export class CampaignService {
   private campaignRepository: CampaignRepository;
@@ -13,7 +18,10 @@ export class CampaignService {
     return this.campaignRepository.findById(id);
   }
 
-  public async listCampaigns(page?: number, limit?: number): Promise<{ data: CampaignDocument[]; total: number }> {
+  public async listCampaigns(
+    page?: number,
+    limit?: number
+  ): Promise<{ data: CampaignDocument[]; total: number }> {
     return this.campaignRepository.paginate({}, page, limit);
   }
 
@@ -22,10 +30,10 @@ export class CampaignService {
     return this.campaignRepository.create({
       name: validated.name,
       steps: validated.steps || [],
-      status: validated.status || "draft",
+      status: validated.status || 'draft',
       template: validated.template || null,
       schedule: validated.schedule || null,
-      settings: validated.settings || null,
+      settings: validated.settings || null
     });
   }
 

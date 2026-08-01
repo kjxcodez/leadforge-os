@@ -85,7 +85,7 @@ export function useAuth() {
     const result = await AuthService.restoreSession();
     if (result) {
       setAuthenticated(result.user, result.token);
-      
+
       const workspaces = await WorkspaceService.listWorkspaces();
       const persistedActiveId = await WorkspaceService.getActiveWorkspaceId();
 
@@ -123,6 +123,6 @@ export function useAuth() {
     register,
     logout,
     restoreSession,
-    clearError,
+    clearError
   };
 }

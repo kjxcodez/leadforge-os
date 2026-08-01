@@ -15,11 +15,11 @@ export function createCorsConfig(originEnv: string): CorsConfig {
     const origins = originEnv.split(',').map((o) => o.trim());
     return {
       origin: origins,
-      credentials: true,
+      credentials: true
     };
   }
   return {
     origin: originEnv,
-    credentials: true,
+    credentials: true
   };
 }

@@ -7,7 +7,7 @@ export const OpeningLineOutputSchema = z.string();
 export const AIInsightsOutputSchema = z.object({
   openingLine: z.string(),
   painPoint: z.string(),
-  outreachAngle: z.string(),
+  outreachAngle: z.string()
 });
 
 export type CompanySummaryInput = { companyName: string; industry: string };

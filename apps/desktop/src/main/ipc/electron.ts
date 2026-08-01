@@ -65,7 +65,7 @@ export function registerElectronIpc(
 
       result.storage = {
         globalDbSize: fs.existsSync(globalDbPath) ? fs.statSync(globalDbPath).size : 0,
-        workspaceDbSize: fs.existsSync(workspaceDbPath) ? fs.statSync(workspaceDbPath).size : 0,
+        workspaceDbSize: fs.existsSync(workspaceDbPath) ? fs.statSync(workspaceDbPath).size : 0
       };
     } catch (e) {
       result.storage = { error: String(e) };
@@ -80,11 +80,15 @@ export function registerElectronIpc(
 
     // 3. SQLite Tables info (row counts)
     try {
-      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
+      const tables = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+        .all() as Array<{ name: string }>;
       const tableCounts: Record<string, number> = {};
       for (const t of tables) {
         try {
-          const row = db.prepare(`SELECT COUNT(1) as count FROM ${t.name}`).get() as { count: number };
+          const row = db.prepare(`SELECT COUNT(1) as count FROM ${t.name}`).get() as {
+            count: number;
+          };
           tableCounts[t.name] = row.count;
         } catch {
           tableCounts[t.name] = -1;
@@ -104,7 +108,9 @@ export function registerElectronIpc(
 
     // 5. Sync Queue list
     try {
-      result.syncQueue = db.prepare('SELECT * FROM sync_queue ORDER BY createdAt ASC LIMIT 50').all();
+      result.syncQueue = db
+        .prepare('SELECT * FROM sync_queue ORDER BY createdAt ASC LIMIT 50')
+        .all();
     } catch (e) {
       result.syncQueue = [];
     }
@@ -128,8 +134,12 @@ export function registerElectronIpc(
     const activeRuntime = WorkspaceManager.getActiveRuntime();
     result.workerStatus = {
       isRuntimeActive: !!activeRuntime,
-      activeWorkersCount: activeRuntime ? (activeRuntime as any).scheduler?.activeWorkers?.size || 0 : 0,
-      activeWorkersList: activeRuntime ? Array.from((activeRuntime as any).scheduler?.activeWorkers?.keys() || []) : [],
+      activeWorkersCount: activeRuntime
+        ? (activeRuntime as any).scheduler?.activeWorkers?.size || 0
+        : 0,
+      activeWorkersList: activeRuntime
+        ? Array.from((activeRuntime as any).scheduler?.activeWorkers?.keys() || [])
+        : []
     };
 
     // 9. Registered IPC Channels
@@ -144,12 +154,12 @@ export function registerElectronIpc(
   });
 
   safeRegister('electron:ready-to-show', async (_event, payload: any) => {
-
-
     if (payload) {
-      if (payload.rendererInitStart !== undefined) telemetry.rendererInitStart = payload.rendererInitStart;
+      if (payload.rendererInitStart !== undefined)
+        telemetry.rendererInitStart = payload.rendererInitStart;
       if (payload.reactMountTime !== undefined) telemetry.reactMountTime = payload.reactMountTime;
-      if (payload.dashboardReadyTime !== undefined) telemetry.dashboardReadyTime = payload.dashboardReadyTime;
+      if (payload.dashboardReadyTime !== undefined)
+        telemetry.dashboardReadyTime = payload.dashboardReadyTime;
     }
 
     console.log('[IPC] Renderer reported ready-to-show. Revealing main window.');

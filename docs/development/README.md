@@ -19,16 +19,16 @@ To add a new worker plugin:
    export class SlackNotifierPlugin extends BasePlugin {
      async run(job: Job): Promise<void> {
        const { channel, message } = JSON.parse(job.payload);
-       
+
        // Update progress periodically
        this.updateProgress(30);
-       
+
        // Perform the operation
        await sendSlackMessage(channel, message);
-       
+
        this.updateProgress(100);
      }
-     
+
      async cleanup(): Promise<void> {
        // Perform cleanup on cancellation (e.g. close connections)
      }
@@ -37,7 +37,7 @@ To add a new worker plugin:
 3. **Register the Plugin**: Register your plugin in `apps/desktop/src/main/workers/plugin-registry.ts`:
    ```typescript
    import { SlackNotifierPlugin } from './plugins/slack-notifier';
-   
+
    pluginRegistry.register('notify:slack', new SlackNotifierPlugin());
    ```
 
@@ -114,11 +114,15 @@ We use the Repository pattern to wrap local SQLite database queries.
      }
 
      save(campaign: Campaign): void {
-       this.db.prepare(`
+       this.db
+         .prepare(
+           `
          INSERT INTO campaigns (id, name, status)
          VALUES ($id, $name, $status)
          ON CONFLICT(id) DO UPDATE SET name = $name, status = $status
-       `).run(campaign);
+       `
+         )
+         .run(campaign);
      }
    }
    ```

@@ -17,7 +17,7 @@ export function useSequences() {
       if (!workspaceId) return [];
       return SyncSequenceRepository.listAndSync(workspaceId);
     },
-    enabled: !!workspaceId,
+    enabled: !!workspaceId
   });
 }
 
@@ -28,7 +28,7 @@ export function useSequence(id: string) {
       if (!id) return null;
       return SyncSequenceRepository.findById(id);
     },
-    enabled: !!id,
+    enabled: !!id
   });
 }
 
@@ -42,7 +42,7 @@ export function useSequenceExecutions() {
       if (!workspaceId) return [];
       return SyncSequenceExecutionRepository.listAndSync(workspaceId);
     },
-    enabled: !!workspaceId,
+    enabled: !!workspaceId
   });
 }
 
@@ -53,7 +53,7 @@ export function useSequenceExecution(id: string) {
       if (!id) return null;
       return SyncSequenceExecutionRepository.findById(id);
     },
-    enabled: !!id,
+    enabled: !!id
   });
 }
 
@@ -67,7 +67,7 @@ export function useSequenceLogs(executionId: string) {
       if (!workspaceId || !executionId) return [];
       return SyncSequenceLogRepository.listAndSync(workspaceId, { executionId });
     },
-    enabled: !!workspaceId && !!executionId,
+    enabled: !!workspaceId && !!executionId
   });
 }
 
@@ -80,7 +80,7 @@ export function useStartSequence() {
     mutationFn: async ({
       sequenceId,
       contactId,
-      companyId,
+      companyId
     }: {
       sequenceId: string;
       contactId?: string | null;
@@ -90,7 +90,7 @@ export function useStartSequence() {
         sequenceId,
         contactId,
         companyId,
-        workspaceId,
+        workspaceId
       } as any);
     },
     onSuccess: () => {
@@ -99,7 +99,7 @@ export function useStartSequence() {
     },
     onError: (err: any) => {
       toast.error(err.message || 'Failed to start sequence execution.');
-    },
+    }
   });
 }
 
@@ -118,6 +118,6 @@ export function useStopSequence() {
     },
     onError: (err: any) => {
       toast.error(err.message || 'Failed to stop sequence execution.');
-    },
+    }
   });
 }

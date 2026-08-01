@@ -38,7 +38,7 @@ const defaultSettings: SettingsState = {
   notifications: true,
   autoLogin: true,
   compactMode: false,
-  dateFormat: 'MMM d, yyyy',
+  dateFormat: 'MMM d, yyyy'
 };
 
 function settingsReducer(state: SettingsState, action: SettingsAction): SettingsState {
@@ -62,7 +62,9 @@ function settingsReducer(state: SettingsState, action: SettingsAction): Settings
     default:
       return state;
   }
-  try { localStorage.setItem('lf:settings', JSON.stringify(next)); } catch {}
+  try {
+    localStorage.setItem('lf:settings', JSON.stringify(next));
+  } catch {}
   return next;
 }
 
@@ -95,11 +97,23 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const toggleNotifications = useCallback(() => dispatch({ type: 'TOGGLE_NOTIFICATIONS' }), []);
   const toggleAutoLogin = useCallback(() => dispatch({ type: 'TOGGLE_AUTO_LOGIN' }), []);
   const toggleCompactMode = useCallback(() => dispatch({ type: 'TOGGLE_COMPACT_MODE' }), []);
-  const setDateFormat = useCallback((fmt: string) => dispatch({ type: 'SET_DATE_FORMAT', payload: fmt }), []);
+  const setDateFormat = useCallback(
+    (fmt: string) => dispatch({ type: 'SET_DATE_FORMAT', payload: fmt }),
+    []
+  );
   const resetSettings = useCallback(() => dispatch({ type: 'SETTINGS_RESET' }), []);
 
   return (
-    <SettingsContext.Provider value={{ state, toggleNotifications, toggleAutoLogin, toggleCompactMode, setDateFormat, resetSettings }}>
+    <SettingsContext.Provider
+      value={{
+        state,
+        toggleNotifications,
+        toggleAutoLogin,
+        toggleCompactMode,
+        setDateFormat,
+        resetSettings
+      }}
+    >
       {children}
     </SettingsContext.Provider>
   );

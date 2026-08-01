@@ -1,7 +1,7 @@
-import { UserRepository } from "../../repositories/user/user.repository.js";
-import type { UserDocument } from "../../db/models/user.model.js";
-import bcrypt from "bcryptjs";
-import { ConflictError } from "../../errors/index.js";
+import { UserRepository } from '../../repositories/user/user.repository.js';
+import type { UserDocument } from '../../db/models/user.model.js';
+import bcrypt from 'bcryptjs';
+import { ConflictError } from '../../errors/index.js';
 
 export class AuthService {
   private userRepository: UserRepository;
@@ -23,11 +23,11 @@ export class AuthService {
     password?: string;
     name: string;
     displayName?: string;
-    role?: "ADMIN" | "MEMBER" | "OWNER";
+    role?: 'ADMIN' | 'MEMBER' | 'OWNER';
   }): Promise<UserDocument> {
     const existing = await this.userRepository.findByEmail(data.email);
     if (existing) {
-      throw new ConflictError("A user with this email already exists.");
+      throw new ConflictError('A user with this email already exists.');
     }
 
     let passwordHash: string | null = null;
@@ -41,9 +41,9 @@ export class AuthService {
       passwordHash,
       name: data.name,
       displayName: data.displayName || data.name,
-      role: data.role || "MEMBER",
-      status: "active",
-      emailVerified: false,
+      role: data.role || 'MEMBER',
+      status: 'active',
+      emailVerified: false
     });
   }
 

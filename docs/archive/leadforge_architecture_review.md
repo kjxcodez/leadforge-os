@@ -14,11 +14,11 @@ This evolved architecture shifts LeadForge from a feature-bound client applicati
 
 ## 2. Strengths of the Evolved Architecture
 
-* **Extensible Execution Platform**: Adding new scrapers, AI models, CRM targets, or automation actions requires no changes to the core scheduling or worker logic. You simply write and register a new plugin.
-* **Responsive UI Threading**: Moving all work out of the Electron Main thread into sandboxed child processes (`child_process.fork()`) prevents UI lag.
-* **Unified State Management**: Consolidating all database synchronization into a single, generic `sync_queue` simplifies offline-first support.
-* **Real-time Diagnostics**: The combination of SQLite log storage, JSONL archives, and an Event Bus provides an excellent foundation for developer tools.
-* **Clean Boundaries**: The React Renderer is decoupled from the network; it acts as a viewer and modifier of the local SQLite database.
+- **Extensible Execution Platform**: Adding new scrapers, AI models, CRM targets, or automation actions requires no changes to the core scheduling or worker logic. You simply write and register a new plugin.
+- **Responsive UI Threading**: Moving all work out of the Electron Main thread into sandboxed child processes (`child_process.fork()`) prevents UI lag.
+- **Unified State Management**: Consolidating all database synchronization into a single, generic `sync_queue` simplifies offline-first support.
+- **Real-time Diagnostics**: The combination of SQLite log storage, JSONL archives, and an Event Bus provides an excellent foundation for developer tools.
+- **Clean Boundaries**: The React Renderer is decoupled from the network; it acts as a viewer and modifier of the local SQLite database.
 
 ---
 
@@ -75,6 +75,7 @@ The revised system architecture isolates concerns into clean layers, keeping the
 Instead of coding feature-specific worker threads, the desktop runtime implements a generic **Worker Host** that runs pluggable jobs.
 
 ### Pluggable Job Interface
+
 Every background execution task—regardless of whether it scrapes Google, crawls a site, dispatches SMTP emails, or queries an LLM—conforms to the `JobPlugin` interface:
 
 ```typescript
@@ -94,6 +95,7 @@ export interface JobPlugin {
 ```
 
 ### SQLite `jobs` Schema
+
 ```sql
 CREATE TABLE jobs (
   id TEXT PRIMARY KEY,
@@ -116,6 +118,7 @@ CREATE INDEX idx_jobs_scheduler ON jobs(workspaceId, status, priority, createdAt
 ```
 
 ### The Scheduler & Concurrency Flow
+
 The `JobScheduler` manages dispatching tasks based on priority, resource limits, and concurrency settings:
 
 ```
@@ -204,7 +207,7 @@ Under this architecture, company discovery is a structured pipeline. Each phase 
        [Emit Event]  ──► Step 8: Fire 'discovery:completed' on the Event Bus
 ```
 
-* **Checkpoint Resiliency**: If the crawler crashes during step 4, the scraper results from step 1 are already saved as raw cache. The pipeline can resume from the last successful step.
+- **Checkpoint Resiliency**: If the crawler crashes during step 4, the scraper results from step 1 are already saved as raw cache. The pipeline can resume from the last successful step.
 
 ---
 
@@ -213,6 +216,7 @@ Under this architecture, company discovery is a structured pipeline. Each phase 
 Automation campaigns run as structured jobs using pluggable **Actions** and **Conditions**.
 
 ### Extensible Action Plugin
+
 Instead of writing inline condition evaluations and mutations, automation actions are registered as plugins:
 
 ```typescript
@@ -230,9 +234,11 @@ export interface AutomationActionPlugin {
   describe(payload: any): string;
 }
 ```
-* **Rollback support** makes it easy to handle failures gracefully (e.g., removing a tag if a subsequent step fails).
+
+- **Rollback support** makes it easy to handle failures gracefully (e.g., removing a tag if a subsequent step fails).
 
 ### Pluggable Condition Evaluator
+
 ```typescript
 export interface ConditionContext {
   workspaceId: string;
@@ -247,10 +253,11 @@ export interface ConditionPlugin {
 ```
 
 This makes it clean to register condition checks:
-* `HasReply`: Evaluates if outreach logs show a reply.
-* `HasTag`: Checks if a contact has a specific tag.
-* `LeadScore`: Evaluates if the lead score is above a threshold.
-* `TimeElapsed`: Evaluates if enough time has passed.
+
+- `HasReply`: Evaluates if outreach logs show a reply.
+- `HasTag`: Checks if a contact has a specific tag.
+- `LeadScore`: Evaluates if the lead score is above a threshold.
+- `TimeElapsed`: Evaluates if enough time has passed.
 
 ---
 
@@ -277,6 +284,7 @@ The local `EventBus` decouples services completely. Components publish events, a
 ```
 
 ### Decoupled Sequence Example
+
 1. **Scraper** saves results $\rightarrow$ publishes `discovery:import:completed`.
 2. **Automation Engine** subscribes to `discovery:import:completed` $\rightarrow$ evaluates trigger rules $\rightarrow$ queues sequence jobs.
 3. **Analytics Engine** subscribes to `discovery:import:completed` $\rightarrow$ updates metrics in SQLite.
@@ -303,6 +311,7 @@ Logs should be written to three distinct destinations to support both offline us
 ```
 
 ### Log JSON Record Format
+
 ```json
 {
   "timestamp": "2026-07-13T22:20:05.102Z",
@@ -349,10 +358,11 @@ Since this is a desktop application, a built-in Developer Panel is invaluable. T
 ```
 
 ### Developer Console Features
-* **Jobs Inspector**: View, pause, pause execution, or cancel active running tasks.
-* **Sync Queue Monitor**: Check the queue length, view payloads, and trigger syncs manually.
-* **Event Stream Logger**: A real-time stream of all events passing through the local Event Bus.
-* **SQLite Inspector**: Run read-only SQL queries directly against the local `leadforge.db` from the UI.
+
+- **Jobs Inspector**: View, pause, pause execution, or cancel active running tasks.
+- **Sync Queue Monitor**: Check the queue length, view payloads, and trigger syncs manually.
+- **Event Stream Logger**: A real-time stream of all events passing through the local Event Bus.
+- **SQLite Inspector**: Run read-only SQL queries directly against the local `leadforge.db` from the UI.
 
 ---
 
@@ -377,6 +387,7 @@ CREATE INDEX idx_sync_queue_priority ON sync_queue(workspaceId, createdAt);
 ```
 
 ### Sync Engine Rules
+
 1. **No Bypassing**: All database modifications write to SQLite first and insert a record into `sync_queue`. The local repository never makes direct Hono API network calls.
 2. **Main Engine Processing**: The `SyncEngine` in Electron Main polls `sync_queue`. If online, it streams payloads to Hono in order, resolving conflicts using the `version` column.
 
@@ -415,18 +426,18 @@ class WorkspaceRuntime {
 }
 ```
 
-* **Dynamic Workspace Swapping**: When the user switches workspaces, the application spins down the previous workspace runtime and initializes the new one, keeping execution state cleanly isolated.
+- **Dynamic Workspace Swapping**: When the user switches workspaces, the application spins down the previous workspace runtime and initializes the new one, keeping execution state cleanly isolated.
 
 ---
 
 ## 13. Technical Risks & Mitigations
 
-* **SQLite Database Lock Concurrency**: Running multiple child workers that write to the SQLite database concurrently can cause `SQLITE_BUSY` errors.
-  * *Mitigation*: Enable WAL (Write-Ahead Logging) mode, set a busy timeout of 5000ms, and route all worker writes through IPC back to a single SQLite connection thread in Electron Main.
-* **Worker Process Crashes**: Headless browser automation (Playwright) can crash due to memory leaks or OS environment issues.
-  * *Mitigation*: The supervisor monitors child process exit codes. If a worker exits with a non-zero code, the job is marked `interrupted`, the browser is cleaned up, and the job is scheduled for a retry.
-* **Event Loop Latency**: Parsing large JSON Payloads or handling too many IPC messages in Electron Main can cause lag.
-  * *Mitigation*: Offload parsing to child processes. The main process should only handle structured messages and store raw payloads.
+- **SQLite Database Lock Concurrency**: Running multiple child workers that write to the SQLite database concurrently can cause `SQLITE_BUSY` errors.
+  - _Mitigation_: Enable WAL (Write-Ahead Logging) mode, set a busy timeout of 5000ms, and route all worker writes through IPC back to a single SQLite connection thread in Electron Main.
+- **Worker Process Crashes**: Headless browser automation (Playwright) can crash due to memory leaks or OS environment issues.
+  - _Mitigation_: The supervisor monitors child process exit codes. If a worker exits with a non-zero code, the job is marked `interrupted`, the browser is cleaned up, and the job is scheduled for a retry.
+- **Event Loop Latency**: Parsing large JSON Payloads or handling too many IPC messages in Electron Main can cause lag.
+  - _Mitigation_: Offload parsing to child processes. The main process should only handle structured messages and store raw payloads.
 
 ---
 
@@ -457,6 +468,6 @@ class WorkspaceRuntime {
 
 ## 15. Final Recommendation
 
-If building LeadForge OS today, we should implement a **Generic Job Runtime** using isolated **Workspace Runtimes**. 
+If building LeadForge OS today, we should implement a **Generic Job Runtime** using isolated **Workspace Runtimes**.
 
 By keeping the React Renderer focused on UI, moving sync logic to Electron Main, routing all heavy tasks through child workers, and using a plugin registry for custom search providers, conditions, and actions, LeadForge transitions into a scalable, local-first platform.

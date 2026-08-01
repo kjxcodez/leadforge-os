@@ -1,8 +1,8 @@
-import type { Context, Next } from "hono";
-import { z } from "@hono/zod-openapi";
-import { ValidationError } from "../errors/index.js";
+import type { Context, Next } from 'hono';
+import { z } from '@hono/zod-openapi';
+import { ValidationError } from '../errors/index.js';
 
-type ValidationTarget = "json" | "query" | "param";
+type ValidationTarget = 'json' | 'query' | 'param';
 
 /**
  * Reusable input validation middleware using Zod.
@@ -17,25 +17,25 @@ export function validate(target: ValidationTarget, schema: z.ZodSchema) {
     let data: unknown;
 
     try {
-      if (target === "json") {
+      if (target === 'json') {
         data = await c.req.json();
-      } else if (target === "query") {
+      } else if (target === 'query') {
         data = c.req.query();
-      } else if (target === "param") {
+      } else if (target === 'param') {
         data = c.req.param();
       }
     } catch (err) {
-      throw new ValidationError("Failed to parse request payload.", err);
+      throw new ValidationError('Failed to parse request payload.', err);
     }
 
     const result = schema.safeParse(data);
 
     if (!result.success) {
       const formattedErrors = result.error.errors.map((e) => ({
-        field: e.path.join("."),
-        message: e.message,
+        field: e.path.join('.'),
+        message: e.message
       }));
-      throw new ValidationError("Validation constraint violation.", formattedErrors);
+      throw new ValidationError('Validation constraint violation.', formattedErrors);
     }
 
     // Set the parsed value back to context for controllers

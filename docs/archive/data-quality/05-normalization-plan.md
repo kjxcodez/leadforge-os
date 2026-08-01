@@ -12,9 +12,11 @@ No code. Audit only.
 **Correct layer**: Scraper — before INSERT.
 
 **Files affected**:
+
 - `apps/desktop/src/main/workers/plugins/scraper.ts`
 
 **Implementation scope**:
+
 - Extract only the text before the first `·` separator.
 - Strip non-printable and non-standard Unicode characters (U+00B7, U+2022, U+2019, etc.).
 - Trim whitespace.
@@ -29,9 +31,11 @@ No code. Audit only.
 **Correct layer**: Scraper — at INSERT time.
 
 **Files affected**:
+
 - `apps/desktop/src/main/workers/plugins/scraper.ts`
 
 **Implementation scope**:
+
 - Add `status` to the INSERT column list.
 - Default value: `'LEAD'`.
 
@@ -44,10 +48,12 @@ No code. Audit only.
 **Correct layer**: Scraper + Crawler — at INSERT time.
 
 **Files affected**:
+
 - `apps/desktop/src/main/workers/plugins/scraper.ts`
 - `apps/desktop/src/main/workers/plugins/crawler.ts`
 
 **Implementation scope**:
+
 - Scraper: add `status = 'LEAD'` to contact INSERT.
 - Crawler: add `status = 'LEAD'` to contact INSERT.
 
@@ -60,9 +66,11 @@ No code. Audit only.
 **Correct layer**: Scraper — at INSERT time.
 
 **Files affected**:
+
 - `apps/desktop/src/main/workers/plugins/scraper.ts`
 
 **Implementation scope**:
+
 - Add `rating` to the INSERT column list.
 - Pass the extracted `rating` value (or null).
 
@@ -75,9 +83,11 @@ No code. Audit only.
 **Correct layer**: Scraper — before INSERT.
 
 **Files affected**:
+
 - `apps/desktop/src/main/workers/plugins/scraper.ts`
 
 **Implementation scope**:
+
 - Add: `SELECT id FROM contacts WHERE workspaceId = ? AND companyId = ?` before creating phone contact.
 - If a contact for this company already exists, skip creation.
 
@@ -90,15 +100,18 @@ No code. Audit only.
 **Correct layer**: Scraper + Crawler — at INSERT time (derive from available signals).
 
 **Files affected**:
+
 - `apps/desktop/src/main/workers/plugins/scraper.ts`
 - `apps/desktop/src/main/workers/plugins/crawler.ts`
 
 **Implementation scope**:
 For scraper phone contacts:
+
 - Use company name as a display reference (e.g. store the company name in notes or as a placeholder; do NOT fake a person name).
 - Leave firstName/lastName null — it is honest.
 
 For crawler email contacts:
+
 - If `type === 'human'` (e.g. john.doe@company.com), split email prefix on `.` or `_`:
   - Prefix: `john.doe` → firstName: `John`, lastName: `Doe`
   - Apply only when confidence = 'high'.
@@ -114,9 +127,11 @@ For crawler email contacts:
 **Correct layer**: Renderer — ContactsScreen.tsx.
 
 **Files affected**:
+
 - `apps/desktop/src/renderer/screens/ContactsScreen.tsx`
 
 **Implementation scope**:
+
 - Add `Company` column header to contacts list table thead.
 - In each row, resolve `companies.find(c => c.id === item.companyId)?.name || '—'`.
 - This is pure rendering — no data change needed.
@@ -130,9 +145,11 @@ For crawler email contacts:
 **Correct layer**: Renderer — CompaniesScreen.tsx.
 
 **Files affected**:
+
 - `apps/desktop/src/renderer/screens/CompaniesScreen.tsx`
 
 **Implementation scope**:
+
 - Load all contacts via `useEntityList(SyncContactRepository)`.
 - Filter by `selectedCompany.id === contact.companyId`.
 - Display list of contact emails/phones in a "Contacts" section in the side panel.
@@ -146,9 +163,11 @@ For crawler email contacts:
 **Correct layer**: Renderer — CompaniesScreen.tsx.
 
 **Files affected**:
+
 - `apps/desktop/src/renderer/screens/CompaniesScreen.tsx`
 
 **Implementation scope**:
+
 - Add website row with Globe icon in the Overview section.
 - Make it a clickable link (open in browser via `shell.openExternal`).
 
@@ -161,10 +180,12 @@ For crawler email contacts:
 **Correct layer**: Scraper + Crawler — before INSERT.
 
 **Files affected**:
+
 - `apps/desktop/src/main/workers/plugins/scraper.ts`
 - `apps/desktop/src/main/workers/plugins/crawler.ts`
 
 **Implementation scope**:
+
 - Strip non-digit characters except leading `+`.
 - For display purposes only — do not lose the original format.
 - Store as normalized digits for deduplication; keep original for display if needed.
@@ -173,15 +194,15 @@ For crawler email contacts:
 
 ## Priority Order for Implementation
 
-| Priority | Issue | Step |
-|----------|-------|------|
-| 1 | Address location normalization | Step 1 |
-| 2 | Company status default to LEAD | Step 2 |
-| 3 | Contact status default to LEAD | Step 2 |
-| 4 | rating persisted from scraper | Step 2 |
-| 5 | Duplicate phone contact guard | Step 3 |
-| 6 | Contact firstName from email prefix | Step 4 |
-| 7 | Company column in contacts list | Step 5 |
-| 8 | Contacts panel in company detail | Step 6 |
-| 9 | website shown in company detail | Step 6 |
-| 10 | phone normalization | Step 7 |
+| Priority | Issue                               | Step   |
+| -------- | ----------------------------------- | ------ |
+| 1        | Address location normalization      | Step 1 |
+| 2        | Company status default to LEAD      | Step 2 |
+| 3        | Contact status default to LEAD      | Step 2 |
+| 4        | rating persisted from scraper       | Step 2 |
+| 5        | Duplicate phone contact guard       | Step 3 |
+| 6        | Contact firstName from email prefix | Step 4 |
+| 7        | Company column in contacts list     | Step 5 |
+| 8        | Contacts panel in company detail    | Step 6 |
+| 9        | website shown in company detail     | Step 6 |
+| 10       | phone normalization                 | Step 7 |

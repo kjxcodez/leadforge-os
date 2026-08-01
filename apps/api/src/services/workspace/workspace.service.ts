@@ -1,8 +1,8 @@
-import crypto from "crypto";
-import { WorkspaceRepository } from "../../repositories/workspace/workspace.repository.js";
-import { UserRepository } from "../../repositories/user/user.repository.js";
-import type { WorkspaceDocument, WorkspaceMember } from "../../db/models/workspace.model.js";
-import { slugify } from "@leadforge/core";
+import crypto from 'crypto';
+import { WorkspaceRepository } from '../../repositories/workspace/workspace.repository.js';
+import { UserRepository } from '../../repositories/user/user.repository.js';
+import type { WorkspaceDocument, WorkspaceMember } from '../../db/models/workspace.model.js';
+import { slugify } from '@leadforge/core';
 import {
   createWorkspaceDtoSchema,
   updateWorkspaceDtoSchema,
@@ -11,9 +11,18 @@ import {
   type CreateWorkspaceDto,
   type UpdateWorkspaceDto,
   type InviteMemberDto
-} from "@leadforge/schema";
-import { NotFoundError, ForbiddenError, ConflictError, ValidationError } from "../../errors/index.js";
-import { canInviteMembers, canManageMembers, canTransferOwnership } from "../../utils/authorization.js";
+} from '@leadforge/schema';
+import {
+  NotFoundError,
+  ForbiddenError,
+  ConflictError,
+  ValidationError
+} from '../../errors/index.js';
+import {
+  canInviteMembers,
+  canManageMembers,
+  canTransferOwnership
+} from '../../utils/authorization.js';
 
 /**
  * WorkspaceService manages the lifecycle of workspaces, members, and invitations.
@@ -29,7 +38,7 @@ export class WorkspaceService {
 
   public async getWorkspaceById(id: string): Promise<WorkspaceDocument> {
     const workspace = await this.workspaceRepository.findById(id);
-    if (!workspace) throw new NotFoundError("Workspace not found.");
+    if (!workspace) throw new NotFoundError('Workspace not found.');
     return workspace;
   }
 
@@ -41,7 +50,9 @@ export class WorkspaceService {
     return this.workspaceRepository.findUserWorkspaces(userId);
   }
 
-  public async createWorkspace(dto: CreateWorkspaceDto & { ownerId: string; ownerEmail: string }): Promise<WorkspaceDocument> {
+  public async createWorkspace(
+    dto: CreateWorkspaceDto & { ownerId: string; ownerEmail: string }
+  ): Promise<WorkspaceDocument> {
     const validated = createWorkspaceDtoSchema.parse(dto);
     const slug = slugify(validated.name);
 
@@ -49,8 +60,8 @@ export class WorkspaceService {
       name: validated.name,
       slug,
       ownerId: dto.ownerId,
-      plan: "free",
-      settings: validated.settings || { defaultTimezone: "UTC" },
+      plan: 'free',
+      settings: validated.settings || { defaultTimezone: 'UTC' },
       members: [
         {
           userId: dto.ownerId,
@@ -58,20 +69,26 @@ export class WorkspaceService {
           role: WorkspaceRole.OWNER,
           status: WorkspaceMemberStatus.ACTIVE,
           joinedAt: new Date(),
-          invitedAt: new Date(),
-        },
-      ],
+          invitedAt: new Date()
+        }
+      ]
     });
   }
 
-  public async updateWorkspace(id: string, dto: UpdateWorkspaceDto, actorId: string): Promise<WorkspaceDocument> {
+  public async updateWorkspace(
+    id: string,
+    dto: UpdateWorkspaceDto,
+    actorId: string
+  ): Promise<WorkspaceDocument> {
     const validated = updateWorkspaceDtoSchema.parse(dto);
     const workspace = await this.getWorkspaceById(id);
 
     // Authorize: actor must be OWNER or ADMIN to update workspace settings
-    const member = workspace.members.find((m) => m.userId === actorId && m.status === WorkspaceMemberStatus.ACTIVE);
+    const member = workspace.members.find(
+      (m) => m.userId === actorId && m.status === WorkspaceMemberStatus.ACTIVE
+    );
     if (!member || (member.role !== WorkspaceRole.OWNER && member.role !== WorkspaceRole.ADMIN)) {
-      throw new ForbiddenError("Only workspace owners and administrators can modify settings.");
+      throw new ForbiddenError('Only workspace owners and administrators can modify settings.');
     }
 
     if (validated.name) {
@@ -81,7 +98,7 @@ export class WorkspaceService {
     if (validated.settings?.defaultTimezone) {
       workspace.settings = {
         ...workspace.settings,
-        defaultTimezone: validated.settings.defaultTimezone,
+        defaultTimezone: validated.settings.defaultTimezone
       };
     }
 
@@ -91,7 +108,7 @@ export class WorkspaceService {
   public async softDeleteWorkspace(id: string, actorId: string): Promise<WorkspaceDocument> {
     const workspace = await this.getWorkspaceById(id);
     if (workspace.ownerId !== actorId) {
-      throw new ForbiddenError("Only the workspace owner can delete the workspace.");
+      throw new ForbiddenError('Only the workspace owner can delete the workspace.');
     }
 
     return (workspace as any).softDelete(actorId);
@@ -105,9 +122,11 @@ export class WorkspaceService {
     const workspace = await this.getWorkspaceById(workspaceId);
 
     // Authorize
-    const actorMember = workspace.members.find((m) => m.userId === actorId && m.status === WorkspaceMemberStatus.ACTIVE);
+    const actorMember = workspace.members.find(
+      (m) => m.userId === actorId && m.status === WorkspaceMemberStatus.ACTIVE
+    );
     if (!actorMember || !canInviteMembers(actorMember.role as any)) {
-      throw new ForbiddenError("You do not have permission to invite members to this workspace.");
+      throw new ForbiddenError('You do not have permission to invite members to this workspace.');
     }
 
     const inviteEmail = dto.email.toLowerCase().trim();
@@ -116,12 +135,12 @@ export class WorkspaceService {
     const existing = workspace.members.find((m) => m.email === inviteEmail);
     if (existing) {
       if (existing.status === WorkspaceMemberStatus.ACTIVE) {
-        throw new ConflictError("User is already a member of this workspace.");
+        throw new ConflictError('User is already a member of this workspace.');
       }
       if (existing.status === WorkspaceMemberStatus.PENDING) {
         // Re-send / update invitation expiration
         existing.role = dto.role;
-        existing.invitationToken = crypto.randomBytes(32).toString("hex");
+        existing.invitationToken = crypto.randomBytes(32).toString('hex');
         existing.invitationExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
         existing.invitedBy = actorId;
         existing.invitedAt = new Date();
@@ -130,7 +149,7 @@ export class WorkspaceService {
     }
 
     // Generate token
-    const token = crypto.randomBytes(32).toString("hex");
+    const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
     const pendingUser = await this.userRepository.findByEmail(inviteEmail);
@@ -143,7 +162,7 @@ export class WorkspaceService {
       invitedBy: actorId,
       invitedAt: new Date(),
       invitationToken: token,
-      invitationExpiresAt: expiresAt,
+      invitationExpiresAt: expiresAt
     };
 
     workspace.members.push(newMember);
@@ -152,24 +171,24 @@ export class WorkspaceService {
 
   public async acceptInvite(token: string, userId: string): Promise<WorkspaceDocument> {
     const workspace = await this.workspaceRepository.findByInvitationToken(token);
-    if (!workspace) throw new NotFoundError("Invitation token is invalid or expired.");
+    if (!workspace) throw new NotFoundError('Invitation token is invalid or expired.');
 
     const memberIndex = workspace.members.findIndex((m) => m.invitationToken === token);
     const member = workspace.members[memberIndex];
-    if (!member) throw new ValidationError("Invitation not found.");
+    if (!member) throw new ValidationError('Invitation not found.');
 
     if (member.invitationExpiresAt && member.invitationExpiresAt < new Date()) {
       member.status = WorkspaceMemberStatus.EXPIRED;
       await workspace.save();
-      throw new ValidationError("This invitation has expired.");
+      throw new ValidationError('This invitation has expired.');
     }
 
     // Match verifying user
     const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("User not found.");
+    if (!user) throw new NotFoundError('User not found.');
 
     if (user.email.toLowerCase().trim() !== member.email) {
-      throw new ForbiddenError("This invitation was sent to a different email address.");
+      throw new ForbiddenError('This invitation was sent to a different email address.');
     }
 
     member.userId = userId;
@@ -187,16 +206,16 @@ export class WorkspaceService {
 
   public async declineInvite(token: string, userId: string): Promise<WorkspaceDocument> {
     const workspace = await this.workspaceRepository.findByInvitationToken(token);
-    if (!workspace) throw new NotFoundError("Invitation not found.");
+    if (!workspace) throw new NotFoundError('Invitation not found.');
 
     const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("User not found.");
+    if (!user) throw new NotFoundError('User not found.');
 
     const member = workspace.members.find((m) => m.invitationToken === token);
-    if (!member) throw new NotFoundError("Invitation not found.");
+    if (!member) throw new NotFoundError('Invitation not found.');
 
     if (user.email.toLowerCase().trim() !== member.email) {
-      throw new ForbiddenError("Only the recipient can decline this invitation.");
+      throw new ForbiddenError('Only the recipient can decline this invitation.');
     }
 
     member.status = WorkspaceMemberStatus.DECLINED;
@@ -215,55 +234,77 @@ export class WorkspaceService {
     const workspace = await this.getWorkspaceById(workspaceId);
 
     // Authorize actor
-    const actorMember = workspace.members.find((m) => m.userId === actorId && m.status === WorkspaceMemberStatus.ACTIVE);
+    const actorMember = workspace.members.find(
+      (m) => m.userId === actorId && m.status === WorkspaceMemberStatus.ACTIVE
+    );
     if (!actorMember || !canManageMembers(actorMember.role as any)) {
-      throw new ForbiddenError("You do not have permission to update member roles.");
+      throw new ForbiddenError('You do not have permission to update member roles.');
     }
 
     // Locate member to modify
-    const targetMember = workspace.members.find((m) => (m as any).id === memberId || m.userId === memberId);
-    if (!targetMember) throw new NotFoundError("Member not found in workspace.");
+    const targetMember = workspace.members.find(
+      (m) => (m as any).id === memberId || m.userId === memberId
+    );
+    if (!targetMember) throw new NotFoundError('Member not found in workspace.');
 
     if (targetMember.role === WorkspaceRole.OWNER) {
-      throw new ValidationError("Workspace owner role cannot be changed directly. Please use transfer ownership.");
+      throw new ValidationError(
+        'Workspace owner role cannot be changed directly. Please use transfer ownership.'
+      );
     }
 
     if (role === WorkspaceRole.OWNER) {
-      throw new ValidationError("To grant Owner access, please use the transfer ownership workflow.");
+      throw new ValidationError(
+        'To grant Owner access, please use the transfer ownership workflow.'
+      );
     }
 
     targetMember.role = role;
     return workspace.save();
   }
 
-  public async removeMember(workspaceId: string, memberId: string, actorId: string): Promise<WorkspaceDocument> {
+  public async removeMember(
+    workspaceId: string,
+    memberId: string,
+    actorId: string
+  ): Promise<WorkspaceDocument> {
     const workspace = await this.getWorkspaceById(workspaceId);
 
     // Authorize actor
-    const actorMember = workspace.members.find((m) => m.userId === actorId && m.status === WorkspaceMemberStatus.ACTIVE);
+    const actorMember = workspace.members.find(
+      (m) => m.userId === actorId && m.status === WorkspaceMemberStatus.ACTIVE
+    );
     if (!actorMember || !canManageMembers(actorMember.role as any)) {
-      throw new ForbiddenError("You do not have permission to remove members.");
+      throw new ForbiddenError('You do not have permission to remove members.');
     }
 
-    const targetMember = workspace.members.find((m) => (m as any).id === memberId || m.userId === memberId);
-    if (!targetMember) throw new NotFoundError("Member not found in workspace.");
+    const targetMember = workspace.members.find(
+      (m) => (m as any).id === memberId || m.userId === memberId
+    );
+    if (!targetMember) throw new NotFoundError('Member not found in workspace.');
 
     if (targetMember.role === WorkspaceRole.OWNER) {
-      throw new ValidationError("Workspace owner cannot be removed. Transfer ownership first.");
+      throw new ValidationError('Workspace owner cannot be removed. Transfer ownership first.');
     }
 
-    workspace.members = workspace.members.filter((m) => (m as any).id !== (targetMember as any).id && m.userId !== targetMember.userId) as any;
+    workspace.members = workspace.members.filter(
+      (m) => (m as any).id !== (targetMember as any).id && m.userId !== targetMember.userId
+    ) as any;
     return workspace.save();
   }
 
   public async leaveWorkspace(workspaceId: string, userId: string): Promise<WorkspaceDocument> {
     const workspace = await this.getWorkspaceById(workspaceId);
 
-    const targetMember = workspace.members.find((m) => m.userId === userId && m.status === WorkspaceMemberStatus.ACTIVE);
-    if (!targetMember) throw new NotFoundError("You are not a member of this workspace.");
+    const targetMember = workspace.members.find(
+      (m) => m.userId === userId && m.status === WorkspaceMemberStatus.ACTIVE
+    );
+    if (!targetMember) throw new NotFoundError('You are not a member of this workspace.');
 
     if (targetMember.role === WorkspaceRole.OWNER) {
-      throw new ValidationError("Workspace owners cannot leave. Please transfer ownership or delete the workspace.");
+      throw new ValidationError(
+        'Workspace owners cannot leave. Please transfer ownership or delete the workspace.'
+      );
     }
 
     workspace.members = workspace.members.filter((m) => m.userId !== userId);
@@ -279,14 +320,16 @@ export class WorkspaceService {
 
     // Only current OWNER can transfer
     if (workspace.ownerId !== actorId) {
-      throw new ForbiddenError("Only the current workspace owner can transfer ownership.");
+      throw new ForbiddenError('Only the current workspace owner can transfer ownership.');
     }
 
     const currentOwnerMember = workspace.members.find((m) => m.userId === actorId);
-    const newOwnerMember = workspace.members.find((m) => m.userId === newOwnerId && m.status === WorkspaceMemberStatus.ACTIVE);
+    const newOwnerMember = workspace.members.find(
+      (m) => m.userId === newOwnerId && m.status === WorkspaceMemberStatus.ACTIVE
+    );
 
     if (!newOwnerMember) {
-      throw new ValidationError("The new owner must be an active member of this workspace.");
+      throw new ValidationError('The new owner must be an active member of this workspace.');
     }
 
     // Perform swap
@@ -299,12 +342,17 @@ export class WorkspaceService {
     return workspace.save();
   }
 
-  public async listWorkspacePendingInvites(workspaceId: string, actorId: string): Promise<WorkspaceMember[]> {
+  public async listWorkspacePendingInvites(
+    workspaceId: string,
+    actorId: string
+  ): Promise<WorkspaceMember[]> {
     const workspace = await this.getWorkspaceById(workspaceId);
 
-    const actor = workspace.members.find((m) => m.userId === actorId && m.status === WorkspaceMemberStatus.ACTIVE);
+    const actor = workspace.members.find(
+      (m) => m.userId === actorId && m.status === WorkspaceMemberStatus.ACTIVE
+    );
     if (!actor) {
-      throw new ForbiddenError("You are not authorized to view invitations in this workspace.");
+      throw new ForbiddenError('You are not authorized to view invitations in this workspace.');
     }
 
     return workspace.members.filter((m) => m.status === WorkspaceMemberStatus.PENDING);

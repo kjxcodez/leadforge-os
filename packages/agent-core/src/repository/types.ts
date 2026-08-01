@@ -1,4 +1,11 @@
-import type { Company, Contact, Campaign, Sequence, SequenceExecution, SequenceLog } from '@leadforge/schema';
+import type {
+  Company,
+  Contact,
+  Campaign,
+  Sequence,
+  SequenceExecution,
+  SequenceLog
+} from '@leadforge/schema';
 
 export interface LeadRepository {
   getById(id: string, workspaceId: string): Promise<Contact | null>;

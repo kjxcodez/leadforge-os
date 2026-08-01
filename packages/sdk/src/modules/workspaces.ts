@@ -39,7 +39,11 @@ export class WorkspacesModule {
     return this.client.get<WorkspaceMember[]>(`/workspaces/${id}/members`);
   }
 
-  public async updateMemberRole(id: string, memberId: string, role: WorkspaceRole): Promise<Workspace> {
+  public async updateMemberRole(
+    id: string,
+    memberId: string,
+    role: WorkspaceRole
+  ): Promise<Workspace> {
     return this.client.patch<Workspace>(`/workspaces/${id}/members/${memberId}/role`, { role });
   }
 

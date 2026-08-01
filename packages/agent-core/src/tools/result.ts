@@ -16,7 +16,17 @@ export interface ToolResultMetadata {
 }
 
 export type ToolResult<T = unknown> =
-  | { readonly success: true; readonly data: T; readonly error?: never; readonly metadata: ToolResultMetadata }
-  | { readonly success: false; readonly data?: never; readonly error: ToolError; readonly metadata: ToolResultMetadata };
+  | {
+      readonly success: true;
+      readonly data: T;
+      readonly error?: never;
+      readonly metadata: ToolResultMetadata;
+    }
+  | {
+      readonly success: false;
+      readonly data?: never;
+      readonly error: ToolError;
+      readonly metadata: ToolResultMetadata;
+    };
 
 export type AsyncToolResult<T = unknown> = Promise<ToolResult<T>>;

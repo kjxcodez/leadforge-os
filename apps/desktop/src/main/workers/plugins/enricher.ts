@@ -70,8 +70,23 @@ function extractDomain(urlStr: string): string | null {
 function classifyEmail(email: string): 'human' | 'department' | 'unknown' {
   const prefix = (email.split('@')[0] || '').toLowerCase();
   const departmentPrefixes = [
-    'info', 'hello', 'contact', 'support', 'sales', 'careers', 'jobs', 'billing', 'admin',
-    'office', 'team', 'general', 'marketing', 'press', 'media', 'help', 'service'
+    'info',
+    'hello',
+    'contact',
+    'support',
+    'sales',
+    'careers',
+    'jobs',
+    'billing',
+    'admin',
+    'office',
+    'team',
+    'general',
+    'marketing',
+    'press',
+    'media',
+    'help',
+    'service'
   ];
   if (departmentPrefixes.includes(prefix)) {
     return 'department';
@@ -99,7 +114,9 @@ function calculateConfidence(
   if (isDomainMatch) {
     if (type === 'human') {
       const path = sourceUrl ? new URL(sourceUrl).pathname.toLowerCase() : '';
-      const isContactPage = path.match(/\/(contact|about|team|staff|people|meet-the-team|leadership)/i);
+      const isContactPage = path.match(
+        /\/(contact|about|team|staff|people|meet-the-team|leadership)/i
+      );
       if (isContactPage) {
         return 'high';
       }
@@ -158,7 +175,10 @@ function calculateCompanyScore(
 export async function enrichWebsite(ctx: JobContext): Promise<any> {
   const companyId = ctx.payload.companyId as string | undefined;
 
-  ctx.emitLog(`Initializing Website Contact Enricher plugin. Workspace: ${ctx.workspaceId} | Target Company: ${companyId || 'ALL'}`, 'info');
+  ctx.emitLog(
+    `Initializing Website Contact Enricher plugin. Workspace: ${ctx.workspaceId} | Target Company: ${companyId || 'ALL'}`,
+    'info'
+  );
 
   const dbDir = process.env.WORKSPACES_DB_DIR || '';
   if (!dbDir) {
@@ -176,24 +196,35 @@ export async function enrichWebsite(ctx: JobContext): Promise<any> {
   if (checkpoint) {
     checkpoint.processedContacts?.forEach((id: string) => processedContacts.add(id));
     currentIndex = checkpoint.currentIndex || 0;
-    ctx.emitLog(`Resuming enrichment from checkpoint. Processed: ${processedContacts.size} contacts.`, 'info');
+    ctx.emitLog(
+      `Resuming enrichment from checkpoint. Processed: ${processedContacts.size} contacts.`,
+      'info'
+    );
   }
 
   try {
     // 1. Fetch contacts requiring enrichment
     let contacts: ContactRecord[] = [];
     if (companyId) {
-      contacts = db.prepare(`
+      contacts = db
+        .prepare(
+          `
         SELECT id, companyId, email, sourceUrl, phone
         FROM contacts
         WHERE workspaceId = ? AND companyId = ?
-      `).all(ctx.workspaceId, companyId) as ContactRecord[];
+      `
+        )
+        .all(ctx.workspaceId, companyId) as ContactRecord[];
     } else {
-      contacts = db.prepare(`
+      contacts = db
+        .prepare(
+          `
         SELECT id, companyId, email, sourceUrl, phone
         FROM contacts
         WHERE workspaceId = ?
-      `).all(ctx.workspaceId) as ContactRecord[];
+      `
+        )
+        .all(ctx.workspaceId) as ContactRecord[];
     }
 
     if (contacts.length === 0) {
@@ -201,7 +232,10 @@ export async function enrichWebsite(ctx: JobContext): Promise<any> {
       return { enrichedCount: 0 };
     }
 
-    ctx.emitLog(`Retrieved ${contacts.length} candidate contacts for enrichment. Checking duplicates...`, 'info');
+    ctx.emitLog(
+      `Retrieved ${contacts.length} candidate contacts for enrichment. Checking duplicates...`,
+      'info'
+    );
 
     // 2. Local duplicate detection & clean up in SQLite
     const seenEmails = new Map<string, string>(); // email -> contactId
@@ -217,17 +251,22 @@ export async function enrichWebsite(ctx: JobContext): Promise<any> {
     }
 
     if (duplicatesToDelete.length > 0) {
-      ctx.emitLog(`Deduplicating workspace contacts: removing ${duplicatesToDelete.length} redundant rows.`, 'info');
+      ctx.emitLog(
+        `Deduplicating workspace contacts: removing ${duplicatesToDelete.length} redundant rows.`,
+        'info'
+      );
       db.transaction(() => {
         const delStmt = db.prepare('DELETE FROM contacts WHERE id = ?');
-        const delSync = db.prepare("DELETE FROM sync_queue WHERE entityType = 'contacts' AND entityId = ?");
+        const delSync = db.prepare(
+          "DELETE FROM sync_queue WHERE entityType = 'contacts' AND entityId = ?"
+        );
         for (const id of duplicatesToDelete) {
           delStmt.run(id);
           delSync.run(id);
         }
       })();
       // Re-fetch contacts list after deletion
-      contacts = contacts.filter(c => !duplicatesToDelete.includes(c.id));
+      contacts = contacts.filter((c) => !duplicatesToDelete.includes(c.id));
     }
 
     // 3. Process and enrich contacts
@@ -253,7 +292,9 @@ export async function enrichWebsite(ctx: JobContext): Promise<any> {
 
         // Fetch company profile for domain matching
         if (!companyCache.has(contact.companyId)) {
-          const comp = db.prepare('SELECT id, website, location FROM companies WHERE id = ?').get(contact.companyId) as CompanyRecord | undefined;
+          const comp = db
+            .prepare('SELECT id, website, location FROM companies WHERE id = ?')
+            .get(contact.companyId) as CompanyRecord | undefined;
           if (comp) {
             companyCache.set(contact.companyId, comp);
           }
@@ -270,13 +311,18 @@ export async function enrichWebsite(ctx: JobContext): Promise<any> {
           confidence = 'low';
         } else {
           type = classifyEmail(normEmail);
-          confidence = calculateConfidence(normEmail, contact.sourceUrl || null, company?.website || null);
+          confidence = calculateConfidence(
+            normEmail,
+            contact.sourceUrl || null,
+            company?.website || null
+          );
           enrichedCount++;
         }
 
         // Persist enriched details to contacts and stage sync task
         db.transaction(() => {
-          db.prepare(`
+          db.prepare(
+            `
             UPDATE contacts
             SET email = ?,
                 type = ?,
@@ -284,12 +330,15 @@ export async function enrichWebsite(ctx: JobContext): Promise<any> {
                 verificationStatus = ?,
                 updatedAt = CURRENT_TIMESTAMP
             WHERE id = ?
-          `).run(normEmail, type, confidence, verificationStatus, contact.id);
+          `
+          ).run(normEmail, type, confidence, verificationStatus, contact.id);
 
-          db.prepare(`
+          db.prepare(
+            `
             INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
             VALUES (?, ?, ?, ?, 'UPDATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
-          `).run(
+          `
+          ).run(
             randomUUID(),
             ctx.workspaceId,
             'contacts',
@@ -318,10 +367,12 @@ export async function enrichWebsite(ctx: JobContext): Promise<any> {
 
         // Autosave checkpoint every 10 contacts
         if (processedContacts.size % 10 === 0) {
-          ctx.saveCheckpoint({ processedContacts: Array.from(processedContacts), currentIndex: i + 1 });
+          ctx.saveCheckpoint({
+            processedContacts: Array.from(processedContacts),
+            currentIndex: i + 1
+          });
           ctx.emitLog(`Autosaved enrichment checkpoint at index ${i + 1}.`, 'info');
         }
-
       } catch (err: any) {
         ctx.emitLog(`Failed to enrich contact ${contact.id}: ${err.message || err}`, 'error');
       }
@@ -329,32 +380,50 @@ export async function enrichWebsite(ctx: JobContext): Promise<any> {
 
     // 4. Update Lead Scores for companies processed
     const companiesToUpdate = companyId ? [companyId] : Array.from(companyCache.keys());
-    ctx.emitLog(`Computing profiles lead scores for ${companiesToUpdate.length} companies...`, 'info');
+    ctx.emitLog(
+      `Computing profiles lead scores for ${companiesToUpdate.length} companies...`,
+      'info'
+    );
 
     for (const compId of companiesToUpdate) {
       try {
-        const comp = db.prepare('SELECT id, website, location FROM companies WHERE id = ?').get(compId) as CompanyRecord | undefined;
+        const comp = db
+          .prepare('SELECT id, website, location FROM companies WHERE id = ?')
+          .get(compId) as CompanyRecord | undefined;
         if (!comp) continue;
 
-        const compContacts = db.prepare('SELECT confidence FROM contacts WHERE companyId = ?').all(compId) as { confidence: string | null }[];
-        const phoneRow = db.prepare('SELECT phone FROM contacts WHERE companyId = ? AND phone IS NOT NULL LIMIT 1').get(compId) as { phone: string } | undefined;
-        
-        const score = calculateCompanyScore(compContacts, comp.website || null, phoneRow?.phone || null, comp.location || null);
+        const compContacts = db
+          .prepare('SELECT confidence FROM contacts WHERE companyId = ?')
+          .all(compId) as { confidence: string | null }[];
+        const phoneRow = db
+          .prepare('SELECT phone FROM contacts WHERE companyId = ? AND phone IS NOT NULL LIMIT 1')
+          .get(compId) as { phone: string } | undefined;
+
+        const score = calculateCompanyScore(
+          compContacts,
+          comp.website || null,
+          phoneRow?.phone || null,
+          comp.location || null
+        );
 
         db.transaction(() => {
-          db.prepare(`
+          db.prepare(
+            `
             UPDATE companies
             SET contactCount = ?,
                 score = ?,
                 scoreUpdatedAt = datetime('now'),
                 updatedAt = CURRENT_TIMESTAMP
             WHERE id = ?
-          `).run(compContacts.length, score, compId);
+          `
+          ).run(compContacts.length, score, compId);
 
-          db.prepare(`
+          db.prepare(
+            `
             INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
             VALUES (?, ?, ?, ?, 'UPDATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
-          `).run(
+          `
+          ).run(
             randomUUID(),
             ctx.workspaceId,
             'companies',
@@ -368,15 +437,23 @@ export async function enrichWebsite(ctx: JobContext): Promise<any> {
           );
         })();
 
-        ctx.emitLog(`Updated Lead Score for company ${compId}: ${score} (Contacts: ${compContacts.length})`, 'info');
+        ctx.emitLog(
+          `Updated Lead Score for company ${compId}: ${score} (Contacts: ${compContacts.length})`,
+          'info'
+        );
       } catch (scoreErr: any) {
-        ctx.emitLog(`Failed to calculate score for company ${compId}: ${scoreErr.message || scoreErr}`, 'error');
+        ctx.emitLog(
+          `Failed to calculate score for company ${compId}: ${scoreErr.message || scoreErr}`,
+          'error'
+        );
       }
     }
 
-    ctx.emitLog(`Enrichment complete. Total contacts successfully enriched: ${enrichedCount}`, 'info');
+    ctx.emitLog(
+      `Enrichment complete. Total contacts successfully enriched: ${enrichedCount}`,
+      'info'
+    );
     return { enrichedCount };
-
   } finally {
     db.close();
   }

@@ -17,18 +17,22 @@ The codebase is organized as a monorepo utilizing **pnpm workspaces** and **Turb
 Before you begin, ensure you have the following software installed:
 
 ### 1. Node.js
+
 - **Required**: `v18.0.0` or higher (recommended: `v20.x` or `v22.x` LTS).
 - **Verify**: `node -v`
 
 ### 2. pnpm
+
 - **Required**: `v8.0.0` or higher.
 - **Verify**: `pnpm -v`
 
 ### 3. Git
+
 - **Required**: Installed and configured.
 - **Verify**: `git --version`
 
 ### 4. Ollama (Optional)
+
 - **Use Case**: For local offline lead qualification and prompt scoring.
 - **Setup**: Install [Ollama](https://ollama.com/) locally and run `ollama run llama3.1` (or your model of choice).
 
@@ -37,19 +41,24 @@ Before you begin, ensure you have the following software installed:
 ## 🚀 Setup & Installation
 
 ### 1. Clone the Repository
+
 ```bash
 git clone https://github.com/kjxcodez/leadforge-os.git
 cd leadforge-os
 ```
 
 ### 2. Install Dependencies
+
 Install all package dependencies in the monorepo root:
+
 ```bash
 pnpm install
 ```
 
 ### 3. Build Shared Packages
+
 Build all package and application dependencies (e.g. `@leadforge/schema`, `@leadforge/ai`):
+
 ```bash
 pnpm build
 ```
@@ -66,6 +75,7 @@ pnpm dev
 ```
 
 ### Filtering App Startup
+
 If you only need to run specific applications:
 
 ```bash
@@ -77,6 +87,7 @@ pnpm dev --filter=@leadforge/desktop
 ```
 
 On first launch, the desktop application will:
+
 1. Initialize a new local database under `userData/workspaces` (typically in `C:\Users\<user>\AppData\Roaming\leadforge` on Windows).
 2. Apply the 23 SQL migrations to create the required CRM schemas.
 3. Seed sample demo companies, contacts, and email sequences to let you explore the product immediately.
@@ -88,16 +99,21 @@ On first launch, the desktop application will:
 To compile, build, and package the application into a distribution installer:
 
 ### 1. Build Desktop Bundle
+
 To build both packages and the desktop application:
+
 ```bash
 pnpm build
 ```
 
 ### 2. Package Installer (Windows)
+
 To build a target distribution installer executable:
+
 ```bash
 pnpm package
 ```
+
 This script triggers `electron-vite build` and packages the app using `electron-builder` producing a setup `.exe` in `apps/desktop/dist/`.
 
 ---
@@ -105,10 +121,13 @@ This script triggers `electron-vite build` and packages the app using `electron-
 ## 🔍 Troubleshooting Setup
 
 ### Mismatched SQLite DLL Binary Mismatch
+
 If you get a DLOpen error similar to:
+
 ```text
 better_sqlite3.node was compiled against a different Node.js version
 ```
+
 - **Why**: The native `better-sqlite3` driver was compiled against your system's global Node binary rather than Electron's internal Node ABI.
 - **Fix**: Run the build script using the workspace package manager:
   ```bash
@@ -116,7 +135,9 @@ better_sqlite3.node was compiled against a different Node.js version
   ```
 
 ### Git Dirty Errors in Release Gate
+
 If you run `pnpm release:check` or `pnpm doctor` and it fails on git status check:
+
 - **Why**: Uncommitted code changes are present in your workspace.
 - **Fix**: Commit your changes or stash them before running release validations:
   ```bash

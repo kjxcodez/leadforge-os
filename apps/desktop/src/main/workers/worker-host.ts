@@ -132,7 +132,7 @@ process.on('message', async (rawMsg: unknown) => {
     case 'ping':
       process.send?.({
         type: 'pong',
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       } as WorkerToMainMsg);
       break;
   }
@@ -154,9 +154,7 @@ process.on('message', async (rawMsg: unknown) => {
  *   cancel   → { type: 'cancelled', ... }    → process.exit(0)
  *   error    → { type: 'error', ... }        → process.exit(1)
  */
-async function handleStart(
-  msg: Extract<MainToWorkerMsg, { command: 'start' }>
-): Promise<void> {
+async function handleStart(msg: Extract<MainToWorkerMsg, { command: 'start' }>): Promise<void> {
   const { jobId, workspaceId, type, payload } = msg;
 
   // Resolve the workspace SQLite path from the environment variable injected
@@ -178,11 +176,7 @@ async function handleStart(
       process.send?.({ type: 'progress', progress, metadata } as WorkerToMainMsg);
     },
 
-    emitLog: (
-      message: string,
-      severity: 'info' | 'warn' | 'error' = 'info',
-      meta?: any
-    ) => {
+    emitLog: (message: string, severity: 'info' | 'warn' | 'error' = 'info', meta?: any) => {
       process.send?.({ type: 'log', severity, message, meta } as WorkerToMainMsg);
     },
 
@@ -209,7 +203,7 @@ async function handleStart(
      * Returns the checkpoint from the previous pause/interrupt, if any.
      * The scheduler injects it as `payload._checkpoint` when re-dispatching.
      */
-    getCheckpoint: () => payload?._checkpoint ?? null,
+    getCheckpoint: () => payload?._checkpoint ?? null
   };
 
   try {
@@ -229,7 +223,7 @@ async function handleStart(
     if (isPausedState) {
       process.send?.({
         type: 'paused',
-        checkpoint: lastCheckpoint,
+        checkpoint: lastCheckpoint
       } as WorkerToMainMsg);
       process.exit(0);
       return;
@@ -238,7 +232,7 @@ async function handleStart(
     if (isCancelledState) {
       process.send?.({
         type: 'cancelled',
-        cleanedUp: true,
+        cleanedUp: true
       } as WorkerToMainMsg);
       process.exit(0);
       return;
@@ -247,7 +241,7 @@ async function handleStart(
     process.send?.({
       type: 'error',
       error: err.message || String(err),
-      recoverable: false,
+      recoverable: false
     } as WorkerToMainMsg);
     process.exit(1);
   }

@@ -1,6 +1,6 @@
-import { OpenAPIHono } from "@hono/zod-openapi";
-import { router as healthRouter } from "./health/index.js";
-import { router as authRouter } from "./auth/index.js";
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { router as healthRouter } from './health/index.js';
+import { router as authRouter } from './auth/index.js';
 import {
   companiesRouter,
   contactsRouter,
@@ -8,39 +8,39 @@ import {
   outreachRouter,
   workspacesRouter,
   discoveryRouter,
-  activitiesRouter,
-} from "./business.js";
-import { automationRouter } from "./automation.js";
+  activitiesRouter
+} from './business.js';
+import { automationRouter } from './automation.js';
 
-import { authMiddleware, workspaceMiddleware } from "../middleware/auth.js";
+import { authMiddleware, workspaceMiddleware } from '../middleware/auth.js';
 
 const apiRouter = new OpenAPIHono();
 
 // Mount System Health Check
-apiRouter.route("/", healthRouter);
+apiRouter.route('/', healthRouter);
 
 // Mount Better Auth credentials endpoints
-apiRouter.route("/auth", authRouter);
+apiRouter.route('/auth', authRouter);
 
 // Protect business and workspace endpoints
-apiRouter.use("/companies/*", authMiddleware, workspaceMiddleware);
-apiRouter.use("/contacts/*", authMiddleware, workspaceMiddleware);
-apiRouter.use("/campaigns/*", authMiddleware, workspaceMiddleware);
-apiRouter.use("/outreach/*", authMiddleware, workspaceMiddleware);
-apiRouter.use("/workspaces/*", authMiddleware, workspaceMiddleware);
-apiRouter.use("/discovery/*", authMiddleware, workspaceMiddleware);
-apiRouter.use("/activities/*", authMiddleware, workspaceMiddleware);
-apiRouter.use("/automation/*", authMiddleware, workspaceMiddleware);
+apiRouter.use('/companies/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/contacts/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/campaigns/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/outreach/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/workspaces/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/discovery/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/activities/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/automation/*', authMiddleware, workspaceMiddleware);
 
 // Mount empty placeholder business routers
-apiRouter.route("/companies", companiesRouter);
-apiRouter.route("/contacts", contactsRouter);
-apiRouter.route("/campaigns", campaignsRouter);
-apiRouter.route("/outreach", outreachRouter);
-apiRouter.route("/workspaces", workspacesRouter);
-apiRouter.route("/discovery", discoveryRouter);
-apiRouter.route("/activities", activitiesRouter);
-apiRouter.route("/automation", automationRouter);
+apiRouter.route('/companies', companiesRouter);
+apiRouter.route('/contacts', contactsRouter);
+apiRouter.route('/campaigns', campaignsRouter);
+apiRouter.route('/outreach', outreachRouter);
+apiRouter.route('/workspaces', workspacesRouter);
+apiRouter.route('/discovery', discoveryRouter);
+apiRouter.route('/activities', activitiesRouter);
+apiRouter.route('/automation', automationRouter);
 
 export { apiRouter };
 export { healthRouter, authRouter };

@@ -15,7 +15,12 @@ interface UserAvatarProps {
  * UserAvatar wraps the shadcn Avatar primitive with initials fallback
  * for quick user identification across the app shell.
  */
-export function UserAvatar({ initials = '?', src, size = 'default', alt = 'User' }: UserAvatarProps) {
+export function UserAvatar({
+  initials = '?',
+  src,
+  size = 'default',
+  alt = 'User'
+}: UserAvatarProps) {
   return (
     <Avatar size={size}>
       {src && <AvatarImage src={src} alt={alt} />}

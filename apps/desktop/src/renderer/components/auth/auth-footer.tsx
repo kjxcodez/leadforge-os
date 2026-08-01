@@ -9,16 +9,11 @@ interface AuthFooterProps {
  * Standard bottom footer for forms providing action links.
  * Incorporates a secondary note for Terms and Privacy policies.
  */
-export function AuthFooter({
-  message,
-  linkText,
-  onLinkClick,
-  className = "",
-}: AuthFooterProps) {
+export function AuthFooter({ message, linkText, onLinkClick, className = '' }: AuthFooterProps) {
   return (
     <div className={`space-y-4 text-center ${className}`}>
       <p className="text-xs text-neutral-500">
-        {message}{" "}
+        {message}{' '}
         <button
           type="button"
           onClick={onLinkClick}
@@ -29,11 +24,11 @@ export function AuthFooter({
       </p>
 
       <p className="text-[10px] leading-relaxed text-neutral-600">
-        By continuing, you agree to our{" "}
+        By continuing, you agree to our{' '}
         <a href="#" className="underline hover:text-neutral-400">
           Terms of Service
-        </a>{" "}
-        and{" "}
+        </a>{' '}
+        and{' '}
         <a href="#" className="underline hover:text-neutral-400">
           Privacy Policy
         </a>

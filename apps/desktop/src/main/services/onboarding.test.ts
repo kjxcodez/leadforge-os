@@ -24,10 +24,22 @@ console.log('\n── Onboarding Health Diagnostics Test ──');
   };
 
   assert.strictEqual(typeof diagnostics.os, 'string', 'OS identifier should be a string');
-  assert.strictEqual(typeof diagnostics.writePermissions, 'boolean', 'Write permissions should be boolean');
-  assert.strictEqual(typeof diagnostics.sqliteAvailable, 'boolean', 'SQLite availability should be boolean');
+  assert.strictEqual(
+    typeof diagnostics.writePermissions,
+    'boolean',
+    'Write permissions should be boolean'
+  );
+  assert.strictEqual(
+    typeof diagnostics.sqliteAvailable,
+    'boolean',
+    'SQLite availability should be boolean'
+  );
   assert.strictEqual(typeof diagnostics.freeDiskSpaceGB, 'number', 'Disk space should be a number');
-  assert.strictEqual(typeof diagnostics.internetConnected, 'boolean', 'Internet connection should be boolean');
+  assert.strictEqual(
+    typeof diagnostics.internetConnected,
+    'boolean',
+    'Internet connection should be boolean'
+  );
 
   pass('Diagnostics validation structure matches specs.');
 }
@@ -44,9 +56,11 @@ console.log('\n── Sample Workspace Data Generator Mock Test ──');
     prepare(sql: string) {
       return {
         run: (...args: any[]) => {
-          const tableName = sql.toLowerCase().includes('companies') ? 'companies' : 
-                            sql.toLowerCase().includes('company_intelligence') ? 'company_intelligence' : 
-                            'opportunity_scores';
+          const tableName = sql.toLowerCase().includes('companies')
+            ? 'companies'
+            : sql.toLowerCase().includes('company_intelligence')
+              ? 'company_intelligence'
+              : 'opportunity_scores';
           if (!this.tables[tableName]) this.tables[tableName] = [];
           this.tables[tableName].push(args);
         },
@@ -62,34 +76,55 @@ console.log('\n── Sample Workspace Data Generator Mock Test ──');
 
   const workspaceId = 'ws-test-onboard';
   const sampleCompanies = [
-    { id: 'sc-01', name: 'Acme SaaS Corp', domain: 'acmesaas.com', industry: 'Software', status: 'QUALIFIED', location: 'San Francisco, CA' }
+    {
+      id: 'sc-01',
+      name: 'Acme SaaS Corp',
+      domain: 'acmesaas.com',
+      industry: 'Software',
+      status: 'QUALIFIED',
+      location: 'San Francisco, CA'
+    }
   ];
 
   mockDb.transaction(() => {
     for (const c of sampleCompanies) {
-      mockDb.prepare(`
+      mockDb
+        .prepare(
+          `
         INSERT INTO companies (id, workspaceId, name, domain, industry, status, location) VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(c.id, workspaceId, c.name, c.domain, c.industry, c.status, c.location);
+      `
+        )
+        .run(c.id, workspaceId, c.name, c.domain, c.industry, c.status, c.location);
     }
 
-    mockDb.prepare(`
+    mockDb
+      .prepare(
+        `
       INSERT INTO company_intelligence (companyId, techStack) VALUES ('sc-01', '["React"]')
-    `).run();
+    `
+      )
+      .run();
 
-    mockDb.prepare(`
+    mockDb
+      .prepare(
+        `
       INSERT INTO opportunity_scores (companyId, overallScore) VALUES ('sc-01', 92)
-    `).run();
+    `
+      )
+      .run();
   })();
 
-  const count = mockDb.prepare("SELECT COUNT(*) as c FROM companies").get() as { c: number };
+  const count = mockDb.prepare('SELECT COUNT(*) as c FROM companies').get() as { c: number };
   assert.strictEqual(count.c, 1, 'Should have inserted 1 sample company');
   pass('Sample companies generated and verified.');
 
-  const intel = mockDb.prepare("SELECT * FROM company_intelligence").get() as any;
+  const intel = mockDb.prepare('SELECT * FROM company_intelligence').get() as any;
   assert.ok(intel.techStack.includes('React'), 'Tech stack React should be present');
   pass('Company intelligence profile populated and verified.');
 
-  const score = mockDb.prepare("SELECT overallScore FROM opportunity_scores").get() as { overallScore: number };
+  const score = mockDb.prepare('SELECT overallScore FROM opportunity_scores').get() as {
+    overallScore: number;
+  };
   assert.strictEqual(score.overallScore, 92, 'Opportunity score overallScore should be 92');
   pass('Explainable opportunity scores generated and verified.');
 }

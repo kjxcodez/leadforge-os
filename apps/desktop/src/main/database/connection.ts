@@ -31,7 +31,7 @@ export function getDatabase(workspaceId?: string): Database.Database {
 
     const userDataPath = app.getPath('userData');
     const workspacesPath = join(userDataPath, 'workspaces');
-    
+
     if (!fs.existsSync(workspacesPath)) {
       fs.mkdirSync(workspacesPath, { recursive: true });
     }
@@ -90,5 +90,3 @@ export function closeDatabase(workspaceId?: string): void {
     workspaceDbs.clear();
   }
 }
-
-

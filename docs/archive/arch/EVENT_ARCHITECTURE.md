@@ -28,20 +28,23 @@ export interface DomainEvent<TPayload = Record<string, unknown>> {
 ## Event Catalog
 
 ### 1. CRM Domain Events
-* **`LeadCreated`**: Emitted when a new lead is saved.
-* **`LeadUpdated`**: Emitted when lead metadata or pipeline status changes.
-* **`CampaignQueued`**: Emitted when an outreach sequence is queued.
-* **`CampaignSent`**: Emitted when SMTP successfully dispatches an email.
+
+- **`LeadCreated`**: Emitted when a new lead is saved.
+- **`LeadUpdated`**: Emitted when lead metadata or pipeline status changes.
+- **`CampaignQueued`**: Emitted when an outreach sequence is queued.
+- **`CampaignSent`**: Emitted when SMTP successfully dispatches an email.
 
 ### 2. Agent Platform Events
-* **`AgentStarted`**: Emitted when an agent execution thread starts.
-* **`AgentCompleted`**: Emitted when an agent completes its plan.
+
+- **`AgentStarted`**: Emitted when an agent execution thread starts.
+- **`AgentCompleted`**: Emitted when an agent completes its plan.
 
 ### 3. Sync Engine Events
-* **`SyncStarted`**: Emitted when the Sync Engine begins outbound/inbound loops.
-* **`SyncCompleted`**: Emitted when state replication finishes.
-* **`SyncFailed`**: Emitted when synchronization encounters permanent errors.
-* **`ConflictDetected`**: Emitted when local and cloud timestamps diverge for the same record.
+
+- **`SyncStarted`**: Emitted when the Sync Engine begins outbound/inbound loops.
+- **`SyncCompleted`**: Emitted when state replication finishes.
+- **`SyncFailed`**: Emitted when synchronization encounters permanent errors.
+- **`ConflictDetected`**: Emitted when local and cloud timestamps diverge for the same record.
 
 ---
 

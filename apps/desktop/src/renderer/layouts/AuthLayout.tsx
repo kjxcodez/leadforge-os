@@ -19,7 +19,13 @@ export function AuthLayout() {
         <BrandPanel className="p-8" />
         <div className="flex flex-1 items-center justify-center px-8 pb-8">
           <div className="w-full max-w-sm">
-            <Suspense fallback={<div className="text-center text-xs text-muted-foreground animate-pulse">Loading auth screen...</div>}>
+            <Suspense
+              fallback={
+                <div className="text-center text-xs text-muted-foreground animate-pulse">
+                  Loading auth screen...
+                </div>
+              }
+            >
               <Outlet />
             </Suspense>
           </div>

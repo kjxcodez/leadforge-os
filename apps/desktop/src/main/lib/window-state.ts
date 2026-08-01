@@ -41,7 +41,7 @@ export function loadWindowState(): WindowState {
     const displays = screen.getAllDisplays();
     let isVisible = false;
     if (saved.x !== undefined && saved.y !== undefined) {
-      isVisible = displays.some(display => {
+      isVisible = displays.some((display) => {
         const db = display.bounds;
         return (
           saved.x >= db.x &&
@@ -93,9 +93,7 @@ function getCenteredDefaultState(): WindowState {
 function saveWindowState(): void {
   try {
     const configPath = getLocalConfigPath();
-    const config = fs.existsSync(configPath)
-      ? JSON.parse(fs.readFileSync(configPath, 'utf8'))
-      : {};
+    const config = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 'utf8')) : {};
     config.windowState = windowState;
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
   } catch (err) {
@@ -135,7 +133,7 @@ export function trackWindowState(win: BrowserWindow): void {
   win.on('move', updateState);
   win.on('maximize', updateState);
   win.on('unmaximize', updateState);
-  
+
   win.on('close', () => {
     if (saveTimeout) {
       clearTimeout(saveTimeout);

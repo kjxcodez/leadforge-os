@@ -21,6 +21,6 @@ export function buildPaginatedMeta(total: number, page: number, limit: number): 
     total,
     totalPages,
     hasNextPage: page < totalPages,
-    hasPreviousPage: page > 1,
+    hasPreviousPage: page > 1
   };
 }

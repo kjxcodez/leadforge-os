@@ -24,7 +24,9 @@ export function registerWorkspaceIpc(
 
   safeRegister('workspaces:list', async () => {
     console.log('Main Process: Listing user workspaces');
-    const savedActiveWorkspaceId = getPersistedActiveWorkspace ? getPersistedActiveWorkspace() : null;
+    const savedActiveWorkspaceId = getPersistedActiveWorkspace
+      ? getPersistedActiveWorkspace()
+      : null;
     try {
       // Temporarily clear x-workspace-id header so backend returns ALL workspaces for this user!
       if (setWorkspaceHeader) setWorkspaceHeader(null);
@@ -32,9 +34,13 @@ export function registerWorkspaceIpc(
 
       // If active workspace header was set to a stale ID, validate or switch to authentic user workspace
       if (workspaces && workspaces.length > 0) {
-        const isValidActive = !!(savedActiveWorkspaceId && workspaces.some((w: any) => w.id === savedActiveWorkspaceId));
+        const isValidActive = !!(
+          savedActiveWorkspaceId && workspaces.some((w: any) => w.id === savedActiveWorkspaceId)
+        );
         const firstWorkspace = workspaces[0] as { id: string };
-        const validWorkspaceId = isValidActive ? (savedActiveWorkspaceId as string) : firstWorkspace.id;
+        const validWorkspaceId = isValidActive
+          ? (savedActiveWorkspaceId as string)
+          : firstWorkspace.id;
         if (setWorkspaceHeader) setWorkspaceHeader(validWorkspaceId);
         if (persistActiveWorkspace && !isValidActive) persistActiveWorkspace(validWorkspaceId);
       } else if (setWorkspaceHeader && savedActiveWorkspaceId) {
@@ -49,7 +55,10 @@ export function registerWorkspaceIpc(
       return workspaces;
     } catch (err) {
       if (setWorkspaceHeader && savedActiveWorkspaceId) setWorkspaceHeader(savedActiveWorkspaceId);
-      console.warn('[IPC] Failed to list workspaces from remote, falling back to local cache:', err);
+      console.warn(
+        '[IPC] Failed to list workspaces from remote, falling back to local cache:',
+        err
+      );
       return LocalWorkspaceRepository.findMany();
     }
   });
@@ -89,7 +98,10 @@ export function registerWorkspaceIpc(
       }
       return ws;
     } catch (err) {
-      console.warn(`[IPC] Failed to fetch workspace ${id} from remote, falling back to cache:`, err);
+      console.warn(
+        `[IPC] Failed to fetch workspace ${id} from remote, falling back to cache:`,
+        err
+      );
       const ws = await LocalWorkspaceRepository.findById(id);
       if (!ws) throw err;
       return ws;

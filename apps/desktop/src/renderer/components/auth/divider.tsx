@@ -7,7 +7,7 @@ interface DividerProps {
  * Clean separator for layouts.
  * If a label is provided, it centers it within the line path.
  */
-export function Divider({ label, className = "" }: DividerProps) {
+export function Divider({ label, className = '' }: DividerProps) {
   return (
     <div className={`relative flex items-center ${className}`} role="separator">
       <div className="flex-grow border-t border-neutral-900" />

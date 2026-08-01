@@ -90,7 +90,7 @@ export default function OnboardingScreen() {
 
       localStorage.setItem('onboarding_completed', 'true');
       localStorage.setItem('product_tour_active', 'true'); // trigger product tour on dashboard first visit!
-      
+
       // Navigate to dashboard
       navigate('/');
     } catch (err: any) {
@@ -109,7 +109,7 @@ export default function OnboardingScreen() {
       }
       // Simple mock fetch verify for responsive validation
       const res = await fetch('https://openrouter.ai/api/v1/models', {
-        headers: { 'Authorization': `Bearer ${openRouterKey}` }
+        headers: { Authorization: `Bearer ${openRouterKey}` }
       });
       if (res.ok) {
         alert('OpenRouter API connection validated successfully!');
@@ -130,7 +130,7 @@ export default function OnboardingScreen() {
         alert('Please fill in both email and app password.');
         return;
       }
-      
+
       // Create email account in the DB
       const account = await window.ipc.invoke('email-accounts:create', {
         email: emailAddress,
@@ -158,7 +158,6 @@ export default function OnboardingScreen() {
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full filter blur-[120px]"></div>
 
       <div className="w-full max-w-xl bg-card/65 backdrop-blur-xl border border-border-subtle/60 rounded-2xl p-8 shadow-2xl relative overflow-hidden flex flex-col space-y-6">
-        
         {/* Onboarding Header */}
         <div className="flex items-center justify-between border-b border-border-subtle pb-4">
           <div className="flex items-center gap-2">
@@ -166,8 +165,12 @@ export default function OnboardingScreen() {
               <Sparkles className="w-4.5 h-4.5" />
             </div>
             <div>
-              <h1 className="text-sm font-extrabold tracking-tight text-foreground uppercase">LeadForge OS</h1>
-              <span className="text-[10px] text-muted-foreground block font-medium mt-0.5">Welcome Onboarding</span>
+              <h1 className="text-sm font-extrabold tracking-tight text-foreground uppercase">
+                LeadForge OS
+              </h1>
+              <span className="text-[10px] text-muted-foreground block font-medium mt-0.5">
+                Welcome Onboarding
+              </span>
             </div>
           </div>
           <span className="text-[10px] font-bold px-2.5 py-1 bg-sunken rounded border border-border-subtle/50 text-muted-foreground">
@@ -179,9 +182,12 @@ export default function OnboardingScreen() {
         {step === 1 && (
           <div className="space-y-5 animate-in fade-in duration-200">
             <div className="space-y-1">
-              <h2 className="text-base font-bold text-foreground">Prepare your sales outbound platform</h2>
+              <h2 className="text-base font-bold text-foreground">
+                Prepare your sales outbound platform
+              </h2>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Before configuring, we verified that LeadForge OS workspace runtime environment is initialized correctly on your computer.
+                Before configuring, we verified that LeadForge OS workspace runtime environment is
+                initialized correctly on your computer.
               </p>
             </div>
 
@@ -196,7 +202,12 @@ export default function OnboardingScreen() {
                 <div className="grid grid-cols-2 gap-3 text-[10px]">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="text-muted-foreground">OS: <span className="text-foreground font-semibold">{diagnostics.os.substring(0, 18)}...</span></span>
+                    <span className="text-muted-foreground">
+                      OS:{' '}
+                      <span className="text-foreground font-semibold">
+                        {diagnostics.os.substring(0, 18)}...
+                      </span>
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     {diagnostics.writePermissions ? (
@@ -204,11 +215,18 @@ export default function OnboardingScreen() {
                     ) : (
                       <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
                     )}
-                    <span className="text-muted-foreground">Write Access: <span className="text-foreground font-semibold">{diagnostics.writePermissions ? 'Yes' : 'No'}</span></span>
+                    <span className="text-muted-foreground">
+                      Write Access:{' '}
+                      <span className="text-foreground font-semibold">
+                        {diagnostics.writePermissions ? 'Yes' : 'No'}
+                      </span>
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="text-muted-foreground">SQLite 3: <span className="text-foreground font-semibold">Available</span></span>
+                    <span className="text-muted-foreground">
+                      SQLite 3: <span className="text-foreground font-semibold">Available</span>
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     {diagnostics.internetConnected ? (
@@ -216,23 +234,39 @@ export default function OnboardingScreen() {
                     ) : (
                       <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
                     )}
-                    <span className="text-muted-foreground">Internet: <span className="text-foreground font-semibold">{diagnostics.internetConnected ? 'Connected' : 'Offline'}</span></span>
+                    <span className="text-muted-foreground">
+                      Internet:{' '}
+                      <span className="text-foreground font-semibold">
+                        {diagnostics.internetConnected ? 'Connected' : 'Offline'}
+                      </span>
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     {diagnostics.ollamaInstalled ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                     ) : (
-                      <div className="w-4 h-4 bg-muted rounded-full shrink-0 flex items-center justify-center text-[8px] font-bold">!</div>
+                      <div className="w-4 h-4 bg-muted rounded-full shrink-0 flex items-center justify-center text-[8px] font-bold">
+                        !
+                      </div>
                     )}
-                    <span className="text-muted-foreground">Local AI (Ollama): <span className="text-foreground font-semibold">{diagnostics.ollamaInstalled ? 'Installed' : 'Not Detected'}</span></span>
+                    <span className="text-muted-foreground">
+                      Local AI (Ollama):{' '}
+                      <span className="text-foreground font-semibold">
+                        {diagnostics.ollamaInstalled ? 'Installed' : 'Not Detected'}
+                      </span>
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="text-muted-foreground">Workers Host: <span className="text-foreground font-semibold">Ready</span></span>
+                    <span className="text-muted-foreground">
+                      Workers Host: <span className="text-foreground font-semibold">Ready</span>
+                    </span>
                   </div>
                 </div>
               ) : (
-                <p className="text-[10px] text-muted-foreground animate-pulse">Running health check queries...</p>
+                <p className="text-[10px] text-muted-foreground animate-pulse">
+                  Running health check queries...
+                </p>
               )}
             </div>
 
@@ -253,7 +287,8 @@ export default function OnboardingScreen() {
             <div className="space-y-1">
               <h2 className="text-base font-bold text-foreground">Create your CRM Workspace</h2>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                LeadForge OS is completely local-first. We will initialize an isolated SQLite database file to securely store your leads.
+                LeadForge OS is completely local-first. We will initialize an isolated SQLite
+                database file to securely store your leads.
               </p>
             </div>
 
@@ -285,8 +320,12 @@ export default function OnboardingScreen() {
             </div>
 
             <div className="flex justify-between pt-2">
-              <Button size="sm" variant="ghost" onClick={() => setStep(1)}>Back</Button>
-              <Button size="sm" onClick={() => setStep(3)}>Continue</Button>
+              <Button size="sm" variant="ghost" onClick={() => setStep(1)}>
+                Back
+              </Button>
+              <Button size="sm" onClick={() => setStep(3)}>
+                Continue
+              </Button>
             </div>
           </div>
         )}
@@ -295,9 +334,12 @@ export default function OnboardingScreen() {
         {step === 3 && (
           <div className="space-y-5 animate-in fade-in duration-200">
             <div className="space-y-1">
-              <h2 className="text-base font-bold text-foreground">Configure Lead Intelligence AI</h2>
+              <h2 className="text-base font-bold text-foreground">
+                Configure Lead Intelligence AI
+              </h2>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Unlock automated cold email opening lines, pain point hypotheses, and lead score analytics.
+                Unlock automated cold email opening lines, pain point hypotheses, and lead score
+                analytics.
               </p>
             </div>
 
@@ -308,15 +350,17 @@ export default function OnboardingScreen() {
                   onClick={() => setAiMode('local')}
                   disabled={!diagnostics?.ollamaInstalled}
                   className={`flex-1 border p-3.5 rounded-xl text-left space-y-1.5 transition-all ${
-                    aiMode === 'local' 
-                      ? 'border-accent bg-accent/5' 
+                    aiMode === 'local'
+                      ? 'border-accent bg-accent/5'
                       : 'border-border-subtle/70 bg-sunken/15 opacity-55'
                   }`}
                 >
                   <Cpu className="w-4 h-4 text-accent" />
                   <div>
                     <h4 className="text-[11px] font-bold text-foreground">Local AI (Ollama)</h4>
-                    <span className="text-[9px] text-muted-foreground block mt-0.5">Secure, offline, 100% free.</span>
+                    <span className="text-[9px] text-muted-foreground block mt-0.5">
+                      Secure, offline, 100% free.
+                    </span>
                   </div>
                 </button>
 
@@ -324,15 +368,17 @@ export default function OnboardingScreen() {
                   type="button"
                   onClick={() => setAiMode('cloud')}
                   className={`flex-1 border p-3.5 rounded-xl text-left space-y-1.5 transition-all ${
-                    aiMode === 'cloud' 
-                      ? 'border-accent bg-accent/5' 
+                    aiMode === 'cloud'
+                      ? 'border-accent bg-accent/5'
                       : 'border-border-subtle/70 bg-sunken/15'
                   }`}
                 >
                   <Sparkles className="w-4 h-4 text-blue-400" />
                   <div>
                     <h4 className="text-[11px] font-bold text-foreground">Cloud AI (OpenRouter)</h4>
-                    <span className="text-[9px] text-muted-foreground block mt-0.5">High-quality remote LLMs.</span>
+                    <span className="text-[9px] text-muted-foreground block mt-0.5">
+                      High-quality remote LLMs.
+                    </span>
                   </div>
                 </button>
               </div>
@@ -347,7 +393,9 @@ export default function OnboardingScreen() {
                     className="w-full h-8 px-2 bg-background border border-input rounded text-xs focus-visible:outline-none"
                   >
                     {diagnostics.ollamaModels.map((m: string) => (
-                      <option key={m} value={m}>{m}</option>
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -366,7 +414,13 @@ export default function OnboardingScreen() {
                         onChange={(e) => setOpenRouterKey(e.target.value)}
                         className="flex-1 h-8 px-2 bg-background border border-input rounded text-xs focus-visible:outline-none"
                       />
-                      <Button size="sm" variant="outline" className="h-8" onClick={testOpenRouter} disabled={testingConnection}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8"
+                        onClick={testOpenRouter}
+                        disabled={testingConnection}
+                      >
                         {testingConnection ? 'Testing...' : 'Test Key'}
                       </Button>
                     </div>
@@ -376,8 +430,12 @@ export default function OnboardingScreen() {
             </div>
 
             <div className="flex justify-between pt-2">
-              <Button size="sm" variant="ghost" onClick={() => setStep(2)}>Back</Button>
-              <Button size="sm" onClick={() => setStep(4)}>Continue</Button>
+              <Button size="sm" variant="ghost" onClick={() => setStep(2)}>
+                Back
+              </Button>
+              <Button size="sm" onClick={() => setStep(4)}>
+                Continue
+              </Button>
             </div>
           </div>
         )}
@@ -388,7 +446,8 @@ export default function OnboardingScreen() {
             <div className="space-y-1">
               <h2 className="text-base font-bold text-foreground">Connect Outbound Email</h2>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Set up SMTP parameters to run your campaigns. LeadForge supports Google App Passwords for secured Gmail integrations.
+                Set up SMTP parameters to run your campaigns. LeadForge supports Google App
+                Passwords for secured Gmail integrations.
               </p>
             </div>
 
@@ -419,17 +478,29 @@ export default function OnboardingScreen() {
               </div>
 
               <div className="bg-blue-500/[0.03] border border-blue-500/10 rounded-lg p-3 text-[10px] leading-relaxed text-blue-400/90 font-medium">
-                💡 <span className="font-bold text-blue-400">Gmail Setup Tip:</span> Visit your Google Account Settings, turn on 2-Step Verification, and search for "App Passwords" to generate a secure 16-character code specifically for LeadForge.
+                💡 <span className="font-bold text-blue-400">Gmail Setup Tip:</span> Visit your
+                Google Account Settings, turn on 2-Step Verification, and search for "App Passwords"
+                to generate a secure 16-character code specifically for LeadForge.
               </div>
 
-              <Button size="sm" variant="outline" className="w-full" onClick={testSmtp} disabled={testingConnection}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full"
+                onClick={testSmtp}
+                disabled={testingConnection}
+              >
                 {testingConnection ? 'Verifying connection...' : 'Test SMTP Connection'}
               </Button>
             </div>
 
             <div className="flex justify-between pt-2">
-              <Button size="sm" variant="ghost" onClick={() => setStep(3)}>Back</Button>
-              <Button size="sm" onClick={() => setStep(5)}>Continue</Button>
+              <Button size="sm" variant="ghost" onClick={() => setStep(3)}>
+                Back
+              </Button>
+              <Button size="sm" onClick={() => setStep(5)}>
+                Continue
+              </Button>
             </div>
           </div>
         )}
@@ -440,7 +511,8 @@ export default function OnboardingScreen() {
             <div className="space-y-1">
               <h2 className="text-base font-bold text-foreground">You are ready to launch!</h2>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Confirm your parameters below to finish initializing your local sales intelligence operating system.
+                Confirm your parameters below to finish initializing your local sales intelligence
+                operating system.
               </p>
             </div>
 
@@ -455,7 +527,9 @@ export default function OnboardingScreen() {
               </div>
               <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-border/40">
                 <span className="text-muted-foreground">Email Configured:</span>
-                <span className="font-bold text-foreground">{emailAddress ? 'Yes' : 'No (Skipped)'}</span>
+                <span className="font-bold text-foreground">
+                  {emailAddress ? 'Yes' : 'No (Skipped)'}
+                </span>
               </div>
             </div>
 
@@ -468,20 +542,26 @@ export default function OnboardingScreen() {
                 className="rounded border-border-subtle text-accent focus:ring-accent w-4 h-4"
               />
               <div>
-                <span className="text-xs font-bold text-foreground block">Start with Sample Workspace Data</span>
-                <span className="text-[9px] text-muted-foreground block mt-0.5">Pre-populate companies, campaigns, sequences, and opportunity scores to test features instantly.</span>
+                <span className="text-xs font-bold text-foreground block">
+                  Start with Sample Workspace Data
+                </span>
+                <span className="text-[9px] text-muted-foreground block mt-0.5">
+                  Pre-populate companies, campaigns, sequences, and opportunity scores to test
+                  features instantly.
+                </span>
               </div>
             </label>
 
             <div className="flex justify-between pt-2">
-              <Button size="sm" variant="ghost" onClick={() => setStep(4)} disabled={loading}>Back</Button>
+              <Button size="sm" variant="ghost" onClick={() => setStep(4)} disabled={loading}>
+                Back
+              </Button>
               <Button size="sm" onClick={handleCreateWorkspace} disabled={loading} className="px-6">
                 {loading ? 'Initializing Workspace...' : 'Launch LeadForge OS'}
               </Button>
             </div>
           </div>
         )}
-
       </div>
     </div>
   );

@@ -14,7 +14,8 @@ import { ResearchSummaryPrompt } from '../research-agent-prompt';
 export const ResearchWorkflow: Workflow = {
   id: 'research_workflow',
   name: 'Research Workflow',
-  description: 'Searches local businesses on Google Maps and crawls their websites for contact details.',
+  description:
+    'Searches local businesses on Google Maps and crawls their websites for contact details.',
   steps: [
     // ── Step 1: Map Search ─────────────────────────────────────────────────
     {

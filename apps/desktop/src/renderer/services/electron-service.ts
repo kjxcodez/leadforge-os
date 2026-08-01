@@ -44,5 +44,5 @@ export const ElectronService = {
    */
   async notify(title: string, body: string): Promise<void> {
     await window.ipc.invoke('electron:notify', { title, body });
-  },
+  }
 };

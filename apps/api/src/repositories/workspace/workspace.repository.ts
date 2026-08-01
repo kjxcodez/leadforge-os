@@ -1,5 +1,5 @@
-import { BaseRepository } from "../base/base.repository.js";
-import { WorkspaceModel, type WorkspaceDocument } from "../../db/models/workspace.model.js";
+import { BaseRepository } from '../base/base.repository.js';
+import { WorkspaceModel, type WorkspaceDocument } from '../../db/models/workspace.model.js';
 
 export class WorkspaceRepository extends BaseRepository<WorkspaceDocument> {
   constructor() {
@@ -15,14 +15,14 @@ export class WorkspaceRepository extends BaseRepository<WorkspaceDocument> {
       members: {
         $elemMatch: {
           userId,
-          status: "ACTIVE",
-        },
-      },
+          status: 'ACTIVE'
+        }
+      }
     });
   }
 
   public async findByInvitationToken(token: string): Promise<WorkspaceDocument | null> {
-    return this.findOne({ "members.invitationToken": token });
+    return this.findOne({ 'members.invitationToken': token });
   }
 
   public async findPendingInvitesByEmail(email: string): Promise<WorkspaceDocument[]> {
@@ -30,9 +30,9 @@ export class WorkspaceRepository extends BaseRepository<WorkspaceDocument> {
       members: {
         $elemMatch: {
           email: email.toLowerCase().trim(),
-          status: "PENDING",
-        },
-      },
+          status: 'PENDING'
+        }
+      }
     });
   }
 }

@@ -1,5 +1,5 @@
-import mongoose, { Schema } from "mongoose";
-import { workspacePlugin, type WorkspaceScopedDocument } from "../plugins/index.js";
+import mongoose, { Schema } from 'mongoose';
+import { workspacePlugin, type WorkspaceScopedDocument } from '../plugins/index.js';
 
 export interface SequenceDocument extends mongoose.Document, WorkspaceScopedDocument {
   _id: any;
@@ -24,47 +24,47 @@ const sequenceSchema = new Schema<SequenceDocument>(
   {
     _id: {
       type: String,
-      default: () => new mongoose.Types.ObjectId().toString(),
+      default: () => new mongoose.Types.ObjectId().toString()
     },
     name: {
       type: String,
       required: true,
-      trim: true,
+      trim: true
     },
     description: {
       type: String,
-      default: "",
+      default: ''
     },
     status: {
       type: String,
       required: true,
-      enum: ["DRAFT", "ACTIVE", "PAUSED"],
-      default: "DRAFT",
+      enum: ['DRAFT', 'ACTIVE', 'PAUSED'],
+      default: 'DRAFT'
     },
     trigger: {
       type: {
         type: String,
-        required: true,
+        required: true
       },
       config: {
         type: Schema.Types.Mixed,
-        default: {},
-      },
+        default: {}
+      }
     },
     steps: [
       {
         id: { type: String, required: true },
         type: { type: String, required: true },
-        config: { type: Schema.Types.Mixed, default: {} },
-      },
+        config: { type: Schema.Types.Mixed, default: {} }
+      }
     ],
     createdBy: {
-      type: String,
-    },
+      type: String
+    }
   },
   {
     strict: true,
-    timestamps: true,
+    timestamps: true
   }
 );
 
@@ -73,5 +73,5 @@ sequenceSchema.plugin(workspacePlugin);
 
 export const SequenceModel = mongoose.models.Sequence
   ? (mongoose.models.Sequence as mongoose.Model<SequenceDocument>)
-  : mongoose.model<SequenceDocument>("Sequence", sequenceSchema);
+  : mongoose.model<SequenceDocument>('Sequence', sequenceSchema);
 export { sequenceSchema };

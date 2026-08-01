@@ -21,7 +21,7 @@ export function loadAndValidateEnv() {
     } else {
       console.error('❌ Unknown error validating environment variables:', error);
     }
-    
+
     if (typeof process !== 'undefined' && typeof process.exit === 'function') {
       process.exit(1);
     } else {

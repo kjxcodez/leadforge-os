@@ -22,6 +22,7 @@ However, the runtime is currently **pre-production** — it is a skeleton with s
 ### ✅ Correct Architectural Principles
 
 The team has correctly established:
+
 - `child_process.fork` for worker isolation — correct choice over worker_threads for Playwright workloads
 - Per-workspace SQLite files (`leadforge_${workspaceId}.db`) — excellent isolation
 - WAL + busy_timeout on all SQLite connections — correct for concurrent read/write under workers
@@ -39,6 +40,7 @@ The `system_logs` table with a 5000-row cap, JSONL rotation with 10-day pruning,
 ### ✅ LocalCRMRepository Correctness
 
 The repository correctly:
+
 - Validates table names against alphanumeric pattern (SQL injection prevention)
 - Uses `pragma table_info()` to resolve valid columns dynamically (prevents column mismatch errors)
 - Wraps every write + sync_queue insertion in a single transaction (ACID correctness)
@@ -48,6 +50,7 @@ The repository correctly:
 ### ✅ SyncEngine Correctness
 
 The SyncEngine correctly:
+
 - Processes sync_queue in FIFO order
 - Implements LWW (Last-Write-Wins) via sequential processing
 - Suspends on network errors rather than losing items
@@ -57,6 +60,7 @@ The SyncEngine correctly:
 ### ✅ WorkspaceManager Isolation
 
 `WorkspaceManager.setActiveWorkspace()` correctly:
+
 - Stops the previous runtime before starting the new one
 - Prevents concurrent runtimes for the same workspace
 - Propagates errors cleanly with `await runtime.stop()` on failure
@@ -134,6 +138,7 @@ When the app closes, running jobs are marked `interrupted`. On restart, `Workspa
 ### 🔴 R1: API Automation Migration Complexity
 
 Migrating `AutomationService.executeNextStep()` from the API to the desktop worker is a significant undertaking. The API's `AutomationService` handles step execution for potentially thousands of active sequences. Moving this to desktop requires:
+
 - New worker plugin (`automation:workflow`)
 - New `AutomationTriggerEvaluator` in Main process
 - WAIT timer persistence + resumption in scheduler
@@ -171,49 +176,50 @@ If the Main process crashes abruptly (not a clean app quit), child worker proces
 
 ## 4. Bottlenecks
 
-| Bottleneck | Location | Impact | Mitigation |
-|---|---|---|---|
-| Playwright startup time | `scraper:maps` plugin | 1–3s per job (cold browser) | Browser pool in worker |
-| Single-threaded SQLite writes | All plugins | Write contention at 3 concurrent workers | WAL mode (already applied) |
-| Scheduler tick every 1s | `scheduler.ts:30` | Polling overhead; 1s dispatch latency | Acceptable for current scale |
-| Sequential sync_queue processing | `sync-engine.ts:199` | Large queues delay syncing | Batch API calls (future) |
-| No rate limiting in crawlers | `enricher.ts` | Potential IP bans from target sites | Add `requestDelayMs` per domain |
-| `setInterval` polling in SyncEngine | `sync-engine.ts:42` | Wakes every 5s even when idle | EventBus-driven trigger (future) |
-| `saveMany()` column derivation | `local-crm.ts:127` | `pragma table_info` called on every bulk save | Cache column sets per table |
+| Bottleneck                          | Location              | Impact                                        | Mitigation                       |
+| ----------------------------------- | --------------------- | --------------------------------------------- | -------------------------------- |
+| Playwright startup time             | `scraper:maps` plugin | 1–3s per job (cold browser)                   | Browser pool in worker           |
+| Single-threaded SQLite writes       | All plugins           | Write contention at 3 concurrent workers      | WAL mode (already applied)       |
+| Scheduler tick every 1s             | `scheduler.ts:30`     | Polling overhead; 1s dispatch latency         | Acceptable for current scale     |
+| Sequential sync_queue processing    | `sync-engine.ts:199`  | Large queues delay syncing                    | Batch API calls (future)         |
+| No rate limiting in crawlers        | `enricher.ts`         | Potential IP bans from target sites           | Add `requestDelayMs` per domain  |
+| `setInterval` polling in SyncEngine | `sync-engine.ts:42`   | Wakes every 5s even when idle                 | EventBus-driven trigger (future) |
+| `saveMany()` column derivation      | `local-crm.ts:127`    | `pragma table_info` called on every bulk save | Cache column sets per table      |
 
 ---
 
 ## 5. Missing Components
 
-| Component | Priority | Blocks |
-|---|---|---|
-| Worker host build target (electron-vite entry) | P0 | Everything |
-| Real Playwright Google Maps scraper | P0 | Discovery feature |
-| Real Cheerio website crawler | P0 | Contact discovery feature |
-| Real SMTP email dispatcher | P0 | Outreach feature |
-| Soft cancel IPC protocol | P0 | Cancellation on Windows |
-| Heartbeat / watchdog timer | P0 | Queue stability |
-| Progress → renderer IPC bridge | P1 | Jobs UI |
-| Pause / Resume with checkpoint | P1 | UX feature |
-| Interrupted job recovery on startup | P1 | Data integrity |
-| Per-type concurrency limits | P1 | Resource management |
-| AutomationTriggerEvaluator | P1 | Local automations |
-| AutomationWorkflowPlugin | P1 | Local automations |
-| WAIT timer resumption in scheduler | P1 | Sequence engine |
-| `scheduledAt` column for delayed jobs | P1 | Retry backoff, scheduling |
-| `checkpointData` column for pause | P1 | Pause/resume |
-| AI enrichment plugin | P2 | AI features |
-| Company scoring plugin | P2 | Lead scoring |
-| Browser context pool | P2 | Performance |
-| Sync queue size cap | P2 | Storage safety |
-| `idempotencyKey` for job deduplication | P2 | Correctness |
-| Worker CPU/memory monitoring | P3 | Observability |
+| Component                                      | Priority | Blocks                    |
+| ---------------------------------------------- | -------- | ------------------------- |
+| Worker host build target (electron-vite entry) | P0       | Everything                |
+| Real Playwright Google Maps scraper            | P0       | Discovery feature         |
+| Real Cheerio website crawler                   | P0       | Contact discovery feature |
+| Real SMTP email dispatcher                     | P0       | Outreach feature          |
+| Soft cancel IPC protocol                       | P0       | Cancellation on Windows   |
+| Heartbeat / watchdog timer                     | P0       | Queue stability           |
+| Progress → renderer IPC bridge                 | P1       | Jobs UI                   |
+| Pause / Resume with checkpoint                 | P1       | UX feature                |
+| Interrupted job recovery on startup            | P1       | Data integrity            |
+| Per-type concurrency limits                    | P1       | Resource management       |
+| AutomationTriggerEvaluator                     | P1       | Local automations         |
+| AutomationWorkflowPlugin                       | P1       | Local automations         |
+| WAIT timer resumption in scheduler             | P1       | Sequence engine           |
+| `scheduledAt` column for delayed jobs          | P1       | Retry backoff, scheduling |
+| `checkpointData` column for pause              | P1       | Pause/resume              |
+| AI enrichment plugin                           | P2       | AI features               |
+| Company scoring plugin                         | P2       | Lead scoring              |
+| Browser context pool                           | P2       | Performance               |
+| Sync queue size cap                            | P2       | Storage safety            |
+| `idempotencyKey` for job deduplication         | P2       | Correctness               |
+| Worker CPU/memory monitoring                   | P3       | Observability             |
 
 ---
 
 ## 6. Scalability Assessment
 
 ### Current Tested Ceiling
+
 - **Workers**: 3 concurrent (hardcoded)
 - **Jobs**: Unlimited queue depth (SQLite)
 - **Companies**: Tested with ~10 (simulated)
@@ -222,29 +228,30 @@ If the Main process crashes abruptly (not a clean app quit), child worker proces
 
 ### Projected Architecture Ceilings (No Redesign Required)
 
-| Dimension | Ceiling | Notes |
-|---|---|---|
-| Concurrent workers | ~10–15 | Beyond this, CPU/RAM becomes the limiting factor on typical hardware |
-| Running jobs simultaneously | 500+ | SQLite queue is unbounded; scheduler handles any queue depth |
-| Companies per workspace | 100,000+ | SQLite with proper indexes handles millions of rows; no redesign needed |
-| Contacts per workspace | 1,000,000+ | SQLite row limit is effectively unbounded |
-| Sequences in flight | ~50 concurrent WAIT states | Scheduler tick handles any count |
-| Workspaces per app instance | 1 active (current) | Multi-workspace concurrent support is a future phase |
-| Campaigns | Unlimited | SMTP is rate-limited by email provider, not by this architecture |
+| Dimension                   | Ceiling                    | Notes                                                                   |
+| --------------------------- | -------------------------- | ----------------------------------------------------------------------- |
+| Concurrent workers          | ~10–15                     | Beyond this, CPU/RAM becomes the limiting factor on typical hardware    |
+| Running jobs simultaneously | 500+                       | SQLite queue is unbounded; scheduler handles any queue depth            |
+| Companies per workspace     | 100,000+                   | SQLite with proper indexes handles millions of rows; no redesign needed |
+| Contacts per workspace      | 1,000,000+                 | SQLite row limit is effectively unbounded                               |
+| Sequences in flight         | ~50 concurrent WAIT states | Scheduler tick handles any count                                        |
+| Workspaces per app instance | 1 active (current)         | Multi-workspace concurrent support is a future phase                    |
+| Campaigns                   | Unlimited                  | SMTP is rate-limited by email provider, not by this architecture        |
 
 ### What Requires Redesign at Scale
 
-| Scenario | Redesign Needed |
-|---|---|
-| 50 concurrent active workspaces | WorkspaceManager must support concurrent runtimes (not just one active) |
-| Real-time collaborative editing across devices | WebSocket/SSE push from API (current polling is inadequate) |
-| AI enrichment at >100 companies/hour | GPU-accelerated local LLM or API batching required |
-| Sync queue > 100k items | Batched API sync (currently sequential per item) |
-| Cross-workspace campaign analytics | Aggregation layer beyond per-workspace SQLite |
+| Scenario                                       | Redesign Needed                                                         |
+| ---------------------------------------------- | ----------------------------------------------------------------------- |
+| 50 concurrent active workspaces                | WorkspaceManager must support concurrent runtimes (not just one active) |
+| Real-time collaborative editing across devices | WebSocket/SSE push from API (current polling is inadequate)             |
+| AI enrichment at >100 companies/hour           | GPU-accelerated local LLM or API batching required                      |
+| Sync queue > 100k items                        | Batched API sync (currently sequential per item)                        |
+| Cross-workspace campaign analytics             | Aggregation layer beyond per-workspace SQLite                           |
 
 ### Verdict on 50 Workers / 500 Jobs
 
 The current architecture **can support this scale** with the following additions:
+
 1. Configurable `maxConcurrency` per workspace (not hardcoded to 3)
 2. Per-type concurrency limits
 3. `scheduledAt` + delayed dispatch for backoff
@@ -266,7 +273,7 @@ Worker process
        │
        ▼
 JobScheduler (Main process)
-  worker.on('message') → 
+  worker.on('message') →
     db.prepare('UPDATE jobs SET progress=?, updatedAt=? WHERE id=?').run(45, now, jobId)
     eventBus.publish('job:progress', { jobId, progress: 45, metadata })
        │
@@ -298,6 +305,7 @@ UI Components
 ```
 
 **Required Fields in UI for each active job**:
+
 - Status badge (Queued / Running / Waiting / Paused / Retrying / Completed / Failed / Cancelled)
 - Progress percentage
 - Current step description
@@ -314,6 +322,7 @@ UI Components
 ## 8. Prioritized Remediation Plan
 
 ### Phase A — Make Workers Actually Work (P0, ~2–3 days)
+
 1. Configure `worker-host.ts` as electron-vite external entry
 2. Implement soft cancel via IPC (replace SIGTERM on Windows)
 3. Implement heartbeat + watchdog (30s timeout)
@@ -321,23 +330,27 @@ UI Components
 5. Fix `handleJobSuccess` double-kill
 
 ### Phase B — Real Implementations (P0, ~2–3 weeks)
+
 6. Implement real Playwright Google Maps scraper
 7. Implement real Cheerio website crawler
 8. Implement real SMTP email dispatcher (Nodemailer)
 
 ### Phase C — UX & Control (P1, ~1 week)
+
 9. Add progress → renderer IPC bridge
 10. Implement pause / resume with checkpoint
 11. Implement interrupted job recovery on startup
 12. Add per-type concurrency limits
 
 ### Phase D — Automation Migration (P1, ~1–2 weeks)
+
 13. Implement AutomationTriggerEvaluator
 14. Implement AutomationWorkflowPlugin
 15. Implement WAIT timer resumption in scheduler tick
 16. Remove automation execution from API
 
 ### Phase E — Polish (P2, ~3–5 days)
+
 17. Add `scheduledAt`, `checkpointData`, `idempotencyKey` to jobs schema
 18. Add sync queue size cap
 19. Add browser context pooling

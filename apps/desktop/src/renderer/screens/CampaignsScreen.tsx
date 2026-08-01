@@ -8,7 +8,14 @@ import { Label } from '../components/ui/label';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Textarea } from '../components/ui/textarea';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '../components/ui/table';
 import { QueueMonitor } from '../components/crm/QueueMonitor';
 import {
   Megaphone,
@@ -41,7 +48,7 @@ export default function CampaignsScreen() {
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState('campaigns');
-  
+
   // Navigation: null = list, string = campaign ID for detail view
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
 
@@ -89,7 +96,7 @@ export default function CampaignsScreen() {
     queryFn: async () => {
       return window.ipc.invoke('email-accounts:list', undefined);
     },
-    enabled: !!workspaceId,
+    enabled: !!workspaceId
   });
 
   const templatesQuery = useQuery({
@@ -97,7 +104,7 @@ export default function CampaignsScreen() {
     queryFn: async () => {
       return window.ipc.invoke('templates:list', undefined);
     },
-    enabled: !!workspaceId,
+    enabled: !!workspaceId
   });
 
   const sequencesQuery = useQuery({
@@ -105,7 +112,7 @@ export default function CampaignsScreen() {
     queryFn: async () => {
       return window.ipc.invoke('sequence:list', undefined);
     },
-    enabled: !!workspaceId,
+    enabled: !!workspaceId
   });
 
   const campaignsQuery = useQuery({
@@ -113,7 +120,7 @@ export default function CampaignsScreen() {
     queryFn: async () => {
       return window.ipc.invoke('campaigns:list', { workspaceId });
     },
-    enabled: !!workspaceId,
+    enabled: !!workspaceId
   });
 
   const contactsQuery = useQuery({
@@ -121,16 +128,19 @@ export default function CampaignsScreen() {
     queryFn: async () => {
       return window.ipc.invoke('contacts:list', { workspaceId });
     },
-    enabled: !!workspaceId,
+    enabled: !!workspaceId
   });
 
   // Query to fetch enrollments for detail page
   const enrollmentsQuery = useQuery({
     queryKey: ['campaign_enrollments', workspaceId, selectedCampaignId],
     queryFn: async () => {
-      return window.ipc.invoke('campaigns:enrollments:list', { workspaceId, campaignId: selectedCampaignId });
+      return window.ipc.invoke('campaigns:enrollments:list', {
+        workspaceId,
+        campaignId: selectedCampaignId
+      });
     },
-    enabled: !!workspaceId && !!selectedCampaignId,
+    enabled: !!workspaceId && !!selectedCampaignId
   });
 
   const previewQuery = useQuery({
@@ -142,7 +152,7 @@ export default function CampaignsScreen() {
       }
       return window.ipc.invoke('templates:preview', payload);
     },
-    enabled: !!previewTemplateId,
+    enabled: !!previewTemplateId
   });
 
   // ── Mutation Hooks ──────────────────────────────────────────────────────
@@ -161,7 +171,7 @@ export default function CampaignsScreen() {
     },
     onError: (err: any) => {
       alert(`Connection failed: ${err.message}`);
-    },
+    }
   });
 
   const deleteAccountMutation = useMutation({
@@ -170,7 +180,7 @@ export default function CampaignsScreen() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email_accounts', workspaceId] });
-    },
+    }
   });
 
   const verifyAccountMutation = useMutation({
@@ -183,7 +193,7 @@ export default function CampaignsScreen() {
     },
     onError: (err: any) => {
       alert(`Verification failed: ${err.message}`);
-    },
+    }
   });
 
   const createTemplateMutation = useMutation({
@@ -196,7 +206,7 @@ export default function CampaignsScreen() {
       setTplName('');
       setTplSubj('');
       setTplBody('');
-    },
+    }
   });
 
   const deleteTemplateMutation = useMutation({
@@ -205,7 +215,7 @@ export default function CampaignsScreen() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email_templates', workspaceId] });
-    },
+    }
   });
 
   // Campaign Mutations
@@ -220,7 +230,7 @@ export default function CampaignsScreen() {
       setCampDesc('');
       setCampSeqId('');
       setCampAccId('');
-    },
+    }
   });
 
   const updateCampaignStatusMutation = useMutation({
@@ -229,8 +239,10 @@ export default function CampaignsScreen() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns', workspaceId] });
-      queryClient.invalidateQueries({ queryKey: ['campaign_enrollments', workspaceId, selectedCampaignId] });
-    },
+      queryClient.invalidateQueries({
+        queryKey: ['campaign_enrollments', workspaceId, selectedCampaignId]
+      });
+    }
   });
 
   const deleteCampaignMutation = useMutation({
@@ -240,41 +252,56 @@ export default function CampaignsScreen() {
     onSuccess: () => {
       setSelectedCampaignId(null);
       queryClient.invalidateQueries({ queryKey: ['campaigns', workspaceId] });
-    },
+    }
   });
 
   // Enrollment Control Mutations
   const bulkPauseMutation = useMutation({
     mutationFn: async (enrollmentIds: string[]) => {
-      return window.ipc.invoke('campaigns:bulk-pause-enrollments', { campaignId: selectedCampaignId, enrollmentIds });
+      return window.ipc.invoke('campaigns:bulk-pause-enrollments', {
+        campaignId: selectedCampaignId,
+        enrollmentIds
+      });
     },
     onSuccess: () => {
       setSelectedEnrollmentIds([]);
-      queryClient.invalidateQueries({ queryKey: ['campaign_enrollments', workspaceId, selectedCampaignId] });
+      queryClient.invalidateQueries({
+        queryKey: ['campaign_enrollments', workspaceId, selectedCampaignId]
+      });
       queryClient.invalidateQueries({ queryKey: ['campaigns', workspaceId] });
-    },
+    }
   });
 
   const bulkResumeMutation = useMutation({
     mutationFn: async (enrollmentIds: string[]) => {
-      return window.ipc.invoke('campaigns:bulk-resume-enrollments', { campaignId: selectedCampaignId, enrollmentIds });
+      return window.ipc.invoke('campaigns:bulk-resume-enrollments', {
+        campaignId: selectedCampaignId,
+        enrollmentIds
+      });
     },
     onSuccess: () => {
       setSelectedEnrollmentIds([]);
-      queryClient.invalidateQueries({ queryKey: ['campaign_enrollments', workspaceId, selectedCampaignId] });
+      queryClient.invalidateQueries({
+        queryKey: ['campaign_enrollments', workspaceId, selectedCampaignId]
+      });
       queryClient.invalidateQueries({ queryKey: ['campaigns', workspaceId] });
-    },
+    }
   });
 
   const bulkRemoveMutation = useMutation({
     mutationFn: async (enrollmentIds: string[]) => {
-      return window.ipc.invoke('campaigns:bulk-remove-enrollments', { campaignId: selectedCampaignId, enrollmentIds });
+      return window.ipc.invoke('campaigns:bulk-remove-enrollments', {
+        campaignId: selectedCampaignId,
+        enrollmentIds
+      });
     },
     onSuccess: () => {
       setSelectedEnrollmentIds([]);
-      queryClient.invalidateQueries({ queryKey: ['campaign_enrollments', workspaceId, selectedCampaignId] });
+      queryClient.invalidateQueries({
+        queryKey: ['campaign_enrollments', workspaceId, selectedCampaignId]
+      });
       queryClient.invalidateQueries({ queryKey: ['campaigns', workspaceId] });
-    },
+    }
   });
 
   // Handlers
@@ -287,7 +314,7 @@ export default function CampaignsScreen() {
       dailyLimit: accDaily,
       hourlyLimit: accHourly,
       signature: accSig,
-      provider: 'gmail_smtp',
+      provider: 'gmail_smtp'
     });
   };
 
@@ -296,7 +323,7 @@ export default function CampaignsScreen() {
     createTemplateMutation.mutate({
       name: tplName,
       subject: tplSubj,
-      body: tplBody,
+      body: tplBody
     });
   };
 
@@ -342,15 +369,35 @@ export default function CampaignsScreen() {
   const getCampaignStatusBadge = (status: string) => {
     switch (status) {
       case 'Active':
-        return <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-bold px-2">Active</Badge>;
+        return (
+          <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-bold px-2">
+            Active
+          </Badge>
+        );
       case 'Paused':
-        return <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] font-semibold px-2">Paused</Badge>;
+        return (
+          <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] font-semibold px-2">
+            Paused
+          </Badge>
+        );
       case 'Completed':
-        return <Badge className="bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[9px] font-semibold px-2">Completed</Badge>;
+        return (
+          <Badge className="bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[9px] font-semibold px-2">
+            Completed
+          </Badge>
+        );
       case 'Archived':
-        return <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[9px] font-semibold px-2">Archived</Badge>;
+        return (
+          <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[9px] font-semibold px-2">
+            Archived
+          </Badge>
+        );
       default:
-        return <Badge className="bg-muted/10 text-muted-foreground border border-muted/20 text-[9px] font-semibold px-2">Draft</Badge>;
+        return (
+          <Badge className="bg-muted/10 text-muted-foreground border border-muted/20 text-[9px] font-semibold px-2">
+            Draft
+          </Badge>
+        );
     }
   };
 
@@ -359,19 +406,47 @@ export default function CampaignsScreen() {
       case 'running':
       case 'queued':
       case 'starting':
-        return <Badge className="bg-blue-500/10 text-blue-400 border border-blue-500/20 animate-pulse text-[9px]">Running</Badge>;
+        return (
+          <Badge className="bg-blue-500/10 text-blue-400 border border-blue-500/20 animate-pulse text-[9px]">
+            Running
+          </Badge>
+        );
       case 'waiting':
-        return <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[9px]">Waiting</Badge>;
+        return (
+          <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[9px]">
+            Waiting
+          </Badge>
+        );
       case 'paused':
-        return <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px]">Paused</Badge>;
+        return (
+          <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px]">
+            Paused
+          </Badge>
+        );
       case 'replied':
-        return <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-bold">Replied</Badge>;
+        return (
+          <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-bold">
+            Replied
+          </Badge>
+        );
       case 'failed':
-        return <Badge className="bg-red-500/10 text-red-400 border border-red-500/20 text-[9px] font-bold">Failed</Badge>;
+        return (
+          <Badge className="bg-red-500/10 text-red-400 border border-red-500/20 text-[9px] font-bold">
+            Failed
+          </Badge>
+        );
       case 'completed':
-        return <Badge className="bg-green-500/10 text-green-400 border border-green-500/20 text-[9px] font-bold">Completed</Badge>;
+        return (
+          <Badge className="bg-green-500/10 text-green-400 border border-green-500/20 text-[9px] font-bold">
+            Completed
+          </Badge>
+        );
       default:
-        return <Badge variant="outline" className="text-[9px]">{status}</Badge>;
+        return (
+          <Badge variant="outline" className="text-[9px]">
+            {status}
+          </Badge>
+        );
     }
   };
 
@@ -380,7 +455,9 @@ export default function CampaignsScreen() {
       {/* ── TOP HEADER ────────────────────────────────────────────────────── */}
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-sm font-semibold tracking-tight text-foreground">Outreach Platform</h2>
+          <h2 className="text-sm font-semibold tracking-tight text-foreground">
+            Outreach Platform
+          </h2>
           <p className="text-[11px] text-secondary mt-0.5">
             Manage Gmail senders, campaign lists, automated schedules, and follow-ups.
           </p>
@@ -413,8 +490,14 @@ export default function CampaignsScreen() {
             /* ──── LIST OF CAMPAIGNS ──── */
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="font-semibold text-foreground text-[11px]">Outbound Campaigns</span>
-                <Button onClick={() => setCampaignOpen(true)} size="sm" className="flex items-center gap-1">
+                <span className="font-semibold text-foreground text-[11px]">
+                  Outbound Campaigns
+                </span>
+                <Button
+                  onClick={() => setCampaignOpen(true)}
+                  size="sm"
+                  className="flex items-center gap-1"
+                >
                   <Plus className="h-3 w-3" />
                   Launch Campaign
                 </Button>
@@ -454,17 +537,33 @@ export default function CampaignsScreen() {
                           <TableCell>{getCampaignStatusBadge(camp.status)}</TableCell>
                           <TableCell>{sequence?.name || '—'}</TableCell>
                           <TableCell>{account?.email || '—'}</TableCell>
-                          <TableCell className="text-center font-mono font-bold">{camp.contactsCount || 0}</TableCell>
-                          <TableCell className="text-center font-mono text-blue-400">{camp.runningCount || 0}</TableCell>
-                          <TableCell className="text-center font-mono text-zinc-400">{camp.waitingCount || 0}</TableCell>
-                          <TableCell className="text-center font-mono text-emerald-400">{camp.repliedCount || 0}</TableCell>
-                          <TableCell className="text-right py-3" onClick={(e) => e.stopPropagation()}>
+                          <TableCell className="text-center font-mono font-bold">
+                            {camp.contactsCount || 0}
+                          </TableCell>
+                          <TableCell className="text-center font-mono text-blue-400">
+                            {camp.runningCount || 0}
+                          </TableCell>
+                          <TableCell className="text-center font-mono text-zinc-400">
+                            {camp.waitingCount || 0}
+                          </TableCell>
+                          <TableCell className="text-center font-mono text-emerald-400">
+                            {camp.repliedCount || 0}
+                          </TableCell>
+                          <TableCell
+                            className="text-right py-3"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <div className="flex justify-end gap-1.5">
                               {camp.status === 'Paused' || camp.status === 'Draft' ? (
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => updateCampaignStatusMutation.mutate({ id: camp.id, status: 'Active' })}
+                                  onClick={() =>
+                                    updateCampaignStatusMutation.mutate({
+                                      id: camp.id,
+                                      status: 'Active'
+                                    })
+                                  }
                                   className="h-7 text-emerald-500 hover:bg-emerald-500/10 gap-0.5"
                                 >
                                   <Play className="h-3 w-3" />
@@ -474,7 +573,12 @@ export default function CampaignsScreen() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => updateCampaignStatusMutation.mutate({ id: camp.id, status: 'Paused' })}
+                                  onClick={() =>
+                                    updateCampaignStatusMutation.mutate({
+                                      id: camp.id,
+                                      status: 'Paused'
+                                    })
+                                  }
                                   className="h-7 text-amber-500 hover:bg-amber-500/10 gap-0.5"
                                 >
                                   <Pause className="h-3 w-3" />
@@ -485,7 +589,11 @@ export default function CampaignsScreen() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => {
-                                  if (confirm('Are you sure you want to delete this campaign? All enrollments will be deleted.')) {
+                                  if (
+                                    confirm(
+                                      'Are you sure you want to delete this campaign? All enrollments will be deleted.'
+                                    )
+                                  ) {
                                     deleteCampaignMutation.mutate(camp.id);
                                   }
                                 }}
@@ -539,7 +647,12 @@ export default function CampaignsScreen() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => updateCampaignStatusMutation.mutate({ id: campaign.id, status: 'Paused' })}
+                          onClick={() =>
+                            updateCampaignStatusMutation.mutate({
+                              id: campaign.id,
+                              status: 'Paused'
+                            })
+                          }
                           className="h-8 text-[10px] text-amber-500 border-amber-500/20 gap-1 hover:bg-amber-500/5"
                         >
                           <Pause className="h-3.5 w-3.5" />
@@ -549,20 +662,28 @@ export default function CampaignsScreen() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => updateCampaignStatusMutation.mutate({ id: campaign.id, status: 'Active' })}
+                          onClick={() =>
+                            updateCampaignStatusMutation.mutate({
+                              id: campaign.id,
+                              status: 'Active'
+                            })
+                          }
                           className="h-8 text-[10px] text-emerald-500 border-emerald-500/20 gap-1 hover:bg-emerald-500/5"
                         >
                           <Play className="h-3.5 w-3.5" />
                           Resume Campaign
                         </Button>
                       )}
-                      
+
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => {
                           if (confirm('Archive this campaign?')) {
-                            updateCampaignStatusMutation.mutate({ id: campaign.id, status: 'Archived' });
+                            updateCampaignStatusMutation.mutate({
+                              id: campaign.id,
+                              status: 'Archived'
+                            });
                           }
                         }}
                         className="h-8 text-[10px] text-zinc-400 gap-1"
@@ -581,7 +702,9 @@ export default function CampaignsScreen() {
                         <span className="text-base font-bold text-foreground">{campaign.name}</span>
                         {getCampaignStatusBadge(campaign.status)}
                       </div>
-                      <span className="block text-[9px] text-muted-foreground mt-0.5">{campaign.description || '—'}</span>
+                      <span className="block text-[9px] text-muted-foreground mt-0.5">
+                        {campaign.description || '—'}
+                      </span>
                     </div>
 
                     <div className="bg-card border border-border-subtle rounded-xl p-3.5 space-y-1">
@@ -601,7 +724,9 @@ export default function CampaignsScreen() {
                         <Mail className="h-3.5 w-3.5 text-accent" />
                         {account?.name || '—'}
                       </div>
-                      <span className="block text-[9px] text-muted-foreground truncate">{account?.email || '—'}</span>
+                      <span className="block text-[9px] text-muted-foreground truncate">
+                        {account?.email || '—'}
+                      </span>
                     </div>
 
                     <div className="bg-card border border-border-subtle rounded-xl p-3.5 space-y-1">
@@ -609,38 +734,54 @@ export default function CampaignsScreen() {
                       <div className="text-xs font-bold text-foreground font-mono">
                         {campaign.dailyLimit || 200} daily / {campaign.timezone || 'UTC'}
                       </div>
-                      <span className="block text-[9px] text-muted-foreground">Workspace local settings apply</span>
+                      <span className="block text-[9px] text-muted-foreground">
+                        Workspace local settings apply
+                      </span>
                     </div>
                   </div>
 
                   {/* Campaign Dashboard Stats */}
                   <div className="grid grid-cols-7 gap-2 bg-sunken/30 border border-border-subtle/50 rounded-xl p-3.5">
                     <div className="text-center border-r border-border-subtle/50">
-                      <span className="block font-mono text-base font-bold text-foreground">{campaign.contactsCount || 0}</span>
+                      <span className="block font-mono text-base font-bold text-foreground">
+                        {campaign.contactsCount || 0}
+                      </span>
                       <span className="text-[9px] text-muted-foreground">Enrolled</span>
                     </div>
                     <div className="text-center border-r border-border-subtle/50">
-                      <span className="block font-mono text-base font-bold text-blue-400">{campaign.runningCount || 0}</span>
+                      <span className="block font-mono text-base font-bold text-blue-400">
+                        {campaign.runningCount || 0}
+                      </span>
                       <span className="text-[9px] text-muted-foreground">Running</span>
                     </div>
                     <div className="text-center border-r border-border-subtle/50">
-                      <span className="block font-mono text-base font-bold text-zinc-400">{campaign.waitingCount || 0}</span>
+                      <span className="block font-mono text-base font-bold text-zinc-400">
+                        {campaign.waitingCount || 0}
+                      </span>
                       <span className="text-[9px] text-muted-foreground">Waiting</span>
                     </div>
                     <div className="text-center border-r border-border-subtle/50">
-                      <span className="block font-mono text-base font-bold text-emerald-400">{campaign.repliedCount || 0}</span>
+                      <span className="block font-mono text-base font-bold text-emerald-400">
+                        {campaign.repliedCount || 0}
+                      </span>
                       <span className="text-[9px] text-muted-foreground">Replies</span>
                     </div>
                     <div className="text-center border-r border-border-subtle/50">
-                      <span className="block font-mono text-base font-bold text-green-400">{campaign.completedCount || 0}</span>
+                      <span className="block font-mono text-base font-bold text-green-400">
+                        {campaign.completedCount || 0}
+                      </span>
                       <span className="text-[9px] text-muted-foreground">Completed</span>
                     </div>
                     <div className="text-center border-r border-border-subtle/50">
-                      <span className="block font-mono text-base font-bold text-amber-400">{campaign.pausedCount || 0}</span>
+                      <span className="block font-mono text-base font-bold text-amber-400">
+                        {campaign.pausedCount || 0}
+                      </span>
                       <span className="text-[9px] text-muted-foreground">Paused</span>
                     </div>
                     <div className="text-center">
-                      <span className="block font-mono text-base font-bold text-red-400">{campaign.failedCount || 0}</span>
+                      <span className="block font-mono text-base font-bold text-red-400">
+                        {campaign.failedCount || 0}
+                      </span>
                       <span className="text-[9px] text-muted-foreground">Failed</span>
                     </div>
                   </div>
@@ -685,7 +826,9 @@ export default function CampaignsScreen() {
                       {/* Bulk Actions Banner on selections */}
                       {selectedEnrollmentIds.length > 0 && (
                         <div className="flex items-center justify-between bg-sunken border border-border-subtle rounded-lg p-2.5 text-[10px]">
-                          <span className="font-semibold text-foreground">{selectedEnrollmentIds.length} lead(s) selected</span>
+                          <span className="font-semibold text-foreground">
+                            {selectedEnrollmentIds.length} lead(s) selected
+                          </span>
                           <div className="flex gap-1.5">
                             <Button
                               variant="outline"
@@ -707,7 +850,11 @@ export default function CampaignsScreen() {
                               variant="outline"
                               size="sm"
                               onClick={() => {
-                                if (confirm(`Remove ${selectedEnrollmentIds.length} lead(s) from campaign?`)) {
+                                if (
+                                  confirm(
+                                    `Remove ${selectedEnrollmentIds.length} lead(s) from campaign?`
+                                  )
+                                ) {
                                   bulkRemoveMutation.mutate(selectedEnrollmentIds);
                                 }
                               }}
@@ -727,10 +874,15 @@ export default function CampaignsScreen() {
                               <TableHead className="w-8 py-2">
                                 <input
                                   type="checkbox"
-                                  checked={selectedEnrollmentIds.length === filteredEnrollments.length && filteredEnrollments.length > 0}
+                                  checked={
+                                    selectedEnrollmentIds.length === filteredEnrollments.length &&
+                                    filteredEnrollments.length > 0
+                                  }
                                   onChange={(e) => {
                                     if (e.target.checked) {
-                                      setSelectedEnrollmentIds(filteredEnrollments.map((x: any) => x.id));
+                                      setSelectedEnrollmentIds(
+                                        filteredEnrollments.map((x: any) => x.id)
+                                      );
                                     } else {
                                       setSelectedEnrollmentIds([]);
                                     }
@@ -765,9 +917,14 @@ export default function CampaignsScreen() {
                                       checked={isChecked}
                                       onChange={(e) => {
                                         if (e.target.checked) {
-                                          setSelectedEnrollmentIds([...selectedEnrollmentIds, enroll.id]);
+                                          setSelectedEnrollmentIds([
+                                            ...selectedEnrollmentIds,
+                                            enroll.id
+                                          ]);
                                         } else {
-                                          setSelectedEnrollmentIds(selectedEnrollmentIds.filter((x) => x !== enroll.id));
+                                          setSelectedEnrollmentIds(
+                                            selectedEnrollmentIds.filter((x) => x !== enroll.id)
+                                          );
                                         }
                                       }}
                                       className="rounded"
@@ -781,10 +938,19 @@ export default function CampaignsScreen() {
                                       {enroll.email} | {enroll.companyName || 'No Company'}
                                     </div>
                                   </TableCell>
-                                  <TableCell className="py-2 font-mono text-[9px]">{nextRun}</TableCell>
-                                  <TableCell className="py-2">{getEnrollmentStatusBadge(enroll.status)}</TableCell>
-                                  <TableCell className="py-2 text-center font-mono">{enroll.emailsSent || 0}</TableCell>
-                                  <TableCell className="py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                                  <TableCell className="py-2 font-mono text-[9px]">
+                                    {nextRun}
+                                  </TableCell>
+                                  <TableCell className="py-2">
+                                    {getEnrollmentStatusBadge(enroll.status)}
+                                  </TableCell>
+                                  <TableCell className="py-2 text-center font-mono">
+                                    {enroll.emailsSent || 0}
+                                  </TableCell>
+                                  <TableCell
+                                    className="py-2 text-right"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
                                     <ChevronRight className="h-4 w-4 text-muted-foreground inline" />
                                   </TableCell>
                                 </TableRow>
@@ -793,7 +959,10 @@ export default function CampaignsScreen() {
 
                             {filteredEnrollments.length === 0 && (
                               <TableRow>
-                                <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+                                <TableCell
+                                  colSpan={6}
+                                  className="text-center py-6 text-muted-foreground"
+                                >
                                   No enrolled contacts found.
                                 </TableCell>
                               </TableRow>
@@ -817,7 +986,9 @@ export default function CampaignsScreen() {
                             <div className="font-bold text-foreground text-xs">
                               {selectedEnrollment.firstName} {selectedEnrollment.lastName || ''}
                             </div>
-                            <span className="block text-[10px] text-muted-foreground mt-0.5">{selectedEnrollment.email}</span>
+                            <span className="block text-[10px] text-muted-foreground mt-0.5">
+                              {selectedEnrollment.email}
+                            </span>
                           </div>
 
                           {/* Render visual sequence steps */}
@@ -825,7 +996,9 @@ export default function CampaignsScreen() {
                             {/* Initial Step */}
                             <div className="relative">
                               <span className="absolute -left-[21px] top-0 bg-green-500 rounded-full h-3 w-3 border-2 border-card" />
-                              <div className="font-bold text-foreground text-[10px]">Enrollment Initialized</div>
+                              <div className="font-bold text-foreground text-[10px]">
+                                Enrollment Initialized
+                              </div>
                               <span className="block text-[9px] text-muted-foreground font-mono">
                                 {new Date(selectedEnrollment.createdAt).toLocaleString()}
                               </span>
@@ -837,21 +1010,26 @@ export default function CampaignsScreen() {
                               return rawSteps.map((step: any, index: number) => {
                                 const isCurrent = selectedEnrollment.currentStep === index;
                                 const isPassed = selectedEnrollment.currentStep > index;
-                                
+
                                 // Determine step status colors
                                 let color = 'bg-zinc-600';
                                 if (isCurrent) color = 'bg-blue-500 animate-pulse';
                                 if (isPassed) color = 'bg-green-500';
-                                if (selectedEnrollment.status === 'failed' && isCurrent) color = 'bg-red-500';
+                                if (selectedEnrollment.status === 'failed' && isCurrent)
+                                  color = 'bg-red-500';
 
                                 return (
                                   <div key={step.id} className="relative">
-                                    <span className={`absolute -left-[21px] top-0 rounded-full h-3 w-3 border-2 border-card ${color}`} />
+                                    <span
+                                      className={`absolute -left-[21px] top-0 rounded-full h-3 w-3 border-2 border-card ${color}`}
+                                    />
                                     <div className="font-bold text-foreground text-[10px]">
                                       Step {index + 1}: {step.type.toUpperCase()}
                                     </div>
                                     <div className="text-[9px] text-muted-foreground mt-0.5">
-                                      {step.type === 'email' ? 'Outgoing message dispatch' : `Wait duration: ${step.config.delayDays || 1} day(s)`}
+                                      {step.type === 'email'
+                                        ? 'Outgoing message dispatch'
+                                        : `Wait duration: ${step.config.delayDays || 1} day(s)`}
                                     </div>
                                   </div>
                                 );
@@ -862,32 +1040,49 @@ export default function CampaignsScreen() {
                             {selectedEnrollment.status === 'replied' && (
                               <div className="relative">
                                 <span className="absolute -left-[21px] top-0 bg-emerald-500 rounded-full h-3 w-3 border-2 border-card animate-bounce" />
-                                <div className="font-bold text-emerald-400 text-[10px]">Reply Received</div>
-                                <span className="block text-[9px] text-emerald-500/80 font-mono">Sequence auto-terminated</span>
+                                <div className="font-bold text-emerald-400 text-[10px]">
+                                  Reply Received
+                                </div>
+                                <span className="block text-[9px] text-emerald-500/80 font-mono">
+                                  Sequence auto-terminated
+                                </span>
                               </div>
                             )}
                           </div>
 
                           {/* Raw logs output */}
                           <div className="space-y-1.5 pt-3 border-t border-border-subtle">
-                            <span className="block font-semibold text-foreground text-[10px]">Technical Audit Logs:</span>
+                            <span className="block font-semibold text-foreground text-[10px]">
+                              Technical Audit Logs:
+                            </span>
                             <div className="bg-sunken border border-border-subtle rounded-lg p-2.5 font-mono text-[9px] max-h-40 overflow-y-auto space-y-1 text-muted-foreground">
                               {selectedEnrollment.logs && selectedEnrollment.logs.length > 0 ? (
                                 selectedEnrollment.logs.map((log: any, idx: number) => (
-                                  <div key={idx} className="border-b border-border-subtle/30 pb-1 last:border-0 last:pb-0">
-                                    <span className="text-zinc-500">[{new Date(log.timestamp).toLocaleTimeString()}]</span>{' '}
-                                    <span className="text-foreground font-semibold">{log.action || 'Log'}:</span> {log.message}
+                                  <div
+                                    key={idx}
+                                    className="border-b border-border-subtle/30 pb-1 last:border-0 last:pb-0"
+                                  >
+                                    <span className="text-zinc-500">
+                                      [{new Date(log.timestamp).toLocaleTimeString()}]
+                                    </span>{' '}
+                                    <span className="text-foreground font-semibold">
+                                      {log.action || 'Log'}:
+                                    </span>{' '}
+                                    {log.message}
                                   </div>
                                 ))
                               ) : (
-                                <div className="text-center py-2 italic text-zinc-500">No telemetry log entries.</div>
+                                <div className="text-center py-2 italic text-zinc-500">
+                                  No telemetry log entries.
+                                </div>
                               )}
                             </div>
                           </div>
                         </div>
                       ) : (
                         <div className="text-center py-10 text-muted-foreground italic">
-                          Select a contact from the leads table to view their execution timeline stepper.
+                          Select a contact from the leads table to view their execution timeline
+                          stepper.
                         </div>
                       )}
                     </div>
@@ -907,7 +1102,11 @@ export default function CampaignsScreen() {
         <TabsContent value="templates" className="mt-4 space-y-4">
           <div className="flex justify-between items-center">
             <span className="font-semibold text-foreground text-[11px]">Email Copy Templates</span>
-            <Button onClick={() => setTemplateOpen(true)} size="sm" className="flex items-center gap-1">
+            <Button
+              onClick={() => setTemplateOpen(true)}
+              size="sm"
+              className="flex items-center gap-1"
+            >
               <Plus className="h-3 w-3" />
               Create Template
             </Button>
@@ -915,11 +1114,16 @@ export default function CampaignsScreen() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {templates.map((tpl: any) => (
-              <div key={tpl.id} className="bg-card border border-border-subtle rounded-xl p-4 space-y-3 shadow-sm hover:shadow-md transition">
+              <div
+                key={tpl.id}
+                className="bg-card border border-border-subtle rounded-xl p-4 space-y-3 shadow-sm hover:shadow-md transition"
+              >
                 <div className="flex justify-between items-start">
                   <div>
                     <h4 className="font-bold text-foreground text-xs">{tpl.name}</h4>
-                    <span className="block text-[10px] text-muted-foreground truncate max-w-xs mt-0.5">Subject: {tpl.subject}</span>
+                    <span className="block text-[10px] text-muted-foreground truncate max-w-xs mt-0.5">
+                      Subject: {tpl.subject}
+                    </span>
                   </div>
                   <div className="flex gap-1">
                     <Button
@@ -961,8 +1165,14 @@ export default function CampaignsScreen() {
         {/* ── SENDER ACCOUNTS TAB ─────────────────────────────────────────── */}
         <TabsContent value="accounts" className="mt-4 space-y-4">
           <div className="flex justify-between items-center">
-            <span className="font-semibold text-foreground text-[11px]">Gmail Outbound Senders</span>
-            <Button onClick={() => setAccountOpen(true)} size="sm" className="flex items-center gap-1">
+            <span className="font-semibold text-foreground text-[11px]">
+              Gmail Outbound Senders
+            </span>
+            <Button
+              onClick={() => setAccountOpen(true)}
+              size="sm"
+              className="flex items-center gap-1"
+            >
               <Plus className="h-3 w-3" />
               Connect Gmail
             </Button>
@@ -970,11 +1180,16 @@ export default function CampaignsScreen() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {accounts.map((acc: any) => (
-              <div key={acc.id} className="bg-card border border-border-subtle rounded-xl p-4 space-y-3.5 shadow-sm">
+              <div
+                key={acc.id}
+                className="bg-card border border-border-subtle rounded-xl p-4 space-y-3.5 shadow-sm"
+              >
                 <div className="flex justify-between items-start">
                   <div>
                     <h4 className="font-bold text-foreground text-xs">{acc.name}</h4>
-                    <span className="block text-[10px] text-muted-foreground font-mono mt-0.5">{acc.email}</span>
+                    <span className="block text-[10px] text-muted-foreground font-mono mt-0.5">
+                      {acc.email}
+                    </span>
                   </div>
                   <div className="flex gap-1.5">
                     <Button
@@ -998,7 +1213,9 @@ export default function CampaignsScreen() {
 
                 <div className="flex justify-between items-center text-[10px] pt-2 border-t border-border-subtle/50">
                   <div className="flex items-center gap-1.5">
-                    <span className={`h-2 w-2 rounded-full ${acc.status === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                    <span
+                      className={`h-2 w-2 rounded-full ${acc.status === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}
+                    />
                     <span className="capitalize font-semibold">{acc.status}</span>
                   </div>
                   <span className="font-mono text-muted-foreground">{`Limits: ${acc.dailySent || 0}/${acc.dailyLimit} daily`}</span>
@@ -1139,7 +1356,8 @@ export default function CampaignsScreen() {
                 required
               />
               <p className="text-[9px] text-muted mt-0.5">
-                Merge variables: <code className="font-mono bg-sunken px-1 rounded">{`{{firstName}}`}</code>,{' '}
+                Merge variables:{' '}
+                <code className="font-mono bg-sunken px-1 rounded">{`{{firstName}}`}</code>,{' '}
                 <code className="font-mono bg-sunken px-1 rounded">{`{{lastName}}`}</code>,{' '}
                 <code className="font-mono bg-sunken px-1 rounded">{`{{company}}`}</code>,{' '}
                 <code className="font-mono bg-sunken px-1 rounded">{`{{website}}`}</code>
@@ -1282,7 +1500,10 @@ export default function CampaignsScreen() {
             ) : previewQuery.data ? (
               <div className="border border-border-subtle rounded p-3 bg-sunken space-y-2 font-mono">
                 <div className="font-bold text-foreground">
-                  Subject: <span className="font-normal font-sans text-secondary">{previewQuery.data.subject}</span>
+                  Subject:{' '}
+                  <span className="font-normal font-sans text-secondary">
+                    {previewQuery.data.subject}
+                  </span>
                 </div>
                 <div className="border-t border-border-subtle pt-2 text-foreground font-sans whitespace-pre-wrap">
                   {previewQuery.data.body}

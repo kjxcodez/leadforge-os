@@ -1,5 +1,5 @@
-import mongoose, { Schema } from "mongoose";
-import { workspacePlugin, type WorkspaceScopedDocument } from "../plugins/index.js";
+import mongoose, { Schema } from 'mongoose';
+import { workspacePlugin, type WorkspaceScopedDocument } from '../plugins/index.js';
 
 export interface DiscoveryContact {
   firstName: string;
@@ -18,7 +18,7 @@ export interface DiscoveryResultDocument extends mongoose.Document, WorkspaceSco
   phone?: string | null;
   linkedinUrl?: string | null;
   description?: string | null;
-  status: "pending" | "imported" | "skipped";
+  status: 'pending' | 'imported' | 'skipped';
   contacts: DiscoveryContact[];
   createdAt: Date;
   updatedAt: Date;
@@ -26,7 +26,7 @@ export interface DiscoveryResultDocument extends mongoose.Document, WorkspaceSco
 
 const discoveryResultSchema = new Schema<DiscoveryResultDocument>(
   {
-    jobId: { type: Schema.Types.ObjectId, ref: "DiscoveryJob", required: true },
+    jobId: { type: Schema.Types.ObjectId, ref: 'DiscoveryJob', required: true },
     companyName: { type: String, required: true, trim: true },
     website: { type: String, default: null, trim: true },
     email: { type: String, default: null, trim: true },
@@ -35,8 +35,8 @@ const discoveryResultSchema = new Schema<DiscoveryResultDocument>(
     description: { type: String, default: null },
     status: {
       type: String,
-      enum: ["pending", "imported", "skipped"],
-      default: "pending",
+      enum: ['pending', 'imported', 'skipped'],
+      default: 'pending'
     },
     contacts: {
       type: [
@@ -46,15 +46,15 @@ const discoveryResultSchema = new Schema<DiscoveryResultDocument>(
           email: { type: String, default: null },
           phone: { type: String, default: null },
           title: { type: String, default: null },
-          linkedinUrl: { type: String, default: null },
-        },
+          linkedinUrl: { type: String, default: null }
+        }
       ],
-      default: [],
-    },
+      default: []
+    }
   },
   {
     timestamps: true,
-    strict: true,
+    strict: true
   }
 );
 
@@ -62,5 +62,5 @@ discoveryResultSchema.plugin(workspacePlugin);
 
 export const DiscoveryResultModel = mongoose.models.DiscoveryResult
   ? (mongoose.models.DiscoveryResult as mongoose.Model<DiscoveryResultDocument>)
-  : mongoose.model<DiscoveryResultDocument>("DiscoveryResult", discoveryResultSchema);
+  : mongoose.model<DiscoveryResultDocument>('DiscoveryResult', discoveryResultSchema);
 export { discoveryResultSchema };

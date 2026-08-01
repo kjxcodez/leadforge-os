@@ -24,10 +24,7 @@ export class AgentRuntime {
   private readonly aiConfig: AIConfig;
   private readonly listeners: Map<string, Array<(session: AgentSession) => void>> = new Map();
 
-  constructor(
-    registry: ToolRegistry,
-    aiConfig: AIConfig = { aiMode: 'mock' }
-  ) {
+  constructor(registry: ToolRegistry, aiConfig: AIConfig = { aiMode: 'mock' }) {
     this.registry = registry;
     this.aiConfig = aiConfig;
   }
@@ -46,7 +43,8 @@ export class AgentRuntime {
       readonly traceId: string;
       readonly actorId: string;
       readonly workspaceSettings?: Record<string, unknown> | undefined;
-      readonly conversationHistory?: Array<{ readonly role: string; readonly content: string }> | undefined;
+      readonly conversationHistory?:
+        Array<{ readonly role: string; readonly content: string }> | undefined;
     }
   ): Promise<AgentResponse> {
     const session = new AgentSession(params.traceId);
@@ -77,7 +75,7 @@ export class AgentRuntime {
       if (!workflow) {
         throw new Error(
           `Agent "${agent.name}" has no registered workflow. ` +
-          `Set workflowId on the agent and register it in AgentRuntime's WORKFLOW_REGISTRY.`
+            `Set workflowId on the agent and register it in AgentRuntime's WORKFLOW_REGISTRY.`
         );
       }
 
@@ -118,9 +116,10 @@ export class AgentRuntime {
       const response = ResponseAssembler.assemble({
         success: true,
         data: workflowResult.output,
-        message: typeof workflowResult.output === 'string'
-          ? workflowResult.output
-          : `Workflow "${workflow.name}" completed in ${workflowResult.durationMs}ms`,
+        message:
+          typeof workflowResult.output === 'string'
+            ? workflowResult.output
+            : `Workflow "${workflow.name}" completed in ${workflowResult.durationMs}ms`,
         traceId: params.traceId,
         toolsExecuted,
         startedAt
@@ -129,7 +128,6 @@ export class AgentRuntime {
       session.transition('COMPLETED', 'Research execution completed successfully');
       this.emit('session-change', session);
       return response;
-
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       session.transition('FAILED', `Execution failed: ${msg}`);

@@ -1,5 +1,14 @@
-import mongoose, { Schema } from "mongoose";
-import { softDeletePlugin, auditPlugin, timestampPlugin, workspacePlugin, type SoftDeleteDocument, type AuditDocument, type TimestampDocument, type WorkspaceScopedDocument } from "../plugins/index.js";
+import mongoose, { Schema } from 'mongoose';
+import {
+  softDeletePlugin,
+  auditPlugin,
+  timestampPlugin,
+  workspacePlugin,
+  type SoftDeleteDocument,
+  type AuditDocument,
+  type TimestampDocument,
+  type WorkspaceScopedDocument
+} from '../plugins/index.js';
 
 export interface CampaignStep {
   id: string;
@@ -8,9 +17,15 @@ export interface CampaignStep {
   templateId: string;
 }
 
-export interface CampaignDocument extends mongoose.Document, SoftDeleteDocument, AuditDocument, TimestampDocument, WorkspaceScopedDocument {
+export interface CampaignDocument
+  extends
+    mongoose.Document,
+    SoftDeleteDocument,
+    AuditDocument,
+    TimestampDocument,
+    WorkspaceScopedDocument {
   name: string;
-  status: "DRAFT" | "ACTIVE" | "PAUSED" | "COMPLETED";
+  status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
   steps: CampaignStep[];
   template?: string | null;
   schedule?: Record<string, any> | string | null;
@@ -22,37 +37,37 @@ const campaignSchema = new Schema<CampaignDocument>(
     name: {
       type: String,
       required: true,
-      trim: true,
+      trim: true
     },
     status: {
       type: String,
-      enum: ["DRAFT", "ACTIVE", "PAUSED", "COMPLETED"],
-      default: "DRAFT",
+      enum: ['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED'],
+      default: 'DRAFT'
     },
     steps: [
       {
         id: { type: String, required: true },
         type: { type: String, required: true },
         delayDays: { type: Number, default: 0 },
-        templateId: { type: String, required: true },
-      },
+        templateId: { type: String, required: true }
+      }
     ],
     template: {
       type: String,
-      default: null,
+      default: null
     },
     schedule: {
       type: Schema.Types.Mixed,
-      default: null,
+      default: null
     },
     settings: {
       type: Schema.Types.Mixed,
-      default: null,
-    },
+      default: null
+    }
   },
   {
     strict: true,
-    optimisticConcurrency: true,
+    optimisticConcurrency: true
   }
 );
 
@@ -63,4 +78,4 @@ campaignSchema.plugin(timestampPlugin);
 
 export const CampaignModel = mongoose.models.Campaign
   ? (mongoose.models.Campaign as mongoose.Model<CampaignDocument>)
-  : mongoose.model<CampaignDocument>("Campaign", campaignSchema);
+  : mongoose.model<CampaignDocument>('Campaign', campaignSchema);

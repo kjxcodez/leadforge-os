@@ -8,7 +8,6 @@ import { randomUUID } from 'crypto';
  * and real-time scheduler queue visibility IPC channels.
  */
 export function registerCampaignsIpc(): void {
-  
   // 1. Batch enroll contacts into a campaign
   safeRegister('campaigns:enroll', async (_event, { campaignId, contactIds }) => {
     if (!campaignId) throw new Error('campaignId is required.');
@@ -20,12 +19,16 @@ export function registerCampaignsIpc(): void {
     if (!runtime) throw new Error('No active workspace runtime');
 
     const db = getDatabase(runtime.workspaceId);
-    
+
     // Load target campaign to get sequenceId and status
-    const campaign = db.prepare(`
+    const campaign = db
+      .prepare(
+        `
       SELECT sequenceId, status FROM campaigns 
       WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-    `).get(campaignId, runtime.workspaceId) as { sequenceId: string; status: string } | undefined;
+    `
+      )
+      .get(campaignId, runtime.workspaceId) as { sequenceId: string; status: string } | undefined;
 
     if (!campaign) throw new Error(`Campaign "${campaignId}" not found or deleted.`);
 
@@ -35,23 +38,29 @@ export function registerCampaignsIpc(): void {
     db.transaction(() => {
       for (const contactId of contactIds) {
         // Idempotency check: prevent duplicate enrollments in the same campaign
-        const existing = db.prepare(`
+        const existing = db
+          .prepare(
+            `
           SELECT id FROM sequence_executions
           WHERE campaignId = ? AND contactId = ? AND deletedAt IS NULL
-        `).get(campaignId, contactId);
+        `
+          )
+          .get(campaignId, contactId);
 
         if (existing) continue;
 
         const enrollmentId = randomUUID();
-        
+
         // Insert sequence_executions (Enrollment record)
-        db.prepare(`
+        db.prepare(
+          `
           INSERT INTO sequence_executions (
             id, sequenceId, campaignId, workspaceId, contactId, companyId,
             currentStep, currentStepName, status, startedAt, logs,
             emailsSent, replies, failures, createdAt, updatedAt
           ) VALUES (?, ?, ?, ?, ?, NULL, 0, 'Initial', ?, ?, '[]', 0, 0, 0, ?, ?)
-        `).run(
+        `
+        ).run(
           enrollmentId,
           campaign.sequenceId,
           campaignId,
@@ -66,10 +75,12 @@ export function registerCampaignsIpc(): void {
         // If the campaign is already active, spawn the workflow job in the queue immediately
         if (campaign.status === 'Active') {
           const jobId = randomUUID();
-          db.prepare(`
+          db.prepare(
+            `
             INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
             VALUES (?, ?, 'automation:workflow', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))
-          `).run(
+          `
+          ).run(
             jobId,
             runtime.workspaceId,
             JSON.stringify({
@@ -77,7 +88,7 @@ export function registerCampaignsIpc(): void {
               entityId: contactId,
               entityType: 'contact',
               executionId: enrollmentId,
-              workspaceId: runtime.workspaceId,
+              workspaceId: runtime.workspaceId
             })
           );
         }
@@ -94,10 +105,12 @@ export function registerCampaignsIpc(): void {
   safeRegister('campaigns:enrollments:list', async (_event, { workspaceId, campaignId }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     if (!campaignId) throw new Error('campaignId is required.');
-    
+
     const db = getDatabase(workspaceId);
-    
-    const rows = db.prepare(`
+
+    const rows = db
+      .prepare(
+        `
       SELECT 
         se.*,
         c.firstName,
@@ -113,7 +126,9 @@ export function registerCampaignsIpc(): void {
       LEFT JOIN sequences s ON se.sequenceId = s.id
       WHERE se.campaignId = ? AND se.deletedAt IS NULL
       ORDER BY se.createdAt DESC
-    `).all(campaignId) as any[];
+    `
+      )
+      .all(campaignId) as any[];
 
     return rows.map((row) => {
       try {
@@ -128,134 +143,162 @@ export function registerCampaignsIpc(): void {
   });
 
   // 3. Bulk Pause Enrollments
-  safeRegister('campaigns:bulk-pause-enrollments', async (_event, { campaignId, enrollmentIds }) => {
-    if (!campaignId) throw new Error('campaignId is required.');
-    if (!Array.isArray(enrollmentIds) || enrollmentIds.length === 0) {
-      throw new Error('enrollmentIds must be a non-empty array.');
-    }
+  safeRegister(
+    'campaigns:bulk-pause-enrollments',
+    async (_event, { campaignId, enrollmentIds }) => {
+      if (!campaignId) throw new Error('campaignId is required.');
+      if (!Array.isArray(enrollmentIds) || enrollmentIds.length === 0) {
+        throw new Error('enrollmentIds must be a non-empty array.');
+      }
 
-    const runtime = WorkspaceManager.getActiveRuntime();
-    if (!runtime) throw new Error('No active workspace runtime');
-    const db = getDatabase(runtime.workspaceId);
-    const now = new Date().toISOString();
+      const runtime = WorkspaceManager.getActiveRuntime();
+      if (!runtime) throw new Error('No active workspace runtime');
+      const db = getDatabase(runtime.workspaceId);
+      const now = new Date().toISOString();
 
-    db.transaction(() => {
-      for (const id of enrollmentIds) {
-        db.prepare(`
+      db.transaction(() => {
+        for (const id of enrollmentIds) {
+          db.prepare(
+            `
           UPDATE sequence_executions
           SET status = 'paused', updatedAt = ?
           WHERE id = ? AND campaignId = ? AND status IN ('running', 'queued', 'starting', 'waiting')
-        `).run(now, id, campaignId);
+        `
+          ).run(now, id, campaignId);
 
-        // Cancel pending job
-        db.prepare(`
+          // Cancel pending job
+          db.prepare(
+            `
           UPDATE jobs
           SET status = 'cancelled', updatedAt = datetime('now')
           WHERE workspaceId = ?
             AND type = 'automation:workflow'
             AND json_extract(payload, '$.executionId') = ?
             AND status IN ('queued', 'starting', 'running', 'retrying')
-        `).run(runtime.workspaceId, id);
-      }
-    })();
+        `
+          ).run(runtime.workspaceId, id);
+        }
+      })();
 
-    return { success: true };
-  });
+      return { success: true };
+    }
+  );
 
   // 4. Bulk Resume Enrollments
-  safeRegister('campaigns:bulk-resume-enrollments', async (_event, { campaignId, enrollmentIds }) => {
-    if (!campaignId) throw new Error('campaignId is required.');
-    if (!Array.isArray(enrollmentIds) || enrollmentIds.length === 0) {
-      throw new Error('enrollmentIds must be a non-empty array.');
-    }
+  safeRegister(
+    'campaigns:bulk-resume-enrollments',
+    async (_event, { campaignId, enrollmentIds }) => {
+      if (!campaignId) throw new Error('campaignId is required.');
+      if (!Array.isArray(enrollmentIds) || enrollmentIds.length === 0) {
+        throw new Error('enrollmentIds must be a non-empty array.');
+      }
 
-    const runtime = WorkspaceManager.getActiveRuntime();
-    if (!runtime) throw new Error('No active workspace runtime');
-    const db = getDatabase(runtime.workspaceId);
-    const now = new Date().toISOString();
+      const runtime = WorkspaceManager.getActiveRuntime();
+      if (!runtime) throw new Error('No active workspace runtime');
+      const db = getDatabase(runtime.workspaceId);
+      const now = new Date().toISOString();
 
-    db.transaction(() => {
-      for (const id of enrollmentIds) {
-        const enroll = db.prepare(`
+      db.transaction(() => {
+        for (const id of enrollmentIds) {
+          const enroll = db
+            .prepare(
+              `
           SELECT sequenceId, contactId, nextExecutionAt FROM sequence_executions
           WHERE id = ? AND campaignId = ? AND status = 'paused'
-        `).get(id, campaignId) as { sequenceId: string; contactId: string; nextExecutionAt: string | null } | undefined;
+        `
+            )
+            .get(id, campaignId) as
+            { sequenceId: string; contactId: string; nextExecutionAt: string | null } | undefined;
 
-        if (!enroll) continue;
+          if (!enroll) continue;
 
-        const isWaiting = enroll.nextExecutionAt && new Date(enroll.nextExecutionAt) > new Date();
-        const newStatus = isWaiting ? 'waiting' : 'running';
+          const isWaiting = enroll.nextExecutionAt && new Date(enroll.nextExecutionAt) > new Date();
+          const newStatus = isWaiting ? 'waiting' : 'running';
 
-        db.prepare(`
+          db.prepare(
+            `
           UPDATE sequence_executions
           SET status = ?, updatedAt = ?
           WHERE id = ?
-        `).run(newStatus, now, id);
+        `
+          ).run(newStatus, now, id);
 
-        if (!isWaiting) {
-          const jobId = randomUUID();
-          db.prepare(`
+          if (!isWaiting) {
+            const jobId = randomUUID();
+            db.prepare(
+              `
             INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
             VALUES (?, ?, 'automation:workflow', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))
-          `).run(
-            jobId,
-            runtime.workspaceId,
-            JSON.stringify({
-              sequenceId: enroll.sequenceId,
-              entityId: enroll.contactId,
-              entityType: 'contact',
-              executionId: id,
-              workspaceId: runtime.workspaceId,
-            })
-          );
+          `
+            ).run(
+              jobId,
+              runtime.workspaceId,
+              JSON.stringify({
+                sequenceId: enroll.sequenceId,
+                entityId: enroll.contactId,
+                entityType: 'contact',
+                executionId: id,
+                workspaceId: runtime.workspaceId
+              })
+            );
+          }
         }
-      }
-    })();
+      })();
 
-    return { success: true };
-  });
+      return { success: true };
+    }
+  );
 
   // 5. Bulk Remove Enrollments
-  safeRegister('campaigns:bulk-remove-enrollments', async (_event, { campaignId, enrollmentIds }) => {
-    if (!campaignId) throw new Error('campaignId is required.');
-    if (!Array.isArray(enrollmentIds) || enrollmentIds.length === 0) {
-      throw new Error('enrollmentIds must be a non-empty array.');
-    }
+  safeRegister(
+    'campaigns:bulk-remove-enrollments',
+    async (_event, { campaignId, enrollmentIds }) => {
+      if (!campaignId) throw new Error('campaignId is required.');
+      if (!Array.isArray(enrollmentIds) || enrollmentIds.length === 0) {
+        throw new Error('enrollmentIds must be a non-empty array.');
+      }
 
-    const runtime = WorkspaceManager.getActiveRuntime();
-    if (!runtime) throw new Error('No active workspace runtime');
-    const db = getDatabase(runtime.workspaceId);
+      const runtime = WorkspaceManager.getActiveRuntime();
+      if (!runtime) throw new Error('No active workspace runtime');
+      const db = getDatabase(runtime.workspaceId);
 
-    db.transaction(() => {
-      for (const id of enrollmentIds) {
-        db.prepare(`
+      db.transaction(() => {
+        for (const id of enrollmentIds) {
+          db.prepare(
+            `
           UPDATE sequence_executions
           SET deletedAt = datetime('now'), updatedAt = datetime('now')
           WHERE id = ? AND campaignId = ?
-        `).run(id, campaignId);
+        `
+          ).run(id, campaignId);
 
-        // Cancel pending job
-        db.prepare(`
+          // Cancel pending job
+          db.prepare(
+            `
           UPDATE jobs
           SET status = 'cancelled', updatedAt = datetime('now')
           WHERE workspaceId = ?
             AND type = 'automation:workflow'
             AND json_extract(payload, '$.executionId') = ?
             AND status IN ('queued', 'starting', 'running', 'retrying')
-        `).run(runtime.workspaceId, id);
-      }
-    })();
+        `
+          ).run(runtime.workspaceId, id);
+        }
+      })();
 
-    return { success: true };
-  });
+      return { success: true };
+    }
+  );
 
   // 6. Queue and Jobs detailed monitor list
   safeRegister('scheduler:queue:list', async (_event, { workspaceId }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     const db = getDatabase(workspaceId);
-    
+
     // Fetch all jobs for email queue display
-    const jobs = db.prepare(`
+    const jobs = db
+      .prepare(
+        `
       SELECT 
         j.id as jobId,
         j.type,
@@ -276,10 +319,12 @@ export function registerCampaignsIpc(): void {
       LEFT JOIN campaigns camp ON se.campaignId = camp.id
       WHERE j.workspaceId = ? AND j.type = 'automation:workflow'
       ORDER BY j.createdAt DESC
-    `).all(workspaceId) as any[];
+    `
+      )
+      .all(workspaceId) as any[];
 
     // Map payload into parsed objects
-    const parsedJobs = jobs.map(j => {
+    const parsedJobs = jobs.map((j) => {
       try {
         j.payload = j.payload ? JSON.parse(j.payload) : {};
       } catch {
@@ -289,7 +334,9 @@ export function registerCampaignsIpc(): void {
     });
 
     // Fetch waiting/delayed executions
-    const waitingExecutions = db.prepare(`
+    const waitingExecutions = db
+      .prepare(
+        `
       SELECT 
         se.*,
         c.firstName,
@@ -305,7 +352,9 @@ export function registerCampaignsIpc(): void {
       LEFT JOIN campaigns camp ON se.campaignId = camp.id
       WHERE se.workspaceId = ? AND se.status = 'waiting' AND se.deletedAt IS NULL
       ORDER BY se.nextExecutionAt ASC
-    `).all(workspaceId) as any[];
+    `
+      )
+      .all(workspaceId) as any[];
 
     return {
       jobs: parsedJobs,

@@ -1,5 +1,5 @@
-import mongoose, { Schema } from "mongoose";
-import { workspacePlugin, type WorkspaceScopedDocument } from "../plugins/index.js";
+import mongoose, { Schema } from 'mongoose';
+import { workspacePlugin, type WorkspaceScopedDocument } from '../plugins/index.js';
 
 export interface ActivityDocument extends mongoose.Document, WorkspaceScopedDocument {
   type: string;
@@ -13,17 +13,17 @@ const activitySchema = new Schema<ActivityDocument>(
     type: {
       type: String,
       required: true,
-      trim: true,
+      trim: true
     },
     content: {
       type: String,
       required: true,
-      trim: true,
-    },
+      trim: true
+    }
   },
   {
     strict: true,
-    timestamps: true,
+    timestamps: true
   }
 );
 
@@ -33,5 +33,5 @@ activitySchema.plugin(workspacePlugin);
 
 export const ActivityModel = mongoose.models.Activity
   ? (mongoose.models.Activity as mongoose.Model<ActivityDocument>)
-  : mongoose.model<ActivityDocument>("Activity", activitySchema);
+  : mongoose.model<ActivityDocument>('Activity', activitySchema);
 export { activitySchema };

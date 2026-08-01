@@ -57,6 +57,7 @@ The workspace is organized as a monorepo powered by **pnpm workspaces** and **Tu
 ```
 
 ### Dependency Rules & Cruisers
+
 - **`schema`** has zero dependencies and is imported by all packages.
 - **`core`** depends only on `schema`.
 - **`ai`** depends on `schema`.
@@ -105,6 +106,7 @@ The `JobScheduler` coordinates heavy crawler jobs without overloading the CPU.
 ```
 
 ### Lifecycle Controls
+
 - **Heartbeat Watchdog**: Every 10 seconds, the main process pings the worker. The worker must respond with `pong`. If no reply is received within 30 seconds, the scheduler considers the worker stalled, terminates it with `SIGKILL`, and marks the job for retry.
 - **State Checkpointing**: Long-running jobs regularly write progress to the `checkpointData` column in SQLite. If paused or interrupted, the job starts from the last recorded offset.
 - **Graceful Cancellation**: Sends a `cancel` IPC command. The worker is given 15 seconds to gracefully close Playwright browsers and write database logs before being killed with `SIGKILL`.
@@ -116,12 +118,15 @@ The `JobScheduler` coordinates heavy crawler jobs without overloading the CPU.
 The AI runtime supports both cloud integrations and offline operations.
 
 ### Provider Architecture
+
 - **OpenRouter (Cloud)**: Used if `openRouterKey` is present in settings (defaults to Gemini Flash and Llama).
 - **Ollama (Local)**: Integrates via local HTTP endpoint `http://localhost:11434` for complete offline and privacy-orientedqualification.
 - **Mock Fallback**: A rule-based template engine that serves as a fallback if keys are missing or API boundaries timeout.
 
 ### Tool Registry & Catalog
+
 The `ToolRegistry` defines standard executable wrappers for core scrapers, making them available as LLM tools:
+
 - `search_local_businesses` (Playwright Maps Scraper)
 - `crawl_company_website` (Cheerio crawler)
 - `search_linkedin_profiles` (Voyager LinkedIn API)
@@ -135,6 +140,7 @@ The `ToolRegistry` defines standard executable wrappers for core scrapers, makin
 LeadForge OS provides multi-workspace isolation. Each workspace represents a separate physical SQLite database file (`leadforge_${workspaceId}.db`).
 
 ### SQLite + MongoDB Synchronizer
+
 1. Whenever a mutation (Create, Update, Delete) is applied to the local SQLite database, a sync event is added to the `sync_queue` table inside the same transaction.
 2. The `SyncEngine` polls the queue periodically.
 3. If an internet connection is active, the engine uses the `SdkClient` to send the changes sequentially to the Hono REST API server (`apps/api/`).
@@ -147,10 +153,12 @@ LeadForge OS provides multi-workspace isolation. Each workspace represents a sep
 ## 📊 Logging, Telemetry & Diagnostics
 
 ### Daily-Rotating Logging
+
 - System logs are written to rotating files using `@leadforge/logger`.
 - When exporting a **Support Bundle**, the log files and current configuration are packed into a ZIP file. All sensitive parameters (passwords, SMTP credentials, OpenRouter API keys) are replaced with `[MASKED]`.
 
 ### Telemetry & Diagnostics
+
 - No metrics are automatically uploaded to remote servers. All telemetry is stored locally.
 - SRE diagnostics query the local system state, testing:
   - SMTP Nodemailer port connection.

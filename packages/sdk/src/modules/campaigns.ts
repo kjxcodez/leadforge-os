@@ -1,13 +1,16 @@
 import { HttpClient } from '../http/client';
-import type { Campaign, CreateCampaignDto, UpdateCampaignDto, CampaignFilters } from '@leadforge/schema';
+import type {
+  Campaign,
+  CreateCampaignDto,
+  UpdateCampaignDto,
+  CampaignFilters
+} from '@leadforge/schema';
 
 export class CampaignsModule {
   constructor(private client: HttpClient) {}
 
   public async list(filters?: CampaignFilters): Promise<Campaign[]> {
-    const queryParams = filters
-      ? '?' + new URLSearchParams(filters as any).toString()
-      : '';
+    const queryParams = filters ? '?' + new URLSearchParams(filters as any).toString() : '';
     return this.client.get<Campaign[]>(`/campaigns${queryParams}`);
   }
 

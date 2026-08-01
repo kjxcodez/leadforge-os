@@ -5,9 +5,11 @@ Production-ready backend API foundation built with **Node.js 22**, **Hono**, **M
 ## Architecture & Layout
 
 This backend applies strict **Clean Architecture** patterns:
+
 ```
 Routes  ──>  Services  ──>  Repositories  ──>  MongoDB / Mongoose
 ```
+
 - No routes directly query database models.
 - Core services contain zero HTTP context.
 - Centralized errors sanitise database errors to prevent exposure of system tables or structures.
@@ -29,7 +31,9 @@ src/
 ## Running the API
 
 ### Environment Variables Setup
+
 Copy or configure standard variables in your `.env` file:
+
 ```env
 NODE_ENV=development
 PORT=3000
@@ -41,6 +45,7 @@ CORS_ORIGIN=*
 ```
 
 ### Scripts
+
 - Run local server in dev watch mode: `pnpm --filter api run dev`
 - Run linting: `pnpm --filter api run lint`
 - Type-check checks: `pnpm --filter api run check-types`

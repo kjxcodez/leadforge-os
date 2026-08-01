@@ -111,7 +111,11 @@ export function registerAuthIpc(
       }
     } catch (err: any) {
       // Check if it's a network error
-      const isNetworkError = err.code === 'NETWORK_ERROR' || err.message?.includes('fetch') || err.message?.includes('network') || err.status === null;
+      const isNetworkError =
+        err.code === 'NETWORK_ERROR' ||
+        err.message?.includes('fetch') ||
+        err.message?.includes('network') ||
+        err.status === null;
       if (isNetworkError) {
         AppLogger.info('auth', 'Offline session restored');
         // Let's load the locally saved session
@@ -149,7 +153,7 @@ export function registerAuthIpc(
   safeRegister('system:status', async () => {
     return [
       { name: 'API Server', status: 'online' },
-      { name: 'Database', status: 'connected' },
+      { name: 'Database', status: 'connected' }
     ];
   });
 

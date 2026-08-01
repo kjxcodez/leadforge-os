@@ -14,7 +14,7 @@ export function useEntityList(repo: any, filter?: any) {
       if (!workspaceId) return [];
       return repo.listAndSync(workspaceId, filter);
     },
-    enabled: !!workspaceId,
+    enabled: !!workspaceId
   });
 }
 
@@ -28,7 +28,7 @@ export function useEntity(repo: any, id: string) {
       if (!id) return null;
       return repo.findById(id);
     },
-    enabled: !!id,
+    enabled: !!id
   });
 }
 
@@ -48,7 +48,7 @@ export function useCreateEntity(repo: any) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [repo.tableName, 'list', workspaceId] });
       queryClient.invalidateQueries({ queryKey: ['activities', 'list', workspaceId] }); // refresh logs
-    },
+    }
   });
 }
 
@@ -68,7 +68,7 @@ export function useUpdateEntity(repo: any) {
       queryClient.invalidateQueries({ queryKey: [repo.tableName, 'list', workspaceId] });
       queryClient.invalidateQueries({ queryKey: [repo.tableName, 'detail', updatedRecord.id] });
       queryClient.invalidateQueries({ queryKey: ['activities', 'list', workspaceId] });
-    },
+    }
   });
 }
 
@@ -88,6 +88,6 @@ export function useDeleteEntity(repo: any) {
       queryClient.invalidateQueries({ queryKey: [repo.tableName, 'list', workspaceId] });
       queryClient.invalidateQueries({ queryKey: [repo.tableName, 'detail', id] });
       queryClient.invalidateQueries({ queryKey: ['activities', 'list', workspaceId] });
-    },
+    }
   });
 }

@@ -22,7 +22,9 @@ const mockTool: Tool = {
     ],
     requiresApproval: false
   },
-  execute: async () => { throw new Error('Unused'); }
+  execute: async () => {
+    throw new Error('Unused');
+  }
 };
 
 // ─── Test 1: Single tool description ───────────────────────────────────────────
@@ -31,7 +33,10 @@ const mockTool: Tool = {
   const desc = ToolPromptBuilder.describeOne(mockTool);
   assert.ok(desc.includes('Tool: search_leads'), 'Should include tool name');
   assert.ok(desc.includes('Input Schema:'), 'Should include input schema details');
-  assert.ok(desc.includes('Example 1: Find software company leads'), 'Should include example description');
+  assert.ok(
+    desc.includes('Example 1: Find software company leads'),
+    'Should include example description'
+  );
   console.log('  ✅ describeOne: generated prompt string format verified');
 }
 
@@ -41,6 +46,10 @@ const mockTool: Tool = {
   const catalog = ToolPromptBuilder.buildCatalog([mockTool]);
   assert.strictEqual(catalog.length, 1, 'Catalog should contain one entry');
   assert.strictEqual(catalog[0]?.toolName, 'search_leads', 'Catalog entry name should match');
-  assert.strictEqual(catalog[0]?.outputDescription, 'List of matching leads', 'Catalog output description should match');
+  assert.strictEqual(
+    catalog[0]?.outputDescription,
+    'List of matching leads',
+    'Catalog output description should match'
+  );
   console.log('  ✅ buildCatalog: structured JSON output properties verified');
 }

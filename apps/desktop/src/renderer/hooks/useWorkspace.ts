@@ -23,7 +23,7 @@ export function useWorkspace() {
     setLoading();
     try {
       const workspace = await WorkspaceService.createWorkspace(name);
-      
+
       // Re-fetch all user workspaces list to include the new one
       const list = await WorkspaceService.listWorkspaces();
       setWorkspaces(list, workspace);
@@ -41,7 +41,7 @@ export function useWorkspace() {
     try {
       const updated = await WorkspaceService.updateWorkspace(id, dto);
       const list = await WorkspaceService.listWorkspaces();
-      
+
       // Update active workspace if the updated one is active
       const active = state.activeWorkspace?.id === id ? updated : state.activeWorkspace;
       setWorkspaces(list, active);
@@ -58,7 +58,7 @@ export function useWorkspace() {
     try {
       await WorkspaceService.deleteWorkspace(id);
       const list = await WorkspaceService.listWorkspaces();
-      
+
       const nextActive = list.length > 0 ? (list[0] ?? null) : null;
       setWorkspaces(list, nextActive);
     } catch (err: any) {
@@ -74,6 +74,6 @@ export function useWorkspace() {
     setActive,
     createWorkspace,
     updateWorkspace,
-    deleteWorkspace,
+    deleteWorkspace
   };
 }

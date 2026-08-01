@@ -33,6 +33,7 @@ public async executeNextStep(executionId: string): Promise<void> {
 ### 1.2 What the API Should Do Instead
 
 The API's automation endpoints should be **passive CRUD only**:
+
 - `POST /sequences` — persist sequence definition
 - `GET /sequences` — list sequences
 - `POST /executions` — create execution record (status: PENDING)
@@ -43,12 +44,12 @@ The desktop's `SyncEngine` will push execution state changes upward. The API wil
 
 ### 1.3 Migration Required
 
-| API endpoint current behavior | Target behavior |
-|---|---|
+| API endpoint current behavior                 | Target behavior                                       |
+| --------------------------------------------- | ----------------------------------------------------- |
 | `startExecution()` → runs `executeNextStep()` | `startExecution()` → creates PENDING record → returns |
-| `executeNextStep()` → runs steps on API | **DELETE** — move to desktop worker |
-| `stopExecution()` → marks FAILED | Keep — but as status-only mutation |
-| `handleEvent()` → triggers sequences on API | **DELETE** — desktop listens to EventBus events |
+| `executeNextStep()` → runs steps on API       | **DELETE** — move to desktop worker                   |
+| `stopExecution()` → marks FAILED              | Keep — but as status-only mutation                    |
+| `handleEvent()` → triggers sequences on API   | **DELETE** — desktop listens to EventBus events       |
 
 ---
 
@@ -95,7 +96,11 @@ This component subscribes to the `LocalEventBus` and evaluates whether any activ
 
 ```typescript
 class AutomationTriggerEvaluator {
-  constructor(private workspaceId: string, private db: Database, private eventBus: LocalEventBus) {
+  constructor(
+    private workspaceId: string,
+    private db: Database,
+    private eventBus: LocalEventBus
+  ) {
     this.bind();
   }
 
@@ -106,34 +111,50 @@ class AutomationTriggerEvaluator {
 
   private async evaluate(event: AppEvent): Promise<void> {
     const { entityType, entityId, changeType } = event.payload;
-    
+
     // Map event to trigger type
     const triggerType = this.mapToTriggerType(entityType, changeType);
     if (!triggerType) return;
 
     // Find matching active sequences (fast SQLite read)
-    const sequences = this.db.prepare(`
+    const sequences = this.db
+      .prepare(
+        `
       SELECT id, steps FROM sequences
       WHERE workspaceId = ? AND status = 'active' 
       AND json_extract(trigger, '$.type') = ?
       AND deletedAt IS NULL
-    `).all(this.workspaceId, triggerType);
+    `
+      )
+      .all(this.workspaceId, triggerType);
 
     for (const seq of sequences) {
       // Check for existing active execution (deduplication)
-      const existing = this.db.prepare(`
+      const existing = this.db
+        .prepare(
+          `
         SELECT id FROM sequence_executions
         WHERE workspaceId = ? AND sequenceId = ? AND (status = 'running' OR status = 'waiting')
         AND (contactId = ? OR companyId = ?)
-      `).get(this.workspaceId, seq.id, entityId, entityId);
-      
+      `
+        )
+        .get(this.workspaceId, seq.id, entityId, entityId);
+
       if (existing) continue;
 
       // Queue automation job
-      this.db.prepare(`
+      this.db
+        .prepare(
+          `
         INSERT INTO jobs (id, workspaceId, type, status, priority, payload, ...)
         VALUES (?, ?, 'automation:workflow', 'queued', 3, ?, ...)
-      `).run(uuid(), this.workspaceId, JSON.stringify({ sequenceId: seq.id, entityId, entityType }));
+      `
+        )
+        .run(
+          uuid(),
+          this.workspaceId,
+          JSON.stringify({ sequenceId: seq.id, entityId, entityType })
+        );
     }
   }
 }
@@ -147,13 +168,15 @@ The `AutomationWorkflowPlugin` executes inside the worker process:
 export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
   const { sequenceId, entityId, entityType } = ctx.payload;
   const db = new Database(ctx.dbPath);
-  
+
   // 1. Create execution record
   const executionId = uuid();
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO sequence_executions (id, sequenceId, workspaceId, status, currentStep, startedAt, ...)
     VALUES (?, ?, ?, 'running', 0, datetime('now'), ...)
-  `).run(executionId, sequenceId, ctx.workspaceId);
+  `
+  ).run(executionId, sequenceId, ctx.workspaceId);
 
   // 2. Load sequence
   const sequence = db.prepare('SELECT * FROM sequences WHERE id = ?').get(sequenceId);
@@ -170,37 +193,41 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
 
     const step = steps[currentStep];
     const result = await executeStep(step, executionId, entityId, entityType, ctx, db);
-    
+
     if (result.status === 'wait') {
       // Schedule future resumption job
       const resumeAt = new Date(Date.now() + result.delayMs).toISOString();
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE sequence_executions 
         SET status = 'waiting', currentStep = ?, nextExecutionAt = ?
         WHERE id = ?
-      `).run(currentStep + 1, resumeAt, executionId);
+      `
+      ).run(currentStep + 1, resumeAt, executionId);
       db.close();
       return { status: 'waiting', resumeAt };
     }
-    
+
     if (result.status === 'halt') {
       // Condition not met, halt sequence
-      db.prepare(`UPDATE sequence_executions SET status = 'completed', completedAt = datetime('now') WHERE id = ?`)
-        .run(executionId);
+      db.prepare(
+        `UPDATE sequence_executions SET status = 'completed', completedAt = datetime('now') WHERE id = ?`
+      ).run(executionId);
       db.close();
       return { status: 'halted', reason: result.reason };
     }
-    
+
     currentStep++;
     ctx.updateProgress(Math.round((currentStep / steps.length) * 100), {
       step: currentStep,
       total: steps.length,
-      description: step.type,
+      description: step.type
     });
   }
-  
-  db.prepare(`UPDATE sequence_executions SET status = 'completed', completedAt = datetime('now') WHERE id = ?`)
-    .run(executionId);
+
+  db.prepare(
+    `UPDATE sequence_executions SET status = 'completed', completedAt = datetime('now') WHERE id = ?`
+  ).run(executionId);
   db.close();
   return { status: 'completed', stepsExecuted: currentStep };
 }
@@ -213,6 +240,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
 ### 3.1 Current State
 
 The `packages/workflows` package contains a `WorkflowEngine` class that:
+
 - Executes steps sequentially
 - Has a pluggable `StepExecutor` registry
 - Has no persistence, no pause/resume, no concurrency, no IPC integration
@@ -221,14 +249,14 @@ It is a **prototype**. It cannot support the required automation flows. However,
 
 ### 3.2 Workflow vs Sequence Distinction
 
-| | Workflow | Sequence |
-|---|---|---|
-| **Trigger** | Explicit user action or system event | Automatic on CRM event |
-| **Scope** | Multiple entities, multi-step pipeline | Single contact/company |
-| **Steps** | DISCOVER → ENRICH → QUALIFY → SEND | WAIT → SEND_EMAIL → CONDITION → BRANCH |
-| **Spawns** | Worker jobs for each step | Itself is a worker job |
-| **Branching** | `nextStepIds` (DAG) | Linear with conditions |
-| **Resume** | Via checkpoint | Via `nextExecutionAt` |
+|               | Workflow                               | Sequence                               |
+| ------------- | -------------------------------------- | -------------------------------------- |
+| **Trigger**   | Explicit user action or system event   | Automatic on CRM event                 |
+| **Scope**     | Multiple entities, multi-step pipeline | Single contact/company                 |
+| **Steps**     | DISCOVER → ENRICH → QUALIFY → SEND     | WAIT → SEND_EMAIL → CONDITION → BRANCH |
+| **Spawns**    | Worker jobs for each step              | Itself is a worker job                 |
+| **Branching** | `nextStepIds` (DAG)                    | Linear with conditions                 |
+| **Resume**    | Via checkpoint                         | Via `nextExecutionAt`                  |
 
 ### 3.3 Workflow Engine Target Design
 
@@ -240,43 +268,43 @@ The workflow engine should be a **coordinator**, not an executor. It spawns the 
 export class WorkflowEngine {
   async execute(workflowId: string, context: WorkflowContext): Promise<void> {
     const workflow = loadWorkflow(workflowId);
-    
+
     // Persist workflow execution state
     const execId = createWorkflowExecution(workflowId, context);
-    
+
     // Execute DAG — walk steps, queue jobs for each
     const visited = new Set<string>();
     const queue = [workflow.steps[0]];
-    
+
     while (queue.length > 0) {
       const step = queue.shift();
       if (!step || visited.has(step.id)) continue;
       visited.add(step.id);
-      
+
       // Each step type maps to a job type
       const jobType = STEP_TO_JOB_MAP[step.type];
       enqueueJob(jobType, { workflowExecId: execId, stepId: step.id, ...step.config });
-      
+
       // Wait for job completion via EventBus subscription
       await waitForJobCompletion(execId, step.id);
-      
+
       // Enqueue next steps
       for (const nextId of step.nextStepIds) {
-        const nextStep = workflow.steps.find(s => s.id === nextId);
+        const nextStep = workflow.steps.find((s) => s.id === nextId);
         if (nextStep) queue.push(nextStep);
       }
     }
-    
+
     markWorkflowCompleted(execId);
   }
 }
 
 const STEP_TO_JOB_MAP: Record<WorkflowStepType, string> = {
   DISCOVER: 'scraper:maps',
-  ENRICH:   'crawler:website',
-  VERIFY:   'enrich:verify',
-  QUALIFY:  'score:company',
-  SEND:     'outreach:campaign',
+  ENRICH: 'crawler:website',
+  VERIFY: 'enrich:verify',
+  QUALIFY: 'score:company',
+  SEND: 'outreach:campaign'
 };
 ```
 
@@ -290,20 +318,20 @@ The `WorkflowEngine` lives in `packages/workflows` (shared package) but is **ins
 
 ### 4.1 Step Type Implementation Matrix
 
-| Step Type | Current API Implementation | Target Desktop Implementation |
-|---|---|---|
-| `WAIT` | Sets `nextExecutionAt`, relies on server poll | Reschedules future job in SQLite |
-| `SEND_EMAIL` | Calls `OutreachService.sendSingleEmail()` on API | Worker calls local SMTP via `outreach:email` sub-plugin |
-| `ASSIGN_TAG` | Mongoose update | SQLite UPDATE + sync_queue |
-| `REMOVE_TAG` | Mongoose update | SQLite UPDATE + sync_queue |
-| `CREATE_NOTE` | Mongoose update + ActivityModel | SQLite UPDATE + sync_queue |
-| `MOVE_PIPELINE_STAGE` | Mongoose update | SQLite UPDATE + sync_queue |
-| `START_CAMPAIGN` | Mongoose update | SQLite UPDATE + sync_queue |
-| `STOP_CAMPAIGN` | Mongoose update | SQLite UPDATE + sync_queue |
-| `ASSIGN_OWNER` | Mongoose update | SQLite UPDATE + sync_queue |
-| `CREATE_ACTIVITY` | New ActivityModel | INSERT INTO activities + sync_queue |
-| `FINISH_SEQUENCE` | Mark completed | UPDATE sequence_executions status='completed' |
-| `CONDITION` | `evaluateCondition()` on API | `evaluateCondition()` in worker against SQLite |
+| Step Type             | Current API Implementation                       | Target Desktop Implementation                           |
+| --------------------- | ------------------------------------------------ | ------------------------------------------------------- |
+| `WAIT`                | Sets `nextExecutionAt`, relies on server poll    | Reschedules future job in SQLite                        |
+| `SEND_EMAIL`          | Calls `OutreachService.sendSingleEmail()` on API | Worker calls local SMTP via `outreach:email` sub-plugin |
+| `ASSIGN_TAG`          | Mongoose update                                  | SQLite UPDATE + sync_queue                              |
+| `REMOVE_TAG`          | Mongoose update                                  | SQLite UPDATE + sync_queue                              |
+| `CREATE_NOTE`         | Mongoose update + ActivityModel                  | SQLite UPDATE + sync_queue                              |
+| `MOVE_PIPELINE_STAGE` | Mongoose update                                  | SQLite UPDATE + sync_queue                              |
+| `START_CAMPAIGN`      | Mongoose update                                  | SQLite UPDATE + sync_queue                              |
+| `STOP_CAMPAIGN`       | Mongoose update                                  | SQLite UPDATE + sync_queue                              |
+| `ASSIGN_OWNER`        | Mongoose update                                  | SQLite UPDATE + sync_queue                              |
+| `CREATE_ACTIVITY`     | New ActivityModel                                | INSERT INTO activities + sync_queue                     |
+| `FINISH_SEQUENCE`     | Mark completed                                   | UPDATE sequence_executions status='completed'           |
+| `CONDITION`           | `evaluateCondition()` on API                     | `evaluateCondition()` in worker against SQLite          |
 
 ### 4.2 WAIT Step Scheduling
 
@@ -324,6 +352,7 @@ JobScheduler (Main process, tick-based)
 ```
 
 This means the `JobScheduler.tick()` must handle **two** query types:
+
 1. `SELECT from jobs WHERE status IN ('queued', 'retrying')` — regular job dispatch
 2. `SELECT from sequence_executions WHERE status = 'waiting' AND nextExecutionAt <= NOW` — timer resumption
 
@@ -333,17 +362,27 @@ When the desktop app restarts, the scheduler must immediately scan for overdue w
 
 ```typescript
 // In WorkspaceRuntime.start():
-const overdueExecutions = this.sqliteDb.prepare(`
+const overdueExecutions = this.sqliteDb
+  .prepare(
+    `
   SELECT * FROM sequence_executions
   WHERE workspaceId = ? AND status = 'waiting' AND nextExecutionAt <= datetime('now')
-`).all(this.workspaceId);
+`
+  )
+  .all(this.workspaceId);
 
 for (const exec of overdueExecutions) {
   // Queue immediate resumption
-  this.sqliteDb.prepare(`INSERT INTO jobs (...) VALUES (...)`).run(
-    uuid(), this.workspaceId, 'automation:workflow', 'queued', 4,
-    JSON.stringify({ executionId: exec.id, resumeFrom: exec.currentStep })
-  );
+  this.sqliteDb
+    .prepare(`INSERT INTO jobs (...) VALUES (...)`)
+    .run(
+      uuid(),
+      this.workspaceId,
+      'automation:workflow',
+      'queued',
+      4,
+      JSON.stringify({ executionId: exec.id, resumeFrom: exec.currentStep })
+    );
 }
 ```
 
@@ -412,13 +451,13 @@ WAITING → CANCELLED (user cancels while waiting)
 ```typescript
 const TRIGGER_MAP: Record<string, AutomationTriggerType> = {
   // EventBus event          → AutomationTriggerType
-  'crm:created:company':    AutomationTriggerType.COMPANY_CREATED,
-  'crm:created:contact':    AutomationTriggerType.CONTACT_CREATED,
-  'crm:updated:contact':    AutomationTriggerType.PIPELINE_STAGE_CHANGED, // if status changed
-  'job:completed:scraper':  AutomationTriggerType.DISCOVERY_IMPORT_COMPLETED,
-  'outreach:email:sent':    AutomationTriggerType.EMAIL_SENT,
+  'crm:created:company': AutomationTriggerType.COMPANY_CREATED,
+  'crm:created:contact': AutomationTriggerType.CONTACT_CREATED,
+  'crm:updated:contact': AutomationTriggerType.PIPELINE_STAGE_CHANGED, // if status changed
+  'job:completed:scraper': AutomationTriggerType.DISCOVERY_IMPORT_COMPLETED,
+  'outreach:email:sent': AutomationTriggerType.EMAIL_SENT,
   'outreach:email:replied': AutomationTriggerType.EMAIL_REPLIED,
-  'outreach:email:bounced': AutomationTriggerType.EMAIL_BOUNCED,
+  'outreach:email:bounced': AutomationTriggerType.EMAIL_BOUNCED
 };
 ```
 
@@ -444,11 +483,11 @@ The `AutomationTriggerEvaluator` subscribes to these events and dispatches autom
   Step 4: SCORE_COMPANY → inline scoring logic or sub-job
   Step 5: CONDITION { type: 'LEAD_SCORE', threshold: 60 } → evaluate → true → continue
   Step 6: START_SEQUENCE { sequenceId: 'outreach-seq-1' } → queue automation:workflow for outreach
-  
+
 [Outreach Sequence Worker]
   Step 1: SEND_EMAIL { templateId: 'intro-email' } → SMTP dispatch
   Step 2: WAIT { delaySeconds: 259200 } → mark waiting, nextExecutionAt = +3 days
-  
+
 [3 days later — scheduler tick]
   Step 3: CONDITION { type: 'NO_REPLY_RECEIVED' } → true → continue
   Step 4: SEND_EMAIL { templateId: 'followup-email' }

@@ -5,11 +5,7 @@ export interface SchedulerGateway {
   /**
    * Submits a background worker task and returns the queued Job ID immediately.
    */
-  submit(
-    jobType: string,
-    payload: unknown,
-    context: ExecutionContext
-  ): Promise<string>;
+  submit(jobType: string, payload: unknown, context: ExecutionContext): Promise<string>;
 
   /**
    * Submits a background worker task and awaits its eventual success/failure outcome.
@@ -31,5 +27,16 @@ export interface SchedulerGateway {
   status(
     jobId: string,
     workspaceId: string
-  ): Promise<'queued' | 'running' | 'waiting' | 'retrying' | 'paused' | 'cancelled' | 'completed' | 'failed' | 'interrupted' | 'unknown'>;
+  ): Promise<
+    | 'queued'
+    | 'running'
+    | 'waiting'
+    | 'retrying'
+    | 'paused'
+    | 'cancelled'
+    | 'completed'
+    | 'failed'
+    | 'interrupted'
+    | 'unknown'
+  >;
 }
