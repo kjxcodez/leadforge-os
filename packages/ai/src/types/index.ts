@@ -11,6 +11,7 @@ export interface AIExecutionOptions {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  signal?: AbortSignal;
 }
 
 export interface AIExecutionResult<T = any> {
