@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "node ../../scripts/clean-tsbuildinfo.js && tsc",
+    "vercel-build": "cd ../.. && npx turbo run build --filter=api",
     "start": "node dist/index.js",
     "lint": "eslint .",
     "check-types": "tsc --noEmit"
