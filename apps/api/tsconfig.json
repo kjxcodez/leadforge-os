@@ -5,7 +5,9 @@
     "rootDir": "./src",
     "baseUrl": ".",
     "module": "NodeNext",
-    "moduleResolution": "NodeNext"
+    "moduleResolution": "NodeNext",
+    "declaration": false,
+    "composite": false
   },
   "references": [
     { "path": "../../packages/auth" },
