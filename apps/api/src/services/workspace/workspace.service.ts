@@ -54,7 +54,21 @@ export class WorkspaceService {
     dto: CreateWorkspaceDto & { ownerId: string; ownerEmail: string }
   ): Promise<WorkspaceDocument> {
     const validated = createWorkspaceDtoSchema.parse(dto);
-    const slug = slugify(validated.name);
+    
+    // Auto-resolve unique slug to prevent 409 database collisions on common names
+    let slug = slugify(validated.name);
+    let isUnique = false;
+    let attempts = 0;
+    while (!isUnique && attempts < 10) {
+      const existing = await this.workspaceRepository.findBySlug(slug);
+      if (!existing) {
+        isUnique = true;
+      } else {
+        attempts++;
+        const suffix = Math.random().toString(36).substring(2, 6);
+        slug = `${slugify(validated.name)}-${suffix}`;
+      }
+    }
 
     return this.workspaceRepository.create({
       name: validated.name,
@@ -93,7 +107,20 @@ export class WorkspaceService {
 
     if (validated.name) {
       workspace.name = validated.name;
-      workspace.slug = slugify(validated.name);
+      let slug = slugify(validated.name);
+      let isUnique = false;
+      let attempts = 0;
+      while (!isUnique && attempts < 10) {
+        const existing = await this.workspaceRepository.findBySlug(slug);
+        if (!existing || existing._id.toString() === workspace._id.toString()) {
+          isUnique = true;
+        } else {
+          attempts++;
+          const suffix = Math.random().toString(36).substring(2, 6);
+          slug = `${slugify(validated.name)}-${suffix}`;
+        }
+      }
+      workspace.slug = slug;
     }
     if (validated.settings?.defaultTimezone) {
       workspace.settings = {

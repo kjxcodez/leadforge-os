@@ -2,7 +2,7 @@ appId: com.leadforge.os
 
 productName: "LeadForge OS"
 
-npmRebuild: false
+npmRebuild: true
 
 directories:
   output: dist
