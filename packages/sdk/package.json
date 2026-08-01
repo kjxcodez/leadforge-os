@@ -1,6 +1,6 @@
 {
   "name": "@leadforge/sdk",
-  "version": "0.1.2-beta.1",
+  "version": "1.0.0-beta.1",
   "private": true,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
