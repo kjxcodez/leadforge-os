@@ -68,8 +68,8 @@ export const LocalWorkspaceRepository = {
       ws.settings.defaultTimezone,
       'synced',
       1,
-      ws.createdAt.toISOString(),
-      ws.updatedAt.toISOString()
+      ws.createdAt ? new Date(ws.createdAt).toISOString() : new Date().toISOString(),
+      ws.updatedAt ? new Date(ws.updatedAt).toISOString() : new Date().toISOString()
     );
 
     return ws;

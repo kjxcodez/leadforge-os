@@ -177,6 +177,7 @@ export function registerOnboardingIpc() {
 
     const sampleAccount = {
       id: 'sacc-01',
+      name: 'Onboarding Demo Account',
       email: 'onboarding@leadforge-demo.com',
       provider: 'gmail_smtp',
       smtpHost: 'smtp.gmail.com',
@@ -234,12 +235,13 @@ export function registerOnboardingIpc() {
 
       db.prepare(
         `
-        INSERT INTO email_accounts (id, workspaceId, email, provider, smtpHost, smtpPort, smtpSecure, smtpUsername, smtpPassword, imapHost, imapPort, imapSecure, imapUsername, imapPassword, status, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        INSERT INTO email_accounts (id, workspaceId, name, email, provider, smtpHost, smtpPort, smtpSecure, smtpUsername, smtpPassword, imapHost, imapPort, imapSecure, imapUsername, imapPassword, status, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
       `
       ).run(
         sampleAccount.id,
         workspaceId,
+        sampleAccount.name,
         sampleAccount.email,
         sampleAccount.provider,
         sampleAccount.smtpHost,
