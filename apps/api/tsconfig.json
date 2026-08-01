@@ -11,10 +11,7 @@
     { "path": "../../packages/auth" },
     { "path": "../../packages/core" },
     { "path": "../../packages/logger" },
-    { "path": "../../packages/schema" },
-    { "path": "../../packages/integrations" },
-    { "path": "../../packages/workflows" },
-    { "path": "../../packages/prompts" }
+    { "path": "../../packages/schema" }
   ],
   "include": ["src/**/*"]
 }
