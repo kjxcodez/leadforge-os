@@ -18,6 +18,12 @@ db.connect().catch((err) => {
   logger.fatal({ err }, 'Database connection failed during bootstrap.');
 });
 
+// Ensure database connection is active for every request (crucial for serverless lifecycle)
+app.use('*', async (c, next) => {
+  await db.connect();
+  await next();
+});
+
 // Setup compression if running in production node environment.
 // Standard Node/Hono compression integration: Hono does not natively bundle node compression middleware.
 // We execute custom middleware wrapping standard compress modules or skip it for dev.

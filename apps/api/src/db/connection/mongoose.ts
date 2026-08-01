@@ -47,6 +47,8 @@ class DatabaseManager {
   private static instance: DatabaseManager;
   private isConnected = false;
 
+  private connectPromise: Promise<void> | null = null;
+
   private constructor() {
     // Register Mongoose connection events
     mongoose.connection.on('connected', () => {
@@ -80,33 +82,38 @@ class DatabaseManager {
    */
   public async connect(): Promise<void> {
     if (this.isConnected || mongoose.connection.readyState === 1) {
-      logger.debug('MongoDB connection is already active. Reusing existing connection.');
       return;
     }
 
-    if (mongoose.connection.readyState === 2) {
-      logger.info('MongoDB connection is currently connecting. Awaiting completion...');
-      return;
+    if (this.connectPromise) {
+      return this.connectPromise;
     }
 
-    const retryLimit = 5;
-    let attempt = 0;
+    this.connectPromise = (async () => {
+      const retryLimit = 5;
+      let attempt = 0;
 
-    while (attempt < retryLimit) {
-      try {
-        attempt++;
-        logger.info(`Connecting to MongoDB... (Attempt ${attempt}/${retryLimit})`);
-        await mongoose.connect(dbConfig.uri, dbConfig.options);
-        return;
-      } catch (error) {
-        logger.error({ error, attempt }, `Failed to connect to MongoDB on attempt ${attempt}.`);
-        if (attempt >= retryLimit) {
-          logger.fatal('Database connection attempts exhausted. Shutting down.');
-          throw error;
+      while (attempt < retryLimit) {
+        try {
+          attempt++;
+          logger.info(`Connecting to MongoDB... (Attempt ${attempt}/${retryLimit})`);
+          await mongoose.connect(dbConfig.uri, dbConfig.options);
+          this.isConnected = true;
+          this.connectPromise = null;
+          return;
+        } catch (error) {
+          logger.error({ error, attempt }, `Failed to connect to MongoDB on attempt ${attempt}.`);
+          if (attempt >= retryLimit) {
+            this.connectPromise = null;
+            logger.fatal('Database connection attempts exhausted. Shutting down.');
+            throw error;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 2000));
         }
-        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
-    }
+    })();
+
+    return this.connectPromise;
   }
 
   /**

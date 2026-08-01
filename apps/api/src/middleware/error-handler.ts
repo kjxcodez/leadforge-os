@@ -65,7 +65,15 @@ export function errorHandler(error: Error, c: Context): Response {
   }
 
   // Fallback for internal unhandled exceptions
-  logger.error({ reqId, error }, 'Unhandled server exception caught in middleware.');
+  logger.error(
+    {
+      reqId,
+      errName: error.name,
+      errMsg: error.message,
+      errStack: error.stack
+    },
+    'Unhandled server exception caught in middleware.'
+  );
 
   return c.json(
     errorResponse(

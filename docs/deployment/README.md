@@ -88,7 +88,7 @@ No configuration change requires rebuilding the LeadForge OS desktop app. It res
 
 - **Tier 1 (Env overrides)**: Reads `API_URL` or `OPENROUTER_API_KEY` from the shell environment.
 - **Tier 2 (config.json)**: Reads `apiUrl` or `openRouterKey` from the local JSON config file in `userData`.
-- **Tier 3 (Build-time defaults)**: Falls back to `https://api.leadforge.co/api/v1` for the production backend API.
+- **Tier 3 (Build-time defaults)**: Falls back to `https://api.leadforge.kapiljangid.pro/api/v1` for the production backend API.
 
 To override the default production API URL on a tester's machine without rebuilding the app:
 
