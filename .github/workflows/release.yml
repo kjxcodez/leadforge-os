@@ -5,11 +5,13 @@ on:
     tags:
       - 'v*'
 
-jobs:
-  release:
-    name: Build & Publish Release
-    runs-on: ${{ matrix.os }}
+permissions:
+  contents: write
 
+jobs:
+  build:
+    name: Build Desktop Artifacts
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
@@ -42,22 +44,53 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Install Dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build Application
         run: pnpm run build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish Artifacts
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          files: |
+          name: build-artifacts-${{ matrix.os }}
+          path: |
             apps/desktop/dist/*.exe
             apps/desktop/dist/*.dmg
             apps/desktop/dist/*.AppImage
             apps/desktop/dist/latest.yml
+            apps/desktop/dist/latest-mac.yml
+            apps/desktop/dist/*.blockmap
             apps/desktop/dist/*.sha256
+          if-no-files-found: warn
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: LeadForge OS ${{ github.ref_name }}
+          draft: false
+          prerelease: true
+          files: |
+            release-artifacts/**/*.exe
+            release-artifacts/**/*.dmg
+            release-artifacts/**/*.AppImage
+            release-artifacts/**/latest.yml
+            release-artifacts/**/latest-mac.yml
+            release-artifacts/**/*.blockmap
+            release-artifacts/**/*.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

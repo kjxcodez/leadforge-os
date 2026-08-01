@@ -1,6 +1,7 @@
 {
   "name": "leadforge",
   "private": true,
+  "version": "0.1.0-beta.1",
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
@@ -10,7 +11,8 @@
     "doctor": "npx tsx scripts/doctor.ts",
     "test:ai": "npx tsx scripts/test-ai.ts",
     "release:check": "npx tsx scripts/release-check.ts",
-    "verify:production": "npx tsx scripts/verify-production.ts"
+    "verify:production": "npx tsx scripts/verify-production.ts",
+    "bump-version": "node scripts/bump-version.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
