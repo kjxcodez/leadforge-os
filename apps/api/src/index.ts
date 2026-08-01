@@ -2,7 +2,6 @@ import { serve } from '@hono/node-server';
 import { app } from './app.js';
 import { env, logger } from './config/index.js';
 import { db } from './db/index.js';
-import { SequenceWorker } from './services/automation/worker.js';
 
 /**
  * Node Server instance listener.
@@ -18,17 +17,11 @@ logger.info(`> LeadForge OS API Server is running on port ${port} in ${env.NODE_
 logger.info(`> OpenAPI specifications available at: http://localhost:${port}/openapi.json`);
 logger.info(`> Interactive API reference UI available at: http://localhost:${port}/reference`);
 
-// Start background automation sequences worker
-SequenceWorker.start();
-
 /**
  * Handles graceful system shutdown on process signals.
  */
 async function gracefulShutdown(signal: string) {
   logger.info(`Received ${signal}. Starting graceful shutdown procedure...`);
-
-  // Stop background worker
-  SequenceWorker.stop();
 
   // Close the server listener
   server.close();

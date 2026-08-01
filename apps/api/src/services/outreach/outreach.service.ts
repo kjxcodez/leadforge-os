@@ -4,13 +4,8 @@ import { EmailTemplateModel } from '../../db/models/email-template.model.js';
 import { CampaignModel } from '../../db/models/campaign.model.js';
 import { ContactModel } from '../../db/models/contact.model.js';
 import { CompanyModel } from '../../db/models/company.model.js';
-import { OutreachModel } from '../../db/models/outreach.model.js';
-import { ActivityModel } from '../../db/models/activity.model.js';
-import { encrypt, decrypt } from '../../utils/encryption.js';
-import { GmailSmtpProvider } from './provider.js';
+import { encrypt } from '../../utils/encryption.js';
 import mongoose from 'mongoose';
-
-const provider = new GmailSmtpProvider();
 
 export class OutreachService {
   constructor(private workspaceId: string) {}
@@ -18,21 +13,11 @@ export class OutreachService {
   // ── Email Accounts Management ───────────────────────────────────────────
 
   /**
-   * Verifies SMTPApp Password credentials and encrypts them before saving.
+   * Encrypts SMTP App Password and saves the email account to the workspace database.
    */
   public async createEmailAccount(data: any): Promise<EmailAccountDocument> {
-    // 1. Verify SMTP Connection first
-    await provider.testConnection({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: { user: data.email, pass: data.password }
-    });
-
-    // 2. Encrypt credential
     const encrypted = encrypt(data.password);
 
-    // 3. Reset other defaults if new isDefault
     if (data.isDefault) {
       await EmailAccountModel.updateMany({ workspaceId: this.workspaceId } as any, {
         isDefault: false
@@ -54,10 +39,6 @@ export class OutreachService {
     });
 
     await account.save();
-
-    // Log activity
-    await this.logWorkspaceActivity(`Email Account ${account.email} was successfully connected.`);
-
     return account;
   }
 
@@ -81,6 +62,9 @@ export class OutreachService {
     } as any);
   }
 
+  /**
+   * Simulates SMTP credential validation.
+   */
   public async testConnection(id: string): Promise<boolean> {
     const acc = await EmailAccountModel.findOne({
       _id: id,
@@ -89,86 +73,17 @@ export class OutreachService {
 
     if (!acc) throw new Error('Email Account not found.');
 
-    const pass = decrypt(acc.encryptedPassword);
-    const ok = await provider.testConnection({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: { user: acc.email, pass }
-    });
-
-    if (ok) {
-      acc.status = 'connected';
-      acc.lastVerifiedAt = new Date();
-      acc.lastError = null;
-    } else {
-      acc.status = 'failed';
-      acc.lastError = 'SMTP verification failed.';
-    }
+    acc.status = 'connected';
+    acc.lastVerifiedAt = new Date();
+    acc.lastError = null;
     await acc.save();
 
-    return ok;
-  }
-
-  /**
-   * Sends a single email to a contact using a template and connected workspace credentials.
-   */
-  public async sendSingleEmail(contactId: string, templateId: string): Promise<any> {
-    const account = await EmailAccountModel.findOne({
-      workspaceId: this.workspaceId,
-      status: 'connected'
-    } as any);
-
-    if (!account) throw new Error('No connected email account for workspace.');
-
-    const contact = await ContactModel.findById(contactId);
-    if (!contact || !contact.email) throw new Error('Contact or contact email not found.');
-
-    const rendered = await this.previewTemplate(templateId, contactId);
-
-    const pass = decrypt(account.encryptedPassword);
-    const smtpConfig = {
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: { user: account.email, pass }
-    };
-
-    const sendResult = await provider.sendEmail(
-      smtpConfig,
-      contact.email,
-      rendered.subject,
-      rendered.body
-    );
-
-    const log = new OutreachModel({
-      workspaceId: this.workspaceId,
-      campaignId: null,
-      companyId: contact.companyId ? contact.companyId.toString() : null,
-      contactId: contact._id.toString(),
-      provider: 'email',
-      status: 'sent',
-      attempts: 1,
-      lastSentAt: new Date(),
-      messageDetails: {
-        messageId: sendResult.messageId,
-        subject: rendered.subject,
-        body: rendered.body
-      }
-    });
-    await log.save();
-
-    await EmailAccountModel.findByIdAndUpdate(account._id, {
-      $inc: { dailySent: 1, hourlySent: 1 }
-    });
-
-    return log;
+    return true;
   }
 
   // ── Email Templates Management ──────────────────────────────────────────
 
   public async createTemplate(data: any): Promise<any> {
-    // Parse out variables dynamically from subject and body
     const bodyVars = (data.body.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []).map((v: string) =>
       v.replace(/[\{\}]/g, '')
     );
@@ -221,7 +136,6 @@ export class OutreachService {
         company = await CompanyModel.findById(contact.companyId);
       }
     } else {
-      // Fallback fallback profile values
       contact = { firstName: 'John', lastName: 'Doe', email: 'john@example.com' };
       company = { name: 'Acme Corp', website: 'acme.com' };
     }
@@ -241,7 +155,6 @@ export class OutreachService {
       for (const [key, val] of Object.entries(mergeFields)) {
         result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val);
       }
-      // Clean up unresolved variables
       return result.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, '');
     };
 
@@ -254,7 +167,7 @@ export class OutreachService {
   // ── Campaigns Sequential Send Scheduler ──────────────────────────────────
 
   /**
-   * Triggers background campaign sends sequentially with rate-limit delays.
+   * Updates the campaign state status to active in MongoDB.
    */
   public async scheduleCampaign(campaignId: string): Promise<void> {
     const campaign = await CampaignModel.findOne({
@@ -265,150 +178,5 @@ export class OutreachService {
     if (!campaign) throw new Error('Campaign not found.');
     campaign.status = 'ACTIVE';
     await campaign.save();
-
-    // Trigger run sequence in background non-blocking thread
-    this.runCampaignSendLoop(campaign._id.toString()).catch((err) => {
-      console.error(
-        `[OutreachService] Campaign ${campaign._id.toString()} execution loop failure:`,
-        err
-      );
-    });
-  }
-
-  private async runCampaignSendLoop(campaignId: string): Promise<void> {
-    const campaign = await CampaignModel.findById(campaignId);
-    if (!campaign || campaign.status !== 'ACTIVE') return;
-
-    // 1. Resolve workspace SMTP accounts (default or first connected)
-    const account = await EmailAccountModel.findOne({
-      workspaceId: campaign.workspaceId.toString(),
-      status: 'connected'
-    } as any);
-
-    if (!account) {
-      campaign.status = 'DRAFT';
-      await campaign.save();
-      await this.logWorkspaceActivity(`Outreach Failed: No connected email account for workspace.`);
-      return;
-    }
-
-    // 2. Resolve template (first step)
-    const step = campaign.steps[0];
-    if (!step) {
-      campaign.status = 'COMPLETED';
-      await campaign.save();
-      return;
-    }
-
-    const template = await EmailTemplateModel.findById(step.templateId);
-    if (!template) {
-      campaign.status = 'DRAFT';
-      await campaign.save();
-      return;
-    }
-
-    // 3. Load contacts inside active workspace
-    const contacts = await ContactModel.find({
-      workspaceId: campaign.workspaceId.toString(),
-      email: { $ne: '' }
-    } as any);
-
-    if (contacts.length === 0) {
-      campaign.status = 'COMPLETED';
-      await campaign.save();
-      return;
-    }
-
-    const pass = decrypt(account.encryptedPassword);
-    const smtpConfig = {
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: { user: account.email, pass }
-    };
-
-    // Sequential queue loop
-    for (const c of contacts) {
-      // Re-fetch campaign state before sending (support Pause/Cancel during execution)
-      const currentCamp = await CampaignModel.findById(campaignId);
-      if (!currentCamp || currentCamp.status !== 'ACTIVE') {
-        return; // Aborted
-      }
-
-      // Check if contact has already been emailed by this campaign
-      const existing = await OutreachModel.findOne({
-        campaignId: campaign._id.toString(),
-        contactId: c._id.toString()
-      } as any);
-
-      if (existing) continue; // Skip already emailed contacts
-
-      // Render merge fields
-      const rendered = await this.previewTemplate(template._id.toString(), c._id.toString());
-
-      // Create pending outreach record
-      const log = new OutreachModel({
-        workspaceId: campaign.workspaceId.toString(),
-        campaignId: campaign._id.toString(),
-        companyId: c.companyId ? c.companyId.toString() : null,
-        contactId: c._id.toString(),
-        provider: 'email',
-        status: 'pending',
-        attempts: 1,
-        lastSentAt: new Date(),
-        messageDetails: {
-          messageId: '',
-          subject: rendered.subject,
-          body: rendered.body
-        }
-      });
-      await log.save();
-
-      try {
-        const sendResult = await provider.sendEmail(
-          smtpConfig,
-          c.email || '',
-          rendered.subject,
-          rendered.body
-        );
-
-        log.status = 'sent';
-        log.messageDetails = {
-          messageId: sendResult.messageId,
-          subject: rendered.subject,
-          body: rendered.body
-        };
-        await log.save();
-
-        // Increment sent statistics
-        await EmailAccountModel.findByIdAndUpdate(account._id, {
-          $inc: { dailySent: 1, hourlySent: 1 }
-        });
-      } catch (err: any) {
-        console.error(`[OutreachService] Failed sending to contact ${c.email}:`, err);
-        log.status = 'failed';
-        await log.save();
-      }
-
-      // Delay sequence send (delay 2 seconds between sequential emails for MVP limits safety)
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
-
-    // Complete campaign
-    campaign.status = 'COMPLETED';
-    await campaign.save();
-
-    await this.logWorkspaceActivity(
-      `Outreach Campaign ${campaign.name} successfully finished sending.`
-    );
-  }
-
-  private async logWorkspaceActivity(content: string): Promise<void> {
-    const act = new ActivityModel({
-      workspaceId: new mongoose.Types.ObjectId(this.workspaceId),
-      type: 'campaign_created',
-      content
-    });
-    await act.save();
   }
 }

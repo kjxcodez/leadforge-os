@@ -17,8 +17,6 @@ import { WorkspaceService } from '../services/workspace/workspace.service.js';
 import { CompanyService } from '../services/company/company.service.js';
 import { ContactService } from '../services/contact/contact.service.js';
 import { CampaignService } from '../services/campaign/campaign.service.js';
-import { ActivityService } from '../services/activity/activity.service.js';
-import { DiscoveryService } from '../services/discovery/discovery.service.js';
 import { OutreachService } from '../services/outreach/outreach.service.js';
 import { successResponse } from '../utils/index.js';
 import { ForbiddenError } from '../errors/index.js';
@@ -28,8 +26,6 @@ export const contactsRouter = new OpenAPIHono();
 export const campaignsRouter = new OpenAPIHono();
 export const outreachRouter = new OpenAPIHono();
 export const workspacesRouter = new OpenAPIHono();
-export const discoveryRouter = new OpenAPIHono();
-export const activitiesRouter = new OpenAPIHono();
 
 const workspaceService = new WorkspaceService();
 
@@ -412,87 +408,6 @@ workspacesRouter.openapi(declineInviteRoute, async (c) => {
   return c.json(successResponse(workspace));
 });
 
-// ---------------------------------------------------------------------------
-// Discovery Routes (CRM placeholder)
-// ---------------------------------------------------------------------------
-const discoverySearchRoute = createRoute({
-  method: 'post',
-  path: '/search',
-  summary: 'Run Discovery Search',
-  tags: ['Discovery'],
-  request: {
-    body: {
-      content: {
-        'application/json': {
-          schema: z.object({ query: z.string() })
-        }
-      }
-    }
-  },
-  responses: {
-    200: { description: 'Discovery search results' }
-  }
-});
-
-discoveryRouter.openapi(discoverySearchRoute, async (c) => {
-  const { query } = c.req.valid('json');
-  return c.json(
-    successResponse({
-      companies: [{ id: 'comp_1', name: 'Acme Corp', domain: 'acme.com', industry: 'SaaS' }],
-      contacts: [{ id: 'cont_1', firstName: 'Alice', email: 'alice@acme.com' }]
-    })
-  );
-});
-
-discoveryRouter.get('/jobs', async (c) => {
-  const wsId = getWorkspaceId(c);
-  const page = parseInt(c.req.query('page') || '1');
-  const limit = parseInt(c.req.query('limit') || '100');
-  const service = new DiscoveryService(wsId);
-  const result = await service.listJobs(page, limit);
-  return c.json(successResponse(result.data));
-});
-
-discoveryRouter.post('/jobs', async (c) => {
-  const wsId = getWorkspaceId(c);
-  const body = await c.req.json();
-  const service = new DiscoveryService(wsId);
-  const job = await service.createJob(body.name, body.provider, body.query);
-  return c.json(successResponse(job));
-});
-
-discoveryRouter.get('/jobs/:id', async (c) => {
-  const wsId = getWorkspaceId(c);
-  const id = c.req.param('id');
-  const service = new DiscoveryService(wsId);
-  const job = await service.getJobById(id);
-  return c.json(successResponse(job));
-});
-
-discoveryRouter.get('/jobs/:id/results', async (c) => {
-  const wsId = getWorkspaceId(c);
-  const id = c.req.param('id');
-  const service = new DiscoveryService(wsId);
-  const results = await service.getJobResults(id);
-  return c.json(successResponse(results));
-});
-
-discoveryRouter.post('/results/:id/import', async (c) => {
-  const wsId = getWorkspaceId(c);
-  const id = c.req.param('id');
-  const service = new DiscoveryService(wsId);
-  const result = await service.importResult(id);
-  return c.json(successResponse(result));
-});
-
-discoveryRouter.post('/results/:id/skip', async (c) => {
-  const wsId = getWorkspaceId(c);
-  const id = c.req.param('id');
-  const service = new DiscoveryService(wsId);
-  const result = await service.skipResult(id);
-  return c.json(successResponse(result));
-});
-
 // ── Companies Router ──────────────────────────────────────────────────────
 
 companiesRouter.get('/', async (c) => {
@@ -517,11 +432,6 @@ companiesRouter.post('/', async (c) => {
   const body = await c.req.json();
   const service = new CompanyService(wsId);
   const company = await service.createCompany({ ...body, workspaceId: wsId });
-
-  // Log activity
-  const actService = new ActivityService(wsId);
-  await actService.logActivity('company_created', `Company ${company.name} was created.`);
-
   return c.json(successResponse(company));
 });
 
@@ -531,11 +441,6 @@ companiesRouter.patch('/:id', async (c) => {
   const body = await c.req.json();
   const service = new CompanyService(wsId);
   const company = await service.updateCompany(id, body);
-
-  // Log activity
-  const actService = new ActivityService(wsId);
-  await actService.logActivity('company_updated', `Company ${company.name} details were updated.`);
-
   return c.json(successResponse(company));
 });
 
@@ -543,13 +448,7 @@ companiesRouter.delete('/:id', async (c) => {
   const wsId = getWorkspaceId(c);
   const id = c.req.param('id');
   const service = new CompanyService(wsId);
-  const company = await service.getCompanyById(id);
   await service.deleteCompany(id);
-
-  // Log activity
-  const actService = new ActivityService(wsId);
-  await actService.logActivity('company_deleted', `Company ${company?.name || id} was deleted.`);
-
   return c.json(successResponse({ success: true }));
 });
 
@@ -577,14 +476,6 @@ contactsRouter.post('/', async (c) => {
   const body = await c.req.json();
   const service = new ContactService(wsId);
   const contact = await service.createContact({ ...body, workspaceId: wsId });
-
-  // Log activity
-  const actService = new ActivityService(wsId);
-  await actService.logActivity(
-    'contact_created',
-    `Contact ${contact.firstName} ${contact.lastName || ''} was created.`
-  );
-
   return c.json(successResponse(contact));
 });
 
@@ -594,14 +485,6 @@ contactsRouter.patch('/:id', async (c) => {
   const body = await c.req.json();
   const service = new ContactService(wsId);
   const contact = await service.updateContact(id, body);
-
-  // Log activity
-  const actService = new ActivityService(wsId);
-  await actService.logActivity(
-    'contact_updated',
-    `Contact ${contact.firstName} ${contact.lastName || ''} details were updated.`
-  );
-
   return c.json(successResponse(contact));
 });
 
@@ -609,16 +492,7 @@ contactsRouter.delete('/:id', async (c) => {
   const wsId = getWorkspaceId(c);
   const id = c.req.param('id');
   const service = new ContactService(wsId);
-  const contact = await service.getContactById(id);
   await service.deleteContact(id);
-
-  // Log activity
-  const actService = new ActivityService(wsId);
-  await actService.logActivity(
-    'contact_deleted',
-    `Contact ${contact?.firstName || id} was deleted.`
-  );
-
   return c.json(successResponse({ success: true }));
 });
 
@@ -646,11 +520,6 @@ campaignsRouter.post('/', async (c) => {
   const body = await c.req.json();
   const service = new CampaignService(wsId);
   const campaign = await service.createCampaign({ ...body, workspaceId: wsId });
-
-  // Log activity
-  const actService = new ActivityService(wsId);
-  await actService.logActivity('campaign_created', `Campaign ${campaign.name} was created.`);
-
   return c.json(successResponse(campaign));
 });
 
@@ -660,14 +529,6 @@ campaignsRouter.patch('/:id', async (c) => {
   const body = await c.req.json();
   const service = new CampaignService(wsId);
   const campaign = await service.updateCampaign(id, body);
-
-  // Log activity
-  const actService = new ActivityService(wsId);
-  await actService.logActivity(
-    'campaign_updated',
-    `Campaign ${campaign.name} details were updated.`
-  );
-
   return c.json(successResponse(campaign));
 });
 
@@ -675,13 +536,7 @@ campaignsRouter.delete('/:id', async (c) => {
   const wsId = getWorkspaceId(c);
   const id = c.req.param('id');
   const service = new CampaignService(wsId);
-  const campaign = await service.getCampaignById(id);
   await service.deleteCampaign(id);
-
-  // Log activity
-  const actService = new ActivityService(wsId);
-  await actService.logActivity('campaign_deleted', `Campaign ${campaign?.name || id} was deleted.`);
-
   return c.json(successResponse({ success: true }));
 });
 
@@ -756,15 +611,4 @@ outreachRouter.get('/templates/:id/preview', async (c) => {
   const service = new OutreachService(wsId);
   const preview = await service.previewTemplate(id, contactId);
   return c.json(successResponse(preview));
-});
-
-// ── Activities Router ─────────────────────────────────────────────────────
-
-activitiesRouter.get('/', async (c) => {
-  const wsId = getWorkspaceId(c);
-  const page = parseInt(c.req.query('page') || '1');
-  const limit = parseInt(c.req.query('limit') || '100');
-  const service = new ActivityService(wsId);
-  const result = await service.listActivities(page, limit);
-  return c.json(successResponse(result.data));
 });
