@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/assets/logo.png" alt="LeadForge OS Logo" width="180" />
+  <img src="docs/assets/logo.png" alt="LeadForge OS Logo" width="250" />
   
   # LeadForge OS
   
