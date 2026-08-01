@@ -5,7 +5,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "node ../../scripts/clean-tsbuildinfo.js && tsc",
     "start": "node dist/index.js",
-    "lint": "echo 'Skipping api lint'",
+    "lint": "eslint .",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
@@ -15,11 +15,8 @@
     "@hono/zod-validator": "^0.8.0",
     "@leadforge/auth": "workspace:*",
     "@leadforge/core": "workspace:*",
-    "@leadforge/integrations": "workspace:*",
     "@leadforge/logger": "workspace:*",
-    "@leadforge/prompts": "workspace:*",
     "@leadforge/schema": "workspace:*",
-    "@leadforge/workflows": "workspace:*",
     "@scalar/hono-api-reference": "^0.11.9",
     "bcryptjs": "^3.0.3",
     "better-auth": "^1.6.23",

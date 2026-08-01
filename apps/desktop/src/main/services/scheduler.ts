@@ -55,6 +55,10 @@ export class JobScheduler {
     private eventBus: LocalEventBus
   ) {}
 
+  public get isActive(): boolean {
+    return this.intervalId !== null;
+  }
+
   /**
    * Starts periodic polling loop.
    */
@@ -562,6 +566,12 @@ export class JobScheduler {
       if (current && (current.status === 'running' || current.status === 'starting')) {
         const errorMsg = `Worker process exited abnormally with code ${code} (signal: ${signal})`;
         AppLogger.error('JobScheduler', `Job "${job.id}" worker crashed: ${errorMsg}`, this.workspaceId, { jobId: job.id });
+        
+        try {
+          const { LocalCrashReporter } = require('../lib/crash-reporter');
+          LocalCrashReporter.report(new Error(errorMsg), `worker:crash:${job.type}`);
+        } catch {}
+
         this.handleJobFailure(job.id, job.retryCount, job.maxRetries, errorMsg);
       }
 

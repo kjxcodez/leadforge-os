@@ -325,4 +325,199 @@ export function registerObservabilityIpc() {
   safeRegister('dev-mode:log', async (_event, { workspaceId }) => {
     return devModeEvents;
   });
+
+  // Helper function to query local diagnostics
+  async function getSystemInfoLocal(workspaceId?: string) {
+    const appVersion = app.getVersion();
+    const nodeVersion = process.version;
+    const electronVersion = process.versions.electron;
+    const platform = process.platform;
+
+    let gitCommit = 'unknown';
+    try {
+      const { execSync } = require('child_process');
+      gitCommit = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+    } catch {}
+
+    let databaseVersion = 'unknown';
+    let migrationVersion = 'none';
+    let schedulerStatus = 'Inactive';
+    let syncEngineStatus = 'Inactive';
+    let aiProviderConfig: any = { mode: 'mock', hasKey: false };
+
+    if (workspaceId) {
+      try {
+        const db = getDatabase(workspaceId);
+        databaseVersion = (db.prepare("select sqlite_version() as ver").get() as any).ver;
+
+        const tableExistsInDb = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_migrations'").get();
+        if (tableExistsInDb) {
+          const row = db.prepare('SELECT name FROM _migrations ORDER BY id DESC LIMIT 1').get() as { name: string } | undefined;
+          if (row) {
+            migrationVersion = row.name;
+          }
+        }
+
+        const { WorkspaceManager } = require('../lib/workspace-manager');
+        const activeRuntime = WorkspaceManager.getActiveRuntime();
+        if (activeRuntime && activeRuntime.workspaceId === workspaceId) {
+          schedulerStatus = activeRuntime.scheduler.isActive ? 'Active' : 'Stopped';
+          syncEngineStatus = activeRuntime.syncEngine.isActive ? 'Active' : 'Stopped';
+        }
+
+        const keyRow = db.prepare("SELECT value FROM settings WHERE key = 'openrouter_key' AND workspaceId = ?").get(workspaceId) as { value: string } | undefined;
+        const modeRow = db.prepare("SELECT value FROM settings WHERE key = 'ai_mode' AND workspaceId = ?").get(workspaceId) as { value: string } | undefined;
+        
+        aiProviderConfig = {
+          mode: modeRow?.value || 'mock',
+          hasKey: !!keyRow?.value,
+          openRouterKey: keyRow?.value ? '[MASKED]' : 'Not Configured'
+        };
+
+      } catch (err) {
+        // ignore
+      }
+    }
+
+    return {
+      appVersion,
+      gitCommit,
+      electronVersion,
+      nodeVersion,
+      platform,
+      activeWorkspaceId: workspaceId || 'None',
+      databaseVersion,
+      migrationVersion,
+      schedulerStatus,
+      syncEngineStatus,
+      aiProviderConfig,
+      toolRegistryStatus: 2,
+      workflowEngineStatus: 'Idle'
+    };
+  }
+
+  // Register in-app diagnostics retrieval
+  safeRegister('diagnostics:get-system-info', async (_event, { workspaceId }) => {
+    return getSystemInfoLocal(workspaceId);
+  });
+
+  // Register support bundle exporter
+  safeRegister('diagnostics:export-support-bundle', async (_event, { workspaceId }) => {
+    const { dialog } = require('electron');
+    const result = await dialog.showSaveDialog({
+      title: 'Export Support Bundle',
+      defaultPath: join(app.getPath('downloads'), `leadforge-support-bundle-${Date.now()}.zip`),
+      filters: [{ name: 'ZIP Archives', extensions: ['zip'] }]
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { success: false, message: 'Export cancelled by user.' };
+    }
+
+    const destZipPath = result.filePath;
+    const tempDir = join(app.getPath('temp'), `leadforge-support-temp-${Date.now()}`);
+
+    try {
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      // A. Write diagnostics info
+      const systemInfo = await getSystemInfoLocal(workspaceId);
+      fs.writeFileSync(join(tempDir, 'diagnostics.json'), JSON.stringify(systemInfo, null, 2), 'utf8');
+
+      // B. Write masked config.json
+      const userDataPath = app.getPath('userData');
+      const configPath = join(userDataPath, 'config.json');
+      if (fs.existsSync(configPath)) {
+        try {
+          const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+          
+          const maskSecrets = (obj: any): any => {
+            if (!obj || typeof obj !== 'object') return obj;
+            const masked = Array.isArray(obj) ? [] : {};
+            for (const [k, v] of Object.entries(obj)) {
+              const keyLower = k.toLowerCase();
+              if (typeof v === 'string' && (keyLower.includes('key') || keyLower.includes('password') || keyLower.includes('token') || keyLower.includes('secret'))) {
+                (masked as any)[k] = '[MASKED]';
+              } else if (typeof v === 'object') {
+                (masked as any)[k] = maskSecrets(v);
+              } else {
+                (masked as any)[k] = v;
+              }
+            }
+            return masked;
+          };
+
+          const maskedConfig = maskSecrets(config);
+          fs.writeFileSync(join(tempDir, 'config.json'), JSON.stringify(maskedConfig, null, 2), 'utf8');
+        } catch {}
+      }
+
+      // C. Copy Logs folder
+      const logsSource = join(userDataPath, 'logs');
+      if (fs.existsSync(logsSource)) {
+        const logsDest = join(tempDir, 'logs');
+        fs.mkdirSync(logsDest, { recursive: true });
+        const files = fs.readdirSync(logsSource);
+        for (const file of files) {
+          if (file.endsWith('.jsonl')) {
+            fs.copyFileSync(join(logsSource, file), join(logsDest, file));
+          }
+        }
+      }
+
+      // D. Copy Crashes folder
+      const crashesSource = join(userDataPath, 'crashes');
+      if (fs.existsSync(crashesSource)) {
+        const crashesDest = join(tempDir, 'crashes');
+        fs.mkdirSync(crashesDest, { recursive: true });
+        const files = fs.readdirSync(crashesSource);
+        for (const file of files) {
+          if (file.endsWith('.json')) {
+            fs.copyFileSync(join(crashesSource, file), join(crashesDest, file));
+          }
+        }
+      }
+
+      // E. Write Recent Jobs (Workflow Executions)
+      if (workspaceId) {
+        try {
+          const db = getDatabase(workspaceId);
+          const jobs = db.prepare("SELECT * FROM jobs ORDER BY updatedAt DESC LIMIT 50").all();
+          fs.writeFileSync(join(tempDir, 'jobs.json'), JSON.stringify(jobs, null, 2), 'utf8');
+        } catch {}
+      }
+
+      // F. Copy Doctor and Health reports if available
+      const projectRoot = join(app.getAppPath(), '../../..');
+      const healthReportPath = join(projectRoot, 'report', 'health-report.json');
+      if (fs.existsSync(healthReportPath)) {
+        fs.copyFileSync(healthReportPath, join(tempDir, 'health-report.json'));
+      }
+      const doctorReportPath = join(projectRoot, 'report', 'doctor-report.md');
+      if (fs.existsSync(doctorReportPath)) {
+        fs.copyFileSync(doctorReportPath, join(tempDir, 'doctor-report.md'));
+      }
+
+      // G. Perform OS-native compression
+      const { execSync } = require('child_process');
+      if (process.platform === 'win32') {
+        execSync(`powershell -Command "Compress-Archive -Path '${tempDir}\\*' -DestinationPath '${destZipPath}' -Force"`);
+      } else {
+        execSync(`zip -r "${destZipPath}" ./*`, { cwd: tempDir });
+      }
+
+      return { success: true, message: `Support bundle successfully exported to: ${destZipPath}` };
+    } catch (err: any) {
+      AppLogger.error('Diagnostics', 'Failed to export support bundle', workspaceId, err);
+      return { success: false, message: `Failed to export support bundle: ${err.message || err}` };
+    } finally {
+      if (fs.existsSync(tempDir)) {
+        try {
+          fs.rmSync(tempDir, { recursive: true, force: true });
+        } catch {}
+      }
+    }
+  });
 }

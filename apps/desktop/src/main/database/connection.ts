@@ -6,6 +6,19 @@ import fs from 'fs';
 let globalDb: Database.Database | null = null;
 const workspaceDbs = new Map<string, Database.Database>();
 
+function logSQLite(message: string, workspaceId?: string) {
+  try {
+    const logger = (globalThis as any).AppLogger;
+    if (logger) {
+      logger.info('SQLite', message, workspaceId);
+    } else {
+      console.log(`[SQLite] ${message}`);
+    }
+  } catch {
+    console.log(`[SQLite] ${message}`);
+  }
+}
+
 /**
  * Initializes and returns the local SQLite database connection.
  * Configures WAL mode, normal synchronisation, and a busy timeout.
@@ -33,7 +46,7 @@ export function getDatabase(workspaceId?: string): Database.Database {
     db.pragma('foreign_keys = ON');
 
     workspaceDbs.set(workspaceId, db);
-    console.log(`[SQLite] Workspace database initialized at: ${dbPath}`);
+    logSQLite(`Workspace database initialized at: ${dbPath}`, workspaceId);
     return db;
   }
 
@@ -49,7 +62,7 @@ export function getDatabase(workspaceId?: string): Database.Database {
   globalDb.pragma('busy_timeout = 5000');
   globalDb.pragma('foreign_keys = ON');
 
-  console.log(`[SQLite] Global database initialized at: ${dbPath}`);
+  logSQLite(`Global database initialized at: ${dbPath}`);
   return globalDb;
 }
 
@@ -62,19 +75,20 @@ export function closeDatabase(workspaceId?: string): void {
     if (db) {
       db.close();
       workspaceDbs.delete(workspaceId);
-      console.log(`[SQLite] Workspace database for "${workspaceId}" closed cleanly.`);
+      logSQLite(`Workspace database for "${workspaceId}" closed cleanly.`, workspaceId);
     }
   } else {
     if (globalDb) {
       globalDb.close();
       globalDb = null;
-      console.log('[SQLite] Global database closed cleanly.');
+      logSQLite('Global database closed cleanly.');
     }
     for (const [id, db] of workspaceDbs.entries()) {
       db.close();
-      console.log(`[SQLite] Workspace database for "${id}" closed cleanly.`);
+      logSQLite(`Workspace database for "${id}" closed cleanly.`, id);
     }
     workspaceDbs.clear();
   }
 }
+
 

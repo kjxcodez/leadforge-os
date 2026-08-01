@@ -166,3 +166,4 @@ class AppLoggerClass {
 }
 
 export const AppLogger = new AppLoggerClass();
+(globalThis as any).AppLogger = AppLogger;

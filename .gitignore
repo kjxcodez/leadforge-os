@@ -39,3 +39,22 @@ stitch_leadforge_dashboard_design_system
 
 # TS build info cache
 *.tsbuildinfo
+
+# LeadForge OS Beta telemetry, logs, and local databases
+report/*
+!report/.gitkeep
+*.db
+*.db-shm
+*.db-wal
+*.bak
+*.sqlite
+*.sqlite3
+logs/
+crashes/
+analytics.json
+*.log
+userData/
+
+# OS-specific
+Thumbs.db
+.DS_Store

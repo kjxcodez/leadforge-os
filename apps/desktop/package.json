@@ -9,7 +9,8 @@
     "build:dir": "node ../../scripts/clean-tsbuildinfo.js && electron-vite build && electron-builder --dir --win",
     "package": "node ../../scripts/clean-tsbuildinfo.js && pnpm -r build && electron-vite build && electron-builder --win",
     "preview": "electron-vite preview",
-    "lint": "echo 'Skipping desktop lint'",
+    "lint": "eslint .",
+    "test": "node scripts/run-tests.js",
     "check-types": "tsc --noEmit",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\""
   },

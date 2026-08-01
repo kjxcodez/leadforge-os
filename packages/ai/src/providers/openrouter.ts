@@ -2,7 +2,7 @@ export async function callOpenRouter(
   apiKey: string,
   prompt: string,
   model = 'meta-llama/llama-3-8b-instruct:free',
-  options?: { temperature?: number; maxTokens?: number }
+  options?: { temperature?: number; maxTokens?: number; signal?: AbortSignal }
 ): Promise<string> {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -10,6 +10,7 @@ export async function callOpenRouter(
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
     },
+    signal: options?.signal || null,
     body: JSON.stringify({
       model,
       messages: [{ role: 'user', content: prompt }],

@@ -12,6 +12,10 @@ import { loadWindowState, trackWindowState } from './lib/window-state';
 import { createSplashWindow } from './lib/splash-window';
 import { telemetry } from './lib/telemetry';
 import { UpdateManager } from './services/updater';
+import { LocalCrashReporter } from './lib/crash-reporter';
+
+// Track and write process crashes locally
+LocalCrashReporter.initialize();
 
 // Main window reference
 let mainWindow: BrowserWindow | null = null;
@@ -106,6 +110,13 @@ function createWindow() {
   }
 
   trackWindowState(mainWindow);
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    LocalCrashReporter.report(
+      new Error(`Renderer process gone. Reason: ${details.reason}, Exit code: ${details.exitCode}`),
+      'renderer:render-process-gone'
+    );
+  });
 
   mainWindow.webContents.on('console-message', (_event, _level, message) => {
     console.log(`[Renderer Console] ${message}`);

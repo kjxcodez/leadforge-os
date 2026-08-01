@@ -1,5 +1,7 @@
 import { app } from 'electron';
 import os from 'os';
+import fs from 'fs';
+import { join } from 'path';
 import { getDatabase } from '../database/connection';
 
 export interface StartupMetrics {
@@ -88,6 +90,34 @@ class TelemetryTracker {
         totalMem: os.totalmem(),
       }
     };
+  }
+
+  public saveAnalyticsMetricsLocal(workspaceId?: string): void {
+    try {
+      const dataPath = app.getPath('userData');
+      const analyticsFile = join(dataPath, 'analytics.json');
+      const metrics = this.getMetrics(workspaceId);
+      
+      let existing: any[] = [];
+      if (fs.existsSync(analyticsFile)) {
+        try {
+          existing = JSON.parse(fs.readFileSync(analyticsFile, 'utf8'));
+          if (!Array.isArray(existing)) existing = [];
+        } catch {}
+      }
+
+      existing.push({
+        timestamp: new Date().toISOString(),
+        workspaceId: workspaceId || 'global',
+        ...metrics
+      });
+
+      if (existing.length > 100) {
+        existing.shift();
+      }
+
+      fs.writeFileSync(analyticsFile, JSON.stringify(existing, null, 2), 'utf8');
+    } catch {}
   }
 }
 
