@@ -26,7 +26,7 @@ export class WorkspaceRuntime {
   public readonly eventBridge: EventBridge;
   public readonly triggerEvaluator: AutomationTriggerEvaluator;
   private isRunning: boolean = false;
-  
+
   public startedAt: Date | null = null;
   public startupStartedAt: Date | null = null;
   public startupCompletedAt: Date | null = null;
@@ -63,7 +63,11 @@ export class WorkspaceRuntime {
     } catch {}
     this.syncEngine = new SyncEngine(workspaceId, this.sqliteDb, this.eventBus, sdk);
     this.eventBridge = new EventBridge(this.eventBus);
-    this.triggerEvaluator = new AutomationTriggerEvaluator(workspaceId, this.sqliteDb, this.eventBus);
+    this.triggerEvaluator = new AutomationTriggerEvaluator(
+      workspaceId,
+      this.sqliteDb,
+      this.eventBus
+    );
   }
 
   /**
@@ -82,7 +86,7 @@ export class WorkspaceRuntime {
     this.startedAt = new Date();
 
     console.log(`[WorkspaceRuntime] Starting workspace runtime: ${this.workspaceId}`);
-    
+
     // Broadcast progress helper
     const sendBootProgress = (step: string, label: string) => {
       try {
@@ -104,7 +108,10 @@ export class WorkspaceRuntime {
     try {
       runMigrations(this.sqliteDb);
     } catch (err) {
-      console.error(`[WorkspaceRuntime] Database migration failed for workspace ${this.workspaceId}:`, err);
+      console.error(
+        `[WorkspaceRuntime] Database migration failed for workspace ${this.workspaceId}:`,
+        err
+      );
       throw err;
     }
     this.migrationsDuration = Date.now() - migStart;
@@ -192,37 +199,55 @@ export class WorkspaceRuntime {
   private async recoverInterruptedJobs(): Promise<void> {
     try {
       // Find all stale jobs that were running/starting or already interrupted
-      const jobs = this.sqliteDb.prepare(`
+      const jobs = this.sqliteDb
+        .prepare(
+          `
         SELECT id, type, status FROM jobs
         WHERE workspaceId = ? AND status IN ('running', 'starting', 'interrupted')
-      `).all(this.workspaceId) as { id: string; type: string; status: string }[];
+      `
+        )
+        .all(this.workspaceId) as { id: string; type: string; status: string }[];
 
       let totalInterrupted = 0;
       let totalRecovered = 0;
       let totalSkipped = 0;
       let totalFailures = 0;
 
-      const recoverableTypes = ['scraper:maps', 'crawler:website', 'enrich:website', 'enrich:intelligence', 'automation:workflow'];
+      const recoverableTypes = [
+        'scraper:maps',
+        'crawler:website',
+        'enrich:website',
+        'enrich:intelligence',
+        'automation:workflow'
+      ];
 
       for (const job of jobs) {
         try {
           totalInterrupted++;
           if (job.status === 'running' || job.status === 'starting') {
             // Transition stale running/starting jobs to interrupted
-            this.sqliteDb.prepare(`
+            this.sqliteDb
+              .prepare(
+                `
               UPDATE jobs
               SET status = 'interrupted', error = 'App restarted during execution', updatedAt = CURRENT_TIMESTAMP
               WHERE id = ?
-            `).run(job.id);
+            `
+              )
+              .run(job.id);
           }
 
           if (recoverableTypes.includes(job.type)) {
             // Recoverable: transition from interrupted to queued
-            this.sqliteDb.prepare(`
+            this.sqliteDb
+              .prepare(
+                `
               UPDATE jobs
               SET status = 'queued', error = NULL, updatedAt = CURRENT_TIMESTAMP
               WHERE id = ?
-            `).run(job.id);
+            `
+              )
+              .run(job.id);
             totalRecovered++;
           } else {
             // Non-recoverable: leave as interrupted
@@ -234,70 +259,121 @@ export class WorkspaceRuntime {
         }
       }
 
-      console.log(`[WorkspaceRuntime] Stale jobs recovery metrics — Found: ${totalInterrupted}, Recovered: ${totalRecovered}, Skipped: ${totalSkipped}, Failures: ${totalFailures}`);
+      console.log(
+        `[WorkspaceRuntime] Stale jobs recovery metrics — Found: ${totalInterrupted}, Recovered: ${totalRecovered}, Skipped: ${totalSkipped}, Failures: ${totalFailures}`
+      );
 
       // ─── Sequence Executions Crash Recovery ──────────────────────────────
-      const activeExecutions = this.sqliteDb.prepare(`
+      const activeExecutions = this.sqliteDb
+        .prepare(
+          `
         SELECT id, sequenceId, currentStep, status, retryCount, contactId, companyId
         FROM sequence_executions
         WHERE workspaceId = ? AND status IN ('running', 'queued')
-      `).all(this.workspaceId) as { id: string; sequenceId: string; currentStep: number; status: string; retryCount: number; contactId: string | null; companyId: string | null }[];
+      `
+        )
+        .all(this.workspaceId) as {
+        id: string;
+        sequenceId: string;
+        currentStep: number;
+        status: string;
+        retryCount: number;
+        contactId: string | null;
+        companyId: string | null;
+      }[];
 
       for (const exec of activeExecutions) {
         try {
           // Check associated job
-          const job = this.sqliteDb.prepare(`
+          const job = this.sqliteDb
+            .prepare(
+              `
             SELECT id, status, type FROM jobs
             WHERE workspaceId = ? AND type = 'automation:workflow'
               AND json_extract(payload, '$.executionId') = ?
             ORDER BY createdAt DESC LIMIT 1
-          `).get(this.workspaceId, exec.id) as { id: string; status: string; type: string } | undefined;
+          `
+            )
+            .get(this.workspaceId, exec.id) as
+            { id: string; status: string; type: string } | undefined;
 
           const entityId = exec.contactId || exec.companyId || 'unknown';
 
           if (job) {
             if (job.status === 'failed') {
               // Stale job is permanently failed -> update execution status to failed
-              this.sqliteDb.prepare(`
+              this.sqliteDb
+                .prepare(
+                  `
                 UPDATE sequence_executions
                 SET status = 'failed', completedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP
                 WHERE id = ?
-              `).run(exec.id);
+              `
+                )
+                .run(exec.id);
 
-              this.sqliteDb.prepare(`
+              this.sqliteDb
+                .prepare(
+                  `
                 INSERT INTO sequence_logs (id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt)
                 VALUES (?, ?, ?, ?, ?, 'RECOVERY', 'failed', 'Execution marked failed because associated job failed during shutdown.', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-              `).run(randomUUID(), exec.id, this.workspaceId, new Date().toISOString(), exec.currentStep);
+              `
+                )
+                .run(
+                  randomUUID(),
+                  exec.id,
+                  this.workspaceId,
+                  new Date().toISOString(),
+                  exec.currentStep
+                );
 
               // Release execution lock on failure
-              this.sqliteDb.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(exec.sequenceId, entityId);
+              this.sqliteDb
+                .prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?')
+                .run(exec.sequenceId, entityId);
             } else if (job.status === 'cancelled') {
-              this.sqliteDb.prepare(`
+              this.sqliteDb
+                .prepare(
+                  `
                 UPDATE sequence_executions
                 SET status = 'cancelled', completedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP
                 WHERE id = ?
-              `).run(exec.id);
+              `
+                )
+                .run(exec.id);
 
               // Release lock
-              this.sqliteDb.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(exec.sequenceId, entityId);
+              this.sqliteDb
+                .prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?')
+                .run(exec.sequenceId, entityId);
             } else if (job.status === 'completed') {
-              this.sqliteDb.prepare(`
+              this.sqliteDb
+                .prepare(
+                  `
                 UPDATE sequence_executions
                 SET status = 'completed', completedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP
                 WHERE id = ?
-              `).run(exec.id);
+              `
+                )
+                .run(exec.id);
 
               // Release lock
-              this.sqliteDb.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(exec.sequenceId, entityId);
+              this.sqliteDb
+                .prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?')
+                .run(exec.sequenceId, entityId);
             } else {
               // Job is in starting/running/interrupted/queued/retrying state -> recoverable
               // The job status will be moved to queued by the job recovery system above,
               // so we just keep the execution in its current state (running/queued) and increment recovery count.
-              this.sqliteDb.prepare(`
+              this.sqliteDb
+                .prepare(
+                  `
                 UPDATE sequence_executions
                 SET recoveryCount = recoveryCount + 1, updatedAt = CURRENT_TIMESTAMP
                 WHERE id = ?
-              `).run(exec.id);
+              `
+                )
+                .run(exec.id);
 
               this.eventBus.publish('automation:recovered', {
                 executionId: exec.id,
@@ -313,28 +389,50 @@ export class WorkspaceRuntime {
             // Recover by inserting a new queued job
             const newJobId = randomUUID();
             const execRetryCount = exec.retryCount || 0;
-            
+
             this.sqliteDb.transaction(() => {
-              this.sqliteDb.prepare(`
+              this.sqliteDb
+                .prepare(
+                  `
                 INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
                 VALUES (?, ?, 'automation:workflow', 'queued', 4, ?, 0, ?, 3, datetime('now'), datetime('now'))
-              `).run(
-                newJobId,
-                this.workspaceId,
-                JSON.stringify({ executionId: exec.id, resumeFrom: exec.currentStep, retryCount: execRetryCount }),
-                execRetryCount
-              );
+              `
+                )
+                .run(
+                  newJobId,
+                  this.workspaceId,
+                  JSON.stringify({
+                    executionId: exec.id,
+                    resumeFrom: exec.currentStep,
+                    retryCount: execRetryCount
+                  }),
+                  execRetryCount
+                );
 
-              this.sqliteDb.prepare(`
+              this.sqliteDb
+                .prepare(
+                  `
                 UPDATE sequence_executions
                 SET status = 'queued', recoveryCount = recoveryCount + 1, updatedAt = CURRENT_TIMESTAMP
                 WHERE id = ?
-              `).run(exec.id);
+              `
+                )
+                .run(exec.id);
 
-              this.sqliteDb.prepare(`
+              this.sqliteDb
+                .prepare(
+                  `
                 INSERT INTO sequence_logs (id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt)
                 VALUES (?, ?, ?, ?, ?, 'RECOVERY', 'success', 'Orphaned execution recovered. Queued new workflow job.', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-              `).run(randomUUID(), exec.id, this.workspaceId, new Date().toISOString(), exec.currentStep);
+              `
+                )
+                .run(
+                  randomUUID(),
+                  exec.id,
+                  this.workspaceId,
+                  new Date().toISOString(),
+                  exec.currentStep
+                );
             })();
 
             this.eventBus.publish('automation:recovered', {
@@ -347,35 +445,50 @@ export class WorkspaceRuntime {
             });
           }
         } catch (execErr) {
-          console.error(`[WorkspaceRuntime] Failed to recover sequence execution ${exec.id}:`, execErr);
+          console.error(
+            `[WorkspaceRuntime] Failed to recover sequence execution ${exec.id}:`,
+            execErr
+          );
         }
       }
 
       // Resume overdue waiting sequence executions (no regression in WAIT timer recovery)
-      const overdueExecutions = this.sqliteDb.prepare(`
+      const overdueExecutions = this.sqliteDb
+        .prepare(
+          `
         SELECT id, sequenceId, currentStep FROM sequence_executions
         WHERE workspaceId = ? AND status = 'waiting' AND nextExecutionAt <= datetime('now')
-      `).all(this.workspaceId) as { id: string; sequenceId: string; currentStep: number }[];
+      `
+        )
+        .all(this.workspaceId) as { id: string; sequenceId: string; currentStep: number }[];
 
       for (const exec of overdueExecutions) {
         try {
           // Verify resume job does not already exist in active/pending states
-          const existing = this.sqliteDb.prepare(`
+          const existing = this.sqliteDb
+            .prepare(
+              `
             SELECT id FROM jobs
             WHERE workspaceId = ? AND type = 'automation:workflow'
               AND json_extract(payload, '$.executionId') = ?
               AND status IN ('queued', 'starting', 'running', 'retrying')
-          `).get(this.workspaceId, exec.id);
+          `
+            )
+            .get(this.workspaceId, exec.id);
 
           if (!existing) {
-            this.sqliteDb.prepare(`
+            this.sqliteDb
+              .prepare(
+                `
               INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
               VALUES (?, ?, 'automation:workflow', 'queued', 4, ?, 0, 0, 1, datetime('now'), datetime('now'))
-            `).run(
-              randomUUID(),
-              this.workspaceId,
-              JSON.stringify({ executionId: exec.id, resumeFrom: exec.currentStep })
-            );
+            `
+              )
+              .run(
+                randomUUID(),
+                this.workspaceId,
+                JSON.stringify({ executionId: exec.id, resumeFrom: exec.currentStep })
+              );
 
             this.eventBus.publish('automation:queued', {
               executionId: exec.id,
@@ -387,7 +500,10 @@ export class WorkspaceRuntime {
             });
           }
         } catch (execErr) {
-          console.error(`[WorkspaceRuntime] Failed to resume waiting execution ${exec.id}:`, execErr);
+          console.error(
+            `[WorkspaceRuntime] Failed to resume waiting execution ${exec.id}:`,
+            execErr
+          );
         }
       }
     } catch (err) {

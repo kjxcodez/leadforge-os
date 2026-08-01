@@ -1,4 +1,4 @@
-import { WorkspaceRole, WorkspacePermission } from "@leadforge/schema";
+import { WorkspaceRole, WorkspacePermission } from '@leadforge/schema';
 
 // ---------------------------------------------------------------------------
 // Role Permissions Mapping
@@ -11,25 +11,18 @@ const ROLE_PERMISSIONS: Record<WorkspaceRole, WorkspacePermission[]> = {
     WorkspacePermission.MANAGE_MEMBERS,
     WorkspacePermission.TRANSFER_OWNERSHIP,
     WorkspacePermission.VIEW_SETTINGS,
-    WorkspacePermission.CREATE_CAMPAIGNS,
+    WorkspacePermission.CREATE_CAMPAIGNS
   ],
   [WorkspaceRole.ADMIN]: [
     WorkspacePermission.MANAGE_WORKSPACE,
     WorkspacePermission.INVITE_MEMBERS,
     WorkspacePermission.MANAGE_MEMBERS,
     WorkspacePermission.VIEW_SETTINGS,
-    WorkspacePermission.CREATE_CAMPAIGNS,
+    WorkspacePermission.CREATE_CAMPAIGNS
   ],
-  [WorkspaceRole.MEMBER]: [
-    WorkspacePermission.VIEW_SETTINGS,
-    WorkspacePermission.CREATE_CAMPAIGNS,
-  ],
-  [WorkspaceRole.READ_ONLY]: [
-    WorkspacePermission.VIEW_SETTINGS,
-  ],
-  [WorkspaceRole.BILLING]: [
-    WorkspacePermission.VIEW_SETTINGS,
-  ],
+  [WorkspaceRole.MEMBER]: [WorkspacePermission.VIEW_SETTINGS, WorkspacePermission.CREATE_CAMPAIGNS],
+  [WorkspaceRole.READ_ONLY]: [WorkspacePermission.VIEW_SETTINGS],
+  [WorkspaceRole.BILLING]: [WorkspacePermission.VIEW_SETTINGS]
 };
 
 // ---------------------------------------------------------------------------

@@ -10,20 +10,20 @@ For every major entity in LeadForge OS, data originates in the UI and travels th
 
 The table below lists the code files participating in each entity's pipeline:
 
-| Entity | UI Screen | Custom Hook | Local Repo / Cache | Preload / IPC | SDK Client Module | Hono API Router | Backend Service / Repo | MongoDB / SQLite Tables |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **User** | `LoginScreen.tsx` / `RegisterScreen.tsx` | `useAuth.ts` | None | `preload/index.ts` / `ipc/auth.ts` | `sdk/src/modules/auth.ts` | `routes/auth/index.ts` | `UserService` | `users` collection / `users` table |
-| **Workspace** | `WorkspaceSettingsScreen.tsx` | `useWorkspace.ts` | `local-workspace.ts` | `preload/index.ts` / `ipc/workspace.ts` | `sdk/src/modules/workspaces.ts` | `routes/business.ts` | `WorkspaceService` | `workspaces` collection / `workspaces` table |
-| **Company** | `CompaniesScreen.tsx` | `useEntity.ts` | `local-crm.ts` (`companies`) | `preload/index.ts` / `ipc/crm.ts` | `sdk/src/modules/companies.ts` | `routes/business.ts` | `CompanyService` / `CompanyRepository` | `companies` collection / `companies` table |
-| **Contact** | `ContactsScreen.tsx` | `useEntity.ts` | `local-crm.ts` (`contacts`) | `preload/index.ts` / `ipc/crm.ts` | `sdk/src/modules/contacts.ts` | `routes/business.ts` | `ContactService` / `ContactRepository` | `contacts` collection / `contacts` table |
-| **Campaign** | `CampaignsScreen.tsx` | `useEntity.ts` | `local-crm.ts` (`campaigns`) | `preload/index.ts` / `ipc/crm.ts` | `sdk/src/modules/campaigns.ts` | `routes/business.ts` | `CampaignService` / `CampaignRepository` | `campaigns` collection / `campaigns` table |
-| **Discovery Job** | `DiscoveryScreen.tsx` | `useWorkspaceQuery.ts` | `local-crm.ts` (`discovery_jobs`) | `preload/index.ts` / `ipc/discovery.ts` | `sdk/src/modules/discovery.ts` | `routes/business.ts` | `DiscoveryService` | `discoveryjobs` collection / `discovery_jobs` table |
-| **Discovery Result**| `DiscoveryScreen.tsx` | `useWorkspaceQuery.ts` | `local-crm.ts` (`discovery_results`) | `preload/index.ts` / `ipc/discovery.ts` | `sdk/src/modules/discovery.ts` | `routes/business.ts` | `DiscoveryService` | `discoveryresults` / `discovery_results` table |
-| **Email Account** | `SettingsScreen.tsx` | `useWorkspaceQuery.ts` | `local-crm.ts` (`email_accounts`) | `preload/index.ts` / `ipc/outreach.ts` | `sdk/src/modules/outreach.ts` | `routes/business.ts` | `OutreachService` | `emailaccounts` / `email_accounts` table |
-| **Template** | `SettingsScreen.tsx` | `useWorkspaceQuery.ts` | `local-crm.ts` (`templates`) | `preload/index.ts` / `ipc/outreach.ts` | `sdk/src/modules/outreach.ts` | `routes/business.ts` | `OutreachService` | `emailtemplates` / `templates` table |
-| **Sequence** | `AutomationScreen.tsx` | `useWorkspaceQuery.ts` | `local-crm.ts` (`sequences`) | `preload/index.ts` / `ipc/automation.ts` | `sdk/src/modules/automation.ts`| `routes/automation.ts` | `AutomationService` | `sequences` collection / `sequences` table |
-| **Execution** | `AutomationScreen.tsx` | `useWorkspaceQuery.ts` | `local-crm.ts` (`sequence_executions`)| `preload/index.ts` / `ipc/automation.ts` | `sdk/src/modules/automation.ts`| `routes/automation.ts` | `AutomationService` | `sequenceexecutions` / `sequence_executions` table |
-| **Activity** | `DashboardScreen.tsx` | `useWorkspaceQuery.ts` | `local-crm.ts` (`activities`) | `preload/index.ts` / `ipc/crm.ts` | `sdk/src/modules/activities.ts`| `routes/business.ts` | `ActivityService` / `ActivityRepository` | `activities` collection / `activities` table |
+| Entity               | UI Screen                                | Custom Hook            | Local Repo / Cache                     | Preload / IPC                            | SDK Client Module               | Hono API Router        | Backend Service / Repo                   | MongoDB / SQLite Tables                             |
+| :------------------- | :--------------------------------------- | :--------------------- | :------------------------------------- | :--------------------------------------- | :------------------------------ | :--------------------- | :--------------------------------------- | :-------------------------------------------------- |
+| **User**             | `LoginScreen.tsx` / `RegisterScreen.tsx` | `useAuth.ts`           | None                                   | `preload/index.ts` / `ipc/auth.ts`       | `sdk/src/modules/auth.ts`       | `routes/auth/index.ts` | `UserService`                            | `users` collection / `users` table                  |
+| **Workspace**        | `WorkspaceSettingsScreen.tsx`            | `useWorkspace.ts`      | `local-workspace.ts`                   | `preload/index.ts` / `ipc/workspace.ts`  | `sdk/src/modules/workspaces.ts` | `routes/business.ts`   | `WorkspaceService`                       | `workspaces` collection / `workspaces` table        |
+| **Company**          | `CompaniesScreen.tsx`                    | `useEntity.ts`         | `local-crm.ts` (`companies`)           | `preload/index.ts` / `ipc/crm.ts`        | `sdk/src/modules/companies.ts`  | `routes/business.ts`   | `CompanyService` / `CompanyRepository`   | `companies` collection / `companies` table          |
+| **Contact**          | `ContactsScreen.tsx`                     | `useEntity.ts`         | `local-crm.ts` (`contacts`)            | `preload/index.ts` / `ipc/crm.ts`        | `sdk/src/modules/contacts.ts`   | `routes/business.ts`   | `ContactService` / `ContactRepository`   | `contacts` collection / `contacts` table            |
+| **Campaign**         | `CampaignsScreen.tsx`                    | `useEntity.ts`         | `local-crm.ts` (`campaigns`)           | `preload/index.ts` / `ipc/crm.ts`        | `sdk/src/modules/campaigns.ts`  | `routes/business.ts`   | `CampaignService` / `CampaignRepository` | `campaigns` collection / `campaigns` table          |
+| **Discovery Job**    | `DiscoveryScreen.tsx`                    | `useWorkspaceQuery.ts` | `local-crm.ts` (`discovery_jobs`)      | `preload/index.ts` / `ipc/discovery.ts`  | `sdk/src/modules/discovery.ts`  | `routes/business.ts`   | `DiscoveryService`                       | `discoveryjobs` collection / `discovery_jobs` table |
+| **Discovery Result** | `DiscoveryScreen.tsx`                    | `useWorkspaceQuery.ts` | `local-crm.ts` (`discovery_results`)   | `preload/index.ts` / `ipc/discovery.ts`  | `sdk/src/modules/discovery.ts`  | `routes/business.ts`   | `DiscoveryService`                       | `discoveryresults` / `discovery_results` table      |
+| **Email Account**    | `SettingsScreen.tsx`                     | `useWorkspaceQuery.ts` | `local-crm.ts` (`email_accounts`)      | `preload/index.ts` / `ipc/outreach.ts`   | `sdk/src/modules/outreach.ts`   | `routes/business.ts`   | `OutreachService`                        | `emailaccounts` / `email_accounts` table            |
+| **Template**         | `SettingsScreen.tsx`                     | `useWorkspaceQuery.ts` | `local-crm.ts` (`templates`)           | `preload/index.ts` / `ipc/outreach.ts`   | `sdk/src/modules/outreach.ts`   | `routes/business.ts`   | `OutreachService`                        | `emailtemplates` / `templates` table                |
+| **Sequence**         | `AutomationScreen.tsx`                   | `useWorkspaceQuery.ts` | `local-crm.ts` (`sequences`)           | `preload/index.ts` / `ipc/automation.ts` | `sdk/src/modules/automation.ts` | `routes/automation.ts` | `AutomationService`                      | `sequences` collection / `sequences` table          |
+| **Execution**        | `AutomationScreen.tsx`                   | `useWorkspaceQuery.ts` | `local-crm.ts` (`sequence_executions`) | `preload/index.ts` / `ipc/automation.ts` | `sdk/src/modules/automation.ts` | `routes/automation.ts` | `AutomationService`                      | `sequenceexecutions` / `sequence_executions` table  |
+| **Activity**         | `DashboardScreen.tsx`                    | `useWorkspaceQuery.ts` | `local-crm.ts` (`activities`)          | `preload/index.ts` / `ipc/crm.ts`        | `sdk/src/modules/activities.ts` | `routes/business.ts`   | `ActivityService` / `ActivityRepository` | `activities` collection / `activities` table        |
 
 ---
 
@@ -32,6 +32,7 @@ The table below lists the code files participating in each entity's pipeline:
 All routes are mounted on `apps/api/src/routes/index.ts` under `/api/v1`.
 
 ### 2.1 Auth Routes (`/api/v1/auth/*`)
+
 - **POST `/auth/login`**
   - Validation: `loginDtoSchema`
   - Handler: `auth.api.signInEmail` inside [routes/auth/index.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/api/src/routes/auth/index.ts)
@@ -52,6 +53,7 @@ All routes are mounted on `apps/api/src/routes/index.ts` under `/api/v1`.
   - Return Type: `SessionResponse` ({ token: string, user: UserDTO } | null)
 
 ### 2.2 Workspace Routes (`/api/v1/workspaces/*`)
+
 - **GET `/workspaces`**
   - Handler: `WorkspaceService.listUserWorkspaces` inside [routes/business.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/api/src/routes/business.ts)
   - Security: `authMiddleware`
@@ -81,6 +83,7 @@ All routes are mounted on `apps/api/src/routes/index.ts` under `/api/v1`.
   - Return Type: `Workspace`
 
 ### 2.3 CRM Business Routes (`/api/v1/*`)
+
 Every route below is protected by `authMiddleware` and `workspaceMiddleware` (verifying workspace membership scoping headers).
 
 - **GET `/companies`**: Queries workspace companies list.
@@ -99,6 +102,7 @@ Every route below is protected by `authMiddleware` and `workspaceMiddleware` (ve
 - **GET `/activities`**: Queries activities timeline.
 
 ### 2.4 Automation Routes (`/api/v1/automation/*`)
+
 - **GET `/automation/sequences`**: Lists sequences.
 - **POST `/automation/sequences`**: Creates sequence.
 - **PATCH `/automation/sequences/:id`**: Updates sequence.
@@ -114,6 +118,7 @@ Every route below is protected by `authMiddleware` and `workspaceMiddleware` (ve
 The preload bridge `apps/desktop/src/preload/index.ts` exposes a strict list of channels accessed by `window.ipc.invoke`.
 
 ### 3.1 Session & System Channels
+
 - **`auth:login`**: Triggers Sdk login endpoint. Main Handler: [ipc/auth.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/main/ipc/auth.ts). Returns: `AuthResponse`.
 - **`auth:register`**: Triggers Sdk signup endpoint. Main Handler: `ipc/auth.ts`.
 - **`auth:logout`**: Clears stored tokens in Main. Main Handler: `ipc/auth.ts`.
@@ -122,6 +127,7 @@ The preload bridge `apps/desktop/src/preload/index.ts` exposes a strict list of 
 - **`electron:getActiveWorkspace`**: Retrieves active workspace ID from `config.json`. Main Handler: `ipc/electron.ts`.
 
 ### 3.2 Cache Database Channels (SQLite)
+
 - **`db:find`**: Queries cached records by table and workspace ID. Main Handler: [ipc/database.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/main/ipc/database.ts).
 - **`db:findById`**: Resolves cached item by ID. Main Handler: `ipc/database.ts`.
 - **`db:save`**: Inserts/Updates a record. Main Handler: `ipc/database.ts`.
@@ -130,6 +136,7 @@ The preload bridge `apps/desktop/src/preload/index.ts` exposes a strict list of 
 - **`db:delete`**: Hard deletes a record from local storage. Main Handler: `ipc/database.ts`.
 
 ### 3.3 Offline Queue Channels
+
 - **`db:queue:push`**: Adds a task to local sync queue table. Main Handler: `ipc/database.ts`.
 - **`db:queue:pop`**: Fetches the oldest pending task. Main Handler: `ipc/database.ts`.
 - **`db:queue:update`**: Increments retry counts and logs errors. Main Handler: `ipc/database.ts`.
@@ -144,12 +151,14 @@ The SDK `@leadforge/sdk` wraps HTTP requests. It resolves authentication tokens 
 ### 4.1 Modules and Exposed Interfaces
 
 #### 4.1.1 `AuthModule`
+
 - **`login(dto: LoginDto): Promise<AuthResponse>`**: Fires `POST /auth/login`.
 - **`register(dto: RegisterDto): Promise<AuthResponse>`**: Fires `POST /auth/signup`.
 - **`logout(): Promise<void>`**: Fires `POST /auth/logout`.
 - **`session(): Promise<any>`**: Fires `GET /auth/session`.
 
 #### 4.1.2 `WorkspacesModule`
+
 - **`listWorkspaces(): Promise<Workspace[]>`**: Fires `GET /workspaces`.
 - **`createWorkspace(dto: CreateWorkspaceDto): Promise<Workspace>`**: Fires `POST /workspaces`.
 - **`updateWorkspace(id: string, dto: UpdateWorkspaceDto): Promise<Workspace>`**: Fires `PATCH /workspaces/:id`.
@@ -157,19 +166,23 @@ The SDK `@leadforge/sdk` wraps HTTP requests. It resolves authentication tokens 
 - **`listMembers(id: string): Promise<WorkspaceMember[]>`**: Fires `GET /workspaces/:id/members`.
 
 #### 4.1.3 `CompaniesModule`
+
 - **`list(filters: CompanyFilters): Promise<Company[]>`**: Fires `GET /companies`.
 - **`create(dto: CreateCompanyDto): Promise<Company>`**: Fires `POST /companies`.
 - **`update(id: string, dto: UpdateCompanyDto): Promise<Company>`**: Fires `PATCH /companies/:id`.
 - **`delete(id: string): Promise<void>`**: Fires `DELETE /companies/:id`.
 
 #### 4.1.4 `DiscoveryModule`
+
 - **`listJobs(filters: any): Promise<DiscoveryJob[]>`**: Fires `GET /discovery/jobs`.
 - **`createJob(dto: any): Promise<DiscoveryJob>`**: Fires `POST /discovery/jobs`.
 - **`getJobResults(id: string): Promise<DiscoveryResult[]>`**: Fires `GET /discovery/jobs/:id/results`.
 - **`importResult(id: string): Promise<any>`**: Fires `POST /discovery/results/:id/import`.
 
 ### 4.2 Error Handling
+
 Every request that fails (HTTP status >= 400 or response `success: false`) throws an instance of `SdkError`.
+
 ```typescript
 export class SdkError extends Error {
   constructor(
@@ -182,4 +195,5 @@ export class SdkError extends Error {
   }
 }
 ```
+
 This allows Electron Main to catch and format API errors cleanly before returning them over IPC.

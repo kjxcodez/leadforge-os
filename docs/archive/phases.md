@@ -12,17 +12,17 @@ It is stabilization.
 
 ### Deliverables
 
-* Authentication architecture finalized
-* SDK ↔ API contracts finalized
-* Enum mismatches removed
-* Desktop connected to SDK
-* React Query configured
-* Route protection
-* Workspace validation
-* Security fixes
-* Clean builds
-* Green type checks
-* Green database verification
+- Authentication architecture finalized
+- SDK ↔ API contracts finalized
+- Enum mismatches removed
+- Desktop connected to SDK
+- React Query configured
+- Route protection
+- Workspace validation
+- Security fixes
+- Clean builds
+- Green type checks
+- Green database verification
 
 ### Exit Criteria
 
@@ -46,64 +46,64 @@ Just the application itself.
 
 Implement
 
-* Splash Screen
-* Loading Screen
-* Login
-* Register
-* Verify Email
-* Forgot Password
-* Session Expired
-* Logout
-* Auto Login
-* Authentication Guard
+- Splash Screen
+- Loading Screen
+- Login
+- Register
+- Verify Email
+- Forgot Password
+- Session Expired
+- Logout
+- Auto Login
+- Authentication Guard
 
 ## Routing
 
 Implement
 
-* Protected Routes
-* Guest Routes
-* App Layout
-* Auth Layout
+- Protected Routes
+- Guest Routes
+- App Layout
+- Auth Layout
 
 ## Providers
 
 Configure
 
-* React Query
-* Theme Provider
-* Toast Provider
-* Dialog Provider
-* Tooltip Provider
+- React Query
+- Theme Provider
+- Toast Provider
+- Dialog Provider
+- Tooltip Provider
 
 ## Global State
 
 Create
 
-* Auth Store
-* Workspace Store
-* UI Store
-* Settings Store
+- Auth Store
+- Workspace Store
+- UI Store
+- Settings Store
 
 ## Electron
 
 Implement
 
-* IPC foundation
-* System status
-* App version
-* Native dialogs
-* Notifications
+- IPC foundation
+- System status
+- App version
+- Native dialogs
+- Notifications
 
 ### Exit Criteria
 
 A user can
 
-* Login
-* Stay logged in
-* Logout
-* Restart app
-* Restore session
+- Login
+- Stay logged in
+- Logout
+- Restart app
+- Restore session
 
 ---
 
@@ -113,13 +113,13 @@ Everything revolves around workspaces.
 
 Implement
 
-* Workspace creation
-* Workspace selection
-* Invite members
-* Member management
-* Roles
-* Permissions
-* Active workspace switching
+- Workspace creation
+- Workspace selection
+- Invite members
+- Member management
+- Roles
+- Permissions
+- Active workspace switching
 
 ### Exit Criteria
 
@@ -135,16 +135,16 @@ Implement
 
 ## SQLite
 
-* Local database
-* Cache
-* Queue
+- Local database
+- Cache
+- Queue
 
 ## Sync Engine
 
-* Offline changes
-* Background sync
-* Retry queue
-* Conflict handling
+- Offline changes
+- Background sync
+- Retry queue
+- Conflict handling
 
 ## Repository Layer
 
@@ -168,28 +168,28 @@ Modules
 
 ## Companies
 
-* CRUD
-* Search
-* Filters
-* Notes
-* Tags
+- CRUD
+- Search
+- Filters
+- Notes
+- Tags
 
 ## Contacts
 
-* CRUD
-* Social profiles
-* Company relations
+- CRUD
+- Social profiles
+- Company relations
 
 ## Workspaces
 
-* Members
-* Roles
+- Members
+- Roles
 
 ## Activities
 
-* Timeline
-* Notes
-* History
+- Timeline
+- Notes
+- History
 
 ### Exit Criteria
 
@@ -203,13 +203,13 @@ Now build what makes LeadForge unique.
 
 Implement
 
-* Discovery Jobs
-* Scrapers
-* Enrichment
-* Company lookup
-* Contact discovery
-* Queue
-* Job monitoring
+- Discovery Jobs
+- Scrapers
+- Enrichment
+- Company lookup
+- Contact discovery
+- Queue
+- Job monitoring
 
 ### Exit Criteria
 
@@ -221,13 +221,13 @@ System can discover companies automatically.
 
 Implement
 
-* Email Accounts
-* Templates
-* Campaigns
-* Scheduling
-* Tracking
-* Replies
-* Bounce detection
+- Email Accounts
+- Templates
+- Campaigns
+- Scheduling
+- Tracking
+- Replies
+- Bounce detection
 
 ### Exit Criteria
 
@@ -241,12 +241,12 @@ Expand the existing workflow package.
 
 Implement
 
-* Visual workflows
-* Triggers
-* Conditions
-* Actions
-* Variables
-* Execution history
+- Visual workflows
+- Triggers
+- Conditions
+- Actions
+- Variables
+- Execution history
 
 ### Exit Criteria
 
@@ -262,22 +262,22 @@ Implement
 
 ## Providers
 
-* OpenRouter
-* Ollama
-* Local Models
+- OpenRouter
+- Ollama
+- Local Models
 
 ## Memory
 
-* sqlite-vec
-* Embeddings
+- sqlite-vec
+- Embeddings
 
 ## Features
 
-* Email generation
-* Company summaries
-* Research
-* Workflow AI
-* Prompt registry
+- Email generation
+- Company summaries
+- Research
+- Workflow AI
+- Prompt registry
 
 ### Exit Criteria
 
@@ -289,15 +289,15 @@ AI is integrated across the platform.
 
 Implement
 
-* Gmail
-* Outlook
-* LinkedIn
-* Apollo
-* Hunter
-* Google Calendar
-* Slack
-* Discord
-* Webhooks
+- Gmail
+- Outlook
+- LinkedIn
+- Apollo
+- Hunter
+- Google Calendar
+- Slack
+- Discord
+- Webhooks
 
 ---
 
@@ -305,12 +305,12 @@ Implement
 
 Implement
 
-* Dashboard
-* Metrics
-* Campaign analytics
-* Funnel analytics
-* Revenue
-* Performance
+- Dashboard
+- Metrics
+- Campaign analytics
+- Funnel analytics
+- Revenue
+- Performance
 
 ---
 
@@ -318,15 +318,15 @@ Implement
 
 Complete
 
-* Settings
-* Preferences
-* Themes
-* Keyboard shortcuts
-* Command Palette
-* Accessibility
-* Performance
-* Error boundaries
-* Logging improvements
+- Settings
+- Preferences
+- Themes
+- Keyboard shortcuts
+- Command Palette
+- Accessibility
+- Performance
+- Error boundaries
+- Logging improvements
 
 ---
 
@@ -334,14 +334,14 @@ Complete
 
 Finalize
 
-* Auto updates
-* Installers
-* Crash reporting
-* Backups
-* Documentation
-* Testing
-* CI/CD
-* Release builds
+- Auto updates
+- Installers
+- Crash reporting
+- Backups
+- Documentation
+- Testing
+- CI/CD
+- Release builds
 
 ---
 
@@ -391,7 +391,7 @@ Release
 
 There are three changes I'd make to keep the project moving:
 
-1. **Finish all P0/P1 issues first**, but don't spend time on lower-priority cleanup before the MVP. For example, the AI package expansion, SQLite offline engine, and some architectural refinements can come later, while authentication, SDK alignment, enum consistency, and route security should happen immediately. These are the blockers identified in the audit. 
+1. **Finish all P0/P1 issues first**, but don't spend time on lower-priority cleanup before the MVP. For example, the AI package expansion, SQLite offline engine, and some architectural refinements can come later, while authentication, SDK alignment, enum consistency, and route security should happen immediately. These are the blockers identified in the audit.
 
 2. **Build vertically instead of horizontally.** Once the foundation is stable, each feature should be completed end-to-end (API → SDK → Desktop UI → Testing) before starting the next. That gives you working functionality after every phase.
 

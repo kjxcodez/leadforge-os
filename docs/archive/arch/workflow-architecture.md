@@ -8,7 +8,7 @@ LeadForge OS relies on automated workflows (such as scraper runs, lead qualifica
 
 Workflows are divided by resource intensity and process boundaries:
 
-1. **Local Node.js Child Process**: Runs Playwright scraper routines locally to keep infrastructure costs at zero. 
+1. **Local Node.js Child Process**: Runs Playwright scraper routines locally to keep infrastructure costs at zero.
 2. **Cloud Containers (Apify / AWS ECS)**: Distributes heavy web scraping jobs to cloud clusters, preventing IP blacklisting and reducing local client CPU overhead.
 3. **n8n Automation Engine**: Self-hosted n8n instances (running in local Docker Compose or cloud setups) act as an integration bridge for long-tail API notifications (like Slack alerts or Google Sheet syncs).
 

@@ -8,5 +8,5 @@ export const auth = createBetterAuth({
   authorizeHook: async (credentials) => {
     // Better Auth authorization hook placeholder
     return null;
-  },
+  }
 });

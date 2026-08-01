@@ -1,4 +1,4 @@
-import type { Schema } from "mongoose";
+import type { Schema } from 'mongoose';
 
 export interface SoftDeleteDocument {
   deletedAt?: Date | null;
@@ -12,12 +12,12 @@ export function softDeletePlugin(schema: Schema) {
     deletedAt: {
       type: Date,
       default: null,
-      index: true,
+      index: true
     },
     deletedBy: {
       type: String,
-      default: null,
-    },
+      default: null
+    }
   });
 
   // Query middleware to exclude deleted documents
@@ -30,9 +30,9 @@ export function softDeletePlugin(schema: Schema) {
     this.where({ deletedAt: null });
   };
 
-  schema.pre("find" as any, excludeDeleted);
-  schema.pre("findOne" as any, excludeDeleted);
-  schema.pre("countDocuments" as any, excludeDeleted);
+  schema.pre('find' as any, excludeDeleted);
+  schema.pre('findOne' as any, excludeDeleted);
+  schema.pre('countDocuments' as any, excludeDeleted);
 
   schema.methods.softDelete = async function (this: any, deletedBy?: string) {
     this.deletedAt = new Date();

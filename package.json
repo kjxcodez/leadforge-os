@@ -9,7 +9,8 @@
     "check-types": "turbo run check-types",
     "doctor": "npx tsx scripts/doctor.ts",
     "test:ai": "npx tsx scripts/test-ai.ts",
-    "release:check": "npx tsx scripts/release-check.ts"
+    "release:check": "npx tsx scripts/release-check.ts",
+    "verify:production": "npx tsx scripts/verify-production.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

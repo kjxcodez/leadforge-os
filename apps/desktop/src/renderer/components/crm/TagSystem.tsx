@@ -61,7 +61,9 @@ export function TagSystem({ tags, onChange, readOnly = false }: TagSystemProps) 
         <div className="relative">
           {isOpen ? (
             <div className="absolute left-0 top-full mt-1 bg-card border border-border-subtle rounded-md shadow-lg p-2 z-50 w-44 space-y-1.5">
-              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider px-1">Preset Tags</p>
+              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider px-1">
+                Preset Tags
+              </p>
               <div className="max-h-36 overflow-y-auto space-y-1">
                 {PRESET_TAGS.filter((tag) => !tags.includes(tag)).map((tag) => (
                   <button

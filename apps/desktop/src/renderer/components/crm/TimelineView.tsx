@@ -23,7 +23,7 @@ const EVENT_ICONS: Record<string, any> = {
   campaign_created: PlusCircle,
   campaign_updated: CheckCircle,
   note_added: MessageSquare,
-  tag_added: Info,
+  tag_added: Info
 };
 
 const EVENT_COLORS: Record<string, string> = {
@@ -36,7 +36,7 @@ const EVENT_COLORS: Record<string, string> = {
   campaign_created: 'bg-green-500/10 text-green-500 border-green-500/20',
   campaign_updated: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
   note_added: 'bg-accent/10 text-accent border-accent/20',
-  tag_added: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
+  tag_added: 'bg-purple-500/10 text-purple-500 border-purple-500/20'
 };
 
 /**
@@ -60,7 +60,8 @@ export function TimelineView({ events, isLoading = false }: TimelineViewProps) {
     <div className="relative border-l border-border-subtle pl-4 ml-3 space-y-5 py-2">
       {events.map((event) => {
         const Icon = EVENT_ICONS[event.type] || Info;
-        const colorClass = EVENT_COLORS[event.type] || 'bg-sunken text-muted-foreground border-border-subtle';
+        const colorClass =
+          EVENT_COLORS[event.type] || 'bg-sunken text-muted-foreground border-border-subtle';
 
         return (
           <div key={event.id} className="relative group">

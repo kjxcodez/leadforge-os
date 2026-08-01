@@ -20,11 +20,16 @@ interface CompanyFormProps {
 /**
  * CompanyForm wraps inputs with react-hook-form validation for Company creation/updates.
  */
-export function CompanyForm({ initialValues, onSubmit, onCancel, isLoading = false }: CompanyFormProps) {
+export function CompanyForm({
+  initialValues,
+  onSubmit,
+  onCancel,
+  isLoading = false
+}: CompanyFormProps) {
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors }
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -33,37 +38,35 @@ export function CompanyForm({ initialValues, onSubmit, onCancel, isLoading = fal
       industry: initialValues?.industry || '',
       size: initialValues?.size || '11-50',
       location: initialValues?.location || '',
-      status: initialValues?.status || CompanyStatus.LEAD,
-    },
+      status: initialValues?.status || CompanyStatus.LEAD
+    }
   });
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="space-y-1">
-        <Label htmlFor="name" className="text-xs font-semibold">Company Name *</Label>
-        <Input
-          id="name"
-          placeholder="Acme Corp"
-          {...register('name')}
-          className="text-xs h-8"
-        />
+        <Label htmlFor="name" className="text-xs font-semibold">
+          Company Name *
+        </Label>
+        <Input id="name" placeholder="Acme Corp" {...register('name')} className="text-xs h-8" />
         {errors.name && <span className="text-[10px] text-danger-text">{errors.name.message}</span>}
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor="domain" className="text-xs font-semibold">Domain / Website URL</Label>
-        <Input
-          id="domain"
-          placeholder="acme.com"
-          {...register('domain')}
-          className="text-xs h-8"
-        />
-        {errors.domain && <span className="text-[10px] text-danger-text">{errors.domain.message}</span>}
+        <Label htmlFor="domain" className="text-xs font-semibold">
+          Domain / Website URL
+        </Label>
+        <Input id="domain" placeholder="acme.com" {...register('domain')} className="text-xs h-8" />
+        {errors.domain && (
+          <span className="text-[10px] text-danger-text">{errors.domain.message}</span>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label htmlFor="industry" className="text-xs font-semibold">Industry</Label>
+          <Label htmlFor="industry" className="text-xs font-semibold">
+            Industry
+          </Label>
           <Input
             id="industry"
             placeholder="SaaS / Software"
@@ -73,7 +76,9 @@ export function CompanyForm({ initialValues, onSubmit, onCancel, isLoading = fal
         </div>
 
         <div className="space-y-1">
-          <Label htmlFor="size" className="text-xs font-semibold">Company Size</Label>
+          <Label htmlFor="size" className="text-xs font-semibold">
+            Company Size
+          </Label>
           <select
             id="size"
             {...register('size')}
@@ -90,7 +95,9 @@ export function CompanyForm({ initialValues, onSubmit, onCancel, isLoading = fal
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label htmlFor="location" className="text-xs font-semibold">Location / Address</Label>
+          <Label htmlFor="location" className="text-xs font-semibold">
+            Location / Address
+          </Label>
           <Input
             id="location"
             placeholder="San Francisco, CA"
@@ -100,7 +107,9 @@ export function CompanyForm({ initialValues, onSubmit, onCancel, isLoading = fal
         </div>
 
         <div className="space-y-1">
-          <Label htmlFor="status" className="text-xs font-semibold">Status *</Label>
+          <Label htmlFor="status" className="text-xs font-semibold">
+            Status *
+          </Label>
           <select
             id="status"
             {...register('status')}
@@ -115,7 +124,13 @@ export function CompanyForm({ initialValues, onSubmit, onCancel, isLoading = fal
       </div>
 
       <div className="flex justify-end gap-2 pt-2 border-t border-border-subtle">
-        <Button type="button" variant="outline" onClick={onCancel} size="sm" className="h-8 text-xs font-semibold">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          size="sm"
+          className="h-8 text-xs font-semibold"
+        >
           Cancel
         </Button>
         <Button type="submit" disabled={isLoading} size="sm" className="h-8 text-xs font-semibold">

@@ -16,9 +16,9 @@ export const userSchema = z.object({
   activeWorkspaceId: objectIdField.nullable().optional(),
   emailVerified: z.boolean().default(false),
   lastLoginAt: z.date().nullable().optional(),
-  status: z.enum(["active", "suspended", "pending"]).default("active"),
+  status: z.enum(['active', 'suspended', 'pending']).default('active'),
   createdAt: z.date(),
-  updatedAt: z.date(),
+  updatedAt: z.date()
 });
 
 export type User = z.infer<typeof userSchema>;

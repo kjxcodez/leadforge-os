@@ -7,38 +7,38 @@ import type { LocalEventBus, AppEvent, EventType } from '../lib/event-bus';
 // Based on automation_engine_spec.md §5 and the API sequence model.
 
 const TRIGGER_TYPES = {
-  COMPANY_CREATED:            'COMPANY_CREATED',
-  CONTACT_CREATED:            'CONTACT_CREATED',
-  PIPELINE_STAGE_CHANGED:     'PIPELINE_STAGE_CHANGED',
+  COMPANY_CREATED: 'COMPANY_CREATED',
+  CONTACT_CREATED: 'CONTACT_CREATED',
+  PIPELINE_STAGE_CHANGED: 'PIPELINE_STAGE_CHANGED',
   DISCOVERY_IMPORT_COMPLETED: 'DISCOVERY_IMPORT_COMPLETED',
-  EMAIL_SENT:                 'EMAIL_SENT',
-  EMAIL_REPLIED:              'EMAIL_REPLIED',
-  EMAIL_BOUNCED:              'EMAIL_BOUNCED',
-  JOB_COMPLETED:              'JOB_COMPLETED',
-  JOB_FAILED:                 'JOB_FAILED',
-  CAMPAIGN_FINISHED:          'CAMPAIGN_FINISHED',
-  CRAWLER_FINISHED:           'CRAWLER_FINISHED',
-  DISCOVERY_FINISHED:         'DISCOVERY_FINISHED',
-  REPLY_RECEIVED:             'REPLY_RECEIVED',
-  LEAD_SCORE_CHANGED:         'LEAD_SCORE_CHANGED',
-  IMPORT_FINISHED:            'IMPORT_FINISHED',
-  UPDATE_INSTALLED:           'UPDATE_INSTALLED',
-  WORKSPACE_OPENED:           'WORKSPACE_OPENED',
-  SCHEDULE:                   'SCHEDULE',
-  MANUAL:                     'MANUAL',
+  EMAIL_SENT: 'EMAIL_SENT',
+  EMAIL_REPLIED: 'EMAIL_REPLIED',
+  EMAIL_BOUNCED: 'EMAIL_BOUNCED',
+  JOB_COMPLETED: 'JOB_COMPLETED',
+  JOB_FAILED: 'JOB_FAILED',
+  CAMPAIGN_FINISHED: 'CAMPAIGN_FINISHED',
+  CRAWLER_FINISHED: 'CRAWLER_FINISHED',
+  DISCOVERY_FINISHED: 'DISCOVERY_FINISHED',
+  REPLY_RECEIVED: 'REPLY_RECEIVED',
+  LEAD_SCORE_CHANGED: 'LEAD_SCORE_CHANGED',
+  IMPORT_FINISHED: 'IMPORT_FINISHED',
+  UPDATE_INSTALLED: 'UPDATE_INSTALLED',
+  WORKSPACE_OPENED: 'WORKSPACE_OPENED',
+  SCHEDULE: 'SCHEDULE',
+  MANUAL: 'MANUAL'
 } as const;
 
-type AutomationTriggerType = typeof TRIGGER_TYPES[keyof typeof TRIGGER_TYPES];
+type AutomationTriggerType = (typeof TRIGGER_TYPES)[keyof typeof TRIGGER_TYPES];
 
 function evaluateConditionValue(actual: any, op: string, expected: any): boolean {
   if (Array.isArray(actual)) {
     const valStr = String(expected).toLowerCase();
     if (op === 'contains' || op === '==') {
-      return actual.map(v => String(v).toLowerCase()).includes(valStr);
+      return actual.map((v) => String(v).toLowerCase()).includes(valStr);
     }
     return false;
   }
-  
+
   if (typeof actual === 'string' && actual.startsWith('[') && actual.endsWith(']')) {
     try {
       const parsed = JSON.parse(actual);
@@ -53,22 +53,32 @@ function evaluateConditionValue(actual: any, op: string, expected: any): boolean
 
   if (!isNaN(actNum) && !isNaN(expNum)) {
     switch (op) {
-      case '==': return actNum === expNum;
-      case '!=': return actNum !== expNum;
-      case '>': return actNum > expNum;
-      case '<': return actNum < expNum;
-      case '>=': return actNum >= expNum;
-      case '<=': return actNum <= expNum;
+      case '==':
+        return actNum === expNum;
+      case '!=':
+        return actNum !== expNum;
+      case '>':
+        return actNum > expNum;
+      case '<':
+        return actNum < expNum;
+      case '>=':
+        return actNum >= expNum;
+      case '<=':
+        return actNum <= expNum;
     }
   }
 
   const actStr = String(actual).toLowerCase();
   const expStr = String(expected).toLowerCase();
   switch (op) {
-    case '==': return actStr === expStr;
-    case '!=': return actStr !== expStr;
-    case 'contains': return actStr.includes(expStr);
-    case 'startsWith': return actStr.startsWith(expStr);
+    case '==':
+      return actStr === expStr;
+    case '!=':
+      return actStr !== expStr;
+    case 'contains':
+      return actStr.includes(expStr);
+    case 'startsWith':
+      return actStr.startsWith(expStr);
   }
   return false;
 }
@@ -77,27 +87,33 @@ function loadEntityData(
   db: Database.Database,
   entityId: string,
   entityType: string,
-  workspaceId: string,
+  workspaceId: string
 ): { contact: Record<string, any>; company: Record<string, any> } {
   let contact: Record<string, any> = {};
   let company: Record<string, any> = {};
 
-  if (entityType === "contact") {
+  if (entityType === 'contact') {
     const row = db
-      .prepare(`SELECT id, firstName, lastName, email, phone, title, status, companyId FROM contacts WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`)
+      .prepare(
+        `SELECT id, firstName, lastName, email, phone, title, status, companyId FROM contacts WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`
+      )
       .get(entityId, workspaceId) as any;
     if (row) {
       contact = row;
       if (row.companyId) {
         const compRow = db
-          .prepare(`SELECT id, name, domain, industry, size FROM companies WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`)
+          .prepare(
+            `SELECT id, name, domain, industry, size FROM companies WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`
+          )
           .get(row.companyId, workspaceId) as any;
         if (compRow) company = compRow;
       }
     }
-  } else if (entityType === "company" || entityType === "companies") {
+  } else if (entityType === 'company' || entityType === 'companies') {
     const row = db
-      .prepare(`SELECT id, name, domain, industry, size FROM companies WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`)
+      .prepare(
+        `SELECT id, name, domain, industry, size FROM companies WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`
+      )
       .get(entityId, workspaceId) as any;
     if (row) company = row;
   }
@@ -131,11 +147,17 @@ function mapEventToTriggerType(event: AppEvent): AutomationTriggerType | null {
     case 'crm:updated':
       if (
         (entityType === 'contact' || entityType === 'contacts') &&
-        (changeType === 'status' || changeType === 'pipelineStage' || changeType === 'pipeline_stage')
+        (changeType === 'status' ||
+          changeType === 'pipelineStage' ||
+          changeType === 'pipeline_stage')
       ) {
         return TRIGGER_TYPES.PIPELINE_STAGE_CHANGED;
       }
-      if (changeType === 'score' || changeType === 'opportunityScore' || changeType === 'overallScore') {
+      if (
+        changeType === 'score' ||
+        changeType === 'opportunityScore' ||
+        changeType === 'overallScore'
+      ) {
         return TRIGGER_TYPES.LEAD_SCORE_CHANGED;
       }
       return null;
@@ -272,7 +294,7 @@ export class AutomationTriggerEvaluator {
       'automation:triggered',
       'sync:completed',
       'workspace:opened',
-      'update:installed',
+      'update:installed'
     ];
 
     for (const eventType of eventsToSubscribe) {
@@ -298,7 +320,9 @@ export class AutomationTriggerEvaluator {
       }
     }
     this.unsubscribers.length = 0;
-    console.log(`[AutomationTriggerEvaluator] Stopped — all listeners unregistered for workspace: ${this.workspaceId}`);
+    console.log(
+      `[AutomationTriggerEvaluator] Stopped — all listeners unregistered for workspace: ${this.workspaceId}`
+    );
   }
 
   // ── Event handler ─────────────────────────────────────────────────────────
@@ -313,12 +337,17 @@ export class AutomationTriggerEvaluator {
       return;
     }
 
-    console.log(`[AutomationTriggerEvaluator] Event received: ${event.type} for workspace: ${this.workspaceId}`);
+    console.log(
+      `[AutomationTriggerEvaluator] Event received: ${event.type} for workspace: ${this.workspaceId}`
+    );
 
     try {
       this.evaluate(event);
     } catch (err) {
-      console.error(`[AutomationTriggerEvaluator] Unhandled error evaluating event "${event.type}":`, err);
+      console.error(
+        `[AutomationTriggerEvaluator] Unhandled error evaluating event "${event.type}":`,
+        err
+      );
     }
   }
 
@@ -387,7 +416,9 @@ export class AutomationTriggerEvaluator {
     try {
       triggerConfig = JSON.parse(seq.trigger || '{}');
     } catch {
-      console.error(`[AutomationTriggerEvaluator] Sequence "${seq.id}" has invalid trigger JSON — skipping.`);
+      console.error(
+        `[AutomationTriggerEvaluator] Sequence "${seq.id}" has invalid trigger JSON — skipping.`
+      );
       return;
     }
 
@@ -396,14 +427,20 @@ export class AutomationTriggerEvaluator {
       return; // Not a match — skip silently
     }
 
-    console.log(`[AutomationTriggerEvaluator] Sequence "${seq.id}" matched trigger "${triggerType}"`);
+    console.log(
+      `[AutomationTriggerEvaluator] Sequence "${seq.id}" matched trigger "${triggerType}"`
+    );
 
     // Evaluate trigger conditions if present
     const conditions = triggerConfig.conditions || [];
     if (conditions.length > 0) {
       const { contact, company } = loadEntityData(this.db, entityId, entityType, this.workspaceId);
-      const intel = this.db.prepare('SELECT * FROM company_intelligence WHERE companyId = ?').get(company.id || entityId) as any;
-      const scoreRow = this.db.prepare('SELECT * FROM opportunity_scores WHERE companyId = ?').get(company.id || entityId) as any;
+      const intel = this.db
+        .prepare('SELECT * FROM company_intelligence WHERE companyId = ?')
+        .get(company.id || entityId) as any;
+      const scoreRow = this.db
+        .prepare('SELECT * FROM opportunity_scores WHERE companyId = ?')
+        .get(company.id || entityId) as any;
 
       for (const cond of conditions) {
         const field = cond.field;
@@ -430,7 +467,9 @@ export class AutomationTriggerEvaluator {
         if (actual !== undefined) {
           const matched = evaluateConditionValue(actual, op, expected);
           if (!matched) {
-            console.log(`[AutomationTriggerEvaluator] Condition failed: ${field} (${actual}) ${op} ${expected} for sequence ${seq.id}`);
+            console.log(
+              `[AutomationTriggerEvaluator] Condition failed: ${field} (${actual}) ${op} ${expected} for sequence ${seq.id}`
+            );
             return; // Exit early: condition not met!
           }
         }
@@ -440,11 +479,8 @@ export class AutomationTriggerEvaluator {
     // ── Duplicate prevention ─────────────────────────────────────────────────
 
     // Check 1: Is there already a queued/active automation:workflow job for this sequence+entity?
-    const existingJob = this.stmtCheckExistingJob.get(
-      this.workspaceId,
-      seq.id,
-      entityId
-    ) as { id: string } | undefined;
+    const existingJob = this.stmtCheckExistingJob.get(this.workspaceId, seq.id, entityId) as
+      { id: string } | undefined;
 
     if (existingJob) {
       console.log(
@@ -477,7 +513,7 @@ export class AutomationTriggerEvaluator {
       entityType,
       triggerType,
       triggerPayload: sourceEvent.payload,
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     });
 
     this.stmtInsertJob.run(jobId, this.workspaceId, payload);
@@ -495,7 +531,7 @@ export class AutomationTriggerEvaluator {
       entityId,
       entityType,
       triggerType,
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     });
   }
 }

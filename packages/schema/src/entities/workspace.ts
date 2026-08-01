@@ -3,7 +3,7 @@ import { objectIdField, nameField, emailField } from '../fields/common.js';
 import { WorkspaceRole, WorkspaceMemberStatus } from '../enums/index.js';
 
 export const workspaceSettingsSchema = z.object({
-  defaultTimezone: z.string().default('UTC'),
+  defaultTimezone: z.string().default('UTC')
 });
 export type WorkspaceSettings = z.infer<typeof workspaceSettingsSchema>;
 
@@ -17,7 +17,7 @@ export const workspaceMemberSchema = z.object({
   invitedBy: objectIdField.nullable().optional(),
   invitedAt: z.coerce.date().optional(),
   invitationToken: z.string().nullable().optional(),
-  invitationExpiresAt: z.coerce.date().nullable().optional(),
+  invitationExpiresAt: z.coerce.date().nullable().optional()
 });
 export type WorkspaceMember = z.infer<typeof workspaceMemberSchema>;
 
@@ -30,7 +30,6 @@ export const workspaceSchema = z.object({
   settings: workspaceSettingsSchema,
   members: z.array(workspaceMemberSchema),
   createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  updatedAt: z.coerce.date()
 });
 export type Workspace = z.infer<typeof workspaceSchema>;
-

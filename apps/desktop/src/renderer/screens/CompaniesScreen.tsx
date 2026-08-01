@@ -15,7 +15,19 @@ import LeadIntelligenceDetails from '../components/crm/LeadIntelligenceDetails';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
-import { Building2, X, Globe, MapPin, Briefcase, Phone, Star, ExternalLink, Mail, Users2, Cpu } from 'lucide-react';
+import {
+  Building2,
+  X,
+  Globe,
+  MapPin,
+  Briefcase,
+  Phone,
+  Star,
+  ExternalLink,
+  Mail,
+  Users2,
+  Cpu
+} from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { CompanyStatus, ContactStatus } from '@leadforge/schema';
 import { useWorkspace } from '../hooks/useWorkspace';
@@ -44,7 +56,7 @@ export default function CompaniesScreen() {
     queryFn: async () => {
       return window.ipc.invoke('campaigns:list', { workspaceId });
     },
-    enabled: !!workspaceId,
+    enabled: !!workspaceId
   });
 
   // Enrollment mutation
@@ -92,10 +104,11 @@ export default function CompaniesScreen() {
       }
     }
     const searchLower = search.toLowerCase();
-    const matchesSearch = nameStr.toLowerCase().includes(searchLower) || 
-                          domainStr.toLowerCase().includes(searchLower) ||
-                          tagsStr.toLowerCase().includes(searchLower) ||
-                          notesStr.toLowerCase().includes(searchLower);
+    const matchesSearch =
+      nameStr.toLowerCase().includes(searchLower) ||
+      domainStr.toLowerCase().includes(searchLower) ||
+      tagsStr.toLowerCase().includes(searchLower) ||
+      notesStr.toLowerCase().includes(searchLower);
     const matchesStatus = !statusFilter || c.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -242,8 +255,8 @@ export default function CompaniesScreen() {
                             item.status === 'CUSTOMER'
                               ? 'bg-green-500/10 text-green-600 border-green-500/20'
                               : item.status === 'QUALIFIED'
-                              ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
-                              : 'bg-muted/10 text-muted-foreground border-muted/20'
+                                ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                                : 'bg-muted/10 text-muted-foreground border-muted/20'
                           }`}
                         >
                           {item.status}
@@ -288,8 +301,12 @@ export default function CompaniesScreen() {
                 <Building2 className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground text-xs leading-none">{selectedCompany.name}</h3>
-                <span className="text-[10px] text-muted-foreground mt-1 block">{selectedCompany.domain}</span>
+                <h3 className="font-semibold text-foreground text-xs leading-none">
+                  {selectedCompany.name}
+                </h3>
+                <span className="text-[10px] text-muted-foreground mt-1 block">
+                  {selectedCompany.domain}
+                </span>
               </div>
             </div>
             <Button
@@ -307,7 +324,9 @@ export default function CompaniesScreen() {
             <button
               onClick={() => setDetailTab('overview')}
               className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold transition-all ${
-                detailTab === 'overview' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                detailTab === 'overview'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <Building2 className="w-3 h-3" />
@@ -316,7 +335,9 @@ export default function CompaniesScreen() {
             <button
               onClick={() => setDetailTab('intelligence')}
               className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold transition-all ${
-                detailTab === 'intelligence' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                detailTab === 'intelligence'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <Cpu className="w-3 h-3" />
@@ -333,192 +354,229 @@ export default function CompaniesScreen() {
             {/* CRM Overview tab */}
             {detailTab === 'overview' && (
               <>
-              {/* Overview / Metadata */}
-              <div className="space-y-2.5">
-              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Overview</h4>
-              <div className="bg-sunken/20 border border-border-subtle rounded-lg p-2.5 space-y-2">
-                {selectedCompany.website && (
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <ExternalLink className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                    <a
-                      href={selectedCompany.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-accent truncate hover:underline"
-                    >
-                      {selectedCompany.website}
-                    </a>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                  <Globe className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                  <span className="text-foreground font-mono truncate">{selectedCompany.domain || <span className="opacity-40">—</span>}</span>
-                </div>
-                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                  <Briefcase className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                  <span className="text-foreground">{selectedCompany.industry || <span className="opacity-40">—</span>}</span>
-                </div>
-                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                  <MapPin className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                  <span className="text-foreground">{selectedCompany.location || <span className="opacity-40">—</span>}</span>
-                </div>
-                {selectedCompany.phone && (
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <Phone className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                    <span className="text-foreground">{selectedCompany.phone}</span>
-                  </div>
-                )}
-                {selectedCompany.rating != null && (
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <Star className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                    <span className="text-foreground">{selectedCompany.rating} / 5</span>
-                  </div>
-                )}
-                {selectedCompany.crawlStatus && (
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <span className="opacity-60">Crawl:</span>
-                    <Badge variant="outline" className="text-[9px] h-4 px-1.5">{selectedCompany.crawlStatus}</Badge>
-                    {selectedCompany.contactCount != null && (
-                      <span className="text-foreground">{selectedCompany.contactCount} contacts found</span>
+                {/* Overview / Metadata */}
+                <div className="space-y-2.5">
+                  <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Overview
+                  </h4>
+                  <div className="bg-sunken/20 border border-border-subtle rounded-lg p-2.5 space-y-2">
+                    {selectedCompany.website && (
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                        <ExternalLink className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                        <a
+                          href={selectedCompany.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-accent truncate hover:underline"
+                        >
+                          {selectedCompany.website}
+                        </a>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <Globe className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                      <span className="text-foreground font-mono truncate">
+                        {selectedCompany.domain || <span className="opacity-40">—</span>}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <Briefcase className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                      <span className="text-foreground">
+                        {selectedCompany.industry || <span className="opacity-40">—</span>}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <MapPin className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                      <span className="text-foreground">
+                        {selectedCompany.location || <span className="opacity-40">—</span>}
+                      </span>
+                    </div>
+                    {selectedCompany.phone && (
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                        <Phone className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                        <span className="text-foreground">{selectedCompany.phone}</span>
+                      </div>
+                    )}
+                    {selectedCompany.rating != null && (
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                        <Star className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                        <span className="text-foreground">{selectedCompany.rating} / 5</span>
+                      </div>
+                    )}
+                    {selectedCompany.crawlStatus && (
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                        <span className="opacity-60">Crawl:</span>
+                        <Badge variant="outline" className="text-[9px] h-4 px-1.5">
+                          {selectedCompany.crawlStatus}
+                        </Badge>
+                        {selectedCompany.contactCount != null && (
+                          <span className="text-foreground">
+                            {selectedCompany.contactCount} contacts found
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
 
-            {/* Pipeline Stage */}
-            <div className="space-y-2">
-              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Company Status</h4>
-              <div className="flex flex-wrap gap-1 bg-sunken/20 border border-border-subtle rounded-lg p-2">
-                {Object.values(CompanyStatus).map((status) => {
-                  const isActive = selectedCompany.status === status;
-                  return (
-                    <button
-                      key={status}
-                      type="button"
-                      onClick={async () => {
-                        const updated = await updateMutation.mutateAsync({
-                          id: selectedCompany.id,
-                          data: { status }
-                        });
-                        setSelectedCompany(updated);
-                      }}
-                      className={`px-2 py-1 rounded text-[10px] font-semibold border transition-all ${
-                        isActive
-                          ? 'bg-accent text-white border-accent'
-                          : 'bg-card text-muted-foreground border-border-subtle hover:bg-sunken'
-                      }`}
-                    >
-                      {status}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Linked Contacts */}
-            {(() => {
-              const linkedContacts = contacts.filter((c: any) => c.companyId === selectedCompany.id);
-              return linkedContacts.length > 0 ? (
-                <div className="space-y-2.5">
-                  <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <Users2 className="w-3 h-3" /> Contacts ({linkedContacts.length})
+                {/* Pipeline Stage */}
+                <div className="space-y-2">
+                  <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Company Status
                   </h4>
-                  <div className="space-y-1.5">
-                    {linkedContacts.map((c: any) => (
-                      <div key={c.id} className="bg-sunken/20 border border-border-subtle rounded-lg p-2.5 space-y-1">
-                        <div className="flex items-center justify-between gap-1">
-                          <p className="text-[10px] font-semibold text-foreground">
-                            {c.firstName ? `${c.firstName} ${c.lastName || ''}`.trim() : <span className="opacity-40">Unnamed Contact</span>}
-                          </p>
-                          {c.type === 'executive' && (
-                            <Badge variant="outline" className="bg-violet-500/10 text-violet-400 border-violet-500/20 text-[8px] h-3.5 px-1 font-bold">
-                              Executive
-                            </Badge>
-                          )}
-                        </div>
-                        {(c.title || c.headline) && (
-                          <p className="text-[9px] text-accent font-medium leading-snug">{c.title || c.headline}</p>
-                        )}
-                        {c.email && (
-                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                            <Mail className="w-3 h-3 shrink-0 opacity-60" />
-                            <span className="truncate">{c.email}</span>
-                          </div>
-                        )}
-                        {c.phone && (
-                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                            <Phone className="w-3 h-3 shrink-0 opacity-60" />
-                            <span>{c.phone}</span>
-                          </div>
-                        )}
-                        {c.linkedinUrl && (
-                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                            <a href={c.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline flex items-center gap-1">
-                              LinkedIn Profile
-                            </a>
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between gap-1 mt-2 pt-1.5 border-t border-border-subtle/40">
-                          <span className="text-[9px] text-muted-foreground">Stage:</span>
-                          <select
-                            value={c.status || 'NEW'}
-                            onChange={async (e) => {
-                              await updateContactMutation.mutateAsync({
-                                id: c.id,
-                                data: { status: e.target.value }
-                              });
-                            }}
-                            className="bg-card border border-border-subtle rounded text-[9px] font-semibold px-1 py-0.5 text-foreground focus-visible:outline-none"
-                          >
-                            {Object.values(ContactStatus).map((status) => (
-                              <option key={status} value={status}>
-                                {status}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="flex flex-wrap gap-1 bg-sunken/20 border border-border-subtle rounded-lg p-2">
+                    {Object.values(CompanyStatus).map((status) => {
+                      const isActive = selectedCompany.status === status;
+                      return (
+                        <button
+                          key={status}
+                          type="button"
+                          onClick={async () => {
+                            const updated = await updateMutation.mutateAsync({
+                              id: selectedCompany.id,
+                              data: { status }
+                            });
+                            setSelectedCompany(updated);
+                          }}
+                          className={`px-2 py-1 rounded text-[10px] font-semibold border transition-all ${
+                            isActive
+                              ? 'bg-accent text-white border-accent'
+                              : 'bg-card text-muted-foreground border-border-subtle hover:bg-sunken'
+                          }`}
+                        >
+                          {status}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-              ) : null;
-            })()}
 
-            {/* Tags System */}
-            <div className="space-y-2.5">
-              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tags</h4>
-              <TagSystem
-                tags={selectedCompany.tags || []}
-                onChange={async (newTags) => {
-                  const updated = await updateMutation.mutateAsync({
-                    id: selectedCompany.id,
-                    data: { tags: newTags },
-                  });
-                  setSelectedCompany(updated);
-                }}
-              />
-            </div>
+                {/* Linked Contacts */}
+                {(() => {
+                  const linkedContacts = contacts.filter(
+                    (c: any) => c.companyId === selectedCompany.id
+                  );
+                  return linkedContacts.length > 0 ? (
+                    <div className="space-y-2.5">
+                      <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <Users2 className="w-3 h-3" /> Contacts ({linkedContacts.length})
+                      </h4>
+                      <div className="space-y-1.5">
+                        {linkedContacts.map((c: any) => (
+                          <div
+                            key={c.id}
+                            className="bg-sunken/20 border border-border-subtle rounded-lg p-2.5 space-y-1"
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <p className="text-[10px] font-semibold text-foreground">
+                                {c.firstName ? (
+                                  `${c.firstName} ${c.lastName || ''}`.trim()
+                                ) : (
+                                  <span className="opacity-40">Unnamed Contact</span>
+                                )}
+                              </p>
+                              {c.type === 'executive' && (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-violet-500/10 text-violet-400 border-violet-500/20 text-[8px] h-3.5 px-1 font-bold"
+                                >
+                                  Executive
+                                </Badge>
+                              )}
+                            </div>
+                            {(c.title || c.headline) && (
+                              <p className="text-[9px] text-accent font-medium leading-snug">
+                                {c.title || c.headline}
+                              </p>
+                            )}
+                            {c.email && (
+                              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                <Mail className="w-3 h-3 shrink-0 opacity-60" />
+                                <span className="truncate">{c.email}</span>
+                              </div>
+                            )}
+                            {c.phone && (
+                              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                <Phone className="w-3 h-3 shrink-0 opacity-60" />
+                                <span>{c.phone}</span>
+                              </div>
+                            )}
+                            {c.linkedinUrl && (
+                              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                <a
+                                  href={c.linkedinUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-400 hover:underline flex items-center gap-1"
+                                >
+                                  LinkedIn Profile
+                                </a>
+                              </div>
+                            )}
+                            <div className="flex items-center justify-between gap-1 mt-2 pt-1.5 border-t border-border-subtle/40">
+                              <span className="text-[9px] text-muted-foreground">Stage:</span>
+                              <select
+                                value={c.status || 'NEW'}
+                                onChange={async (e) => {
+                                  await updateContactMutation.mutateAsync({
+                                    id: c.id,
+                                    data: { status: e.target.value }
+                                  });
+                                }}
+                                className="bg-card border border-border-subtle rounded text-[9px] font-semibold px-1 py-0.5 text-foreground focus-visible:outline-none"
+                              >
+                                {Object.values(ContactStatus).map((status) => (
+                                  <option key={status} value={status}>
+                                    {status}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
 
-            {/* Notes System */}
-            <div className="space-y-2.5">
-              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Notes</h4>
-              <NotesSystem
-                notesJson={selectedCompany.notes}
-                onUpdate={async (json) => {
-                  const updated = await updateMutation.mutateAsync({
-                    id: selectedCompany.id,
-                    data: { notes: json },
-                  });
-                  setSelectedCompany(updated);
-                }}
-              />
-            </div>
-          </>
-        )}
-      </div>
-    </aside>
-  )}
+                {/* Tags System */}
+                <div className="space-y-2.5">
+                  <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Tags
+                  </h4>
+                  <TagSystem
+                    tags={selectedCompany.tags || []}
+                    onChange={async (newTags) => {
+                      const updated = await updateMutation.mutateAsync({
+                        id: selectedCompany.id,
+                        data: { tags: newTags }
+                      });
+                      setSelectedCompany(updated);
+                    }}
+                  />
+                </div>
+
+                {/* Notes System */}
+                <div className="space-y-2.5">
+                  <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Notes
+                  </h4>
+                  <NotesSystem
+                    notesJson={selectedCompany.notes}
+                    onUpdate={async (json) => {
+                      const updated = await updateMutation.mutateAsync({
+                        id: selectedCompany.id,
+                        data: { notes: json }
+                      });
+                      setSelectedCompany(updated);
+                    }}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </aside>
+      )}
 
       {/* ── Create / Edit Dialogs ────────────────────────────────────────── */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -553,7 +611,8 @@ export default function CompaniesScreen() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-[11px] text-muted-foreground">
-              You are enrolling all contacts belonging to the {selectedIds.length} selected company/companies.
+              You are enrolling all contacts belonging to the {selectedIds.length} selected
+              company/companies.
             </p>
             <div className="space-y-1">
               <Label htmlFor="enrollCampSelect">Outreach Campaign</Label>
@@ -581,7 +640,9 @@ export default function CompaniesScreen() {
                     alert('Please select a campaign.');
                     return;
                   }
-                  const companyContacts = contacts.filter((c: any) => selectedIds.includes(c.companyId));
+                  const companyContacts = contacts.filter((c: any) =>
+                    selectedIds.includes(c.companyId)
+                  );
                   const contactIds = companyContacts.map((c: any) => c.id);
                   if (contactIds.length === 0) {
                     alert('No contacts found belonging to the selected companies.');

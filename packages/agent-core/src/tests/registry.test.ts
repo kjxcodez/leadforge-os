@@ -34,9 +34,9 @@ const testTool: Tool<{ val: string }, string> = {
         traceId: context.traceId,
         cached: false,
         retryCount: 0
-      },
+      }
     };
-  },
+  }
 };
 
 // 1. ToolRegistry Checks
@@ -45,9 +45,17 @@ const testTool: Tool<{ val: string }, string> = {
   registry.register(testTool);
 
   assert.strictEqual(registry.has('test_tool'), true, 'Registry should have test_tool');
-  assert.strictEqual(registry.get('test_tool'), testTool, 'Registry get should return same instance');
+  assert.strictEqual(
+    registry.get('test_tool'),
+    testTool,
+    'Registry get should return same instance'
+  );
   assert.strictEqual(registry.list().length, 1, 'Registry list length should be 1');
-  assert.strictEqual(registry.listByRisk('LOW').length, 1, 'Registry listByRisk Low length should be 1');
+  assert.strictEqual(
+    registry.listByRisk('LOW').length,
+    1,
+    'Registry listByRisk Low length should be 1'
+  );
   console.log('  ✅ Registry operations verified.');
 }
 
@@ -76,11 +84,31 @@ console.log('\n── ToolCatalog Unit Tests ──');
   ]);
 
   assert.strictEqual(catalog.list().length, 1, 'Catalog list should contain 1 entry');
-  assert.strictEqual(catalog.get('search_local_businesses')?.displayName, 'Maps Search', 'Catalog get should match ID');
-  assert.strictEqual(catalog.searchByTag('local').length, 1, 'Search by tag local should return 1 entry');
-  assert.strictEqual(catalog.searchByCategory('scraper').length, 1, 'Search by category scraper should return 1 entry');
-  assert.strictEqual(catalog.searchByCapability('browser').length, 1, 'Search by capability browser should return 1 entry');
-  assert.strictEqual(catalog.searchByRisk('LOW').length, 1, 'Search by risk LOW should return 1 entry');
+  assert.strictEqual(
+    catalog.get('search_local_businesses')?.displayName,
+    'Maps Search',
+    'Catalog get should match ID'
+  );
+  assert.strictEqual(
+    catalog.searchByTag('local').length,
+    1,
+    'Search by tag local should return 1 entry'
+  );
+  assert.strictEqual(
+    catalog.searchByCategory('scraper').length,
+    1,
+    'Search by category scraper should return 1 entry'
+  );
+  assert.strictEqual(
+    catalog.searchByCapability('browser').length,
+    1,
+    'Search by capability browser should return 1 entry'
+  );
+  assert.strictEqual(
+    catalog.searchByRisk('LOW').length,
+    1,
+    'Search by risk LOW should return 1 entry'
+  );
   console.log('  ✅ Catalog search & filter operations verified.');
 }
 
@@ -107,9 +135,16 @@ console.log('\n── ProviderRegistry Unit Tests ──');
 
   registry.register('openai-mock', mockCapabilities);
   assert.strictEqual(registry.has('openai-mock'), true, 'Registry should have openai-mock');
-  assert.strictEqual(registry.get('openai-mock')?.capabilities?.supportsVision, true, 'Vision capability should be true');
+  assert.strictEqual(
+    registry.get('openai-mock')?.capabilities?.supportsVision,
+    true,
+    'Vision capability should be true'
+  );
 
-  const selection = registry.selectByCapabilities({ supportsVision: true, supportsEmbeddings: true });
+  const selection = registry.selectByCapabilities({
+    supportsVision: true,
+    supportsEmbeddings: true
+  });
   assert.strictEqual(selection.length, 1, 'Selection should return openai-mock');
   assert.strictEqual(selection[0]?.name, 'openai-mock', 'Selected provider name should match');
   console.log('  ✅ ProviderRegistry selection logic verified.');

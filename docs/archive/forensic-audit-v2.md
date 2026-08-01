@@ -8,13 +8,13 @@
 
 ## 1. Monorepo Structure
 
-| App/Package | Path | Role |
-|---|---|---|
-| Desktop | `apps/desktop/` | Electron main process, renderer, workers |
-| API | `apps/api/` | Express REST server (MongoDB-backed) |
-| Worker | `apps/worker/` | Not audited (not relevant to automation) |
-| Schema | `packages/schema/` | Shared TypeScript types |
-| SDK | `packages/sdk/` | API client for remote calls |
+| App/Package | Path               | Role                                     |
+| ----------- | ------------------ | ---------------------------------------- |
+| Desktop     | `apps/desktop/`    | Electron main process, renderer, workers |
+| API         | `apps/api/`        | Express REST server (MongoDB-backed)     |
+| Worker      | `apps/worker/`     | Not audited (not relevant to automation) |
+| Schema      | `packages/schema/` | Shared TypeScript types                  |
+| SDK         | `packages/sdk/`    | API client for remote calls              |
 
 **Source**: monorepo root
 
@@ -25,6 +25,7 @@
 **File**: [index.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/main/index.ts)
 
 ### Boot sequence (lines 148-236):
+
 1. `createSplashWindow()` — native splash
 2. `loadSession()` — restore auth token from disk
 3. `runMigrations()` — apply global SQLite migrations
@@ -32,6 +33,7 @@
 5. `createWindow()` — create BrowserWindow
 
 ### Critical observations:
+
 - **No scheduler or workspace-runtime is started from the entry point.**
 - The runtime is started lazily when the renderer calls `electron:setActiveWorkspace`.
 - `runMigrations()` at line 177 is called on the global database. Workspace-scoped migrations run inside `WorkspaceRuntime.start()`.
@@ -43,6 +45,7 @@
 **File**: [register.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/main/ipc/register.ts)
 
 Calls (lines 36-44):
+
 ```
 registerDatabaseIpc()
 registerAuthIpc(...)
@@ -82,6 +85,7 @@ IPC channel `electron:setActiveWorkspace` calls `WorkspaceManager.setActiveWorks
 **File**: [workspace-runtime.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/main/lib/workspace-runtime.ts#L63-L140)
 
 Startup sequence:
+
 1. `runMigrations(this.sqliteDb)` — workspace-scoped schema (line 96)
 2. `this.recoverInterruptedJobs()` — crash recovery (line 104)
 3. `this.scheduler.start()` — start job polling (line 109)
@@ -104,6 +108,7 @@ Startup sequence:
 ### 5.2 tick() — Two-Phase Dispatch (lines 104-207)
 
 **Phase 1 — Job dispatch** (lines 106-154):
+
 - Checks `activeWorkers.size < config.globalMaxConcurrency`
 - Queries SQLite: `SELECT * FROM jobs WHERE status IN ('queued', 'retrying') AND (scheduledAt IS NULL OR scheduledAt <= datetime('now'))`
 - Orders by `priority DESC, createdAt ASC`, LIMIT 10
@@ -112,6 +117,7 @@ Startup sequence:
 - Calls `this.runJob(job)`
 
 **Phase 2 — WAIT timer resumption** (lines 159-207):
+
 - Queries: `SELECT FROM sequence_executions WHERE status = 'waiting' AND nextExecutionAt <= datetime('now')`
 - Checks no existing active job exists for that execution
 - Inserts new `automation:workflow` job with `{ executionId, resumeFrom: currentStep }`
@@ -139,16 +145,19 @@ Startup sequence:
 ### 5.4 handleJobFailure() — Retry Logic (lines 540-683)
 
 **For `automation:workflow` jobs** (line 550-655):
+
 - Extracts `executionId` from job payload
 - If `nextRetry <= maxRetries`: Sets execution to `'waiting'`, schedules exponential backoff, logs RETRY
 - If exceeded: Sets execution to `'failed'`, releases lock, logs ERROR permanently
 - Publishes `automation:failed` and `automation:waiting` events
 
 **For non-automation jobs** (lines 656-676):
+
 - If retryable: Sets job to `'retrying'` with `scheduledAt` delay
 - If exceeded: Sets job to `'failed'` permanently
 
 ### 5.5 Cancel/Pause (lines 698-773)
+
 - `cancelJob()`: Sends `{ command: 'cancel' }` via IPC, sets 15s hard-kill fallback
 - `pauseJob()`: Sends `{ command: 'pause' }` via IPC
 
@@ -181,6 +190,7 @@ registry.register('mock:test', mockTest);
 ### 6.3 Message Router (lines 86-133)
 
 Single `process.on('message')` handler:
+
 - `start` → `handleStart(msg)` (async)
 - `cancel` → sets `isCancelledState = true`
 - `pause` → sets `isPausedState = true`
@@ -207,13 +217,13 @@ Single `process.on('message')` handler:
 
 ### 7.1 Type System (lines 1-73)
 
-| Type | Purpose |
-|---|---|
-| `AutomationWorkflowPayload` | Input payload with sequenceId, entityId, entityType |
-| `AutomationCheckpoint` | Saved on pause/crash for resume |
-| `ExecutionContext` | Mutable workflow state: variables, contact, company, runtime counters |
-| `StepDefinition` | `{ type: string, [key]: any }` |
-| `StepResult` | `success` / `wait` / `goto` / `skip` |
+| Type                        | Purpose                                                               |
+| --------------------------- | --------------------------------------------------------------------- |
+| `AutomationWorkflowPayload` | Input payload with sequenceId, entityId, entityType                   |
+| `AutomationCheckpoint`      | Saved on pause/crash for resume                                       |
+| `ExecutionContext`          | Mutable workflow state: variables, contact, company, runtime counters |
+| `StepDefinition`            | `{ type: string, [key]: any }`                                        |
+| `StepResult`                | `success` / `wait` / `goto` / `skip`                                  |
 
 ### 7.2 Variable Resolution (lines 83-234)
 
@@ -224,6 +234,7 @@ Single `process.on('message')` handler:
 ### 7.3 Expression Engine (lines 236-642)
 
 Full recursive-descent parser supporting:
+
 - Operators: `==`, `!=`, `>`, `<`, `>=`, `<=`, `&&`, `||`, `!`
 - Types: numbers, strings, templates `{{...}}`, booleans, null
 - Functions: `contains()`, `startsWith()`, `endsWith()`, `exists()`, `empty()`
@@ -232,6 +243,7 @@ Full recursive-descent parser supporting:
 ### 7.4 Validation (lines 665-753)
 
 `validateWorkflow(steps)`:
+
 - Dispatches to `ActionRegistry[step.type].validate()` for per-step validation
 - Checks duplicate LABEL names
 - Checks duplicate `saveResponseAs` variables across HTTP_REQUEST steps
@@ -243,22 +255,26 @@ Full recursive-descent parser supporting:
 **Entry** (line 823): `export async function executeAutomationWorkflow(ctx: JobContext): Promise<any>`
 
 **Phase 1 — Payload resolution** (lines 838-882):
+
 - Reads payload and checkpoint
 - On resume: recovers sequenceId/entityId from `sequence_executions` table
 - Distinguishes new run vs resume
 
 **Phase 2 — Lock acquisition** (lines 898-923):
+
 - Cleans expired locks: `DELETE FROM automation_locks WHERE expiresAt <= datetime('now')`
 - Inserts lock: `INSERT INTO automation_locks (sequenceId, entityId, workspaceId, expiresAt)`
 - On duplicate: returns `{ status: 'locked_duplicate' }` — no error thrown
 
 **Phase 3 — Load sequence** (lines 953-997):
+
 - Reads from `sequences` table, validates `status = 'active'`
 - Parses `steps` JSON
 - Runs `validateWorkflow(steps)` pre-flight
 - Builds label map via `buildLabelMap(steps)`
 
 **Phase 4 — ExecutionContext initialization** (lines 999-1134):
+
 - New run: Creates execution context, inserts into `sequence_executions` table, logs INITIALIZED
 - Resume: Loads context from `sequence_executions.executionContext` (authoritative), falls back to checkpoint, last resort rebuilds from entity data
 
@@ -276,19 +292,32 @@ while (currentStep < steps.length) {
 ```
 
 **Step dispatch** (lines 1318-1362):
+
 ```ts
 const registryAction = ActionRegistry[step.type];
-dispatchResult = await registryAction.execute(db, entityId, workspaceId, sequenceId, step, ctx, execCtx, labelMap);
+dispatchResult = await registryAction.execute(
+  db,
+  entityId,
+  workspaceId,
+  sequenceId,
+  step,
+  ctx,
+  execCtx,
+  labelMap
+);
 ```
+
 Each step has a 60-second timeout via `Promise.race`.
 
 **Result handling**:
+
 - `success`: Advance `currentStep++`, persist to SQLite atomically, check completion
 - `wait`: Set execution to `'waiting'`, compute `nextExecutionAt`, save checkpoint, **exit worker**
 - `goto`: Jump to `targetIndex`, persist to SQLite
 - `skip`: Advance by `skipCount`, check completion
 
 **Error handling** (lines 1661-1746):
+
 - Updates `sequence_executions` to `'failed'`, logs ERROR
 - **Retry classification**: Calls `registryAction.supportsRetry(err)` — if permanent, sets `jobs.maxRetries = 0` to halt scheduler retries
 - Releases automation lock
@@ -296,25 +325,35 @@ Each step has a 60-second timeout via `Promise.race`.
 
 ### 7.6 Step Handlers
 
-| Handler | Lines | Database Mutations |
-|---|---|---|
-| `handleSendEmailStep` | 1782-1932 | Reads contacts, templates, email_accounts, settings. Sends via nodemailer SMTP. No DB write on success. |
-| `handleWaitStep` | 1934-1947 | None (returns delay seconds) |
-| `handleAssignTagStep` | 1949-2032 | Updates `contacts.tags` (JSON array), inserts `sync_queue` entry |
-| `handleUpdateStageStep` | 2034-2107 | Updates `contacts.status`, inserts `sync_queue` entry |
-| `handleSetVariableStep` | 2109-2146 | None (mutates in-memory `execCtx.variables` only) |
-| `handleIfStep` | 2148-2202 | None (evaluates expression, returns goto/skip/success) |
-| `handleLabelStep` | 2204-2210 | None (sets `execCtx.runtime.currentLabel`) |
-| `handleGotoStep` | 2212-2242 | None (increments jumpCount, returns goto) |
-| `handleSkipStep` | 2244-2250 | None (returns skip count) |
-| `handleHttpRequestStep` | 2358-2471 | Writes response to `execCtx.variables[saveResponseAs]` |
+| Handler                 | Lines     | Database Mutations                                                                                      |
+| ----------------------- | --------- | ------------------------------------------------------------------------------------------------------- |
+| `handleSendEmailStep`   | 1782-1932 | Reads contacts, templates, email_accounts, settings. Sends via nodemailer SMTP. No DB write on success. |
+| `handleWaitStep`        | 1934-1947 | None (returns delay seconds)                                                                            |
+| `handleAssignTagStep`   | 1949-2032 | Updates `contacts.tags` (JSON array), inserts `sync_queue` entry                                        |
+| `handleUpdateStageStep` | 2034-2107 | Updates `contacts.status`, inserts `sync_queue` entry                                                   |
+| `handleSetVariableStep` | 2109-2146 | None (mutates in-memory `execCtx.variables` only)                                                       |
+| `handleIfStep`          | 2148-2202 | None (evaluates expression, returns goto/skip/success)                                                  |
+| `handleLabelStep`       | 2204-2210 | None (sets `execCtx.runtime.currentLabel`)                                                              |
+| `handleGotoStep`        | 2212-2242 | None (increments jumpCount, returns goto)                                                               |
+| `handleSkipStep`        | 2244-2250 | None (returns skip count)                                                                               |
+| `handleHttpRequestStep` | 2358-2471 | Writes response to `execCtx.variables[saveResponseAs]`                                                  |
 
 ### 7.7 ActionRegistry (lines 2492-2726)
 
 **Interface** (lines 2475-2490):
+
 ```ts
 interface AutomationAction {
-  execute(db, entityId, workspaceId, sequenceId, step, ctx, execCtx, labelMap): Promise<StepResult> | StepResult;
+  execute(
+    db,
+    entityId,
+    workspaceId,
+    sequenceId,
+    step,
+    ctx,
+    execCtx,
+    labelMap
+  ): Promise<StepResult> | StepResult;
   validate(step, labelMap): string[];
   supportsRetry(err): boolean;
 }
@@ -322,17 +361,17 @@ interface AutomationAction {
 
 **Registered actions**:
 
-| Key | Handler | supportsRetry |
-|---|---|---|
-| `SEND_EMAIL` | `handleSendEmailStep` | `true` (always) |
-| `WAIT` | `handleWaitStep` | `false` |
-| `ASSIGN_TAG` | `handleAssignTagStep` | `false` |
-| `UPDATE_STAGE` | `handleUpdateStageStep` | `false` |
-| `SET_VARIABLE` | `handleSetVariableStep` | `false` |
-| `IF` | `handleIfStep` | `false` |
-| `LABEL` | `handleLabelStep` | `false` |
-| `GOTO` | `handleGotoStep` | `false` |
-| `SKIP` | `handleSkipStep` | `false` |
+| Key            | Handler                 | supportsRetry               |
+| -------------- | ----------------------- | --------------------------- |
+| `SEND_EMAIL`   | `handleSendEmailStep`   | `true` (always)             |
+| `WAIT`         | `handleWaitStep`        | `false`                     |
+| `ASSIGN_TAG`   | `handleAssignTagStep`   | `false`                     |
+| `UPDATE_STAGE` | `handleUpdateStageStep` | `false`                     |
+| `SET_VARIABLE` | `handleSetVariableStep` | `false`                     |
+| `IF`           | `handleIfStep`          | `false`                     |
+| `LABEL`        | `handleLabelStep`       | `false`                     |
+| `GOTO`         | `handleGotoStep`        | `false`                     |
+| `SKIP`         | `handleSkipStep`        | `false`                     |
 | `HTTP_REQUEST` | `handleHttpRequestStep` | `isRetryableHttpError(err)` |
 
 **Alias** (line 2726): `ActionRegistry.MOVE_PIPELINE_STAGE = ActionRegistry.UPDATE_STAGE`
@@ -350,6 +389,7 @@ interface AutomationAction {
 ### 7.9 Retry Classification (lines 2333-2356)
 
 `isRetryableHttpError()` returns `true` for:
+
 - `HttpError` with status 429 or 500-599
 - `AbortError` or message containing "timeout"
 - Error codes: `ENOTFOUND`, `ETIMEDOUT`, `ECONNREFUSED`, `ECONNRESET`, `EADDRINUSE`, `EPIPE`
@@ -373,14 +413,14 @@ Lives in the main process (instantiated by `WorkspaceRuntime`). Subscribes to Lo
 
 ### 8.1 Event to Trigger Mapping (lines 30-79)
 
-| EventBus Event | Trigger Type |
-|---|---|
-| `crm:created` + company entity | `COMPANY_CREATED` |
-| `crm:created` + contact entity | `CONTACT_CREATED` |
-| `crm:updated` + status change | `PIPELINE_STAGE_CHANGED` |
+| EventBus Event                 | Trigger Type                 |
+| ------------------------------ | ---------------------------- |
+| `crm:created` + company entity | `COMPANY_CREATED`            |
+| `crm:created` + contact entity | `CONTACT_CREATED`            |
+| `crm:updated` + status change  | `PIPELINE_STAGE_CHANGED`     |
 | `job:completed` + scraper type | `DISCOVERY_IMPORT_COMPLETED` |
-| `job:completed` (other) | `JOB_COMPLETED` |
-| `job:failed` | `JOB_FAILED` |
+| `job:completed` (other)        | `JOB_COMPLETED`              |
+| `job:failed`                   | `JOB_FAILED`                 |
 
 ### 8.2 Evaluation Flow (lines 238-364)
 
@@ -409,6 +449,7 @@ Lives in the main process (instantiated by `WorkspaceRuntime`). Subscribes to Lo
 **File**: [event-bridge.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/main/lib/event-bridge.ts)
 
 Forwards EventBus events to renderer via `BrowserWindow.webContents.send()`:
+
 - Job events: `job:progress`, `job:completed`, `job:failed`, `job:starting`, `job:started`, `job:paused`, `job:cancelled`
 - Automation events: `automation:queued`, `automation:started`, `automation:resumed`, `automation:paused`, `automation:waiting`, `automation:completed`, `automation:cancelled`, `automation:failed`, `automation:recovered`
 
@@ -417,6 +458,7 @@ Forwards EventBus events to renderer via `BrowserWindow.webContents.send()`:
 Worker process sends `{ type: 'automation_event', event, payload }` via `process.send()` ([automation.ts:77-81](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/main/workers/plugins/automation.ts#L77-L81)).
 
 Scheduler handles it at [scheduler.ts:468-470](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/main/services/scheduler.ts#L468-L470):
+
 ```ts
 case 'automation_event':
   this.eventBus.publish((msg as any).event, (msg as any).payload);
@@ -436,13 +478,13 @@ All 9 automation event channels are whitelisted in the preload `on()` method, me
 
 **File**: [ipc/automation.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/main/ipc/automation.ts)
 
-| Channel | Implementation | Data Flow |
-|---|---|---|
-| `sequence:list` | `sdk.sequences.list()` then `LocalCRMRepository.saveMany()` | API to SQLite cache |
-| `sequence:get` | `sdk.sequences.get(id)` then `LocalCRMRepository.save()` | API to SQLite cache |
-| `sequence:create` | `LocalCRMRepository.save()` (syncStatus=pending) | SQLite only |
-| `sequence:update` | `LocalCRMRepository.save()` (syncStatus=pending) | SQLite only |
-| `sequence:delete` | `LocalCRMRepository.softDelete()` | SQLite only |
+| Channel           | Implementation                                              | Data Flow           |
+| ----------------- | ----------------------------------------------------------- | ------------------- |
+| `sequence:list`   | `sdk.sequences.list()` then `LocalCRMRepository.saveMany()` | API to SQLite cache |
+| `sequence:get`    | `sdk.sequences.get(id)` then `LocalCRMRepository.save()`    | API to SQLite cache |
+| `sequence:create` | `LocalCRMRepository.save()` (syncStatus=pending)            | SQLite only         |
+| `sequence:update` | `LocalCRMRepository.save()` (syncStatus=pending)            | SQLite only         |
+| `sequence:delete` | `LocalCRMRepository.softDelete()`                           | SQLite only         |
 
 ### 10.2 Execution Control (Desktop IPC to Remote API)
 
@@ -453,25 +495,25 @@ All 9 automation event channels are whitelisted in the preload `on()` method, me
 >
 > Only event-driven executions (triggered by `AutomationTriggerEvaluator`) insert jobs into the local SQLite `jobs` table and are actually executed by the desktop worker.
 
-| Channel | Implementation | Defect |
-|---|---|---|
-| `sequence:start` | `sdk.executions.start()` | Creates MongoDB record, never queues local job |
-| `sequence:stop` | `sdk.executions.stop()` | Updates MongoDB, does not cancel local job |
-| `execution:list` | `sdk.executions.list()` | Reads from API |
-| `execution:get` | `sdk.executions.get()` | Reads from API |
-| `execution:logs` | `sdk.executions.getLogs()` | Reads from API |
+| Channel          | Implementation             | Defect                                         |
+| ---------------- | -------------------------- | ---------------------------------------------- |
+| `sequence:start` | `sdk.executions.start()`   | Creates MongoDB record, never queues local job |
+| `sequence:stop`  | `sdk.executions.stop()`    | Updates MongoDB, does not cancel local job     |
+| `execution:list` | `sdk.executions.list()`    | Reads from API                                 |
+| `execution:get`  | `sdk.executions.get()`     | Reads from API                                 |
+| `execution:logs` | `sdk.executions.getLogs()` | Reads from API                                 |
 
 ### 10.3 Scheduler IPC
 
 **File**: [ipc/scheduler.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/main/ipc/scheduler.ts)
 
-| Channel | Implementation |
-|---|---|
-| `scheduler:jobs:submit` | Direct SQLite INSERT into `jobs` table |
-| `scheduler:jobs:list` | Direct SQLite SELECT from `jobs` table |
+| Channel                 | Implementation                                                  |
+| ----------------------- | --------------------------------------------------------------- |
+| `scheduler:jobs:submit` | Direct SQLite INSERT into `jobs` table                          |
+| `scheduler:jobs:list`   | Direct SQLite SELECT from `jobs` table                          |
 | `scheduler:jobs:cancel` | Calls `activeRuntime.scheduler.cancelJob()` or direct DB update |
-| `scheduler:jobs:pause` | Calls `activeRuntime.scheduler.pauseJob()` or direct DB update |
-| `scheduler:jobs:resume` | Direct DB update: status `paused` to `queued` |
+| `scheduler:jobs:pause`  | Calls `activeRuntime.scheduler.pauseJob()` or direct DB update  |
+| `scheduler:jobs:resume` | Direct DB update: status `paused` to `queued`                   |
 
 ---
 
@@ -504,19 +546,19 @@ export const SequenceWorker = {
 
 Tables mutated by the automation runtime (evidenced from SQL statements in source):
 
-| Table | Operations | Source Files |
-|---|---|---|
-| `jobs` | INSERT, UPDATE (status, progress, checkpoint, retry, maxRetries) | scheduler.ts, automation-trigger.ts, workspace-runtime.ts, automation.ts |
-| `sequence_executions` | INSERT, UPDATE (status, currentStep, executionContext, workerPid) | automation.ts, scheduler.ts, workspace-runtime.ts |
-| `sequence_logs` | INSERT | automation.ts, scheduler.ts, workspace-runtime.ts |
-| `automation_locks` | INSERT, DELETE, UPDATE (expiresAt) | automation.ts, scheduler.ts, workspace-runtime.ts |
-| `sequences` | SELECT | automation.ts, automation-trigger.ts |
-| `contacts` | SELECT, UPDATE (tags, status) | automation.ts |
-| `companies` | SELECT | automation.ts |
-| `templates` | SELECT | automation.ts |
-| `email_accounts` | SELECT | automation.ts |
-| `settings` | SELECT | automation.ts, scheduler.ts |
-| `sync_queue` | INSERT | automation.ts |
+| Table                 | Operations                                                        | Source Files                                                             |
+| --------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `jobs`                | INSERT, UPDATE (status, progress, checkpoint, retry, maxRetries)  | scheduler.ts, automation-trigger.ts, workspace-runtime.ts, automation.ts |
+| `sequence_executions` | INSERT, UPDATE (status, currentStep, executionContext, workerPid) | automation.ts, scheduler.ts, workspace-runtime.ts                        |
+| `sequence_logs`       | INSERT                                                            | automation.ts, scheduler.ts, workspace-runtime.ts                        |
+| `automation_locks`    | INSERT, DELETE, UPDATE (expiresAt)                                | automation.ts, scheduler.ts, workspace-runtime.ts                        |
+| `sequences`           | SELECT                                                            | automation.ts, automation-trigger.ts                                     |
+| `contacts`            | SELECT, UPDATE (tags, status)                                     | automation.ts                                                            |
+| `companies`           | SELECT                                                            | automation.ts                                                            |
+| `templates`           | SELECT                                                            | automation.ts                                                            |
+| `email_accounts`      | SELECT                                                            | automation.ts                                                            |
+| `settings`            | SELECT                                                            | automation.ts, scheduler.ts                                              |
+| `sync_queue`          | INSERT                                                            | automation.ts                                                            |
 
 ---
 
@@ -588,36 +630,36 @@ Renderer
 
 ### 15.1 Confirmed Working
 
-| Capability | Evidence |
-|---|---|
-| Sequential execution loop | `while(currentStep < steps.length)` at line 1194 |
-| Loop guard | `MAX_AUTOMATION_STEPS_PER_RUN = 100` at line 1191 |
-| Execution timeout | `MAX_EXECUTION_DURATION_MS = 300_000` at line 827 |
-| Per-step timeout | `MAX_STEP_DURATION_MS = 60_000` at line 1326 |
-| Concurrent execution lock | `automation_locks` table with expiry |
-| Checkpoint persistence | `ctx.saveCheckpoint()` called on WAIT and pause |
-| ExecutionContext persistence | Atomically written to `sequence_executions.executionContext` after every step |
-| Jump count limit | `jumpCount > 100` throws at lines 2186, 2229 |
-| WAIT timer resumption | Phase 2 of `tick()` at lines 159-207 |
-| Crash recovery | `recoverInterruptedJobs()` at startup |
-| Event-driven trigger | `AutomationTriggerEvaluator` with deduplication |
-| SMTP email sending | Real nodemailer transport at lines 1904-1931 |
-| Tag mutation + sync queue | `handleAssignTagStep` at lines 1949-2032 |
-| Stage mutation + sync queue | `handleUpdateStageStep` at lines 2034-2107 |
-| Variable set/increment/decrement | `handleSetVariableStep` at lines 2109-2146 |
-| IF/GOTO/LABEL/SKIP branching | Full implementations at lines 2148-2250 |
-| HTTP_REQUEST with fetch | Native fetch + AbortController at lines 2358-2471 |
-| Secret resolution | `resolveVariablesRecursive` with settings table lookup at lines 196-213 |
-| Log redaction | `redactHeaders()` and `redactBody()` at lines 2265-2331 |
-| Retry classification | `isRetryableHttpError()` at lines 2333-2356, `supportsRetry` per action |
-| Permanent failure halts retries | `maxRetries = 0` set at lines 1718-1724 |
-| ActionRegistry pattern | All 10 types + 1 alias registered at lines 2492-2726 |
-| Pre-execution validation | `validateWorkflow()` called at line 988 |
-| API worker decommissioned | `SequenceWorker` is a no-op |
-| Heartbeat watchdog | 10s interval, 30s timeout at scheduler lines 28-35 |
-| Soft cancel/pause | IPC-based at worker-host lines 101-112 |
-| Per-type concurrency | `typeActiveCount` checked in tick at scheduler lines 126-134 |
-| Renderer event forwarding | EventBridge forwards 9 automation events at lines 89-118 |
+| Capability                       | Evidence                                                                      |
+| -------------------------------- | ----------------------------------------------------------------------------- |
+| Sequential execution loop        | `while(currentStep < steps.length)` at line 1194                              |
+| Loop guard                       | `MAX_AUTOMATION_STEPS_PER_RUN = 100` at line 1191                             |
+| Execution timeout                | `MAX_EXECUTION_DURATION_MS = 300_000` at line 827                             |
+| Per-step timeout                 | `MAX_STEP_DURATION_MS = 60_000` at line 1326                                  |
+| Concurrent execution lock        | `automation_locks` table with expiry                                          |
+| Checkpoint persistence           | `ctx.saveCheckpoint()` called on WAIT and pause                               |
+| ExecutionContext persistence     | Atomically written to `sequence_executions.executionContext` after every step |
+| Jump count limit                 | `jumpCount > 100` throws at lines 2186, 2229                                  |
+| WAIT timer resumption            | Phase 2 of `tick()` at lines 159-207                                          |
+| Crash recovery                   | `recoverInterruptedJobs()` at startup                                         |
+| Event-driven trigger             | `AutomationTriggerEvaluator` with deduplication                               |
+| SMTP email sending               | Real nodemailer transport at lines 1904-1931                                  |
+| Tag mutation + sync queue        | `handleAssignTagStep` at lines 1949-2032                                      |
+| Stage mutation + sync queue      | `handleUpdateStageStep` at lines 2034-2107                                    |
+| Variable set/increment/decrement | `handleSetVariableStep` at lines 2109-2146                                    |
+| IF/GOTO/LABEL/SKIP branching     | Full implementations at lines 2148-2250                                       |
+| HTTP_REQUEST with fetch          | Native fetch + AbortController at lines 2358-2471                             |
+| Secret resolution                | `resolveVariablesRecursive` with settings table lookup at lines 196-213       |
+| Log redaction                    | `redactHeaders()` and `redactBody()` at lines 2265-2331                       |
+| Retry classification             | `isRetryableHttpError()` at lines 2333-2356, `supportsRetry` per action       |
+| Permanent failure halts retries  | `maxRetries = 0` set at lines 1718-1724                                       |
+| ActionRegistry pattern           | All 10 types + 1 alias registered at lines 2492-2726                          |
+| Pre-execution validation         | `validateWorkflow()` called at line 988                                       |
+| API worker decommissioned        | `SequenceWorker` is a no-op                                                   |
+| Heartbeat watchdog               | 10s interval, 30s timeout at scheduler lines 28-35                            |
+| Soft cancel/pause                | IPC-based at worker-host lines 101-112                                        |
+| Per-type concurrency             | `typeActiveCount` checked in tick at scheduler lines 126-134                  |
+| Renderer event forwarding        | EventBridge forwards 9 automation events at lines 89-118                      |
 
 ### 15.2 Architectural Defects
 
@@ -664,12 +706,12 @@ graph TD
 
     D -->|"fork('worker.js')"| H["Worker Host"]
     H -->|"registry.resolve('automation:workflow')"| I["executeAutomationWorkflow"]
-    
+
     I -->|"ActionRegistry dispatch"| J["Step Handlers"]
     J -->|"SEND_EMAIL"| K["nodemailer SMTP"]
     J -->|"HTTP_REQUEST"| L["native fetch"]
     J -->|"ASSIGN_TAG / UPDATE_STAGE"| M["SQLite contacts table"]
-    
+
     I -->|"process.send(automation_event)"| D
     D -->|"eventBus.publish"| F
     F -->|"webContents.send"| A
@@ -679,7 +721,7 @@ graph TD
 
     A -->|"ipc.invoke('sequence:start')"| N["SDK to API Server"]
     N -->|"MongoDB write"| O["MongoDB"]
-    
+
     style N fill:#ff6666,stroke:#333
     style O fill:#ff6666,stroke:#333
 ```

@@ -1,5 +1,5 @@
-import type { Context, Next } from "hono";
-import { logger } from "../config/index.js";
+import type { Context, Next } from 'hono';
+import { logger } from '../config/index.js';
 
 /**
  * Middleware that appends a unique X-Request-ID header to every request and response.
@@ -9,8 +9,8 @@ import { logger } from "../config/index.js";
  */
 export async function requestIdMiddleware(c: Context, next: Next): Promise<void> {
   const reqId = crypto.randomUUID();
-  c.set("requestId", reqId);
-  c.header("x-request-id", reqId);
+  c.set('requestId', reqId);
+  c.header('x-request-id', reqId);
   await next();
 }
 
@@ -21,7 +21,7 @@ export async function requestIdMiddleware(c: Context, next: Next): Promise<void>
  * @param next Next function
  */
 export async function loggerMiddleware(c: Context, next: Next): Promise<void> {
-  const reqId = c.get("requestId") || crypto.randomUUID();
+  const reqId = c.get('requestId') || crypto.randomUUID();
   const { method, url } = c.req;
   const start = Date.now();
 

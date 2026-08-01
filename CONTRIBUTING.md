@@ -42,6 +42,7 @@ We follow the **Conventional Commits** standard to automatically generate releas
 Format: `<type>(<scope>): <description>`
 
 ### Standard Types
+
 - `feat`: A new feature implementation.
 - `fix`: A bug fix.
 - `docs`: Documentation-only updates.
@@ -51,6 +52,7 @@ Format: `<type>(<scope>): <description>`
 - `chore`: Infrastructure, build configuration, or package dependency updates.
 
 ### Examples
+
 - `feat(scheduler): add SIGKILL timeout trigger for stalled workers`
 - `fix(sync): resolve LWW conflict logic on deleted contact items`
 - `docs(api): add OpenAPI spec definitions for workspace sync`
@@ -82,6 +84,7 @@ For comprehensive details on running and writing tests, view the [Testing & QA G
 ## 📜 Documentation Requirements
 
 Documentation is a first-class citizen in LeadForge OS:
+
 - If you modify database schemas or add new entities, update [docs/architecture/README.md](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/docs/architecture/README.md) and record the migrations.
 - If you add new tools or worker plugins, update the developer guides in [docs/development/README.md](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/docs/development/README.md).
 - If your change affects user navigation, settings, or CLI setups, update [docs/getting-started/README.md](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/docs/getting-started/README.md).

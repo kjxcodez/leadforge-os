@@ -60,7 +60,10 @@ export default function DashboardScreen() {
   const feedQuery = useQuery({
     queryKey: ['dashboard-feed', workspaceId],
     queryFn: async () => {
-      const rows = await window.ipc.invoke('dashboard:activity-feed' as any, { workspaceId, limit: 30 });
+      const rows = await window.ipc.invoke('dashboard:activity-feed' as any, {
+        workspaceId,
+        limit: 30
+      });
       return rows.map((act: any) => ({
         id: act.id || Math.random().toString(),
         type: act.type || 'tag_added',
@@ -116,7 +119,9 @@ export default function DashboardScreen() {
 
   const chartData = chartQuery.data || [];
   const maxChartVal = Math.max(
-    ...chartData.map((day: any) => (day.emailsSent || 0) + (day.contactsCreated || 0) + (day.executions || 0)),
+    ...chartData.map(
+      (day: any) => (day.emailsSent || 0) + (day.contactsCreated || 0) + (day.executions || 0)
+    ),
     10 // Fallback ceiling divisor
   );
 
@@ -152,27 +157,43 @@ export default function DashboardScreen() {
 
   // Invoke ready-to-show once all queries complete loading (PRD-002)
   React.useEffect(() => {
-    if (workspaceId && !statsQuery.isLoading && !chartQuery.isLoading && !feedQuery.isLoading && !infraQuery.isLoading) {
+    if (
+      workspaceId &&
+      !statsQuery.isLoading &&
+      !chartQuery.isLoading &&
+      !feedQuery.isLoading &&
+      !infraQuery.isLoading
+    ) {
       const rendererInitStart = (window as any).__rendererInitStart || 0;
       const reactMountTime = (window as any).__reactMountTime || 0;
       const dashboardReadyTime = performance.now();
 
-      window.ipc.invoke('electron:ready-to-show' as any, {
-        rendererInitStart,
-        reactMountTime,
-        dashboardReadyTime
-      }).catch((err) => {
-        console.log('Failed to invoke electron:ready-to-show:', err);
-      });
+      window.ipc
+        .invoke('electron:ready-to-show' as any, {
+          rendererInitStart,
+          reactMountTime,
+          dashboardReadyTime
+        })
+        .catch((err) => {
+          console.log('Failed to invoke electron:ready-to-show:', err);
+        });
     }
-  }, [workspaceId, statsQuery.isLoading, chartQuery.isLoading, feedQuery.isLoading, infraQuery.isLoading]);
+  }, [
+    workspaceId,
+    statsQuery.isLoading,
+    chartQuery.isLoading,
+    feedQuery.isLoading,
+    infraQuery.isLoading
+  ]);
 
   return (
     <div className="space-y-6 text-xs font-sans h-full overflow-y-auto pr-1">
       {/* Header bar */}
       <div className="flex justify-between items-end border-b border-border-subtle pb-3">
         <div>
-          <h2 className="text-sm font-semibold tracking-tight text-foreground">Workspace Overview</h2>
+          <h2 className="text-sm font-semibold tracking-tight text-foreground">
+            Workspace Overview
+          </h2>
           <p className="text-[10px] text-muted-foreground mt-0.5">
             Track lead performance, campaign progress, and live orchestrations.
           </p>
@@ -239,7 +260,9 @@ export default function DashboardScreen() {
                 <div className="text-lg font-bold text-foreground leading-none">{item.value}</div>
               )}
             </div>
-            <div className={`w-8 h-8 rounded bg-card border border-border-subtle flex items-center justify-center shrink-0 ml-3 ${item.color}`}>
+            <div
+              className={`w-8 h-8 rounded bg-card border border-border-subtle flex items-center justify-center shrink-0 ml-3 ${item.color}`}
+            >
               <item.icon className="w-4 h-4" />
             </div>
           </div>
@@ -253,9 +276,11 @@ export default function DashboardScreen() {
           <div className="flex justify-between items-center border-b border-border-subtle pb-3">
             <div className="flex items-center gap-1.5">
               <TrendingUp className="h-3.5 w-3.5 text-accent" />
-              <h3 className="text-[10px] font-bold uppercase text-foreground tracking-wider">Outreach Activity</h3>
+              <h3 className="text-[10px] font-bold uppercase text-foreground tracking-wider">
+                Outreach Activity
+              </h3>
             </div>
-            
+
             {/* Timeframe Selectors */}
             <div className="flex bg-sunken border border-border-subtle p-0.5 rounded gap-0.5">
               {[
@@ -285,7 +310,9 @@ export default function DashboardScreen() {
             </div>
           ) : chartData.length === 0 ? (
             <div className="h-[180px] flex items-center justify-center border border-dashed border-border-subtle rounded-lg bg-sunken/15">
-              <span className="text-muted-foreground text-[11px]">No activity logs found for this period.</span>
+              <span className="text-muted-foreground text-[11px]">
+                No activity logs found for this period.
+              </span>
             </div>
           ) : (
             <div className="space-y-3">
@@ -294,12 +321,17 @@ export default function DashboardScreen() {
                   const emailH = ((day.emailsSent || 0) / maxChartVal) * 100;
                   const contactH = ((day.contactsCreated || 0) / maxChartVal) * 100;
                   const execH = ((day.executions || 0) / maxChartVal) * 100;
-                  
+
                   return (
-                    <div key={idx} className="flex-1 flex flex-col justify-end h-full group relative cursor-pointer">
+                    <div
+                      key={idx}
+                      className="flex-1 flex flex-col justify-end h-full group relative cursor-pointer"
+                    >
                       {/* Rich tooltip */}
                       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col bg-popover text-foreground border border-border-default rounded-lg p-2.5 shadow-xl z-50 text-[10px] font-mono whitespace-nowrap gap-1">
-                        <div className="font-semibold text-center border-b border-border-subtle pb-1 mb-1 text-[9px] text-muted-foreground">{day.day}</div>
+                        <div className="font-semibold text-center border-b border-border-subtle pb-1 mb-1 text-[9px] text-muted-foreground">
+                          {day.day}
+                        </div>
                         <div className="text-accent flex items-center gap-1.5 font-bold">
                           <span className="w-1.5 h-1.5 rounded-full bg-accent" />
                           Workflows: {day.executions || 0}
@@ -315,9 +347,18 @@ export default function DashboardScreen() {
                       </div>
 
                       {/* Segments (flex-col layouts stack nicely) */}
-                      <div className="bg-accent rounded-t w-full transition-all duration-300 hover:brightness-110" style={{ height: `${execH}%` }} />
-                      <div className="bg-indigo-500 w-full transition-all duration-300 hover:brightness-110" style={{ height: `${emailH}%` }} />
-                      <div className="bg-emerald-500 w-full transition-all duration-300 hover:brightness-110" style={{ height: `${contactH}%` }} />
+                      <div
+                        className="bg-accent rounded-t w-full transition-all duration-300 hover:brightness-110"
+                        style={{ height: `${execH}%` }}
+                      />
+                      <div
+                        className="bg-indigo-500 w-full transition-all duration-300 hover:brightness-110"
+                        style={{ height: `${emailH}%` }}
+                      />
+                      <div
+                        className="bg-emerald-500 w-full transition-all duration-300 hover:brightness-110"
+                        style={{ height: `${contactH}%` }}
+                      />
                     </div>
                   );
                 })}
@@ -349,7 +390,9 @@ export default function DashboardScreen() {
         {/* Activity Feed Column */}
         <div className="bg-card border border-border-subtle rounded-xl flex flex-col p-4 space-y-3 shadow-sm h-[290px]">
           <div className="border-b border-border-subtle pb-2 flex justify-between items-center">
-            <h3 className="text-[10px] font-bold uppercase text-foreground tracking-wider">Recent Activity</h3>
+            <h3 className="text-[10px] font-bold uppercase text-foreground tracking-wider">
+              Recent Activity
+            </h3>
             <span className="text-[9px] text-muted-foreground font-mono">Live Logs</span>
           </div>
           <div className="flex-1 overflow-y-auto pr-1">
@@ -376,16 +419,46 @@ export default function DashboardScreen() {
                 System Infrastructure Status
               </span>
             </div>
-            <p className="text-[10px] text-muted-foreground">Monitor isolated syncs, trigger monitors, and database latency.</p>
+            <p className="text-[10px] text-muted-foreground">
+              Monitor isolated syncs, trigger monitors, and database latency.
+            </p>
           </div>
 
           <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
             <div className="text-right text-[10px] text-muted-foreground font-mono leading-relaxed">
-              <div>Uptime: <span className="font-semibold text-foreground">{formatUptime(infraStatus.workspaceRuntime?.uptimeMs)}</span></div>
-              <div>Restarts: <span className="font-semibold text-foreground">{infraStatus.workspaceRuntime?.restartCount || 0}</span></div>
-              <div>Memory: <span className="font-semibold text-foreground">{formatBytes(infraStatus.workspaceRuntime?.memoryUsage)}</span></div>
-              <div>Startup: <span className="font-semibold text-foreground">{infraStatus.workspaceRuntime?.startupDuration || 0}ms</span></div>
-              <div>Avg Boot: <span className="font-semibold text-foreground">{infraStatus.workspaceRuntime?.averageStartupTime ? Math.round(infraStatus.workspaceRuntime.averageStartupTime) : 0}ms</span></div>
+              <div>
+                Uptime:{' '}
+                <span className="font-semibold text-foreground">
+                  {formatUptime(infraStatus.workspaceRuntime?.uptimeMs)}
+                </span>
+              </div>
+              <div>
+                Restarts:{' '}
+                <span className="font-semibold text-foreground">
+                  {infraStatus.workspaceRuntime?.restartCount || 0}
+                </span>
+              </div>
+              <div>
+                Memory:{' '}
+                <span className="font-semibold text-foreground">
+                  {formatBytes(infraStatus.workspaceRuntime?.memoryUsage)}
+                </span>
+              </div>
+              <div>
+                Startup:{' '}
+                <span className="font-semibold text-foreground">
+                  {infraStatus.workspaceRuntime?.startupDuration || 0}ms
+                </span>
+              </div>
+              <div>
+                Avg Boot:{' '}
+                <span className="font-semibold text-foreground">
+                  {infraStatus.workspaceRuntime?.averageStartupTime
+                    ? Math.round(infraStatus.workspaceRuntime.averageStartupTime)
+                    : 0}
+                  ms
+                </span>
+              </div>
             </div>
             <Button
               onClick={handleToggleInfrastructure}
@@ -394,7 +467,11 @@ export default function DashboardScreen() {
               variant={isSystemRunning ? 'destructive' : 'default'}
               className="text-xs font-semibold gap-1.5 active:scale-[0.98] shrink-0"
             >
-              {isSystemRunning ? <StopCircle className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+              {isSystemRunning ? (
+                <StopCircle className="h-3.5 w-3.5" />
+              ) : (
+                <Play className="h-3.5 w-3.5" />
+              )}
               <span>{isSystemRunning ? 'Stop Engine' : 'Start Engine'}</span>
             </Button>
           </div>
@@ -428,15 +505,22 @@ export default function DashboardScreen() {
               icon: Terminal
             }
           ].map((srv, idx) => (
-            <div key={idx} className="bg-sunken border border-border-subtle rounded-xl p-3.5 flex flex-col justify-between gap-2">
+            <div
+              key={idx}
+              className="bg-sunken border border-border-subtle rounded-xl p-3.5 flex flex-col justify-between gap-2"
+            >
               <div className="flex items-center justify-between gap-1">
                 <span className="text-[10px] font-bold text-secondary truncate">{srv.name}</span>
                 <srv.icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               </div>
               <div className="flex items-end justify-between">
                 <div className="flex items-center gap-1.5">
-                  <span className={`w-2 h-2 rounded-full ${srv.status === 'Running' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-                  <span className="font-bold text-[10px] text-foreground uppercase">{srv.status}</span>
+                  <span
+                    className={`w-2 h-2 rounded-full ${srv.status === 'Running' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}
+                  />
+                  <span className="font-bold text-[10px] text-foreground uppercase">
+                    {srv.status}
+                  </span>
                 </div>
                 <span className="text-[9px] font-mono text-muted">{srv.uptime}</span>
               </div>

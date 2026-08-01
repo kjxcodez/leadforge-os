@@ -1,6 +1,11 @@
-import { ContactRepository } from "../../repositories/contact/contact.repository.js";
-import type { ContactDocument } from "../../db/models/contact.model.js";
-import { createContactDtoSchema, updateContactDtoSchema, type CreateContactDto, type UpdateContactDto } from "@leadforge/schema";
+import { ContactRepository } from '../../repositories/contact/contact.repository.js';
+import type { ContactDocument } from '../../db/models/contact.model.js';
+import {
+  createContactDtoSchema,
+  updateContactDtoSchema,
+  type CreateContactDto,
+  type UpdateContactDto
+} from '@leadforge/schema';
 
 export class ContactService {
   private contactRepository: ContactRepository;
@@ -13,7 +18,10 @@ export class ContactService {
     return this.contactRepository.findById(id);
   }
 
-  public async listContacts(page?: number, limit?: number): Promise<{ data: ContactDocument[]; total: number }> {
+  public async listContacts(
+    page?: number,
+    limit?: number
+  ): Promise<{ data: ContactDocument[]; total: number }> {
     return this.contactRepository.paginate({}, page, limit);
   }
 

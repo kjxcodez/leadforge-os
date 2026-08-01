@@ -15,7 +15,9 @@ This document details our testing philosophy, available test suites, and validat
 ## 🧪 Available Test Suites
 
 ### 1. Unit & Integration Tests
+
 Runs test files located in the `src/tests/` folders inside individual packages (e.g. `packages/agent-core`).
+
 - **Command**:
   ```bash
   pnpm -r test
@@ -23,7 +25,9 @@ Runs test files located in the `src/tests/` folders inside individual packages (
 - **Focus**: Validates utilities, validators, CRM repositories, and schema parsers.
 
 ### 2. AI Integration Tests (`test-ai.ts`)
+
 Validates model provider connections, timeouts, Zod output schema parsing, and fallback mock completions.
+
 - **Command**:
   ```bash
   pnpm test:ai
@@ -32,7 +36,9 @@ Validates model provider connections, timeouts, Zod output schema parsing, and f
 - **Parameters Check**: Verifies that OpenRouter responses match structured Zod definitions (e.g. `OpeningLineOutputSchema`).
 
 ### 3. Headless Subsystem Smoke Tests (`smoke-test.ts`)
+
 Executes a simulated Electron process headlessly to verify migrations, EventBuses, and logging loops.
+
 - **Command**:
   ```bash
   pnpm test
@@ -53,6 +59,7 @@ Executes a simulated Electron process headlessly to verify migrations, EventBuse
 We provide two pre-configured SRE scripts to inspect local configurations and prepare builds:
 
 ### 1. Doctor Diagnostics (`pnpm doctor`)
+
 The doctor diagnostics script tests environment versions, repository health, compilation status, lint rules, and test success.
 
 ```bash
@@ -61,6 +68,7 @@ pnpm doctor
 ```
 
 **Checks Performed**:
+
 1. Node version compliance ($\ge v18.0.0$).
 2. pnpm version validity.
 3. Electron version definition.
@@ -75,6 +83,7 @@ pnpm doctor
 ---
 
 ### 2. Release Gate Verification (`pnpm release:check`)
+
 A strict 10-gate check that must pass before any version distribution is allowed:
 
 ```bash
@@ -83,6 +92,7 @@ pnpm release:check
 ```
 
 **Gates Checklist**:
+
 1. **Gate 1**: Repository Health check.
 2. **Gate 2**: TypeScript typecheck.
 3. **Gate 3**: ESLint validation.
@@ -99,6 +109,7 @@ pnpm release:check
 ## 🛠️ Mocking Strategies
 
 ### Mocking LLM Providers
+
 In unit tests, use the `'mock'` provider to bypass OpenRouter connections. The prompt runner will return pre-set structures:
 
 ```typescript
@@ -114,6 +125,7 @@ const summary = await runner.generateSummary({ domain: 'google.com' });
 ```
 
 ### Mocking Electron
+
 For running desktop main process tests outside Electron (where `safeStorage` or `ipcMain` are unavailable), we provide a mock wrapper at [scripts/mock-electron.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/scripts/mock-electron.ts). Import this script at the absolute top of your test entry points to prevent runtime errors:
 
 ```typescript

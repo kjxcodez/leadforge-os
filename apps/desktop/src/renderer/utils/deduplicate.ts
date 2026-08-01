@@ -18,9 +18,7 @@ export interface DeduplicationMatch {
  * Normalizes a company name by removing whitespace, punctuation, and converting to lowercase.
  */
 function normalizeName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
+  return name.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 /**
@@ -44,7 +42,7 @@ export function checkDeduplication(
 ): DeduplicationMatch {
   const match: DeduplicationMatch = {
     isCompanyDuplicate: false,
-    duplicateContacts: [],
+    duplicateContacts: []
   };
 
   const cleanResultName = normalizeName(result.companyName);
@@ -76,7 +74,7 @@ export function checkDeduplication(
           match.duplicateContacts.push({
             firstName: rawCont.firstName,
             email: rawCont.email,
-            matchedContact: matched,
+            matchedContact: matched
           });
         }
       }

@@ -2,7 +2,7 @@ export enum CompanyStatus {
   LEAD = 'LEAD',
   QUALIFIED = 'QUALIFIED',
   CUSTOMER = 'CUSTOMER',
-  ARCHIVED = 'ARCHIVED',
+  ARCHIVED = 'ARCHIVED'
 }
 
 export enum OpportunityStage {
@@ -11,26 +11,26 @@ export enum OpportunityStage {
   PROPOSAL = 'PROPOSAL',
   NEGOTIATION = 'NEGOTIATION',
   CLOSED_WON = 'CLOSED_WON',
-  CLOSED_LOST = 'CLOSED_LOST',
+  CLOSED_LOST = 'CLOSED_LOST'
 }
 
 export enum OutreachChannel {
   EMAIL = 'EMAIL',
   LINKEDIN = 'LINKEDIN',
-  CALL = 'CALL',
+  CALL = 'CALL'
 }
 
 export enum UserRole {
   OWNER = 'OWNER',
   ADMIN = 'ADMIN',
-  MEMBER = 'MEMBER',
+  MEMBER = 'MEMBER'
 }
 
 export enum WorkflowStatus {
   DRAFT = 'DRAFT',
   ACTIVE = 'ACTIVE',
   PAUSED = 'PAUSED',
-  ERROR = 'ERROR',
+  ERROR = 'ERROR'
 }
 
 export enum WorkflowStepType {
@@ -38,14 +38,14 @@ export enum WorkflowStepType {
   ENRICH = 'ENRICH',
   VERIFY = 'VERIFY',
   QUALIFY = 'QUALIFY',
-  SEND = 'SEND',
+  SEND = 'SEND'
 }
 
 export enum CampaignStatus {
   DRAFT = 'DRAFT',
   ACTIVE = 'ACTIVE',
   PAUSED = 'PAUSED',
-  COMPLETED = 'COMPLETED',
+  COMPLETED = 'COMPLETED'
 }
 
 export enum ContactStatus {
@@ -53,7 +53,7 @@ export enum ContactStatus {
   CONTACTED = 'CONTACTED',
   REPLIED = 'REPLIED',
   BOUNCED = 'BOUNCED',
-  UNSUBSCRIBED = 'UNSUBSCRIBED',
+  UNSUBSCRIBED = 'UNSUBSCRIBED'
 }
 
 export enum ErrorCode {
@@ -64,7 +64,7 @@ export enum ErrorCode {
   CONFLICT = 'CONFLICT',
   INTERNAL_SERVER_ERROR = 'INTERNAL_SERVER_ERROR',
   VALIDATION_ERROR = 'VALIDATION_ERROR',
-  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED'
 }
 
 export enum HttpStatus {
@@ -77,7 +77,7 @@ export enum HttpStatus {
   NOT_FOUND = 404,
   CONFLICT = 409,
   TOO_MANY_REQUESTS = 429,
-  INTERNAL_SERVER_ERROR = 500,
+  INTERNAL_SERVER_ERROR = 500
 }
 
 export enum WorkspaceRole {
@@ -85,7 +85,7 @@ export enum WorkspaceRole {
   ADMIN = 'ADMIN',
   MEMBER = 'MEMBER',
   READ_ONLY = 'READ_ONLY',
-  BILLING = 'BILLING',
+  BILLING = 'BILLING'
 }
 
 export enum WorkspacePermission {
@@ -94,14 +94,14 @@ export enum WorkspacePermission {
   MANAGE_MEMBERS = 'MANAGE_MEMBERS',
   TRANSFER_OWNERSHIP = 'TRANSFER_OWNERSHIP',
   VIEW_SETTINGS = 'VIEW_SETTINGS',
-  CREATE_CAMPAIGNS = 'CREATE_CAMPAIGNS',
+  CREATE_CAMPAIGNS = 'CREATE_CAMPAIGNS'
 }
 
 export enum WorkspaceMemberStatus {
   ACTIVE = 'ACTIVE',
   PENDING = 'PENDING',
   DECLINED = 'DECLINED',
-  EXPIRED = 'EXPIRED',
+  EXPIRED = 'EXPIRED'
 }
 
 export enum AutomationTriggerType {
@@ -114,7 +114,7 @@ export enum AutomationTriggerType {
   EMAIL_BOUNCED = 'EMAIL_BOUNCED',
   TAG_ADDED = 'TAG_ADDED',
   PIPELINE_STAGE_CHANGED = 'PIPELINE_STAGE_CHANGED',
-  MANUAL = 'MANUAL',
+  MANUAL = 'MANUAL'
 }
 
 export enum AutomationActionType {
@@ -128,7 +128,7 @@ export enum AutomationActionType {
   STOP_CAMPAIGN = 'STOP_CAMPAIGN',
   ASSIGN_OWNER = 'ASSIGN_OWNER',
   CREATE_ACTIVITY = 'CREATE_ACTIVITY',
-  FINISH_SEQUENCE = 'FINISH_SEQUENCE',
+  FINISH_SEQUENCE = 'FINISH_SEQUENCE'
 }
 
 export enum AutomationConditionType {
@@ -140,13 +140,13 @@ export enum AutomationConditionType {
   PIPELINE_STAGE = 'PIPELINE_STAGE',
   LEAD_SCORE = 'LEAD_SCORE',
   COMPANY_INDUSTRY = 'COMPANY_INDUSTRY',
-  COMPANY_SIZE = 'COMPANY_SIZE',
+  COMPANY_SIZE = 'COMPANY_SIZE'
 }
 
 export enum SequenceStatus {
   DRAFT = 'DRAFT',
   ACTIVE = 'ACTIVE',
-  PAUSED = 'PAUSED',
+  PAUSED = 'PAUSED'
 }
 
 export enum ExecutionStatus {
@@ -155,6 +155,5 @@ export enum ExecutionStatus {
   WAITING = 'WAITING',
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
+  CANCELLED = 'CANCELLED'
 }
-

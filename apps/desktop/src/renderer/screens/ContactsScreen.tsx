@@ -26,7 +26,7 @@ import { ContactStatus } from '@leadforge/schema';
 export default function ContactsScreen() {
   const { activeWorkspace } = useWorkspace();
   const workspaceId = activeWorkspace?.id || '';
-  
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [sourcePlatformFilter, setSourcePlatformFilter] = useState('');
@@ -43,7 +43,7 @@ export default function ContactsScreen() {
     queryFn: async () => {
       return window.ipc.invoke('campaigns:list', { workspaceId });
     },
-    enabled: !!workspaceId,
+    enabled: !!workspaceId
   });
 
   // Enrollment mutation
@@ -84,9 +84,10 @@ export default function ContactsScreen() {
     const titleStr = (c.title || '').toLowerCase();
     const searchLower = search.toLowerCase();
 
-    const matchesSearch = fullName.includes(searchLower) || 
-                          emailStr.includes(searchLower) ||
-                          titleStr.includes(searchLower);
+    const matchesSearch =
+      fullName.includes(searchLower) ||
+      emailStr.includes(searchLower) ||
+      titleStr.includes(searchLower);
     const matchesStatus = !statusFilter || c.status === statusFilter;
     const matchesPlatform = !sourcePlatformFilter || c.sourcePlatform === sourcePlatformFilter;
     return matchesSearch && matchesStatus && matchesPlatform;
@@ -122,8 +123,14 @@ export default function ContactsScreen() {
   };
 
   const handleBulkStatusChange = async (status: string) => {
-    if (confirm(`Are you sure you want to update the status of ${selectedIds.length} contacts to "${status}"?`)) {
-      await Promise.all(selectedIds.map((id) => updateMutation.mutateAsync({ id, data: { status } })));
+    if (
+      confirm(
+        `Are you sure you want to update the status of ${selectedIds.length} contacts to "${status}"?`
+      )
+    ) {
+      await Promise.all(
+        selectedIds.map((id) => updateMutation.mutateAsync({ id, data: { status } }))
+      );
       setSelectedIds([]);
     }
   };
@@ -249,7 +256,9 @@ export default function ContactsScreen() {
                         {item.firstName} {item.lastName || ''}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
-                        {companies.find((c: any) => c.id === item.companyId)?.name || <span className="opacity-40">—</span>}
+                        {companies.find((c: any) => c.id === item.companyId)?.name || (
+                          <span className="opacity-40">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{item.email || '—'}</td>
                       <td className="px-4 py-3 text-muted-foreground">{item.phone || '—'}</td>
@@ -261,10 +270,10 @@ export default function ContactsScreen() {
                             item.status === 'REPLIED'
                               ? 'bg-green-500/10 text-green-600 border-green-500/20'
                               : item.status === 'CONTACTED'
-                              ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
-                              : item.status === 'BOUNCED'
-                              ? 'bg-red-500/10 text-red-600 border-red-500/20'
-                              : 'bg-muted/10 text-muted-foreground border-muted/20'
+                                ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                                : item.status === 'BOUNCED'
+                                  ? 'bg-red-500/10 text-red-600 border-red-500/20'
+                                  : 'bg-muted/10 text-muted-foreground border-muted/20'
                           }`}
                         >
                           {item.status}
@@ -330,7 +339,9 @@ export default function ContactsScreen() {
           <div className="flex-1 overflow-y-auto space-y-5 pr-1">
             {/* Overview / Metadata */}
             <div className="space-y-2.5">
-              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Overview</h4>
+              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                Overview
+              </h4>
               <div className="bg-sunken/20 border border-border-subtle rounded-lg p-2.5 space-y-2">
                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                   <Mail className="w-3.5 h-3.5 shrink-0 opacity-70" />
@@ -343,19 +354,24 @@ export default function ContactsScreen() {
                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                   <Briefcase className="w-3.5 h-3.5 shrink-0 opacity-70" />
                   <span className="text-foreground">
-                    {companies.find((c: any) => c.id === selectedContact.companyId)?.name || 'No associated company'}
+                    {companies.find((c: any) => c.id === selectedContact.companyId)?.name ||
+                      'No associated company'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                   <Linkedin className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                  <span className="text-foreground truncate">{selectedContact.linkedin || 'N/A'}</span>
+                  <span className="text-foreground truncate">
+                    {selectedContact.linkedin || 'N/A'}
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Pipeline Stage */}
             <div className="space-y-2">
-              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Contact Stage</h4>
+              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                Contact Stage
+              </h4>
               <div className="flex flex-wrap gap-1 bg-sunken/20 border border-border-subtle rounded-lg p-2">
                 {Object.values(ContactStatus).map((status) => {
                   const isActive = selectedContact.status === status;
@@ -385,13 +401,15 @@ export default function ContactsScreen() {
 
             {/* Tags System */}
             <div className="space-y-2.5">
-              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tags</h4>
+              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                Tags
+              </h4>
               <TagSystem
                 tags={selectedContact.tags || []}
                 onChange={async (newTags) => {
                   const updated = await updateMutation.mutateAsync({
                     id: selectedContact.id,
-                    data: { tags: newTags },
+                    data: { tags: newTags }
                   });
                   setSelectedContact(updated);
                 }}
@@ -400,13 +418,15 @@ export default function ContactsScreen() {
 
             {/* Notes System */}
             <div className="space-y-2.5">
-              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Notes</h4>
+              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                Notes
+              </h4>
               <NotesSystem
                 notesJson={selectedContact.notes}
                 onUpdate={async (json) => {
                   const updated = await updateMutation.mutateAsync({
                     id: selectedContact.id,
-                    data: { notes: json },
+                    data: { notes: json }
                   });
                   setSelectedContact(updated);
                 }}

@@ -75,7 +75,7 @@ export default function AutomationScreen() {
       if (!selectedExecutionId) return [];
       return window.ipc.invoke('execution:logs', selectedExecutionId);
     },
-    enabled: !!selectedExecutionId,
+    enabled: !!selectedExecutionId
   });
 
   const templatesQuery = useQuery({
@@ -83,7 +83,7 @@ export default function AutomationScreen() {
     queryFn: async () => {
       return window.ipc.invoke('templates:list', undefined);
     },
-    enabled: !!workspaceId,
+    enabled: !!workspaceId
   });
 
   const contactsQuery = useQuery({
@@ -92,7 +92,7 @@ export default function AutomationScreen() {
       const res = await window.ipc.invoke('contacts:list', { workspaceId });
       return res;
     },
-    enabled: !!workspaceId,
+    enabled: !!workspaceId
   });
 
   const campaignsQuery = useQuery({
@@ -100,7 +100,7 @@ export default function AutomationScreen() {
     queryFn: async () => {
       return window.ipc.invoke('campaigns:list', { workspaceId });
     },
-    enabled: !!workspaceId,
+    enabled: !!workspaceId
   });
 
   // ── Mutations ────────────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ export default function AutomationScreen() {
         description: seqDesc,
         status: seqStatus,
         trigger: { type: seqTriggerType, config: {} },
-        steps: seqSteps,
+        steps: seqSteps
       };
 
       if (editingSequenceId) {
@@ -123,12 +123,14 @@ export default function AutomationScreen() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sequences', 'list', workspaceId] });
-      toast.success(editingSequenceId ? 'Sequence updated successfully.' : 'Sequence created successfully.');
+      toast.success(
+        editingSequenceId ? 'Sequence updated successfully.' : 'Sequence created successfully.'
+      );
       setEditorOpen(false);
     },
     onError: (err: any) => {
       toast.error(err.message || 'Failed to save sequence.');
-    },
+    }
   });
 
   const deleteSequenceMutation = useMutation({
@@ -141,7 +143,7 @@ export default function AutomationScreen() {
     },
     onError: (err: any) => {
       toast.error(err.message || 'Failed to delete sequence.');
-    },
+    }
   });
 
   // ── Handlers ─────────────────────────────────────────────────────────────
@@ -162,7 +164,7 @@ export default function AutomationScreen() {
     setSeqDesc(seq.description || '');
     setSeqTriggerType(seq.trigger?.type || 'CONTACT_CREATED');
     setSeqStatus(seq.status);
-    
+
     // Parse steps from string if cached locally as JSON string
     const parsedSteps = typeof seq.steps === 'string' ? JSON.parse(seq.steps) : seq.steps;
     setSeqSteps(parsedSteps || []);
@@ -194,16 +196,18 @@ export default function AutomationScreen() {
       RESUME_CAMPAIGN: { campaignId: '' },
       SEND_NOTIFICATION: { message: '', type: 'info' },
       EXPORT_CSV: {},
-      BACKUP_WORKSPACE: {},
+      BACKUP_WORKSPACE: {}
     };
 
     setSeqSteps([
       ...seqSteps,
       {
-        id: window.crypto?.randomUUID ? window.crypto.randomUUID() : 'step_' + Math.random().toString(36).substring(2, 9),
+        id: window.crypto?.randomUUID
+          ? window.crypto.randomUUID()
+          : 'step_' + Math.random().toString(36).substring(2, 9),
         type,
-        config: defaultStepConfigs[type] || {},
-      },
+        config: defaultStepConfigs[type] || {}
+      }
     ]);
   };
 
@@ -229,7 +233,7 @@ export default function AutomationScreen() {
     const updated = [...seqSteps];
     updated[index].config = {
       ...updated[index].config,
-      [key]: val,
+      [key]: val
     };
     setSeqSteps(updated);
   };
@@ -249,27 +253,42 @@ export default function AutomationScreen() {
 
   const getStepIcon = (type: string) => {
     switch (type) {
-      case 'WAIT': return <Clock className="h-4.5 w-4.5 text-blue-500" />;
-      case 'SEND_EMAIL': return <Mail className="h-4.5 w-4.5 text-purple-500" />;
+      case 'WAIT':
+        return <Clock className="h-4.5 w-4.5 text-blue-500" />;
+      case 'SEND_EMAIL':
+        return <Mail className="h-4.5 w-4.5 text-purple-500" />;
       case 'ASSIGN_TAG':
-      case 'REMOVE_TAG': return <Tag className="h-4.5 w-4.5 text-teal-500" />;
-      case 'CREATE_NOTE': return <FileText className="h-4.5 w-4.5 text-amber-500" />;
-      case 'ASSIGN_OWNER': return <UserCheck className="h-4.5 w-4.5 text-indigo-500" />;
-      case 'CONDITION': return <Layers className="h-4.5 w-4.5 text-cyan-500" />;
-      case 'FINISH_SEQUENCE': return <CheckCircle className="h-4.5 w-4.5 text-emerald-500" />;
-      case 'RUN_DISCOVERY': return <Search className="h-4.5 w-4.5 text-orange-500" />;
-      case 'RUN_CRAWLER': return <Globe className="h-4.5 w-4.5 text-sky-500" />;
+      case 'REMOVE_TAG':
+        return <Tag className="h-4.5 w-4.5 text-teal-500" />;
+      case 'CREATE_NOTE':
+        return <FileText className="h-4.5 w-4.5 text-amber-500" />;
+      case 'ASSIGN_OWNER':
+        return <UserCheck className="h-4.5 w-4.5 text-indigo-500" />;
+      case 'CONDITION':
+        return <Layers className="h-4.5 w-4.5 text-cyan-500" />;
+      case 'FINISH_SEQUENCE':
+        return <CheckCircle className="h-4.5 w-4.5 text-emerald-500" />;
+      case 'RUN_DISCOVERY':
+        return <Search className="h-4.5 w-4.5 text-orange-500" />;
+      case 'RUN_CRAWLER':
+        return <Globe className="h-4.5 w-4.5 text-sky-500" />;
       case 'RUN_INTELLIGENCE':
       case 'GENERATE_AI_SUMMARY':
-      case 'GENERATE_OPENING_LINE': return <Sparkles className="h-4.5 w-4.5 text-amber-400" />;
+      case 'GENERATE_OPENING_LINE':
+        return <Sparkles className="h-4.5 w-4.5 text-amber-400" />;
       case 'CREATE_CAMPAIGN':
       case 'ENROLL_CONTACT':
       case 'PAUSE_CAMPAIGN':
-      case 'RESUME_CAMPAIGN': return <Mail className="h-4.5 w-4.5 text-pink-500" />;
-      case 'SEND_NOTIFICATION': return <Bell className="h-4.5 w-4.5 text-yellow-500" />;
-      case 'EXPORT_CSV': return <Download className="h-4.5 w-4.5 text-green-500" />;
-      case 'BACKUP_WORKSPACE': return <FolderOpen className="h-4.5 w-4.5 text-slate-400" />;
-      default: return <Zap className="h-4.5 w-4.5 text-muted" />;
+      case 'RESUME_CAMPAIGN':
+        return <Mail className="h-4.5 w-4.5 text-pink-500" />;
+      case 'SEND_NOTIFICATION':
+        return <Bell className="h-4.5 w-4.5 text-yellow-500" />;
+      case 'EXPORT_CSV':
+        return <Download className="h-4.5 w-4.5 text-green-500" />;
+      case 'BACKUP_WORKSPACE':
+        return <FolderOpen className="h-4.5 w-4.5 text-slate-400" />;
+      default:
+        return <Zap className="h-4.5 w-4.5 text-muted" />;
     }
   };
 
@@ -283,7 +302,7 @@ export default function AutomationScreen() {
     activeExecutions: execsList.filter((e: any) => e.status === 'RUNNING').length,
     waitingExecutions: execsList.filter((e: any) => e.status === 'WAITING').length,
     completedExecutions: execsList.filter((e: any) => e.status === 'COMPLETED').length,
-    failedExecutions: execsList.filter((e: any) => e.status === 'FAILED').length,
+    failedExecutions: execsList.filter((e: any) => e.status === 'FAILED').length
   };
 
   return (
@@ -291,7 +310,9 @@ export default function AutomationScreen() {
       <div className="flex justify-between items-end">
         <div>
           <h2 className="text-sm font-semibold text-foreground">Sales Automation Sequences</h2>
-          <p className="text-[11px] text-secondary mt-0.5">Automate leads nurturing, emails dispatch, waits, and pipeline tasks updates.</p>
+          <p className="text-[11px] text-secondary mt-0.5">
+            Automate leads nurturing, emails dispatch, waits, and pipeline tasks updates.
+          </p>
         </div>
         <Button onClick={handleOpenNewEditor} size="sm" className="flex items-center gap-1">
           <Plus className="h-3.5 w-3.5" />
@@ -320,23 +341,33 @@ export default function AutomationScreen() {
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-card border border-border-subtle p-4 rounded-xl flex flex-col justify-between shadow-sm">
               <span className="text-secondary font-medium">Total Sequences</span>
-              <span className="text-lg font-bold text-foreground mt-2">{metrics.totalSequences}</span>
+              <span className="text-lg font-bold text-foreground mt-2">
+                {metrics.totalSequences}
+              </span>
             </div>
             <div className="bg-card border border-border-subtle p-4 rounded-xl flex flex-col justify-between shadow-sm">
               <span className="text-secondary font-medium">Active Runs</span>
-              <span className="text-lg font-bold text-blue-500 mt-2">{metrics.activeExecutions}</span>
+              <span className="text-lg font-bold text-blue-500 mt-2">
+                {metrics.activeExecutions}
+              </span>
             </div>
             <div className="bg-card border border-border-subtle p-4 rounded-xl flex flex-col justify-between shadow-sm">
               <span className="text-secondary font-medium">Waiting Runs</span>
-              <span className="text-lg font-bold text-amber-500 mt-2">{metrics.waitingExecutions}</span>
+              <span className="text-lg font-bold text-amber-500 mt-2">
+                {metrics.waitingExecutions}
+              </span>
             </div>
             <div className="bg-card border border-border-subtle p-4 rounded-xl flex flex-col justify-between shadow-sm">
               <span className="text-secondary font-medium">Completed Runs</span>
-              <span className="text-lg font-bold text-emerald-500 mt-2">{metrics.completedExecutions}</span>
+              <span className="text-lg font-bold text-emerald-500 mt-2">
+                {metrics.completedExecutions}
+              </span>
             </div>
             <div className="bg-card border border-border-subtle p-4 rounded-xl flex flex-col justify-between shadow-sm">
               <span className="text-secondary font-medium">Failed Runs</span>
-              <span className="text-lg font-bold text-rose-500 mt-2">{metrics.failedExecutions}</span>
+              <span className="text-lg font-bold text-rose-500 mt-2">
+                {metrics.failedExecutions}
+              </span>
             </div>
           </div>
 
@@ -348,16 +379,30 @@ export default function AutomationScreen() {
               </h3>
               <div className="divide-y divide-border-subtle/50">
                 {seqsList.slice(0, 5).map((seq: any, idx) => (
-                  <div key={idx} className="py-2.5 flex justify-between items-center first:pt-0 last:pb-0">
+                  <div
+                    key={idx}
+                    className="py-2.5 flex justify-between items-center first:pt-0 last:pb-0"
+                  >
                     <div>
                       <h4 className="font-medium text-foreground">{seq.name}</h4>
                       <p className="text-[10px] text-muted mt-0.5">Trigger: {seq.trigger?.type}</p>
                     </div>
-                    <Badge variant="secondary" className={seq.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : ''}>{seq.status}</Badge>
+                    <Badge
+                      variant="secondary"
+                      className={
+                        seq.status === 'ACTIVE'
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                          : ''
+                      }
+                    >
+                      {seq.status}
+                    </Badge>
                   </div>
                 ))}
                 {seqsList.length === 0 && (
-                  <p className="text-muted text-[11px] py-4 text-center">No sequences template created yet.</p>
+                  <p className="text-muted text-[11px] py-4 text-center">
+                    No sequences template created yet.
+                  </p>
                 )}
               </div>
             </div>
@@ -369,18 +414,34 @@ export default function AutomationScreen() {
               </h3>
               <div className="divide-y divide-border-subtle/50">
                 {execsList.slice(0, 5).map((exec: any, idx) => (
-                  <div key={idx} className="py-2.5 flex justify-between items-center first:pt-0 last:pb-0">
+                  <div
+                    key={idx}
+                    className="py-2.5 flex justify-between items-center first:pt-0 last:pb-0"
+                  >
                     <div>
                       <h4 className="font-medium text-foreground">Execution {exec.id}</h4>
-                      <p className="text-[10px] text-muted mt-0.5">Step Pointer: {exec.currentStep}</p>
+                      <p className="text-[10px] text-muted mt-0.5">
+                        Step Pointer: {exec.currentStep}
+                      </p>
                     </div>
-                    <Badge variant={exec.status === 'FAILED' ? 'destructive' : 'secondary'} className={exec.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : exec.status === 'WAITING' || exec.status === 'RUNNING' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' : ''}>
+                    <Badge
+                      variant={exec.status === 'FAILED' ? 'destructive' : 'secondary'}
+                      className={
+                        exec.status === 'COMPLETED'
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                          : exec.status === 'WAITING' || exec.status === 'RUNNING'
+                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                            : ''
+                      }
+                    >
                       {exec.status}
                     </Badge>
                   </div>
                 ))}
                 {execsList.length === 0 && (
-                  <p className="text-muted text-[11px] py-4 text-center">No automation execution run activity found.</p>
+                  <p className="text-muted text-[11px] py-4 text-center">
+                    No automation execution run activity found.
+                  </p>
                 )}
               </div>
             </div>
@@ -395,14 +456,34 @@ export default function AutomationScreen() {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <h3 className="text-xs font-semibold text-foreground">{seq.name}</h3>
-                    <Badge variant="secondary" className={seq.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : seq.status === 'PAUSED' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' : ''}>
+                    <Badge
+                      variant="secondary"
+                      className={
+                        seq.status === 'ACTIVE'
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                          : seq.status === 'PAUSED'
+                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                            : ''
+                      }
+                    >
                       {seq.status}
                     </Badge>
                   </div>
-                  <p className="text-[11px] text-secondary">{seq.description || 'No description provided.'}</p>
+                  <p className="text-[11px] text-secondary">
+                    {seq.description || 'No description provided.'}
+                  </p>
                   <div className="flex gap-4 text-[10px] text-muted pt-1">
-                    <span>Trigger Event: <strong>{seq.trigger?.type}</strong></span>
-                    <span>Steps Count: <strong>{typeof seq.steps === 'string' ? JSON.parse(seq.steps).length : seq.steps?.length || 0}</strong></span>
+                    <span>
+                      Trigger Event: <strong>{seq.trigger?.type}</strong>
+                    </span>
+                    <span>
+                      Steps Count:{' '}
+                      <strong>
+                        {typeof seq.steps === 'string'
+                          ? JSON.parse(seq.steps).length
+                          : seq.steps?.length || 0}
+                      </strong>
+                    </span>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -413,7 +494,13 @@ export default function AutomationScreen() {
                   <Button variant="outline" size="sm" onClick={() => handleOpenEditEditor(seq)}>
                     <span>Edit</span>
                   </Button>
-                  <Button variant="destructive" size="sm" onClick={() => { if(confirm('Delete?')) deleteSequenceMutation.mutate(seq.id); }}>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      if (confirm('Delete?')) deleteSequenceMutation.mutate(seq.id);
+                    }}
+                  >
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
@@ -423,7 +510,9 @@ export default function AutomationScreen() {
               <div className="p-12 text-center text-muted-foreground">
                 <Layers className="h-10 w-10 mx-auto opacity-30 mb-2" />
                 <p className="font-semibold text-xs">No Sequence Templates Found</p>
-                <p className="text-[11px] opacity-75 mt-1">Get started by creating your first automation template sequence card builder.</p>
+                <p className="text-[11px] opacity-75 mt-1">
+                  Get started by creating your first automation template sequence card builder.
+                </p>
               </div>
             )}
           </div>
@@ -462,20 +551,42 @@ export default function AutomationScreen() {
                       </td>
                       <td className="p-3 font-medium">Step #{exec.currentStep}</td>
                       <td className="p-3">
-                        <Badge variant={exec.status === 'FAILED' ? 'destructive' : 'secondary'} className={exec.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : exec.status === 'WAITING' || exec.status === 'RUNNING' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' : ''}>
+                        <Badge
+                          variant={exec.status === 'FAILED' ? 'destructive' : 'secondary'}
+                          className={
+                            exec.status === 'COMPLETED'
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                              : exec.status === 'WAITING' || exec.status === 'RUNNING'
+                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                                : ''
+                          }
+                        >
                           {exec.status}
                         </Badge>
                       </td>
                       <td className="p-3 text-muted">
-                        {exec.nextExecutionAt ? new Date(exec.nextExecutionAt).toLocaleTimeString() : 'N/A'}
+                        {exec.nextExecutionAt
+                          ? new Date(exec.nextExecutionAt).toLocaleTimeString()
+                          : 'N/A'}
                       </td>
                       <td className="p-3 text-right flex gap-1.5 justify-end">
-                        <Button variant="outline" size="sm" onClick={() => { setSelectedExecutionId(exec.id); setLogsOpen(true); }}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedExecutionId(exec.id);
+                            setLogsOpen(true);
+                          }}
+                        >
                           <History className="h-3 w-3 mr-1" />
                           <span>Logs</span>
                         </Button>
                         {['RUNNING', 'WAITING'].includes(exec.status) && (
-                          <Button variant="destructive" size="sm" onClick={() => handleStopExecution(exec.id)}>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleStopExecution(exec.id)}
+                          >
                             <StopCircle className="h-3 w-3" />
                           </Button>
                         )}
@@ -488,7 +599,9 @@ export default function AutomationScreen() {
                     <td colSpan={7} className="p-12 text-center text-muted-foreground">
                       <Activity className="h-10 w-10 mx-auto opacity-30 mb-2" />
                       <p className="font-semibold text-xs">No Active Executions</p>
-                      <p className="text-[11px] opacity-75 mt-1">Enroll sequence templates from the list or trigger events in CRM.</p>
+                      <p className="text-[11px] opacity-75 mt-1">
+                        Enroll sequence templates from the list or trigger events in CRM.
+                      </p>
                     </td>
                   </tr>
                 )}
@@ -502,18 +615,28 @@ export default function AutomationScreen() {
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent className="max-w-2xl text-xs max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingSequenceId ? 'Edit Sequence' : 'Create Automation Sequence'}</DialogTitle>
+            <DialogTitle>
+              {editingSequenceId ? 'Edit Sequence' : 'Create Automation Sequence'}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 pt-2">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Sequence Name</Label>
-                <Input value={seqName} onChange={(e) => setSeqName(e.target.value)} placeholder="e.g. Lead Follow-up Outbound" />
+                <Input
+                  value={seqName}
+                  onChange={(e) => setSeqName(e.target.value)}
+                  placeholder="e.g. Lead Follow-up Outbound"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Status</Label>
-                <select value={seqStatus} onChange={(e) => setSeqStatus(e.target.value)} className="w-full bg-sunken border border-border-subtle p-2 rounded text-xs">
+                <select
+                  value={seqStatus}
+                  onChange={(e) => setSeqStatus(e.target.value)}
+                  className="w-full bg-sunken border border-border-subtle p-2 rounded text-xs"
+                >
                   <option value="DRAFT">DRAFT</option>
                   <option value="ACTIVE">ACTIVE</option>
                   <option value="PAUSED">PAUSED</option>
@@ -523,12 +646,21 @@ export default function AutomationScreen() {
 
             <div className="space-y-1.5">
               <Label>Description</Label>
-              <Textarea value={seqDesc} onChange={(e) => setSeqDesc(e.target.value)} placeholder="Sequence notes / automation details..." rows={2} />
+              <Textarea
+                value={seqDesc}
+                onChange={(e) => setSeqDesc(e.target.value)}
+                placeholder="Sequence notes / automation details..."
+                rows={2}
+              />
             </div>
 
             <div className="space-y-1.5">
               <Label>Trigger Event</Label>
-              <select value={seqTriggerType} onChange={(e) => setSeqTriggerType(e.target.value)} className="w-full bg-sunken border border-border-subtle p-2 rounded text-xs">
+              <select
+                value={seqTriggerType}
+                onChange={(e) => setSeqTriggerType(e.target.value)}
+                className="w-full bg-sunken border border-border-subtle p-2 rounded text-xs"
+              >
                 <option value="CONTACT_CREATED">Contact Created</option>
                 <option value="COMPANY_CREATED">Company Created</option>
                 <option value="DISCOVERY_FINISHED">Discovery Finished</option>
@@ -547,10 +679,22 @@ export default function AutomationScreen() {
               <div className="flex justify-between items-center">
                 <h3 className="font-semibold text-foreground">Sequence Action Cards</h3>
                 <div className="flex gap-1.5">
-                  <Button size="sm" variant="outline" onClick={() => handleAddStep('WAIT')}>+ Wait</Button>
-                  <Button size="sm" variant="outline" onClick={() => handleAddStep('SEND_EMAIL')}>+ Email</Button>
-                  <Button size="sm" variant="outline" onClick={() => handleAddStep('CONDITION')}>+ Condition</Button>
-                  <select onChange={(e) => { handleAddStep(e.target.value); e.target.value = ''; }} className="bg-sunken border border-border-subtle px-2 py-1 rounded text-[10px]">
+                  <Button size="sm" variant="outline" onClick={() => handleAddStep('WAIT')}>
+                    + Wait
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleAddStep('SEND_EMAIL')}>
+                    + Email
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleAddStep('CONDITION')}>
+                    + Condition
+                  </Button>
+                  <select
+                    onChange={(e) => {
+                      handleAddStep(e.target.value);
+                      e.target.value = '';
+                    }}
+                    className="bg-sunken border border-border-subtle px-2 py-1 rounded text-[10px]"
+                  >
                     <option value="">+ Other</option>
                     <option value="ASSIGN_TAG">Assign Tag</option>
                     <option value="REMOVE_TAG">Remove Tag</option>
@@ -579,12 +723,17 @@ export default function AutomationScreen() {
 
               <div className="space-y-3 bg-sunken/20 p-4 border border-border-subtle rounded-xl max-h-[300px] overflow-y-auto">
                 {seqSteps.map((step, idx) => (
-                  <div key={step.id || idx} className="bg-card border border-border-subtle rounded-lg p-3 flex justify-between items-center gap-4">
+                  <div
+                    key={step.id || idx}
+                    className="bg-card border border-border-subtle rounded-lg p-3 flex justify-between items-center gap-4"
+                  >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className="shrink-0">{getStepIcon(step.type)}</div>
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-foreground">Step #{idx + 1}: {step.type}</span>
+                          <span className="font-bold text-foreground">
+                            Step #{idx + 1}: {step.type}
+                          </span>
                         </div>
 
                         {/* STEP DETAIL CONFIG EDITORS */}
@@ -594,7 +743,13 @@ export default function AutomationScreen() {
                             <Input
                               type="number"
                               value={step.config.delaySeconds || ''}
-                              onChange={(e) => handleStepConfigChange(idx, 'delaySeconds', parseInt(e.target.value))}
+                              onChange={(e) =>
+                                handleStepConfigChange(
+                                  idx,
+                                  'delaySeconds',
+                                  parseInt(e.target.value)
+                                )
+                              }
                               className="h-7 w-20 px-1 py-0.5 text-xs text-center"
                             />
                           </div>
@@ -605,12 +760,16 @@ export default function AutomationScreen() {
                             <span className="text-[10px] text-muted shrink-0">Template:</span>
                             <select
                               value={step.config.templateId || ''}
-                              onChange={(e) => handleStepConfigChange(idx, 'templateId', e.target.value)}
+                              onChange={(e) =>
+                                handleStepConfigChange(idx, 'templateId', e.target.value)
+                              }
                               className="bg-sunken border border-border-subtle rounded px-1.5 py-0.5 text-[10px] max-w-[200px]"
                             >
                               <option value="">Select Template</option>
                               {templatesQuery.data?.map((t: any) => (
-                                <option key={t.id} value={t.id}>{t.name}</option>
+                                <option key={t.id} value={t.id}>
+                                  {t.name}
+                                </option>
                               ))}
                             </select>
                           </div>
@@ -621,7 +780,9 @@ export default function AutomationScreen() {
                             <span className="text-[10px] text-muted shrink-0">Condition:</span>
                             <select
                               value={step.config.conditionType || ''}
-                              onChange={(e) => handleStepConfigChange(idx, 'conditionType', e.target.value)}
+                              onChange={(e) =>
+                                handleStepConfigChange(idx, 'conditionType', e.target.value)
+                              }
                               className="bg-sunken border border-border-subtle rounded px-1.5 py-0.5 text-[10px]"
                             >
                               <option value="NO_REPLY_RECEIVED">No Reply Received</option>
@@ -650,7 +811,9 @@ export default function AutomationScreen() {
                             <span className="text-[10px] text-muted shrink-0">Content:</span>
                             <Input
                               value={step.config.content || ''}
-                              onChange={(e) => handleStepConfigChange(idx, 'content', e.target.value)}
+                              onChange={(e) =>
+                                handleStepConfigChange(idx, 'content', e.target.value)
+                              }
                               className="h-7 px-2 py-0.5 text-xs w-full"
                             />
                           </div>
@@ -680,7 +843,9 @@ export default function AutomationScreen() {
                               <span className="text-[10px] text-muted">Search Query:</span>
                               <Input
                                 value={step.config.query || ''}
-                                onChange={(e) => handleStepConfigChange(idx, 'query', e.target.value)}
+                                onChange={(e) =>
+                                  handleStepConfigChange(idx, 'query', e.target.value)
+                                }
                                 className="h-7 px-2 py-0.5 text-xs w-48"
                                 placeholder="e.g. dentists in Boston"
                               />
@@ -690,7 +855,9 @@ export default function AutomationScreen() {
                               <Input
                                 type="number"
                                 value={step.config.limit || ''}
-                                onChange={(e) => handleStepConfigChange(idx, 'limit', parseInt(e.target.value))}
+                                onChange={(e) =>
+                                  handleStepConfigChange(idx, 'limit', parseInt(e.target.value))
+                                }
                                 className="h-7 w-20 px-2 py-0.5 text-xs"
                               />
                             </div>
@@ -702,7 +869,9 @@ export default function AutomationScreen() {
                             <span className="text-[10px] text-muted shrink-0">Website URL:</span>
                             <Input
                               value={step.config.website || ''}
-                              onChange={(e) => handleStepConfigChange(idx, 'website', e.target.value)}
+                              onChange={(e) =>
+                                handleStepConfigChange(idx, 'website', e.target.value)
+                              }
                               placeholder="e.g. {{company.domain}}"
                               className="h-7 px-2 py-0.5 text-xs w-full"
                             />
@@ -715,7 +884,9 @@ export default function AutomationScreen() {
                               <span className="text-[10px] text-muted shrink-0 w-12">Name:</span>
                               <Input
                                 value={step.config.name || ''}
-                                onChange={(e) => handleStepConfigChange(idx, 'name', e.target.value)}
+                                onChange={(e) =>
+                                  handleStepConfigChange(idx, 'name', e.target.value)
+                                }
                                 className="h-7 px-2 py-0.5 text-xs w-full"
                                 placeholder="Campaign Name"
                               />
@@ -724,7 +895,9 @@ export default function AutomationScreen() {
                               <span className="text-[10px] text-muted shrink-0 w-12">Subject:</span>
                               <Input
                                 value={step.config.subject || ''}
-                                onChange={(e) => handleStepConfigChange(idx, 'subject', e.target.value)}
+                                onChange={(e) =>
+                                  handleStepConfigChange(idx, 'subject', e.target.value)
+                                }
                                 className="h-7 px-2 py-0.5 text-xs w-full"
                                 placeholder="Subject template"
                               />
@@ -733,7 +906,9 @@ export default function AutomationScreen() {
                               <span className="text-[10px] text-muted shrink-0 w-12">Body:</span>
                               <Input
                                 value={step.config.body || ''}
-                                onChange={(e) => handleStepConfigChange(idx, 'body', e.target.value)}
+                                onChange={(e) =>
+                                  handleStepConfigChange(idx, 'body', e.target.value)
+                                }
                                 className="h-7 px-2 py-0.5 text-xs w-full"
                                 placeholder="Body template content"
                               />
@@ -741,17 +916,23 @@ export default function AutomationScreen() {
                           </div>
                         )}
 
-                        {['ENROLL_CONTACT', 'PAUSE_CAMPAIGN', 'RESUME_CAMPAIGN'].includes(step.type) && (
+                        {['ENROLL_CONTACT', 'PAUSE_CAMPAIGN', 'RESUME_CAMPAIGN'].includes(
+                          step.type
+                        ) && (
                           <div className="flex items-center gap-2 mt-1 w-full">
                             <span className="text-[10px] text-muted shrink-0">Campaign:</span>
                             <select
                               value={step.config.campaignId || ''}
-                              onChange={(e) => handleStepConfigChange(idx, 'campaignId', e.target.value)}
+                              onChange={(e) =>
+                                handleStepConfigChange(idx, 'campaignId', e.target.value)
+                              }
                               className="bg-sunken border border-border-subtle rounded px-1.5 py-0.5 text-[10px] max-w-[200px]"
                             >
                               <option value="">Select Campaign</option>
                               {campaignsQuery.data?.map((c: any) => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
                               ))}
                             </select>
                           </div>
@@ -763,7 +944,9 @@ export default function AutomationScreen() {
                               <span className="text-[10px] text-muted shrink-0 w-14">Message:</span>
                               <Input
                                 value={step.config.message || ''}
-                                onChange={(e) => handleStepConfigChange(idx, 'message', e.target.value)}
+                                onChange={(e) =>
+                                  handleStepConfigChange(idx, 'message', e.target.value)
+                                }
                                 className="h-7 px-2 py-0.5 text-xs w-full"
                                 placeholder="Alert text"
                               />
@@ -772,7 +955,9 @@ export default function AutomationScreen() {
                               <span className="text-[10px] text-muted shrink-0 w-14">Type:</span>
                               <select
                                 value={step.config.type || 'info'}
-                                onChange={(e) => handleStepConfigChange(idx, 'type', e.target.value)}
+                                onChange={(e) =>
+                                  handleStepConfigChange(idx, 'type', e.target.value)
+                                }
                                 className="bg-sunken border border-border-subtle rounded px-1.5 py-0.5 text-[10px]"
                               >
                                 <option value="info">Info</option>
@@ -786,27 +971,50 @@ export default function AutomationScreen() {
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">
-                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleMoveStep(idx, 'up')}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={() => handleMoveStep(idx, 'up')}
+                      >
                         <ChevronUp className="h-3.5 w-3.5" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleMoveStep(idx, 'down')}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={() => handleMoveStep(idx, 'down')}
+                      >
                         <ChevronDown className="h-3.5 w-3.5" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-6 w-6 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10" onClick={() => handleRemoveStep(idx)}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
+                        onClick={() => handleRemoveStep(idx)}
+                      >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </div>
                 ))}
                 {seqSteps.length === 0 && (
-                  <p className="text-center py-6 text-muted">No step action cards added. Click buttons above to start compiling your sequence flow.</p>
+                  <p className="text-center py-6 text-muted">
+                    No step action cards added. Click buttons above to start compiling your sequence
+                    flow.
+                  </p>
                 )}
               </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setEditorOpen(false)}>Cancel</Button>
-              <Button onClick={() => saveSequenceMutation.mutate()} disabled={saveSequenceMutation.isPending}>
+              <Button variant="outline" onClick={() => setEditorOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => saveSequenceMutation.mutate()}
+                disabled={saveSequenceMutation.isPending}
+              >
                 {saveSequenceMutation.isPending ? 'Saving...' : 'Save Sequence'}
               </Button>
             </div>
@@ -830,11 +1038,27 @@ export default function AutomationScreen() {
                 <div key={idx} className="relative space-y-1">
                   <div className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full border border-card bg-accent shrink-0" />
                   <div className="flex justify-between items-center">
-                    <span className="font-bold text-foreground">Step #{log.step}: {log.action}</span>
-                    <span className="text-[9px] text-muted">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                    <span className="font-bold text-foreground">
+                      Step #{log.step}: {log.action}
+                    </span>
+                    <span className="text-[9px] text-muted">
+                      {new Date(log.timestamp).toLocaleTimeString()}
+                    </span>
                   </div>
                   <p className="text-secondary text-[10px]">{log.message}</p>
-                  <Badge variant={log.status === 'SUCCESS' || log.status === 'RUNNING' ? 'secondary' : 'destructive'} className={"text-[8px] px-1 py-0 scale-90 origin-left " + (log.status === 'SUCCESS' || log.status === 'RUNNING' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : '')}>
+                  <Badge
+                    variant={
+                      log.status === 'SUCCESS' || log.status === 'RUNNING'
+                        ? 'secondary'
+                        : 'destructive'
+                    }
+                    className={
+                      'text-[8px] px-1 py-0 scale-90 origin-left ' +
+                      (log.status === 'SUCCESS' || log.status === 'RUNNING'
+                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                        : '')
+                    }
+                  >
                     {log.status}
                   </Badge>
                 </div>
@@ -846,7 +1070,9 @@ export default function AutomationScreen() {
           </div>
 
           <div className="flex justify-end pt-2">
-            <Button variant="outline" onClick={() => setLogsOpen(false)}>Close</Button>
+            <Button variant="outline" onClick={() => setLogsOpen(false)}>
+              Close
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

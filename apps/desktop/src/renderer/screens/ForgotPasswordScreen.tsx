@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
 const schema = z.object({
-  email: z.string().email('Please enter a valid email address'),
+  email: z.string().email('Please enter a valid email address')
 });
 type ForgotForm = z.infer<typeof schema>;
 
@@ -19,7 +19,7 @@ export function ForgotPasswordScreen() {
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting }
   } = useForm<ForgotForm>({ resolver: zodResolver(schema) });
 
   const onSubmit = async (_data: ForgotForm) => {
@@ -69,9 +69,7 @@ export function ForgotPasswordScreen() {
             {...register('email')}
             className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
-          {errors.email && (
-            <p className="text-[10px] text-danger-text">{errors.email.message}</p>
-          )}
+          {errors.email && <p className="text-[10px] text-danger-text">{errors.email.message}</p>}
         </div>
 
         <button

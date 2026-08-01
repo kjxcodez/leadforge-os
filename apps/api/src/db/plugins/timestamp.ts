@@ -1,4 +1,4 @@
-import type { Schema } from "mongoose";
+import type { Schema } from 'mongoose';
 
 export interface TimestampDocument {
   createdAt: Date;
@@ -6,5 +6,5 @@ export interface TimestampDocument {
 }
 
 export function timestampPlugin(schema: Schema) {
-  schema.set("timestamps", true);
+  schema.set('timestamps', true);
 }

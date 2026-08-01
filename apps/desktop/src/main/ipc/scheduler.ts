@@ -11,7 +11,14 @@ export function registerSchedulerIpc() {
   safeRegister('scheduler:jobs:submit', async (_event, params) => {
     // [Progress Milestone] 10% validation
     console.log('[Scheduler IPC] 10% validation: validating submission parameters...');
-    const { workspaceId, type, payload, priority = 1, maxRetries = 3, idempotencyKey = null } = params;
+    const {
+      workspaceId,
+      type,
+      payload,
+      priority = 1,
+      maxRetries = 3,
+      idempotencyKey = null
+    } = params;
     if (!workspaceId) throw new Error('workspaceId is required to submit a job.');
     if (!type) throw new Error('type is required to submit a job.');
 
@@ -23,17 +30,12 @@ export function registerSchedulerIpc() {
     if (!idempotencyKey) {
       console.log('[Scheduler IPC] missing idempotency key - proceeding with direct creation.');
       // [Progress Milestone] 50% transaction
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, idempotencyKey, createdAt, updatedAt)
         VALUES (?, ?, ?, 'queued', ?, ?, 0, 0, ?, NULL, datetime('now'), datetime('now'))
-      `).run(
-        jobId,
-        workspaceId,
-        type,
-        priority,
-        JSON.stringify(payload || {}),
-        maxRetries
-      );
+      `
+      ).run(jobId, workspaceId, type, priority, JSON.stringify(payload || {}), maxRetries);
       // [Progress Milestone] 75% creation/reuse
       console.log('[Scheduler IPC] 75% creation/reuse: new job created.');
       // [Progress Milestone] 100% completion
@@ -62,18 +64,28 @@ export function registerSchedulerIpc() {
     try {
       db.transaction(() => {
         // Query for active job with status in: queued, starting, running, waiting, paused
-        const activeJob = db.prepare(`
+        const activeJob = db
+          .prepare(
+            `
           SELECT * FROM jobs
           WHERE workspaceId = ?
             AND idempotencyKey = ?
             AND status IN ('queued', 'starting', 'running', 'waiting', 'paused')
           LIMIT 1
-        `).get(workspaceId, idempotencyKey) as any;
+        `
+          )
+          .get(workspaceId, idempotencyKey) as any;
 
         if (activeJob) {
           // [Progress Milestone] 75% creation/reuse
-          console.log('[Scheduler IPC] 75% creation/reuse: active duplicate detected; reusing existing job.');
-          AppLogger.info('JobScheduler', `Duplicate detected for key "${idempotencyKey}". Existing active job "${activeJob.id}" reused.`, workspaceId);
+          console.log(
+            '[Scheduler IPC] 75% creation/reuse: active duplicate detected; reusing existing job.'
+          );
+          AppLogger.info(
+            'JobScheduler',
+            `Duplicate detected for key "${idempotencyKey}". Existing active job "${activeJob.id}" reused.`,
+            workspaceId
+          );
           result = {
             deduplicated: true,
             existingJobId: activeJob.id,
@@ -94,13 +106,17 @@ export function registerSchedulerIpc() {
         }
 
         // UPDATE jobs SET idempotencyKey = NULL - Nullify any completed/failed/cancelled/interrupted jobs with the same key to avoid unique constraint violations
-        db.prepare(`UPDATE jobs SET idempotencyKey = NULL, updatedAt = datetime('now') WHERE workspaceId = ? AND idempotencyKey = ? AND status NOT IN ('queued', 'starting', 'running', 'waiting', 'paused')`).run(workspaceId, idempotencyKey);
+        db.prepare(
+          `UPDATE jobs SET idempotencyKey = NULL, updatedAt = datetime('now') WHERE workspaceId = ? AND idempotencyKey = ? AND status NOT IN ('queued', 'starting', 'running', 'waiting', 'paused')`
+        ).run(workspaceId, idempotencyKey);
 
         // Insert the new job
-        db.prepare(`
+        db.prepare(
+          `
           INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, idempotencyKey, createdAt, updatedAt)
           VALUES (?, ?, ?, 'queued', ?, ?, 0, 0, ?, ?, datetime('now'), datetime('now'))
-        `).run(
+        `
+        ).run(
           jobId,
           workspaceId,
           type,
@@ -112,7 +128,11 @@ export function registerSchedulerIpc() {
 
         // [Progress Milestone] 75% creation/reuse
         console.log('[Scheduler IPC] 75% creation/reuse: new job created successfully.');
-        AppLogger.info('JobScheduler', `New job "${jobId}" created with key "${idempotencyKey}".`, workspaceId);
+        AppLogger.info(
+          'JobScheduler',
+          `New job "${jobId}" created with key "${idempotencyKey}".`,
+          workspaceId
+        );
         result = {
           deduplicated: false,
           job: {
@@ -159,11 +179,15 @@ export function registerSchedulerIpc() {
     if (!workspaceId) throw new Error('workspaceId is required to query jobs.');
     const db = getDatabase(workspaceId);
 
-    const rows = db.prepare(`
+    const rows = db
+      .prepare(
+        `
       SELECT * FROM jobs
       WHERE workspaceId = ?
       ORDER BY createdAt DESC
-    `).all(workspaceId);
+    `
+      )
+      .all(workspaceId);
 
     return rows;
   });
@@ -184,11 +208,13 @@ export function registerSchedulerIpc() {
 
     // If the runtime is not active, we can still update its status in the DB directly
     const db = getDatabase(workspaceId);
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE jobs
       SET status = 'cancelled', finishedAt = datetime('now'), updatedAt = datetime('now')
       WHERE id = ?
-    `).run(jobId);
+    `
+    ).run(jobId);
 
     console.log(`[IPC] Marked inactive job "${jobId}" as cancelled in database.`);
   });
@@ -206,11 +232,13 @@ export function registerSchedulerIpc() {
     }
 
     const db = getDatabase(workspaceId);
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE jobs
       SET status = 'paused', updatedAt = datetime('now')
       WHERE id = ? AND status = 'queued'
-    `).run(jobId);
+    `
+    ).run(jobId);
 
     console.log(`[IPC] Marked inactive queued job "${jobId}" as paused in database.`);
   });
@@ -221,11 +249,13 @@ export function registerSchedulerIpc() {
     if (!jobId) throw new Error('jobId is required.');
 
     const db = getDatabase(workspaceId);
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE jobs
       SET status = 'queued', updatedAt = datetime('now')
       WHERE id = ? AND status = 'paused'
-    `).run(jobId);
+    `
+    ).run(jobId);
 
     console.log(`[IPC] Resumed paused job "${jobId}" (marked as queued).`);
   });

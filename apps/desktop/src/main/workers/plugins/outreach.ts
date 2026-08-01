@@ -51,7 +51,9 @@ interface OutreachCheckpoint {
  * Loads all settings rows for a workspace and returns them as a Map.
  */
 function loadSettings(db: Database.Database, workspaceId: string): Map<string, string> {
-  const rows = db.prepare(`SELECT key, value FROM settings WHERE workspaceId = ?`).all(workspaceId) as { key: string; value: string }[];
+  const rows = db
+    .prepare(`SELECT key, value FROM settings WHERE workspaceId = ?`)
+    .all(workspaceId) as { key: string; value: string }[];
   const map = new Map<string, string>();
   for (const row of rows) {
     if (row.key) map.set(row.key, row.value);
@@ -63,9 +65,18 @@ function loadSettings(db: Database.Database, workspaceId: string): Map<string, s
  * Resolves a settings value by trying multiple key aliases in order,
  * returning the first non-null, non-empty match.
  */
-function resolveSettingValue(secrets: Record<string, string> | undefined, settings: Map<string, string>, ...keys: string[]): string | undefined {
+function resolveSettingValue(
+  secrets: Record<string, string> | undefined,
+  settings: Map<string, string>,
+  ...keys: string[]
+): string | undefined {
   for (const key of keys) {
-    if (secrets && secrets[key] !== undefined && secrets[key] !== null && secrets[key].trim() !== '') {
+    if (
+      secrets &&
+      secrets[key] !== undefined &&
+      secrets[key] !== null &&
+      secrets[key].trim() !== ''
+    ) {
       return secrets[key].trim();
     }
     const val = settings.get(key);
@@ -85,13 +96,20 @@ function resolveSettingValue(secrets: Record<string, string> | undefined, settin
 function renderTemplate(template: string, contact: ContactRecord, campaignName: string): string {
   return template.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_match, variable: string) => {
     switch (variable) {
-      case 'firstName':   return contact.firstName || '';
-      case 'lastName':    return contact.lastName || '';
-      case 'fullName':    return `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
-      case 'email':       return contact.email || '';
-      case 'title':       return contact.title || '';
-      case 'campaign':    return campaignName || '';
-      default:            return '';
+      case 'firstName':
+        return contact.firstName || '';
+      case 'lastName':
+        return contact.lastName || '';
+      case 'fullName':
+        return `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
+      case 'email':
+        return contact.email || '';
+      case 'title':
+        return contact.title || '';
+      case 'campaign':
+        return campaignName || '';
+      default:
+        return '';
     }
   });
 }
@@ -129,20 +147,66 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
 
     const settings = loadSettings(db, ctx.workspaceId);
 
-    const host = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.host', 'smtpHost', 'host');
-    const portStr = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.port', 'smtpPort', 'port');
-    const secureStr = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.secure', 'smtpSecure', 'secure');
-    const username = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.username', 'smtp.user', 'smtpUsername', 'username');
-    const password = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.password', 'smtp.pass', 'smtpPassword', 'password');
-    const senderName = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.senderName', 'smtpSenderName', 'senderName') || 'LeadForge OS';
-    const senderEmail = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.senderEmail', 'smtpSenderEmail', 'senderEmail') || username;
+    const host = resolveSettingValue(
+      ctx.payload._secrets,
+      settings,
+      'smtp.host',
+      'smtpHost',
+      'host'
+    );
+    const portStr = resolveSettingValue(
+      ctx.payload._secrets,
+      settings,
+      'smtp.port',
+      'smtpPort',
+      'port'
+    );
+    const secureStr = resolveSettingValue(
+      ctx.payload._secrets,
+      settings,
+      'smtp.secure',
+      'smtpSecure',
+      'secure'
+    );
+    const username = resolveSettingValue(
+      ctx.payload._secrets,
+      settings,
+      'smtp.username',
+      'smtp.user',
+      'smtpUsername',
+      'username'
+    );
+    const password = resolveSettingValue(
+      ctx.payload._secrets,
+      settings,
+      'smtp.password',
+      'smtp.pass',
+      'smtpPassword',
+      'password'
+    );
+    const senderName =
+      resolveSettingValue(
+        ctx.payload._secrets,
+        settings,
+        'smtp.senderName',
+        'smtpSenderName',
+        'senderName'
+      ) || 'LeadForge OS';
+    const senderEmail =
+      resolveSettingValue(
+        ctx.payload._secrets,
+        settings,
+        'smtp.senderEmail',
+        'smtpSenderEmail',
+        'senderEmail'
+      ) || username;
 
     // Validate required credentials
     if (!host || !username || !password) {
       throw new Error(
         'Incomplete SMTP configuration in workspace settings. ' +
-        'Required keys: smtp.host, smtp.username, smtp.password. ' +
-        'Cannot dispatch outreach campaign without valid SMTP credentials.'
+          'Required keys: smtp.host, smtp.username, smtp.password. ' +
+          'Cannot dispatch outreach campaign without valid SMTP credentials.'
       );
     }
 
@@ -156,20 +220,27 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
       username,
       password,
       senderName,
-      senderEmail: senderEmail || username,
+      senderEmail: senderEmail || username
     };
 
-    ctx.emitLog(`SMTP configuration resolved: ${host}:${port} (secure=${secure}) as ${senderEmail}`, 'info');
+    ctx.emitLog(
+      `SMTP configuration resolved: ${host}:${port} (secure=${secure}) as ${senderEmail}`,
+      'info'
+    );
 
     // ── 2. Load email account for rate limiting ───────────────────────────
 
-    const account = db.prepare(`
+    const account = db
+      .prepare(
+        `
       SELECT id, email, name, status, dailyLimit, hourlyLimit, dailySent, hourlySent, signature
       FROM email_accounts
       WHERE workspaceId = ? AND status = 'connected' AND deletedAt IS NULL
       ORDER BY createdAt ASC
       LIMIT 1
-    `).get(ctx.workspaceId) as EmailAccountRecord | undefined;
+    `
+      )
+      .get(ctx.workspaceId) as EmailAccountRecord | undefined;
 
     let dailyLimit = Infinity;
     let hourlyLimit = Infinity;
@@ -183,16 +254,21 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
       dailySent = account.dailySent || 0;
       hourlySent = account.hourlySent || 0;
       accountId = account.id;
-      ctx.emitLog(`Rate limits loaded from account ${account.email}: daily=${dailyLimit}, hourly=${hourlyLimit}`, 'info');
+      ctx.emitLog(
+        `Rate limits loaded from account ${account.email}: daily=${dailyLimit}, hourly=${hourlyLimit}`,
+        'info'
+      );
     } else {
       ctx.emitLog('No connected email account found. Rate limiting will not be enforced.', 'warn');
     }
 
     // ── 3. Load campaign ──────────────────────────────────────────────────
 
-    const campaign = db.prepare(
-      `SELECT id, name FROM campaigns WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`
-    ).get(campaignId, ctx.workspaceId) as { id: string; name: string } | undefined;
+    const campaign = db
+      .prepare(
+        `SELECT id, name FROM campaigns WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`
+      )
+      .get(campaignId, ctx.workspaceId) as { id: string; name: string } | undefined;
 
     if (!campaign) {
       throw new Error(`Campaign "${campaignId}" not found or deleted in local database.`);
@@ -208,9 +284,12 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
 
     if ((!subject || !body) && ctx.payload.templateId) {
       // Try to load from templates table if templateId is provided in payload
-      const tpl = db.prepare(
-        `SELECT subject, body FROM templates WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`
-      ).get(ctx.payload.templateId, ctx.workspaceId) as { subject: string; body: string } | undefined;
+      const tpl = db
+        .prepare(
+          `SELECT subject, body FROM templates WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`
+        )
+        .get(ctx.payload.templateId, ctx.workspaceId) as
+        { subject: string; body: string } | undefined;
 
       if (tpl) {
         if (!subject) subject = tpl.subject;
@@ -221,23 +300,31 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
 
     if (!subject || !body) {
       // Last resort: use first available template for this workspace
-      const fallbackTpl = db.prepare(
-        `SELECT subject, body FROM templates WHERE workspaceId = ? AND deletedAt IS NULL ORDER BY createdAt ASC LIMIT 1`
-      ).get(ctx.workspaceId) as { subject: string; body: string } | undefined;
+      const fallbackTpl = db
+        .prepare(
+          `SELECT subject, body FROM templates WHERE workspaceId = ? AND deletedAt IS NULL ORDER BY createdAt ASC LIMIT 1`
+        )
+        .get(ctx.workspaceId) as { subject: string; body: string } | undefined;
 
       if (fallbackTpl) {
         if (!subject) subject = fallbackTpl.subject;
         if (!body) body = fallbackTpl.body;
-        ctx.emitLog('Template subject/body resolved from first available workspace template.', 'info');
+        ctx.emitLog(
+          'Template subject/body resolved from first available workspace template.',
+          'info'
+        );
       }
     }
 
     if (!subject) subject = `Message from ${senderName}`;
-    if (!body) body = `Hello {{firstName}},\n\nThis message was sent via LeadForge OS.\n\nBest regards,\n${senderName}`;
+    if (!body)
+      body = `Hello {{firstName}},\n\nThis message was sent via LeadForge OS.\n\nBest regards,\n${senderName}`;
 
     // ── 5. Load pending contacts (excluding already-sent, unsubscribed, bounced) ──
 
-    const contacts = db.prepare(`
+    const contacts = db
+      .prepare(
+        `
       SELECT id, firstName, lastName, email, title, status
       FROM contacts
       WHERE workspaceId = ?
@@ -250,15 +337,23 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
           WHERE sequenceId = ? AND status = 'completed' AND workspaceId = ?
         )
       ORDER BY priority DESC, createdAt ASC
-    `).all(ctx.workspaceId, campaignId, ctx.workspaceId) as ContactRecord[];
+    `
+      )
+      .all(ctx.workspaceId, campaignId, ctx.workspaceId) as ContactRecord[];
 
     if (contacts.length === 0) {
-      ctx.emitLog('No eligible contacts found for this campaign. All contacts have already been contacted or none exist.', 'info');
+      ctx.emitLog(
+        'No eligible contacts found for this campaign. All contacts have already been contacted or none exist.',
+        'info'
+      );
       db.close();
       return { dispatchedCount: 0, failureCount: 0, skippedCount: 0 };
     }
 
-    ctx.emitLog(`Found ${contacts.length} eligible contact(s). Starting SMTP dispatch loop...`, 'info');
+    ctx.emitLog(
+      `Found ${contacts.length} eligible contact(s). Starting SMTP dispatch loop...`,
+      'info'
+    );
 
     // ── 6. Restore checkpoint if resuming ─────────────────────────────────
 
@@ -270,7 +365,10 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
     let startIndex = savedCheckpoint?.currentIndex || 0;
 
     if (startIndex > 0) {
-      ctx.emitLog(`Resuming from checkpoint at index ${startIndex} (${processedContactIds.size} contacts already processed).`, 'info');
+      ctx.emitLog(
+        `Resuming from checkpoint at index ${startIndex} (${processedContactIds.size} contacts already processed).`,
+        'info'
+      );
     }
 
     // ── 7. Build Nodemailer transporter ───────────────────────────────────
@@ -281,11 +379,11 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
       secure: smtpCredentials.secure,
       auth: {
         user: smtpCredentials.username,
-        pass: smtpCredentials.password,
+        pass: smtpCredentials.password
       },
       connectionTimeout: 10000,
       greetingTimeout: 5000,
-      socketTimeout: 15000,
+      socketTimeout: 15000
     } as any);
 
     // Verify transporter before starting the loop
@@ -311,13 +409,16 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
 
       // Pause check — save checkpoint and exit cleanly
       if (ctx.isPaused()) {
-        ctx.emitLog(`Outreach paused at contact ${i + 1}/${totalContacts}. Saving checkpoint...`, 'info');
+        ctx.emitLog(
+          `Outreach paused at contact ${i + 1}/${totalContacts}. Saving checkpoint...`,
+          'info'
+        );
         ctx.saveCheckpoint({
           processedContactIds: Array.from(processedContactIds),
           dispatchedCount,
           failureCount,
           skippedCount,
-          currentIndex: i,
+          currentIndex: i
         } satisfies OutreachCheckpoint);
         transporter.close();
         db.close();
@@ -343,7 +444,8 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
         break;
       }
 
-      const fullName = `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || contact.email;
+      const fullName =
+        `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || contact.email;
       ctx.emitLog(`Preparing email for "${fullName}" <${contact.email}>`, 'info');
 
       // Render template variables for this contact
@@ -363,7 +465,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
           from: `"${smtpCredentials.senderName}" <${smtpCredentials.senderEmail}>`,
           to: contact.email,
           subject: renderedSubject,
-          ...(isHtml ? { html: renderedBody } : { text: renderedBody }),
+          ...(isHtml ? { html: renderedBody } : { text: renderedBody })
         });
 
         messageId = info.messageId || '';
@@ -381,17 +483,21 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
 
       db.transaction(() => {
         if (sendSuccess) {
-          db.prepare(`
+          db.prepare(
+            `
             INSERT INTO sequence_executions
               (id, sequenceId, workspaceId, contactId, currentStep, status, startedAt, completedAt, createdAt, updatedAt)
             VALUES (?, ?, ?, ?, 1, 'completed', ?, ?, ?, ?)
-          `).run(executionId, campaignId, ctx.workspaceId, contact.id, now, now, now, now);
+          `
+          ).run(executionId, campaignId, ctx.workspaceId, contact.id, now, now, now, now);
 
-          db.prepare(`
+          db.prepare(
+            `
             INSERT INTO sequence_logs
               (id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt)
             VALUES (?, ?, ?, ?, 1, 'EMAIL_SEND', 'success', ?, ?, ?)
-          `).run(
+          `
+          ).run(
             logId,
             executionId,
             ctx.workspaceId,
@@ -407,24 +513,30 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
 
           // Update account counters in SQLite if account record exists
           if (accountId) {
-            db.prepare(`
+            db.prepare(
+              `
               UPDATE email_accounts
               SET dailySent = dailySent + 1, hourlySent = hourlySent + 1, updatedAt = ?
               WHERE id = ?
-            `).run(now, accountId);
+            `
+            ).run(now, accountId);
           }
         } else {
-          db.prepare(`
+          db.prepare(
+            `
             INSERT INTO sequence_executions
               (id, sequenceId, workspaceId, contactId, currentStep, status, startedAt, completedAt, createdAt, updatedAt)
             VALUES (?, ?, ?, ?, 1, 'failed', ?, ?, ?, ?)
-          `).run(executionId, campaignId, ctx.workspaceId, contact.id, now, now, now, now);
+          `
+          ).run(executionId, campaignId, ctx.workspaceId, contact.id, now, now, now, now);
 
-          db.prepare(`
+          db.prepare(
+            `
             INSERT INTO sequence_logs
               (id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt)
             VALUES (?, ?, ?, ?, 1, 'EMAIL_SEND', 'failed', ?, ?, ?)
-          `).run(
+          `
+          ).run(
             logId,
             executionId,
             ctx.workspaceId,
@@ -445,7 +557,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
       ctx.updateProgress(progress, {
         current: i + 1,
         total: totalContacts,
-        description: `Sent: ${dispatchedCount} | Failed: ${failureCount} | Skipped: ${skippedCount}`,
+        description: `Sent: ${dispatchedCount} | Failed: ${failureCount} | Skipped: ${skippedCount}`
       });
 
       // Autosave checkpoint every 10 contacts
@@ -455,7 +567,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
           dispatchedCount,
           failureCount,
           skippedCount,
-          currentIndex: i + 1,
+          currentIndex: i + 1
         } satisfies OutreachCheckpoint);
         ctx.emitLog(`Checkpoint saved after ${i + 1} contact(s).`, 'info');
       }
@@ -474,7 +586,11 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
     return { dispatchedCount, failureCount, skippedCount };
   } catch (err) {
     // Ensure DB is closed on any unhandled error
-    try { db.close(); } catch { /* ignore close error */ }
+    try {
+      db.close();
+    } catch {
+      /* ignore close error */
+    }
     throw err;
   }
 }

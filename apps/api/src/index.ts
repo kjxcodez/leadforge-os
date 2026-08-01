@@ -1,8 +1,8 @@
-import { serve } from "@hono/node-server";
-import { app } from "./app.js";
-import { env, logger } from "./config/index.js";
-import { db } from "./db/index.js";
-import { SequenceWorker } from "./services/automation/worker.js";
+import { serve } from '@hono/node-server';
+import { app } from './app.js';
+import { env, logger } from './config/index.js';
+import { db } from './db/index.js';
+import { SequenceWorker } from './services/automation/worker.js';
 
 /**
  * Node Server instance listener.
@@ -11,7 +11,7 @@ const port = env.PORT;
 
 const server = serve({
   fetch: app.fetch,
-  port,
+  port
 });
 
 logger.info(`> LeadForge OS API Server is running on port ${port} in ${env.NODE_ENV} mode.`);
@@ -32,18 +32,18 @@ async function gracefulShutdown(signal: string) {
 
   // Close the server listener
   server.close();
-  logger.info("HTTP Server listener closed.");
+  logger.info('HTTP Server listener closed.');
 
   // Disconnect Database connection
   try {
     await db.disconnect();
   } catch (err) {
-    logger.error({ err }, "Error disconnecting database during shutdown.");
+    logger.error({ err }, 'Error disconnecting database during shutdown.');
   }
 
-  logger.info("Graceful shutdown completed. Exiting process.");
+  logger.info('Graceful shutdown completed. Exiting process.');
   process.exit(0);
 }
 
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));

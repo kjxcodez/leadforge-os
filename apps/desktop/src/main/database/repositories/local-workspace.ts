@@ -20,11 +20,11 @@ export const LocalWorkspaceRepository = {
       ownerId: row.ownerId,
       plan: row.plan || 'free',
       settings: {
-        defaultTimezone: row.settingsTimezone || 'UTC',
+        defaultTimezone: row.settingsTimezone || 'UTC'
       },
       members: [], // Members mapping can be lazy-loaded
       createdAt: new Date(row.createdAt),
-      updatedAt: new Date(row.updatedAt),
+      updatedAt: new Date(row.updatedAt)
     };
   },
 
@@ -34,7 +34,7 @@ export const LocalWorkspaceRepository = {
   async findMany(): Promise<Workspace[]> {
     const db = getDatabase();
     const rows = db.prepare('SELECT * FROM workspaces').all() as any[];
-    
+
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -42,11 +42,11 @@ export const LocalWorkspaceRepository = {
       ownerId: row.ownerId,
       plan: row.plan || 'free',
       settings: {
-        defaultTimezone: row.settingsTimezone || 'UTC',
+        defaultTimezone: row.settingsTimezone || 'UTC'
       },
       members: [],
       createdAt: new Date(row.createdAt),
-      updatedAt: new Date(row.updatedAt),
+      updatedAt: new Date(row.updatedAt)
     }));
   },
 
@@ -55,10 +55,12 @@ export const LocalWorkspaceRepository = {
    */
   async save(ws: Workspace): Promise<Workspace> {
     const db = getDatabase();
-    db.prepare(`
+    db.prepare(
+      `
       INSERT OR REPLACE INTO workspaces (id, name, slug, ownerId, settingsTimezone, syncStatus, version, createdAt, updatedAt)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `
+    ).run(
       ws.id,
       ws.name,
       ws.slug,
@@ -108,5 +110,5 @@ export const LocalWorkspaceRepository = {
   async delete(id: string): Promise<void> {
     const db = getDatabase();
     db.prepare('DELETE FROM workspaces WHERE id = ?').run(id);
-  },
+  }
 };

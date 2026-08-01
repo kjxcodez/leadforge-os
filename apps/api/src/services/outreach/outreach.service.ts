@@ -1,14 +1,14 @@
-import { EmailAccountModel } from "../../db/models/email-account.model.js";
-import type { EmailAccountDocument } from "../../db/models/email-account.model.js";
-import { EmailTemplateModel } from "../../db/models/email-template.model.js";
-import { CampaignModel } from "../../db/models/campaign.model.js";
-import { ContactModel } from "../../db/models/contact.model.js";
-import { CompanyModel } from "../../db/models/company.model.js";
-import { OutreachModel } from "../../db/models/outreach.model.js";
-import { ActivityModel } from "../../db/models/activity.model.js";
-import { encrypt, decrypt } from "../../utils/encryption.js";
-import { GmailSmtpProvider } from "./provider.js";
-import mongoose from "mongoose";
+import { EmailAccountModel } from '../../db/models/email-account.model.js';
+import type { EmailAccountDocument } from '../../db/models/email-account.model.js';
+import { EmailTemplateModel } from '../../db/models/email-template.model.js';
+import { CampaignModel } from '../../db/models/campaign.model.js';
+import { ContactModel } from '../../db/models/contact.model.js';
+import { CompanyModel } from '../../db/models/company.model.js';
+import { OutreachModel } from '../../db/models/outreach.model.js';
+import { ActivityModel } from '../../db/models/activity.model.js';
+import { encrypt, decrypt } from '../../utils/encryption.js';
+import { GmailSmtpProvider } from './provider.js';
+import mongoose from 'mongoose';
 
 const provider = new GmailSmtpProvider();
 
@@ -34,10 +34,9 @@ export class OutreachService {
 
     // 3. Reset other defaults if new isDefault
     if (data.isDefault) {
-      await EmailAccountModel.updateMany(
-        { workspaceId: this.workspaceId } as any,
-        { isDefault: false }
-      );
+      await EmailAccountModel.updateMany({ workspaceId: this.workspaceId } as any, {
+        isDefault: false
+      });
     }
 
     const account = new EmailAccountModel({
@@ -51,11 +50,11 @@ export class OutreachService {
       hourlyLimit: data.hourlyLimit || 50,
       signature: data.signature || '',
       status: 'connected',
-      lastVerifiedAt: new Date(),
+      lastVerifiedAt: new Date()
     });
 
     await account.save();
-    
+
     // Log activity
     await this.logWorkspaceActivity(`Email Account ${account.email} was successfully connected.`);
 
@@ -64,7 +63,7 @@ export class OutreachService {
 
   public async listEmailAccounts(): Promise<any[]> {
     const list = await EmailAccountModel.find({
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     } as any).sort({ createdAt: -1 });
 
     // Sanitize to prevent encrypted credential leakage
@@ -78,14 +77,14 @@ export class OutreachService {
   public async deleteEmailAccount(id: string): Promise<void> {
     await EmailAccountModel.findOneAndDelete({
       _id: id,
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     } as any);
   }
 
   public async testConnection(id: string): Promise<boolean> {
     const acc = await EmailAccountModel.findOne({
       _id: id,
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     } as any);
 
     if (!acc) throw new Error('Email Account not found.');
@@ -95,7 +94,7 @@ export class OutreachService {
       host: 'smtp.gmail.com',
       port: 465,
       secure: true,
-      auth: { user: acc.email, pass },
+      auth: { user: acc.email, pass }
     });
 
     if (ok) {
@@ -117,7 +116,7 @@ export class OutreachService {
   public async sendSingleEmail(contactId: string, templateId: string): Promise<any> {
     const account = await EmailAccountModel.findOne({
       workspaceId: this.workspaceId,
-      status: 'connected',
+      status: 'connected'
     } as any);
 
     if (!account) throw new Error('No connected email account for workspace.');
@@ -132,7 +131,7 @@ export class OutreachService {
       host: 'smtp.gmail.com',
       port: 465,
       secure: true,
-      auth: { user: account.email, pass },
+      auth: { user: account.email, pass }
     };
 
     const sendResult = await provider.sendEmail(
@@ -154,13 +153,13 @@ export class OutreachService {
       messageDetails: {
         messageId: sendResult.messageId,
         subject: rendered.subject,
-        body: rendered.body,
-      },
+        body: rendered.body
+      }
     });
     await log.save();
 
     await EmailAccountModel.findByIdAndUpdate(account._id, {
-      $inc: { dailySent: 1, hourlySent: 1 },
+      $inc: { dailySent: 1, hourlySent: 1 }
     });
 
     return log;
@@ -170,8 +169,12 @@ export class OutreachService {
 
   public async createTemplate(data: any): Promise<any> {
     // Parse out variables dynamically from subject and body
-    const bodyVars = (data.body.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []).map((v: string) => v.replace(/[\{\}]/g, ''));
-    const subjectVars = (data.subject.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []).map((v: string) => v.replace(/[\{\}]/g, ''));
+    const bodyVars = (data.body.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []).map((v: string) =>
+      v.replace(/[\{\}]/g, '')
+    );
+    const subjectVars = (data.subject.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []).map((v: string) =>
+      v.replace(/[\{\}]/g, '')
+    );
     const variables = Array.from(new Set([...bodyVars, ...subjectVars]));
 
     const template = new EmailTemplateModel({
@@ -179,7 +182,7 @@ export class OutreachService {
       name: data.name,
       subject: data.subject,
       body: data.body,
-      variables,
+      variables
     });
 
     await template.save();
@@ -188,14 +191,14 @@ export class OutreachService {
 
   public async listTemplates(): Promise<any[]> {
     return EmailTemplateModel.find({
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     } as any).sort({ createdAt: -1 });
   }
 
   public async deleteTemplate(id: string): Promise<void> {
     await EmailTemplateModel.findOneAndDelete({
       _id: id,
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     } as any);
   }
 
@@ -205,7 +208,7 @@ export class OutreachService {
   public async previewTemplate(templateId: string, contactId?: string): Promise<any> {
     const template = await EmailTemplateModel.findOne({
       _id: templateId,
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     } as any);
     if (!template) throw new Error('Template not found.');
 
@@ -230,7 +233,7 @@ export class OutreachService {
       company: company?.name || 'Your Company',
       website: company?.website || 'example.com',
       senderName: 'Sales Director',
-      workspaceName: 'Workspace CRM',
+      workspaceName: 'Workspace CRM'
     };
 
     const render = (text: string) => {
@@ -244,7 +247,7 @@ export class OutreachService {
 
     return {
       subject: render(template.subject),
-      body: render(template.body),
+      body: render(template.body)
     };
   }
 
@@ -256,7 +259,7 @@ export class OutreachService {
   public async scheduleCampaign(campaignId: string): Promise<void> {
     const campaign = await CampaignModel.findOne({
       _id: campaignId,
-      workspaceId: this.workspaceId,
+      workspaceId: this.workspaceId
     } as any);
 
     if (!campaign) throw new Error('Campaign not found.');
@@ -265,7 +268,10 @@ export class OutreachService {
 
     // Trigger run sequence in background non-blocking thread
     this.runCampaignSendLoop(campaign._id.toString()).catch((err) => {
-      console.error(`[OutreachService] Campaign ${campaign._id.toString()} execution loop failure:`, err);
+      console.error(
+        `[OutreachService] Campaign ${campaign._id.toString()} execution loop failure:`,
+        err
+      );
     });
   }
 
@@ -276,7 +282,7 @@ export class OutreachService {
     // 1. Resolve workspace SMTP accounts (default or first connected)
     const account = await EmailAccountModel.findOne({
       workspaceId: campaign.workspaceId.toString(),
-      status: 'connected',
+      status: 'connected'
     } as any);
 
     if (!account) {
@@ -304,7 +310,7 @@ export class OutreachService {
     // 3. Load contacts inside active workspace
     const contacts = await ContactModel.find({
       workspaceId: campaign.workspaceId.toString(),
-      email: { $ne: '' },
+      email: { $ne: '' }
     } as any);
 
     if (contacts.length === 0) {
@@ -318,7 +324,7 @@ export class OutreachService {
       host: 'smtp.gmail.com',
       port: 465,
       secure: true,
-      auth: { user: account.email, pass },
+      auth: { user: account.email, pass }
     };
 
     // Sequential queue loop
@@ -332,7 +338,7 @@ export class OutreachService {
       // Check if contact has already been emailed by this campaign
       const existing = await OutreachModel.findOne({
         campaignId: campaign._id.toString(),
-        contactId: c._id.toString(),
+        contactId: c._id.toString()
       } as any);
 
       if (existing) continue; // Skip already emailed contacts
@@ -353,8 +359,8 @@ export class OutreachService {
         messageDetails: {
           messageId: '',
           subject: rendered.subject,
-          body: rendered.body,
-        },
+          body: rendered.body
+        }
       });
       await log.save();
 
@@ -370,15 +376,14 @@ export class OutreachService {
         log.messageDetails = {
           messageId: sendResult.messageId,
           subject: rendered.subject,
-          body: rendered.body,
+          body: rendered.body
         };
         await log.save();
 
         // Increment sent statistics
         await EmailAccountModel.findByIdAndUpdate(account._id, {
-          $inc: { dailySent: 1, hourlySent: 1 },
+          $inc: { dailySent: 1, hourlySent: 1 }
         });
-
       } catch (err: any) {
         console.error(`[OutreachService] Failed sending to contact ${c.email}:`, err);
         log.status = 'failed';
@@ -393,14 +398,16 @@ export class OutreachService {
     campaign.status = 'COMPLETED';
     await campaign.save();
 
-    await this.logWorkspaceActivity(`Outreach Campaign ${campaign.name} successfully finished sending.`);
+    await this.logWorkspaceActivity(
+      `Outreach Campaign ${campaign.name} successfully finished sending.`
+    );
   }
 
   private async logWorkspaceActivity(content: string): Promise<void> {
     const act = new ActivityModel({
       workspaceId: new mongoose.Types.ObjectId(this.workspaceId),
       type: 'campaign_created',
-      content,
+      content
     });
     await act.save();
   }

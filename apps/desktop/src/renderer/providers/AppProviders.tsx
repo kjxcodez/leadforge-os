@@ -1,12 +1,12 @@
-import React from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "../components/ui/sonner";
-import { UIProvider } from "../stores/ui-store";
-import { SettingsProvider } from "../stores/settings-store";
-import { AuthProvider } from "../stores/auth-store";
-import { WorkspaceProvider } from "../stores/workspace-store";
-import { ThemeApplier } from "./ThemeProvider";
-import { TooltipProvider } from "../components/ui/tooltip";
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from '../components/ui/sonner';
+import { UIProvider } from '../stores/ui-store';
+import { SettingsProvider } from '../stores/settings-store';
+import { AuthProvider } from '../stores/auth-store';
+import { WorkspaceProvider } from '../stores/workspace-store';
+import { ThemeApplier } from './ThemeProvider';
+import { TooltipProvider } from '../components/ui/tooltip';
 
 // ---------------------------------------------------------------------------
 // Global QueryClient
@@ -23,12 +23,12 @@ export const queryClient = new QueryClient({
     queries: {
       refetchOnWindowFocus: false,
       retry: 1,
-      staleTime: 5 * 60 * 1000,
+      staleTime: 5 * 60 * 1000
     },
     mutations: {
-      retry: 0,
-    },
-  },
+      retry: 0
+    }
+  }
 });
 
 // ---------------------------------------------------------------------------

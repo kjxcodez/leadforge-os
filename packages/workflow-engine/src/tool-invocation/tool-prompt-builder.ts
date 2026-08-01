@@ -8,15 +8,17 @@ export class ToolPromptBuilder {
     const desc = tool.schema?.description ?? tool.description;
     const inputSchemaStr = this.serializeZodSchema(tool.schema?.inputSchema ?? tool.inputSchema);
     const outputDesc = tool.schema?.outputDescription ?? 'Structured tool output';
-    
+
     let examplesText = 'None';
     if (tool.schema?.examples && tool.schema.examples.length > 0) {
       examplesText = tool.schema.examples
-        .map((ex, idx) => `Example ${idx + 1}: ${ex.description}\nInput: ${JSON.stringify(ex.input)}`)
+        .map(
+          (ex, idx) => `Example ${idx + 1}: ${ex.description}\nInput: ${JSON.stringify(ex.input)}`
+        )
         .join('\n\n');
     }
 
-    const requiresApproval = tool.schema?.requiresApproval ?? (tool.riskLevel === 'HIGH');
+    const requiresApproval = tool.schema?.requiresApproval ?? tool.riskLevel === 'HIGH';
 
     return [
       `Tool: ${tool.name}`,
@@ -32,7 +34,9 @@ export class ToolPromptBuilder {
    * Generates a concatenated description for a list of tools.
    */
   public static describeMany(tools: Tool[]): string {
-    return tools.map((t) => this.describeOne(t)).join('\n\n======================================\n\n');
+    return tools
+      .map((t) => this.describeOne(t))
+      .join('\n\n======================================\n\n');
   }
 
   /**
@@ -40,7 +44,7 @@ export class ToolPromptBuilder {
    */
   public static buildCatalog(tools: Tool[]): Array<Record<string, any>> {
     return tools.map((tool) => {
-      const requiresApproval = tool.schema?.requiresApproval ?? (tool.riskLevel === 'HIGH');
+      const requiresApproval = tool.schema?.requiresApproval ?? tool.riskLevel === 'HIGH';
       return {
         toolName: tool.name,
         description: tool.schema?.description ?? tool.description,
@@ -59,7 +63,8 @@ export class ToolPromptBuilder {
       const properties: string[] = [];
       for (const [key, value] of Object.entries(shape)) {
         const typeName = (value as any)._def?.typeName?.replace('Zod', '')?.toLowerCase() ?? 'any';
-        const isOptional = (value as any)._def?.typeName === 'ZodOptional' || (value as any).isOptional?.() === true;
+        const isOptional =
+          (value as any)._def?.typeName === 'ZodOptional' || (value as any).isOptional?.() === true;
         properties.push(`  - ${key}: ${typeName}${isOptional ? ' (optional)' : ''}`);
       }
       return `Object containing:\n${properties.join('\n')}`;

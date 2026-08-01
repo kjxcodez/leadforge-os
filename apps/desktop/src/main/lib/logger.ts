@@ -47,7 +47,9 @@ class AppLoggerClass {
     metadata?: any;
   }): void {
     const workspaceId = params.workspaceId || 'global';
-    const logId = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : require('crypto').randomUUID();
+    const logId = globalThis.crypto?.randomUUID
+      ? globalThis.crypto.randomUUID()
+      : require('crypto').randomUUID();
     const timestamp = new Date().toISOString();
 
     const record: LogRecord = {
@@ -59,7 +61,7 @@ class AppLoggerClass {
       message: params.message,
       durationMs: params.durationMs || null,
       metadata: params.metadata || null,
-      timestamp,
+      timestamp
     };
 
     // 1. Standard Streams
@@ -76,10 +78,12 @@ class AppLoggerClass {
     if (params.workspaceId) {
       try {
         const db = getDatabase(params.workspaceId);
-        db.prepare(`
+        db.prepare(
+          `
           INSERT INTO system_logs (id, workspaceId, workerId, severity, task, message, durationMs, metadata, timestamp)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
+        `
+        ).run(
           record.id,
           record.workspaceId,
           record.workerId,
@@ -92,11 +96,13 @@ class AppLoggerClass {
         );
 
         // Cap to latest 5000 lines
-        db.prepare(`
+        db.prepare(
+          `
           DELETE FROM system_logs WHERE id NOT IN (
             SELECT id FROM system_logs ORDER BY timestamp DESC LIMIT 5000
           )
-        `).run();
+        `
+        ).run();
       } catch (err) {
         console.error('[Logger] Failed to write log to SQLite system_logs:', err);
       }
@@ -135,7 +141,8 @@ class AppLoggerClass {
   }
 
   public error(task: string, message: string, workspaceId?: string, err?: any): void {
-    const meta = err instanceof Error ? { name: err.name, message: err.message, stack: err.stack } : err;
+    const meta =
+      err instanceof Error ? { name: err.name, message: err.message, stack: err.stack } : err;
     this.log({ severity: 'error', task, message, workspaceId, metadata: meta });
   }
 

@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document presents the detailed Divergence Register and architectural comparative analysis between the **Manual Execution Path (Path A)** and the **Event Trigger Execution Path (Path B)** in LeadForge OS. 
+This document presents the detailed Divergence Register and architectural comparative analysis between the **Manual Execution Path (Path A)** and the **Event Trigger Execution Path (Path B)** in LeadForge OS.
 
 Every divergence is identified with exact file paths, line references, execution ownership transitions, persistence targets, and state impacts based strictly on active source code implementation evidence.
 
@@ -11,6 +11,7 @@ Every divergence is identified with exact file paths, line references, execution
 ## Divergence Register
 
 ### DIV-001: Execution Initiator & Entry Point Divergence
+
 - **Divergence Title**: Execution Trigger & Entry Mechanism Inversion
 - **Current Behavior**: Path A is initiated from Chromium Renderer UI via Electron IPC; Path B is initiated from Main process Node.js event bus subscription.
 - **Manual Path Implementation**: [`AutomationScreen.tsx:L219`](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/renderer/screens/AutomationScreen.tsx#L219) captures user click and invokes `startSequenceMutation.mutate()`, which calls `window.ipc.invoke('sequence:start')`.
@@ -28,6 +29,7 @@ Every divergence is identified with exact file paths, line references, execution
 ---
 
 ### DIV-002: Local Job Scheduler & SQLite Queue Bypass Divergence
+
 - **Divergence Title**: Manual Trigger Bypasses Desktop Local Job Scheduler & SQLite `jobs` Table
 - **Current Behavior**: Path A completely bypasses the local `JobScheduler` and SQLite `jobs` table, delegating execution over HTTP; Path B inserts an `automation:workflow` job into SQLite `jobs` table for local scheduler processing.
 - **Manual Path Implementation**: Handler in [`main/ipc/automation.ts:L66`](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/main/ipc/automation.ts#L66) directly executes `await sdk.executions.start(sequenceId, contactId, companyId)`. Zero SQLite `jobs` rows created.
@@ -45,6 +47,7 @@ Every divergence is identified with exact file paths, line references, execution
 ---
 
 ### DIV-003: Execution Primary Authority Divergence
+
 - **Divergence Title**: Execution Primary Host Authority Inversion (API Server vs Desktop Worker)
 - **Current Behavior**: Path A executes sequence creation and logging logic on the remote API server (`apps/api`); Path B executes workflow step logic on the local desktop worker (`executeAutomationWorkflow`).
 - **Manual Path Implementation**: Remote API route [`routes/automation.ts:L78`](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/api/src/routes/automation.ts#L78) invokes [`AutomationService.startExecution()`](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/api/src/services/automation/automation.service.ts#L73) on the backend server.
@@ -62,6 +65,7 @@ Every divergence is identified with exact file paths, line references, execution
 ---
 
 ### DIV-004: Primary Persistence Target Inversion Divergence
+
 - **Divergence Title**: Primary Database Storage Target Inversion (MongoDB vs SQLite)
 - **Current Behavior**: Path A treats MongoDB as primary storage and desktop SQLite as secondary read cache; Path B treats desktop SQLite as primary source of truth and MongoDB as eventual sync destination.
 - **Manual Path Implementation**: `AutomationService.startExecution()` in `automation.service.ts:L106` calls `await exec.save()` directly writing to MongoDB `sequence_executions` collection. `main/ipc/automation.ts:L67` then writes to SQLite via `LocalCRMRepository.save()` with `skipQueue = true`.
@@ -79,6 +83,7 @@ Every divergence is identified with exact file paths, line references, execution
 ---
 
 ### DIV-005: Synchronization Protocol Divergence
+
 - **Divergence Title**: Direct HTTP Return Caching vs Asynchronous Local-First Queue Synchronization
 - **Current Behavior**: Path A returns execution data via HTTP response and writes a read cache directly without queueing; Path B inserts records into local `sync_queue` table for background synchronization by `SyncEngine`.
 - **Manual Path Implementation**: `main/ipc/automation.ts:L67` calls `LocalCRMRepository.save('sequence_executions', { ...res, workspaceId: runtime.workspaceId }, true)`. The `true` parameter explicitly flags `skipQueue = true`, preventing insertion into `sync_queue`.
@@ -96,6 +101,7 @@ Every divergence is identified with exact file paths, line references, execution
 ---
 
 ### DIV-006: Duplicate Execution Prevention Mechanics Divergence
+
 - **Divergence Title**: Remote MongoDB Duplicate Check vs Desktop Multi-Table SQLite Duplicate Check
 - **Current Behavior**: Path A checks duplicate active executions on MongoDB via `AutomationService`; Path B checks duplicate active runs across both SQLite `jobs` table AND SQLite `sequence_executions` table in `AutomationTriggerEvaluator`.
 - **Manual Path Implementation**: `AutomationService.startExecution` in [`automation.service.ts:L82-L92`](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/api/src/services/automation/automation.service.ts#L82-L92) queries MongoDB `SequenceExecutionModel` for `{ status: { $in: [RUNNING, WAITING, PENDING] }, contactId, companyId }`.
@@ -116,25 +122,25 @@ Every divergence is identified with exact file paths, line references, execution
 
 ## Architectural Rule Verification Matrix
 
-| Architectural Rule | Path A (Manual Path) | Path B (Event Path) | Evidence | Confidence |
-| :--- | :--- | :--- | :--- | :--- |
-| **Rule 1: Desktop owns execution** | ❌ **VIOLATED** | ✅ **COMPLIANT** | Path A: `main/ipc/automation.ts:L66` calls `sdk.executions.start()` (remote API owns execution). Path B: `worker-host.ts:L53` calls `executeAutomationWorkflow()` (desktop worker owns execution). | HIGH |
-| **Rule 2: Everything executes locally** | ❌ **VIOLATED** | ✅ **COMPLIANT** | Path A: Execution created and managed on remote API server (`apps/api`). Path B: Executed inside local desktop worker process (`plugins/automation.ts`). | HIGH |
-| **Rule 3: SQLite is source of truth** | ❌ **VIOLATED** | ✅ **COMPLIANT** | Path A: Primary record created in MongoDB; SQLite written secondarily as cache via `LocalCRMRepository.save()`. Path B: Primary record written to SQLite; synced to MongoDB. | HIGH |
-| **Rule 4: API is passive** | ❌ **VIOLATED** | ✅ **COMPLIANT** | Path A: API actively handles `POST /executions/start`, creates execution, checks duplicates, logs steps. Path B: API receives background sync updates via `SyncEngine`. | HIGH |
-| **Rule 5: Everything syncs through SyncEngine** | ❌ **VIOLATED** | ✅ **COMPLIANT** | Path A: `main/ipc/automation.ts:L67` uses `skipQueue = true`, bypassing `sync_queue`. Path B: Uses `sync_queue` table for background sync. | HIGH |
-| **Rule 6: Business logic belongs in Desktop** | ❌ **VIOLATED** | ✅ **COMPLIANT** | Path A: Sequence validation, status initialization, duplicate checking executed in API `AutomationService`. Path B: Evaluated in `AutomationTriggerEvaluator` & worker. | HIGH |
-| **Rule 7: Renderer never talks directly to MongoDB** | ✅ **COMPLIANT** | ✅ **COMPLIANT** | Path A: Renderer calls `window.ipc.invoke()`, which calls Main process, which calls SDK -> API -> MongoDB. Path B: Event driven in Main process. | HIGH |
+| Architectural Rule                                   | Path A (Manual Path) | Path B (Event Path) | Evidence                                                                                                                                                                                           | Confidence |
+| :--------------------------------------------------- | :------------------- | :------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------- |
+| **Rule 1: Desktop owns execution**                   | ❌ **VIOLATED**      | ✅ **COMPLIANT**    | Path A: `main/ipc/automation.ts:L66` calls `sdk.executions.start()` (remote API owns execution). Path B: `worker-host.ts:L53` calls `executeAutomationWorkflow()` (desktop worker owns execution). | HIGH       |
+| **Rule 2: Everything executes locally**              | ❌ **VIOLATED**      | ✅ **COMPLIANT**    | Path A: Execution created and managed on remote API server (`apps/api`). Path B: Executed inside local desktop worker process (`plugins/automation.ts`).                                           | HIGH       |
+| **Rule 3: SQLite is source of truth**                | ❌ **VIOLATED**      | ✅ **COMPLIANT**    | Path A: Primary record created in MongoDB; SQLite written secondarily as cache via `LocalCRMRepository.save()`. Path B: Primary record written to SQLite; synced to MongoDB.                       | HIGH       |
+| **Rule 4: API is passive**                           | ❌ **VIOLATED**      | ✅ **COMPLIANT**    | Path A: API actively handles `POST /executions/start`, creates execution, checks duplicates, logs steps. Path B: API receives background sync updates via `SyncEngine`.                            | HIGH       |
+| **Rule 5: Everything syncs through SyncEngine**      | ❌ **VIOLATED**      | ✅ **COMPLIANT**    | Path A: `main/ipc/automation.ts:L67` uses `skipQueue = true`, bypassing `sync_queue`. Path B: Uses `sync_queue` table for background sync.                                                         | HIGH       |
+| **Rule 6: Business logic belongs in Desktop**        | ❌ **VIOLATED**      | ✅ **COMPLIANT**    | Path A: Sequence validation, status initialization, duplicate checking executed in API `AutomationService`. Path B: Evaluated in `AutomationTriggerEvaluator` & worker.                            | HIGH       |
+| **Rule 7: Renderer never talks directly to MongoDB** | ✅ **COMPLIANT**     | ✅ **COMPLIANT**    | Path A: Renderer calls `window.ipc.invoke()`, which calls Main process, which calls SDK -> API -> MongoDB. Path B: Event driven in Main process.                                                   | HIGH       |
 
 ---
 
 ## Data Ownership Comparison
 
-| Entity / Object | Path A Owner | Path B Owner | Same Owner? | Evidence |
-| :--- | :--- | :--- | :--- | :--- |
-| **Trigger Payload** | Renderer UI (`AutomationScreen.tsx`) | Desktop `LocalEventBus` (`AppEvent`) | NO | `AutomationScreen.tsx:L219` vs `automation-trigger.ts:L213` |
-| **Job Record (`jobs` table)** | **Does not exist** (Bypassed) | Desktop `JobScheduler` & SQLite `jobs` table | NO | `automation.ts:L66` (None) vs `automation-trigger.ts:L347` (`INSERT INTO jobs`) |
-| **Execution ID (`id` / `_id`)** | Client `sync.ts` or MongoDB `SequenceExecutionModel` | Desktop `AutomationTriggerEvaluator` (`randomUUID()`) | NO | `sync.ts:L104` / `automation.service.ts` vs `automation-trigger.ts:L337` |
-| **Execution Object (`SequenceExecution`)** | Remote API Server (`AutomationService`) | Desktop Worker (`executeAutomationWorkflow`) | NO | `automation.service.ts:L94` vs `plugins/automation.ts:L844` |
-| **Execution Status (`"PENDING"`)** | Remote API Server (`AutomationService`) | Desktop SQLite database table | NO | `automation.service.ts:L100` vs `plugins/automation.ts` |
-| **Execution Logs (`SequenceLog`)** | Central MongoDB (`sequence_logs` & `$push`) | Desktop SQLite `sequence_logs` table | NO | `automation.service.ts:L145` vs `plugins/automation.ts` |
+| Entity / Object                            | Path A Owner                                         | Path B Owner                                          | Same Owner? | Evidence                                                                        |
+| :----------------------------------------- | :--------------------------------------------------- | :---------------------------------------------------- | :---------- | :------------------------------------------------------------------------------ |
+| **Trigger Payload**                        | Renderer UI (`AutomationScreen.tsx`)                 | Desktop `LocalEventBus` (`AppEvent`)                  | NO          | `AutomationScreen.tsx:L219` vs `automation-trigger.ts:L213`                     |
+| **Job Record (`jobs` table)**              | **Does not exist** (Bypassed)                        | Desktop `JobScheduler` & SQLite `jobs` table          | NO          | `automation.ts:L66` (None) vs `automation-trigger.ts:L347` (`INSERT INTO jobs`) |
+| **Execution ID (`id` / `_id`)**            | Client `sync.ts` or MongoDB `SequenceExecutionModel` | Desktop `AutomationTriggerEvaluator` (`randomUUID()`) | NO          | `sync.ts:L104` / `automation.service.ts` vs `automation-trigger.ts:L337`        |
+| **Execution Object (`SequenceExecution`)** | Remote API Server (`AutomationService`)              | Desktop Worker (`executeAutomationWorkflow`)          | NO          | `automation.service.ts:L94` vs `plugins/automation.ts:L844`                     |
+| **Execution Status (`"PENDING"`)**         | Remote API Server (`AutomationService`)              | Desktop SQLite database table                         | NO          | `automation.service.ts:L100` vs `plugins/automation.ts`                         |
+| **Execution Logs (`SequenceLog`)**         | Central MongoDB (`sequence_logs` & `$push`)          | Desktop SQLite `sequence_logs` table                  | NO          | `automation.service.ts:L145` vs `plugins/automation.ts`                         |

@@ -1,5 +1,5 @@
-import { BaseRepository } from "../base/base.repository.js";
-import { ActivityModel, type ActivityDocument } from "../../db/models/activity.model.js";
+import { BaseRepository } from '../base/base.repository.js';
+import { ActivityModel, type ActivityDocument } from '../../db/models/activity.model.js';
 
 /**
  * ActivityRepository implements workspace-scoped MongoDB queries for activities.

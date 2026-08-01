@@ -1,4 +1,4 @@
-import type { Schema } from "mongoose";
+import type { Schema } from 'mongoose';
 
 export interface WorkspaceScopedDocument {
   workspaceId: string;
@@ -9,7 +9,7 @@ export function workspacePlugin(schema: Schema) {
     workspaceId: {
       type: String,
       required: true,
-      index: true,
-    },
+      index: true
+    }
   });
 }

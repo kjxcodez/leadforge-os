@@ -22,12 +22,15 @@ graph TD
 ```
 
 ### 1. Context Builder (`context-builder.ts`)
+
 Assembles variables, active companies profiles, and raw crawl outputs into prompt templates. It ensures context windows are managed efficiently by truncating long raw website HTML trees.
 
 ### 2. Tool Executor (`tool-executor.ts`)
+
 Converts tool calls returned by the LLM into concrete background jobs or database mutations.
 
 ### 3. Response Assembler (`response-assembler.ts`)
+
 Parses and validates the final agent outputs against Zod schemas, returning a normalized payload to the calling process.
 
 ---
@@ -37,6 +40,7 @@ Parses and validates the final agent outputs against Zod schemas, returning a no
 LeadForge OS ships with two specialized pre-configured agents:
 
 ### 1. Research Agent (`research-agent.ts`)
+
 - **Objective**: Discover, verify, and qualify business listings.
 - **System Prompt**: Enforces finding decision makers, analyzing target website quality, and scoring fits.
 - **Available Tools**:
@@ -46,6 +50,7 @@ LeadForge OS ships with two specialized pre-configured agents:
 - **Output Schema**: Returns structured company details, seniority profiles, and contact verification targets.
 
 ### 2. Campaign Assistant
+
 - **Objective**: Automate personalized email outreach.
 - **System Prompt**: Enforces context-aware template writing based on company value propositions and opportunity scoring.
 - **Available Tools**:

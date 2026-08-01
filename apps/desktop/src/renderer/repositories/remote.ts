@@ -23,7 +23,7 @@ export const RemoteCompanyRepository: IRemoteRepository<any> = {
   async delete(id: string): Promise<void> {
     const workspaceId = await window.ipc.invoke('electron:getActiveWorkspace', undefined);
     return window.ipc.invoke('companies:delete', { workspaceId: workspaceId || '', id });
-  },
+  }
 };
 
 /**
@@ -49,7 +49,7 @@ export const RemoteContactRepository: IRemoteRepository<any> = {
   async delete(id: string): Promise<void> {
     const workspaceId = await window.ipc.invoke('electron:getActiveWorkspace', undefined);
     return window.ipc.invoke('contacts:delete', { workspaceId: workspaceId || '', id });
-  },
+  }
 };
 
 /**
@@ -75,7 +75,7 @@ export const RemoteCampaignRepository: IRemoteRepository<any> = {
   async delete(id: string): Promise<void> {
     const workspaceId = await window.ipc.invoke('electron:getActiveWorkspace', undefined);
     return window.ipc.invoke('campaigns:delete', { workspaceId: workspaceId || '', id });
-  },
+  }
 };
 
 /**
@@ -100,7 +100,7 @@ export const RemoteActivityRepository: IRemoteRepository<any> = {
 
   async delete(id: string): Promise<void> {
     return;
-  },
+  }
 };
 
 /**
@@ -125,7 +125,7 @@ export const RemoteSequenceRepository: IRemoteRepository<any> = {
 
   async delete(id: string): Promise<void> {
     return window.ipc.invoke('sequence:delete', id);
-  },
+  }
 };
 
 /**
@@ -144,7 +144,7 @@ export const RemoteSequenceExecutionRepository: IRemoteRepository<any> = {
     return window.ipc.invoke('sequence:start', {
       sequenceId: data.sequenceId,
       contactId: data.contactId,
-      companyId: data.companyId,
+      companyId: data.companyId
     });
   },
 
@@ -157,7 +157,7 @@ export const RemoteSequenceExecutionRepository: IRemoteRepository<any> = {
 
   async delete(id: string): Promise<void> {
     return;
-  },
+  }
 };
 
 /**
@@ -183,5 +183,5 @@ export const RemoteSequenceLogRepository: IRemoteRepository<any> = {
 
   async delete(id: string): Promise<void> {
     return;
-  },
+  }
 };

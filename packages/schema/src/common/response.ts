@@ -5,7 +5,7 @@ import { paginationMetaSchema, cursorMetaSchema } from './pagination.js';
 export const apiErrorSchema = z.object({
   code: z.nativeEnum(ErrorCode),
   message: z.string(),
-  details: z.any().nullable(),
+  details: z.any().nullable()
 });
 export type ApiError = z.infer<typeof apiErrorSchema>;
 
@@ -14,7 +14,7 @@ export function createSuccessResponseSchema<T extends z.ZodTypeAny>(dataSchema: 
     success: z.literal(true),
     data: dataSchema,
     meta: z.record(z.string(), z.any()).optional(),
-    error: z.null(),
+    error: z.null()
   });
 }
 
@@ -22,7 +22,7 @@ export const apiErrorResponseSchema = z.object({
   success: z.literal(false),
   data: z.null(),
   meta: z.record(z.string(), z.any()).optional(),
-  error: apiErrorSchema,
+  error: apiErrorSchema
 });
 export type ApiErrorResponse = z.infer<typeof apiErrorResponseSchema>;
 

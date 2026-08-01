@@ -6,10 +6,10 @@ import { LocalEventBus } from '../../lib/event-bus';
 
 async function runTests() {
   console.log('--- STARTING AUTOMATION INTEGRATION TESTS ---');
-  
+
   // Create an in-memory SQLite database
   const db = new Database(':memory:');
-  
+
   // Set up schema
   db.exec(`
     CREATE TABLE IF NOT EXISTS sequences (
@@ -137,24 +137,32 @@ async function runTests() {
   const workspaceId = 'test_ws';
 
   // Seed default data
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO settings (key, value, workspaceId) VALUES ('openrouter_key', 'sk-test-key', ?)
-  `).run(workspaceId);
+  `
+  ).run(workspaceId);
 
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO companies (id, workspaceId, name, domain, industry, size, createdAt, updatedAt)
     VALUES ('comp_1', ?, 'Google', 'google.com', 'Technology', '10000', datetime('now'), datetime('now'))
-  `).run(workspaceId);
+  `
+  ).run(workspaceId);
 
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO opportunity_scores (companyId, overallScore, fitScore, sizeScore, intentScore, urgencyScore)
     VALUES ('comp_1', 85, 90, 80, 85, 90)
-  `).run();
+  `
+  ).run();
 
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO campaigns (id, workspaceId, name, subject, body, status, sequenceId, createdAt, updatedAt)
     VALUES ('camp_1', ?, 'Outreach Campaign', 'Hello', 'Body', 'Active', 'seq_1', datetime('now'), datetime('now'))
-  `).run(workspaceId);
+  `
+  ).run(workspaceId);
 
   // Setup EventBus and Evaluator
   const eventBus = new LocalEventBus(workspaceId);
@@ -162,10 +170,12 @@ async function runTests() {
   evaluator.start();
 
   console.log('1. Testing Trigger Condition Evaluation: LEAD_SCORE_CHANGED >= 75');
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO sequences (id, workspaceId, name, status, trigger, steps, createdAt, updatedAt)
     VALUES ('seq_1', ?, 'Lead Score Filter', 'active', ?, '[]', datetime('now'), datetime('now'))
-  `).run(
+  `
+  ).run(
     workspaceId,
     JSON.stringify({
       type: 'LEAD_SCORE_CHANGED',
@@ -222,10 +232,12 @@ async function runTests() {
   }
 
   console.log('3. Testing ActionRegistry.ENROLL_CONTACT execution');
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO contacts (id, workspaceId, companyId, firstName, lastName, email, status, createdAt, updatedAt)
     VALUES ('contact_1', ?, 'comp_1', 'John', 'Doe', 'john@google.com', 'active', datetime('now'), datetime('now'))
-  `).run(workspaceId);
+  `
+  ).run(workspaceId);
 
   await ActionRegistry.ENROLL_CONTACT!.execute(
     db,
@@ -238,7 +250,9 @@ async function runTests() {
     new Map()
   );
 
-  const enrollment = db.prepare("SELECT * FROM sequence_executions WHERE contactId = 'contact_1'").get() as any;
+  const enrollment = db
+    .prepare("SELECT * FROM sequence_executions WHERE contactId = 'contact_1'")
+    .get() as any;
   if (enrollment && enrollment.campaignId === 'camp_1') {
     console.log('✅ Success: ENROLL_CONTACT enrolled contact in campaign successfully.');
   } else {
@@ -251,13 +265,16 @@ async function runTests() {
     'contact_1',
     workspaceId,
     'seq_1',
-    { type: 'SEND_NOTIFICATION', config: { message: 'Workflow notification sent!', type: 'success' } },
+    {
+      type: 'SEND_NOTIFICATION',
+      config: { message: 'Workflow notification sent!', type: 'success' }
+    },
     contextMock,
     { variables: {} } as any,
     new Map()
   );
 
-  const notification = db.prepare("SELECT * FROM notifications").get() as any;
+  const notification = db.prepare('SELECT * FROM notifications').get() as any;
   if (notification && notification.message === 'Workflow notification sent!') {
     console.log('✅ Success: SEND_NOTIFICATION inserted notification successfully.');
   } else {
@@ -268,7 +285,7 @@ async function runTests() {
   console.log('--- ALL AUTOMATION INTEGRATION TESTS COMPLETED SUCCESSFULLY ---');
 }
 
-runTests().catch(err => {
+runTests().catch((err) => {
   console.error('❌ Test execution failed:', err);
   process.exit(1);
 });

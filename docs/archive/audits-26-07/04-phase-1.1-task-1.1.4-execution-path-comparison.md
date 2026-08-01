@@ -5,6 +5,7 @@
 This forensic audit compares the **Manual Execution Path (Path A)** and the **Event Trigger Execution Path (Path B)** in LeadForge OS. Based on empirical static code analysis of the active repository, this document establishes the exact call traces, ownership handoffs, persistence strategies, and points of divergence between how manual UI triggers and background event triggers execute automations.
 
 The central finding of this comparison is that **Path A and Path B follow completely inverted execution architectures**.
+
 - **Path A (Manual Trigger)** follows a **Remote-First Architecture**: The Renderer UI calls IPC (`sequence:start`), which delegates execution directly over HTTP via `@leadforge/sdk` to the remote API server (`apps/api`). The API server creates execution records in **MongoDB** as primary storage, and the desktop Main process receives the result and caches a snapshot in local SQLite. Path A bypasses the desktop `JobScheduler`, local SQLite `jobs` table, and `JobWorker` entirely.
 - **Path B (Event Trigger)** follows a **Local-First Architecture**: An event on the desktop `LocalEventBus` is intercepted by `AutomationTriggerEvaluator` in the desktop Main process. It evaluates trigger criteria, checks duplicate queued/active runs against local SQLite, and enqueues an `automation:workflow` job into the local SQLite `jobs` table. The desktop `JobScheduler` polls SQLite, picks up the queued job, and executes it locally inside `executeAutomationWorkflow` (desktop `JobWorker`). Execution progress is written to local SQLite as the primary source of truth, and state changes are synced to remote MongoDB asynchronously via `SyncEngine` / `sync_queue`.
 
@@ -13,6 +14,7 @@ The central finding of this comparison is that **Path A and Path B follow comple
 ## Scope
 
 This comparative audit is strictly limited to:
+
 - **Path A (Manual Execution Path)**: `AutomationScreen.tsx` -> `useStartSequence` -> `sync.ts` -> `preload/index.ts` -> `main/ipc/automation.ts` -> `@leadforge/sdk` -> `routes/automation.ts` -> `AutomationService` -> `MongoDB` -> `SQLite Cache`.
 - **Path B (Event Trigger Execution Path)**: `LocalEventBus` (`crm:created`, `job:completed`, etc.) -> `AutomationTriggerEvaluator` (`automation-trigger.ts`) -> SQLite `jobs` table (`automation:workflow`) -> `JobScheduler` (`scheduler.ts`) -> `JobWorker` / `executeAutomationWorkflow` (`plugins/automation.ts`) -> SQLite primary database -> `SyncEngine` / `sync_queue` -> MongoDB.
 
@@ -29,6 +31,7 @@ This audit evaluates actual source code files in `apps/desktop` and `apps/api`. 
 ## Path Summaries
 
 ### Path A Summary: Manual Execution Path (Remote-First)
+
 1. User clicks "Run" on sequence card in [`AutomationScreen.tsx`](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/renderer/screens/AutomationScreen.tsx#L219).
 2. React Query hook [`useStartSequence()`](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/renderer/hooks/use-automation.ts#L74) attaches `workspaceId` and calls [`SyncSequenceExecutionRepository.create()`](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/renderer/repositories/sync.ts#L100).
 3. `BaseSyncRepository` maps entity to IPC channel `'sequence:start'` and invokes `window.ipc.invoke()`.
@@ -40,6 +43,7 @@ This audit evaluates actual source code files in `apps/desktop` and `apps/api`. 
 9. API server returns JSON response to SDK -> Desktop Main process receives response -> writes snapshot to local desktop SQLite table `sequence_executions` via `LocalCRMRepository.save()` -> resolves IPC Promise in Renderer UI.
 
 ### Path B Summary: Event Trigger Execution Path (Local-First)
+
 1. Domain event (e.g. `crm:created`, `job:completed`) is published on desktop [`LocalEventBus`](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/main/lib/event-bus.ts).
 2. [`AutomationTriggerEvaluator`](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/main/services/automation-trigger.ts#L96) (subscribed via `start()`) receives event in `onEvent(event)`.
 3. `mapEventToTriggerType(event)` maps event to `AutomationTriggerType` (e.g., `CONTACT_CREATED`).
@@ -54,17 +58,17 @@ This audit evaluates actual source code files in `apps/desktop` and `apps/api`. 
 
 ## Comparative Execution Trace
 
-| Stage | Path A: Manual Execution | Path B: Event Trigger Execution | Architecture Comparison |
-| :--- | :--- | :--- | :--- |
-| **1. Trigger Origin** | Renderer UI button click (`AutomationScreen.tsx`) | Domain event on `LocalEventBus` (`automation-trigger.ts`) | Path A is User UI driven; Path B is EventBus driven. |
-| **2. Transport Protocol** | Electron IPC (`sequence:start`) | In-memory event bus subscription (`LocalEventBus.subscribe`) | Path A uses IPC bridge; Path B uses Node.js event emitter. |
-| **3. Context Resolution** | `useWorkspace` (Renderer) & `WorkspaceManager` (Main) | `WorkspaceRuntime` instance binding (`this.workspaceId`) | Both resolve workspace ID context successfully. |
-| **4. Duplicate Prevention** | Evaluated on API server in `AutomationService` against MongoDB | Evaluated in Main process in `AutomationTriggerEvaluator` against SQLite | Path A checks remote MongoDB; Path B checks local SQLite. |
-| **5. Job Scheduling** | **Bypassed completely**. No job created in SQLite `jobs` table. | **Queued in local SQLite**. `stmtInsertJob.run()` inserts `automation:workflow` job. | **Major Architectural Divergence**: Path A bypasses local scheduler; Path B uses local scheduler. |
-| **6. Execution Authority** | Remote API Server (`apps/api/src/services/automation/automation.service.ts`) | Local Desktop Worker (`executeAutomationWorkflow` in `workers/plugins/automation.ts`) | **Major Ownership Divergence**: Path A execution is owned by API; Path B is owned by Desktop Worker. |
-| **7. Primary Persistence Target** | Central **MongoDB** (`sequence_executions` & `sequence_logs` collections) | Local **SQLite** (`sequence_executions`, `sequence_logs`, and `jobs` tables) | **Major Persistence Divergence**: Path A writes MongoDB first; Path B writes SQLite first. |
-| **8. Secondary Persistence / Sync** | Local **SQLite** written as read-only cache via `LocalCRMRepository.save()` | Remote **MongoDB** updated asynchronously via `sync_queue` / `SyncEngine` | Path A uses synchronous API return caching; Path B uses async queue sync. |
-| **9. Return Path to UI** | Synchronous IPC Promise resolution -> React Query cache invalidation | Asynchronous background update -> Local database query / UI polling | Path A updates UI instantly; Path B updates UI via database observer/polling. |
+| Stage                               | Path A: Manual Execution                                                     | Path B: Event Trigger Execution                                                       | Architecture Comparison                                                                              |
+| :---------------------------------- | :--------------------------------------------------------------------------- | :------------------------------------------------------------------------------------ | :--------------------------------------------------------------------------------------------------- |
+| **1. Trigger Origin**               | Renderer UI button click (`AutomationScreen.tsx`)                            | Domain event on `LocalEventBus` (`automation-trigger.ts`)                             | Path A is User UI driven; Path B is EventBus driven.                                                 |
+| **2. Transport Protocol**           | Electron IPC (`sequence:start`)                                              | In-memory event bus subscription (`LocalEventBus.subscribe`)                          | Path A uses IPC bridge; Path B uses Node.js event emitter.                                           |
+| **3. Context Resolution**           | `useWorkspace` (Renderer) & `WorkspaceManager` (Main)                        | `WorkspaceRuntime` instance binding (`this.workspaceId`)                              | Both resolve workspace ID context successfully.                                                      |
+| **4. Duplicate Prevention**         | Evaluated on API server in `AutomationService` against MongoDB               | Evaluated in Main process in `AutomationTriggerEvaluator` against SQLite              | Path A checks remote MongoDB; Path B checks local SQLite.                                            |
+| **5. Job Scheduling**               | **Bypassed completely**. No job created in SQLite `jobs` table.              | **Queued in local SQLite**. `stmtInsertJob.run()` inserts `automation:workflow` job.  | **Major Architectural Divergence**: Path A bypasses local scheduler; Path B uses local scheduler.    |
+| **6. Execution Authority**          | Remote API Server (`apps/api/src/services/automation/automation.service.ts`) | Local Desktop Worker (`executeAutomationWorkflow` in `workers/plugins/automation.ts`) | **Major Ownership Divergence**: Path A execution is owned by API; Path B is owned by Desktop Worker. |
+| **7. Primary Persistence Target**   | Central **MongoDB** (`sequence_executions` & `sequence_logs` collections)    | Local **SQLite** (`sequence_executions`, `sequence_logs`, and `jobs` tables)          | **Major Persistence Divergence**: Path A writes MongoDB first; Path B writes SQLite first.           |
+| **8. Secondary Persistence / Sync** | Local **SQLite** written as read-only cache via `LocalCRMRepository.save()`  | Remote **MongoDB** updated asynchronously via `sync_queue` / `SyncEngine`             | Path A uses synchronous API return caching; Path B uses async queue sync.                            |
+| **9. Return Path to UI**            | Synchronous IPC Promise resolution -> React Query cache invalidation         | Asynchronous background update -> Local database query / UI polling                   | Path A updates UI instantly; Path B updates UI via database observer/polling.                        |
 
 ---
 

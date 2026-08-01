@@ -22,7 +22,7 @@ export class ToolExecutor {
         error: {
           code: 'UNAVAILABLE',
           message: `Tool "${toolName}" not found in registry.`,
-          isRetryable: false,
+          isRetryable: false
         },
         metadata: {
           startedAt: new Date().toISOString(),
@@ -32,8 +32,8 @@ export class ToolExecutor {
           workspaceId: context.workspaceId,
           traceId: context.traceId,
           cached: false,
-          retryCount: 0,
-        },
+          retryCount: 0
+        }
       };
     }
 
@@ -45,7 +45,7 @@ export class ToolExecutor {
         error: {
           code: 'WORKER_ERROR',
           message: err.message || 'Tool execution uncaught error',
-          isRetryable: true,
+          isRetryable: true
         },
         metadata: {
           startedAt: new Date().toISOString(),
@@ -55,8 +55,8 @@ export class ToolExecutor {
           workspaceId: context.workspaceId,
           traceId: context.traceId,
           cached: false,
-          retryCount: 0,
-        },
+          retryCount: 0
+        }
       };
     }
   }

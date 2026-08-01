@@ -21,7 +21,7 @@ import { Button } from './button';
 
 const inviteSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
-  role: z.nativeEnum(WorkspaceRole),
+  role: z.nativeEnum(WorkspaceRole)
 });
 type InviteFormValues = z.infer<typeof inviteSchema>;
 
@@ -41,10 +41,10 @@ export function InviteMemberDialog({ open, onOpenChange, workspaceId }: InviteMe
     register,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting }
   } = useForm<InviteFormValues>({
     resolver: zodResolver(inviteSchema),
-    defaultValues: { role: WorkspaceRole.MEMBER },
+    defaultValues: { role: WorkspaceRole.MEMBER }
   });
 
   const onSubmit = async (values: InviteFormValues) => {
@@ -77,9 +77,7 @@ export function InviteMemberDialog({ open, onOpenChange, workspaceId }: InviteMe
               {...register('email')}
               className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-ring"
             />
-            {errors.email && (
-              <p className="text-[10px] text-danger-text">{errors.email.message}</p>
-            )}
+            {errors.email && <p className="text-[10px] text-danger-text">{errors.email.message}</p>}
           </div>
 
           <div className="space-y-1.5">
@@ -99,19 +97,10 @@ export function InviteMemberDialog({ open, onOpenChange, workspaceId }: InviteMe
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={isSubmitting}
-            >
+            <Button type="submit" size="sm" disabled={isSubmitting}>
               {isSubmitting ? 'Sending invite...' : 'Send invitation'}
             </Button>
           </DialogFooter>
@@ -160,7 +149,8 @@ export function LeaveWorkspaceDialog({
         <DialogHeader>
           <DialogTitle>Leave Workspace</DialogTitle>
           <DialogDescription>
-            You will lose access to all campaigns, templates, and data within <strong className="text-foreground">{workspaceName}</strong>.
+            You will lose access to all campaigns, templates, and data within{' '}
+            <strong className="text-foreground">{workspaceName}</strong>.
           </DialogDescription>
         </DialogHeader>
 
@@ -178,12 +168,7 @@ export function LeaveWorkspaceDialog({
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button
@@ -242,7 +227,9 @@ export function TransferOwnershipDialog({
         <DialogHeader>
           <DialogTitle>Transfer Ownership</DialogTitle>
           <DialogDescription>
-            You are transferring the ownership of this workspace to <strong className="text-foreground">{newOwnerName}</strong>. You will be demoted to Administrator.
+            You are transferring the ownership of this workspace to{' '}
+            <strong className="text-foreground">{newOwnerName}</strong>. You will be demoted to
+            Administrator.
           </DialogDescription>
         </DialogHeader>
 
@@ -260,12 +247,7 @@ export function TransferOwnershipDialog({
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button

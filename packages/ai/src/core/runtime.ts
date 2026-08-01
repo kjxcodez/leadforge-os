@@ -36,7 +36,7 @@ export class AIRuntime {
           model: options?.model || 'cached',
           latencyMs: Date.now() - startTime,
           promptIdentifier: prompt.id,
-          cacheHit: true,
+          cacheHit: true
         };
       } catch (err: any) {
         // Fall through on cache validation failure
@@ -78,7 +78,7 @@ export class AIRuntime {
         model: modelName,
         latencyMs: Date.now() - startTime,
         promptIdentifier: prompt.id,
-        cacheHit: false,
+        cacheHit: false
       };
     } catch (err: any) {
       // Graceful fallback to mock output on error (Phase 11)
@@ -92,7 +92,7 @@ export class AIRuntime {
           model: 'fallback-rules',
           latencyMs: Date.now() - startTime,
           promptIdentifier: prompt.id,
-          error: err.message,
+          error: err.message
         };
       } catch (validationErr: any) {
         return {
@@ -102,7 +102,7 @@ export class AIRuntime {
           model: modelName,
           latencyMs: Date.now() - startTime,
           promptIdentifier: prompt.id,
-          error: `Execution failed: ${err.message}. Validation failed: ${validationErr.message}`,
+          error: `Execution failed: ${err.message}. Validation failed: ${validationErr.message}`
         };
       }
     }
@@ -116,11 +116,15 @@ export class AIRuntime {
       return `Hi there, reaching out to see if you have technical needs at ${input.companyName}.`;
     }
     if (promptId === 'ai_insights') {
-      const techText = input.techStack && input.techStack.length > 0 ? input.techStack[0] : 'modern systems';
-      const issueText = input.technicalIssues && input.technicalIssues.length > 0 ? input.technicalIssues[0] : 'inefficient digital pipelines';
+      const techText =
+        input.techStack && input.techStack.length > 0 ? input.techStack[0] : 'modern systems';
+      const issueText =
+        input.technicalIssues && input.technicalIssues.length > 0
+          ? input.technicalIssues[0]
+          : 'inefficient digital pipelines';
       return JSON.stringify({
         openingLine: `Saw that you guys are building out your digital infrastructure using ${techText} at ${input.companyName}—really impressive work.`,
-        painPoint: `Potential friction in customer acquisition cycles and technical scale constraints related to ${issueText}.`,
+        painPoint: `Potential friction in customer acquisition cycles and technical scale constraints related to ${issueText}.`
       });
     }
     if (promptId === 'research_summary') {

@@ -32,7 +32,9 @@ apps/desktop/
 To comply with Electron security guidelines, the Renderer process has no direct access to Node.js APIs (such as `fs`, `child_process`, or raw SQLite packages). It communicates exclusively through the preload script context bridge.
 
 ### Bridge API
+
 The preload script exposes the `window.ipc` interface containing standard methods:
+
 - `window.ipc.invoke(channel, payload)`: Sends a request to the Main process and returns a Promise.
 - `window.ipc.on(channel, callback)`: Listens for events sent from the Main process.
 - `window.ipc.removeAllListeners(channel)`: Cleans up listeners when components unmount.
@@ -46,6 +48,7 @@ All channel strings are validated against a whitelist in `preload/index.ts` to p
 The desktop application manages local CRM records using SQLite through the `better-sqlite3` driver.
 
 ###WAL Mode & Connection Pools
+
 - Database connections are initialized in WAL (Write-Ahead Logging) mode using `connection.ts` to support high-concurrency writes during crawler runs.
 - `PRAGMA synchronous = NORMAL` is enabled to improve write performance while preserving database durability.
 - Workspaces are physically isolated. Each workspace has its own database file named `leadforge_${workspaceId}.db` located in the OS appData directory.

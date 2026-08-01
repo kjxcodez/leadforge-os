@@ -39,10 +39,7 @@ export function LoginScreen() {
 
       <p className="text-center text-xs text-muted-foreground">
         Don&apos;t have an account?{' '}
-        <Link
-          to="/auth/register"
-          className="text-accent hover:underline font-medium"
-        >
+        <Link to="/auth/register" className="text-accent hover:underline font-medium">
           Request access
         </Link>
       </p>

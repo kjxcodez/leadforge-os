@@ -13,6 +13,6 @@ export const opportunitySchema = z.object({
   stage: opportunityStageSchema,
   expectedCloseDate: z.date().nullable(),
   createdAt: z.date(),
-  updatedAt: z.date(),
+  updatedAt: z.date()
 });
 export type Opportunity = z.infer<typeof opportunitySchema>;

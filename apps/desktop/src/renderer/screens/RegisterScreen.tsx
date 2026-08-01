@@ -12,7 +12,7 @@ import { z } from 'zod';
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters')
 });
 
 type RegisterForm = z.infer<typeof registerSchema>;
@@ -33,7 +33,7 @@ export function RegisterScreen() {
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting }
   } = useForm<RegisterForm>({ resolver: zodResolver(registerSchema) });
 
   const onSubmit = async (data: RegisterForm) => {
@@ -72,9 +72,7 @@ export function RegisterScreen() {
             {...register('name')}
             className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
-          {errors.name && (
-            <p className="text-[10px] text-danger-text">{errors.name.message}</p>
-          )}
+          {errors.name && <p className="text-[10px] text-danger-text">{errors.name.message}</p>}
         </div>
 
         <div className="space-y-1.5">
@@ -89,9 +87,7 @@ export function RegisterScreen() {
             {...register('email')}
             className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
-          {errors.email && (
-            <p className="text-[10px] text-danger-text">{errors.email.message}</p>
-          )}
+          {errors.email && <p className="text-[10px] text-danger-text">{errors.email.message}</p>}
         </div>
 
         <div className="space-y-1.5">

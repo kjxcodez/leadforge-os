@@ -22,10 +22,14 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
   ): Promise<string> {
     const jobId = context.jobId || randomUUID();
 
-    this.db.prepare(`
+    this.db
+      .prepare(
+        `
       INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
       VALUES (?, ?, ?, 'queued', 5, ?, 0, 0, 3, datetime('now'), datetime('now'))
-    `).run(jobId, context.workspaceId, jobType, JSON.stringify(payload || {}));
+    `
+      )
+      .run(jobId, context.workspaceId, jobType, JSON.stringify(payload || {}));
 
     return jobId;
   }
@@ -50,7 +54,7 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
         error: {
           code: 'SCHEDULER_ERROR',
           message: `Database submission failed: ${dbErr.message}`,
-          isRetryable: true,
+          isRetryable: true
         },
         metadata: {
           startedAt,
@@ -61,8 +65,8 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
           traceId: context.traceId,
           jobId,
           cached: false,
-          retryCount: 0,
-        },
+          retryCount: 0
+        }
       };
     }
 
@@ -85,7 +89,7 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
           error: {
             code: 'TIMEOUT',
             message: `Tool execution timed out after ${timeoutMs}ms`,
-            isRetryable: false,
+            isRetryable: false
           },
           metadata: {
             startedAt,
@@ -96,8 +100,8 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
             traceId: context.traceId,
             jobId,
             cached: false,
-            retryCount: 0,
-          },
+            retryCount: 0
+          }
         });
       }, timeoutMs);
 
@@ -110,7 +114,7 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
             error: {
               code: 'CANCELLED_BY_USER',
               message: 'Tool execution was aborted.',
-              isRetryable: false,
+              isRetryable: false
             },
             metadata: {
               startedAt,
@@ -121,8 +125,8 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
               traceId: context.traceId,
               jobId,
               cached: false,
-              retryCount: 0,
-            },
+              retryCount: 0
+            }
           });
           return;
         }
@@ -135,7 +139,7 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
             error: {
               code: 'CANCELLED_BY_USER',
               message: 'Tool execution was aborted.',
-              isRetryable: false,
+              isRetryable: false
             },
             metadata: {
               startedAt,
@@ -146,8 +150,8 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
               traceId: context.traceId,
               jobId,
               cached: false,
-              retryCount: 0,
-            },
+              retryCount: 0
+            }
           });
         });
       }
@@ -168,8 +172,8 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
               traceId: context.traceId,
               jobId,
               cached: false,
-              retryCount: 0,
-            },
+              retryCount: 0
+            }
           });
         }
       });
@@ -183,7 +187,7 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
             error: {
               code: 'WORKER_ERROR',
               message: event.payload.error || 'Worker execution failed',
-              isRetryable: true,
+              isRetryable: true
             },
             metadata: {
               startedAt,
@@ -194,8 +198,8 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
               traceId: context.traceId,
               jobId,
               cached: false,
-              retryCount: 0,
-            },
+              retryCount: 0
+            }
           });
         }
       });
@@ -209,7 +213,7 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
             error: {
               code: 'CANCELLED_BY_USER',
               message: 'Job was cancelled.',
-              isRetryable: false,
+              isRetryable: false
             },
             metadata: {
               startedAt,
@@ -220,8 +224,8 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
               traceId: context.traceId,
               jobId,
               cached: false,
-              retryCount: 0,
-            },
+              retryCount: 0
+            }
           });
         }
       });
@@ -243,11 +247,15 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
       // workspace manager not initialized or other shell error
     }
 
-    this.db.prepare(`
+    this.db
+      .prepare(
+        `
       UPDATE jobs
       SET status = 'cancelled', finishedAt = datetime('now'), updatedAt = datetime('now')
       WHERE id = ?
-    `).run(jobId);
+    `
+      )
+      .run(jobId);
   }
 
   /**
@@ -256,8 +264,21 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
   public async status(
     jobId: string,
     workspaceId: string
-  ): Promise<'queued' | 'running' | 'waiting' | 'retrying' | 'paused' | 'cancelled' | 'completed' | 'failed' | 'interrupted' | 'unknown'> {
-    const row = this.db.prepare('SELECT status FROM jobs WHERE id = ? AND workspaceId = ?').get(jobId, workspaceId) as { status: string } | undefined;
+  ): Promise<
+    | 'queued'
+    | 'running'
+    | 'waiting'
+    | 'retrying'
+    | 'paused'
+    | 'cancelled'
+    | 'completed'
+    | 'failed'
+    | 'interrupted'
+    | 'unknown'
+  > {
+    const row = this.db
+      .prepare('SELECT status FROM jobs WHERE id = ? AND workspaceId = ?')
+      .get(jobId, workspaceId) as { status: string } | undefined;
     return (row?.status as any) || 'unknown';
   }
 }

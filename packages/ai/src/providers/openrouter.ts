@@ -8,15 +8,15 @@ export async function callOpenRouter(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`
     },
     signal: options?.signal || null,
     body: JSON.stringify({
       model,
       messages: [{ role: 'user', content: prompt }],
       temperature: options?.temperature ?? 0.7,
-      max_tokens: options?.maxTokens,
-    }),
+      max_tokens: options?.maxTokens
+    })
   });
 
   if (!response.ok) {
@@ -24,7 +24,7 @@ export async function callOpenRouter(
     throw new Error(`OpenRouter Error (${response.status}): ${errorText}`);
   }
 
-  const json = await response.json() as any;
+  const json = (await response.json()) as any;
   const content = json.choices?.[0]?.message?.content;
   if (!content) {
     throw new Error('OpenRouter response did not contain message content.');

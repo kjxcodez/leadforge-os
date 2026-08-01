@@ -22,7 +22,7 @@ export function WorkspaceSwitcher() {
   const { activeWorkspace, workspaces, setActive } = useWorkspace();
   const invitesQuery = useWorkspaceInvites();
   const navigate = useNavigate();
-  
+
   const [createOpen, setCreateOpen] = useState(false);
 
   const pendingInvitesCount = invitesQuery.data?.length || 0;
@@ -34,7 +34,9 @@ export function WorkspaceSwitcher() {
           className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors mt-0.5 max-w-[140px] text-left outline-none cursor-default"
           aria-label="Switch workspace"
         >
-          <span className="truncate font-medium">{activeWorkspace?.name ?? 'Select workspace'}</span>
+          <span className="truncate font-medium">
+            {activeWorkspace?.name ?? 'Select workspace'}
+          </span>
           <ChevronsUpDown className="w-2.5 h-2.5 shrink-0 opacity-60" />
         </DropdownMenuTrigger>
 
@@ -43,7 +45,7 @@ export function WorkspaceSwitcher() {
           <DropdownMenuGroup>
             {workspaces.map((ws) => {
               const isActive = ws.id === activeWorkspace?.id;
-              
+
               return (
                 <DropdownMenuItem
                   key={ws.id}
@@ -51,7 +53,11 @@ export function WorkspaceSwitcher() {
                   className={`flex items-center justify-between text-xs py-1.5 ${isActive ? 'bg-accent/10 text-accent font-medium' : 'text-foreground'}`}
                 >
                   <span className="truncate">{ws.name}</span>
-                  {isActive && <span className="text-[10px] bg-accent/25 px-1 rounded text-accent font-bold">Active</span>}
+                  {isActive && (
+                    <span className="text-[10px] bg-accent/25 px-1 rounded text-accent font-bold">
+                      Active
+                    </span>
+                  )}
                 </DropdownMenuItem>
               );
             })}
@@ -92,10 +98,7 @@ export function WorkspaceSwitcher() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <CreateWorkspaceDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-      />
+      <CreateWorkspaceDialog open={createOpen} onOpenChange={setCreateOpen} />
     </>
   );
 }

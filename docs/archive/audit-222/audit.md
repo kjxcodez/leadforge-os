@@ -5,6 +5,7 @@
 A complete forensic audit of the LeadForge OS automation runtime has been conducted strictly using source code evidence.
 
 ### Document Saved
+
 - Repository Documentation: [forensic-audit-v2.md](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/docs/forensic-audit-v2.md)
 
 ---
@@ -12,6 +13,7 @@ A complete forensic audit of the LeadForge OS automation runtime has been conduc
 ## Key Audit Findings
 
 ### 1. Engine Core & Reliable Runtime (STAB-013A to STAB-013E)
+
 - **Sequential Execution Loop**: Workers execute consecutive synchronous steps in a single execution loop inside `executeAutomationWorkflow()` ([automation.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/main/workers/plugins/automation.ts#L1194)).
 - **Safety Guards**: Loop iteration limit (100 per run), total execution timeout (300s), step execution timeout (60s via `Promise.race`), and jump count limit (100 jumps).
 - **Concurrency & Locking**: Execution locks stored in `automation_locks` SQLite table per `(sequenceId, entityId)`.
@@ -27,7 +29,7 @@ A complete forensic audit of the LeadForge OS automation runtime has been conduc
 > The `sequence:start` IPC channel ([ipc/automation.ts:66](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/apps/desktop/src/main/ipc/automation.ts#L66)) invokes `sdk.executions.start()`, creating a record in **MongoDB** via the remote API. It **does not queue a job in the local SQLite `jobs` table**.
 > Because `JobScheduler` only polls local SQLite, **manually triggered sequences from the UI are never executed by the desktop worker.**
 >
-> *Only event-driven sequences (evaluated via `AutomationTriggerEvaluator`) are currently executed locally.*
+> _Only event-driven sequences (evaluated via `AutomationTriggerEvaluator`) are currently executed locally._
 
 > [!WARNING]
 > **DEFECT-002: UI Cancellation (`sequence:stop`) Does Not Stop Desktop Worker**

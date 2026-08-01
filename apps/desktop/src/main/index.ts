@@ -13,6 +13,7 @@ import { createSplashWindow } from './lib/splash-window';
 import { telemetry } from './lib/telemetry';
 import { UpdateManager } from './services/updater';
 import { LocalCrashReporter } from './lib/crash-reporter';
+import { loadConfig } from './lib/config';
 
 // Track and write process crashes locally
 LocalCrashReporter.initialize();
@@ -41,9 +42,7 @@ function getPersistedActiveWorkspace(): string | null {
 function persistActiveWorkspace(workspaceId: string | null) {
   try {
     const configPath = getLocalConfigPath();
-    const config = fs.existsSync(configPath)
-      ? JSON.parse(fs.readFileSync(configPath, 'utf8'))
-      : {};
+    const config = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 'utf8')) : {};
     config.activeWorkspaceId = workspaceId;
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
   } catch (err) {
@@ -54,25 +53,13 @@ function persistActiveWorkspace(workspaceId: string | null) {
 // SDK client initialization
 const customHeaders: Record<string, string> = {};
 let activeToken: string | null = null;
-
-const sdk = new SdkClient({
-  baseUrl: process.env.API_URL || 'http://localhost:3000/api/v1',
-  headers: customHeaders,
-  tokenResolver: () => activeToken,
-  onUnauthorized: () => {
-    AppLogger.warn('auth', 'Session expired');
-    clearSession();
-    activeToken = null;
-    delete customHeaders['x-workspace-id'];
-    persistActiveWorkspace(null);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('auth:unauthorized');
-    }
-  }
-});
+let sdk: SdkClient;
 
 // IPC handlers registry
-export const ipcHandlers = new Map<string, (event: Electron.IpcMainEvent, ...args: unknown[]) => void>();
+export const ipcHandlers = new Map<
+  string,
+  (event: Electron.IpcMainEvent, ...args: unknown[]) => void
+>();
 
 function createWindow() {
   const windowState = loadWindowState();
@@ -90,12 +77,12 @@ function createWindow() {
       sandbox: true,
       nodeIntegration: false,
       webSecurity: true,
-      disableBlinkFeatures: 'Auxclick',
+      disableBlinkFeatures: 'Auxclick'
     },
     titleBarStyle: 'default',
     frame: true,
     trafficLightPosition: { x: 10, y: 10 },
-    icon: join(__dirname, '../../resources/icon.png'),
+    icon: join(__dirname, '../../resources/icon.png')
   };
 
   if (windowState.x !== undefined && windowState.y !== undefined) {
@@ -133,11 +120,10 @@ function createWindow() {
   mainWindow.on('ready-to-show', () => {
     if (is.dev) {
       mainWindow?.webContents.openDevTools({
-        mode: "detach"
+        mode: 'detach'
       });
     }
   });
-
 
   // Handle window closed
   mainWindow.on('closed', () => {
@@ -154,8 +140,7 @@ function createWindow() {
   });
 }
 
-export function registerIpcHandler() { }
-
+export function registerIpcHandler() {}
 
 // App lifecycle
 app.whenReady().then(() => {
@@ -192,11 +177,32 @@ app.whenReady().then(() => {
     console.error('Failed to run local SQLite migrations:', err);
   }
 
+  // Load dynamic configuration
+  const config = loadConfig();
+
+  sdk = new SdkClient({
+    baseUrl: config.apiUrl,
+    headers: customHeaders,
+    tokenResolver: () => activeToken,
+    onUnauthorized: () => {
+      AppLogger.warn('auth', 'Session expired');
+      clearSession();
+      activeToken = null;
+      delete customHeaders['x-workspace-id'];
+      persistActiveWorkspace(null);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('auth:unauthorized');
+      }
+    }
+  });
+
   // 2. Register all IPC handlers exactly once using the coordinator
   registerAllIpc(
     sdk,
     customHeaders,
-    (token) => { activeToken = token; },
+    (token) => {
+      activeToken = token;
+    },
     persistActiveWorkspace,
     getPersistedActiveWorkspace
   );

@@ -15,19 +15,25 @@ export function VerifyEmailScreen() {
       <div className="space-y-2">
         <h2 className="text-lg font-semibold text-foreground">Check your inbox</h2>
         <p className="text-xs text-muted-foreground max-w-[260px] mx-auto">
-          We&apos;ve sent a verification link to your email address. Click the link to activate your account.
+          We&apos;ve sent a verification link to your email address. Click the link to activate your
+          account.
         </p>
       </div>
 
       <div className="space-y-3 pt-2">
-        <p className="text-[10px] text-muted-foreground">Didn&apos;t receive an email? Check spam or</p>
+        <p className="text-[10px] text-muted-foreground">
+          Didn&apos;t receive an email? Check spam or
+        </p>
         <button className="text-xs text-accent hover:underline font-medium">
           Resend verification email
         </button>
       </div>
 
       <div className="pt-4 border-t border-border-subtle">
-        <Link to="/auth/login" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+        <Link
+          to="/auth/login"
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
           Back to sign in
         </Link>
       </div>

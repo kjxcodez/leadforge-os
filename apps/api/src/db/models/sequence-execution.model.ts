@@ -1,5 +1,5 @@
-import mongoose, { Schema } from "mongoose";
-import { workspacePlugin, type WorkspaceScopedDocument } from "../plugins/index.js";
+import mongoose, { Schema } from 'mongoose';
+import { workspacePlugin, type WorkspaceScopedDocument } from '../plugins/index.js';
 
 export interface SequenceExecutionDocument extends mongoose.Document, WorkspaceScopedDocument {
   _id: any;
@@ -20,57 +20,57 @@ const sequenceExecutionSchema = new Schema<SequenceExecutionDocument>(
   {
     _id: {
       type: String,
-      default: () => new mongoose.Types.ObjectId().toString(),
+      default: () => new mongoose.Types.ObjectId().toString()
     },
     sequenceId: {
       type: String,
       required: true,
-      index: true,
+      index: true
     },
     companyId: {
       type: String,
       index: true,
-      default: null,
+      default: null
     },
     contactId: {
       type: String,
       index: true,
-      default: null,
+      default: null
     },
     currentStep: {
       type: Number,
       required: true,
-      default: 0,
+      default: 0
     },
     status: {
       type: String,
       required: true,
-      enum: ["PENDING", "RUNNING", "WAITING", "COMPLETED", "FAILED", "CANCELLED"],
-      default: "PENDING",
-      index: true,
+      enum: ['PENDING', 'RUNNING', 'WAITING', 'COMPLETED', 'FAILED', 'CANCELLED'],
+      default: 'PENDING',
+      index: true
     },
     startedAt: {
       type: Date,
       required: true,
-      default: Date.now,
+      default: Date.now
     },
     completedAt: {
       type: Date,
-      default: null,
+      default: null
     },
     nextExecutionAt: {
       type: Date,
       index: true,
-      default: null,
+      default: null
     },
     logs: {
       type: [Schema.Types.Mixed],
-      default: [],
-    } as any,
+      default: []
+    } as any
   },
   {
     strict: true,
-    timestamps: true,
+    timestamps: true
   }
 );
 
@@ -79,5 +79,5 @@ sequenceExecutionSchema.plugin(workspacePlugin);
 
 export const SequenceExecutionModel = mongoose.models.SequenceExecution
   ? (mongoose.models.SequenceExecution as mongoose.Model<SequenceExecutionDocument>)
-  : mongoose.model<SequenceExecutionDocument>("SequenceExecution", sequenceExecutionSchema);
+  : mongoose.model<SequenceExecutionDocument>('SequenceExecution', sequenceExecutionSchema);
 export { sequenceExecutionSchema };

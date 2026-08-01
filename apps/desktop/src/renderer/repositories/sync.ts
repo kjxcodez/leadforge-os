@@ -6,50 +6,52 @@ import {
   RemoteActivityRepository,
   RemoteSequenceRepository,
   RemoteSequenceExecutionRepository,
-  RemoteSequenceLogRepository,
+  RemoteSequenceLogRepository
 } from './remote';
-
 
 // ---------------------------------------------------------------------------
 // Base SyncRepository Class
 // ---------------------------------------------------------------------------
 
-const DOMAIN_CHANNELS: Record<string, { list: string; get: string; create: string; update: string; delete: string }> = {
+const DOMAIN_CHANNELS: Record<
+  string,
+  { list: string; get: string; create: string; update: string; delete: string }
+> = {
   companies: {
     list: 'companies:list',
     get: 'companies:get',
     create: 'companies:create',
     update: 'companies:update',
-    delete: 'companies:delete',
+    delete: 'companies:delete'
   },
   contacts: {
     list: 'contacts:list',
     get: 'contacts:get',
     create: 'contacts:create',
     update: 'contacts:update',
-    delete: 'contacts:delete',
+    delete: 'contacts:delete'
   },
   campaigns: {
     list: 'campaigns:list',
     get: 'campaigns:get',
     create: 'campaigns:create',
     update: 'campaigns:update',
-    delete: 'campaigns:delete',
+    delete: 'campaigns:delete'
   },
   sequences: {
     list: 'sequence:list',
     get: 'sequence:get',
     create: 'sequence:create',
     update: 'sequence:update',
-    delete: 'sequence:delete',
+    delete: 'sequence:delete'
   },
   sequence_executions: {
     list: 'execution:list',
     get: 'execution:get',
     create: 'sequence:start',
     update: 'sequence:stop',
-    delete: 'sequence:delete', // placeholder
-  },
+    delete: 'sequence:delete' // placeholder
+  }
 };
 
 class BaseSyncRepository<T> implements ISyncRepository<T> {
@@ -68,7 +70,11 @@ class BaseSyncRepository<T> implements ISyncRepository<T> {
     }
 
     // Fallback legacy path
-    const cached = await window.ipc.invoke('db:findById', { tableName: this.tableName, workspaceId, id });
+    const cached = await window.ipc.invoke('db:findById', {
+      tableName: this.tableName,
+      workspaceId,
+      id
+    });
     return cached as T | null;
   }
 
@@ -86,7 +92,7 @@ class BaseSyncRepository<T> implements ISyncRepository<T> {
     const cached = await window.ipc.invoke('db:find', {
       tableName: this.tableName,
       workspaceId: filter.workspaceId,
-      filter,
+      filter
     });
     return cached as T[];
   }
@@ -115,7 +121,7 @@ class BaseSyncRepository<T> implements ISyncRepository<T> {
       id,
       syncStatus: 'pending',
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     await window.ipc.invoke('db:save', { tableName: this.tableName, record });
     await window.ipc.invoke('db:queue:push', {
@@ -124,7 +130,7 @@ class BaseSyncRepository<T> implements ISyncRepository<T> {
       entityType: this.tableName,
       entityId: id,
       operation: 'CREATE',
-      payload: JSON.stringify(record),
+      payload: JSON.stringify(record)
     });
     return record;
   }
@@ -141,7 +147,7 @@ class BaseSyncRepository<T> implements ISyncRepository<T> {
       ...current,
       ...data,
       syncStatus: 'pending',
-      updatedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     await window.ipc.invoke('db:save', { tableName: this.tableName, record: updatedRecord });
     await window.ipc.invoke('db:queue:push', {
@@ -150,7 +156,7 @@ class BaseSyncRepository<T> implements ISyncRepository<T> {
       entityType: this.tableName,
       entityId: id,
       operation: 'UPDATE',
-      payload: JSON.stringify(data),
+      payload: JSON.stringify(data)
     });
     return updatedRecord as T;
   }
@@ -172,7 +178,7 @@ class BaseSyncRepository<T> implements ISyncRepository<T> {
       entityType: this.tableName,
       entityId: id,
       operation: 'DELETE',
-      payload: null,
+      payload: null
     });
   }
 
@@ -185,11 +191,31 @@ class BaseSyncRepository<T> implements ISyncRepository<T> {
 // Concrete Sync Repositories exports
 // ---------------------------------------------------------------------------
 
-export const SyncCompanyRepository = new BaseSyncRepository<any>('companies', RemoteCompanyRepository);
-export const SyncContactRepository = new BaseSyncRepository<any>('contacts', RemoteContactRepository);
-export const SyncCampaignRepository = new BaseSyncRepository<any>('campaigns', RemoteCampaignRepository);
-export const SyncActivityRepository = new BaseSyncRepository<any>('activities', RemoteActivityRepository);
-export const SyncSequenceRepository = new BaseSyncRepository<any>('sequences', RemoteSequenceRepository);
-export const SyncSequenceExecutionRepository = new BaseSyncRepository<any>('sequence_executions', RemoteSequenceExecutionRepository);
-export const SyncSequenceLogRepository = new BaseSyncRepository<any>('sequence_logs', RemoteSequenceLogRepository);
-
+export const SyncCompanyRepository = new BaseSyncRepository<any>(
+  'companies',
+  RemoteCompanyRepository
+);
+export const SyncContactRepository = new BaseSyncRepository<any>(
+  'contacts',
+  RemoteContactRepository
+);
+export const SyncCampaignRepository = new BaseSyncRepository<any>(
+  'campaigns',
+  RemoteCampaignRepository
+);
+export const SyncActivityRepository = new BaseSyncRepository<any>(
+  'activities',
+  RemoteActivityRepository
+);
+export const SyncSequenceRepository = new BaseSyncRepository<any>(
+  'sequences',
+  RemoteSequenceRepository
+);
+export const SyncSequenceExecutionRepository = new BaseSyncRepository<any>(
+  'sequence_executions',
+  RemoteSequenceExecutionRepository
+);
+export const SyncSequenceLogRepository = new BaseSyncRepository<any>(
+  'sequence_logs',
+  RemoteSequenceLogRepository
+);

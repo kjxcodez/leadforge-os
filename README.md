@@ -1,18 +1,18 @@
 <div align="center">
   <img src="docs/assets/logo.png" alt="LeadForge OS Logo" width="250" />
-  
-  # LeadForge OS
-  
-  ### *Local-First, Privacy-Focused Outbound Workspace & AI Lead Qualification Engine*
-  
-  [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](#)
-  [![Electron](https://img.shields.io/badge/Electron-33.0-blue?logo=electron&logoColor=white)](#)
-  [![React](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=white)](#)
-  [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](#)
-  [![pnpm](https://img.shields.io/badge/pnpm-Workspaces-F69220?logo=pnpm&logoColor=white)](#)
-  [![Turborepo](https://img.shields.io/badge/Turborepo-Caching-FF0080?logo=turborepo&logoColor=white)](#)
-  [![SQLite](https://img.shields.io/badge/SQLite-WAL_Mode-003B57?logo=sqlite&logoColor=white)](#)
-  [![MongoDB](https://img.shields.io/badge/MongoDB-Hono_API-47A248?logo=mongodb&logoColor=white)](#)
+
+# LeadForge OS
+
+### _Local-First, Privacy-Focused Outbound Workspace & AI Lead Qualification Engine_
+
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](#)
+[![Electron](https://img.shields.io/badge/Electron-33.0-blue?logo=electron&logoColor=white)](#)
+[![React](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=white)](#)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](#)
+[![pnpm](https://img.shields.io/badge/pnpm-Workspaces-F69220?logo=pnpm&logoColor=white)](#)
+[![Turborepo](https://img.shields.io/badge/Turborepo-Caching-FF0080?logo=turborepo&logoColor=white)](#)
+[![SQLite](https://img.shields.io/badge/SQLite-WAL_Mode-003B57?logo=sqlite&logoColor=white)](#)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Hono_API-47A248?logo=mongodb&logoColor=white)](#)
 </div>
 
 ---
@@ -30,6 +30,7 @@ LeadForge OS is a desktop application designed for B2B lead generation, website 
 ## 🎯 Why LeadForge OS Exists
 
 Commercial outbound platforms (e.g. Apollo, Lemlist, Instantly) operate on centralized cloud environments. This model introduces three major drawbacks:
+
 1. **High Infrastructure markups**: Web crawling and scraping Google Maps at scale consumes heavy proxy and bandwidth resources, leading to expensive subscription tiers.
 2. **Data Privacy Risks**: Uploading customer lists, prospect profiles, and private SMTP/IMAP credentials to third-party databases exposes your sales pipeline to security leaks.
 3. **Crawl & Send Throttling**: Centralized platforms limit crawling rates and email check frequencies to manage their own cloud costs.
@@ -108,6 +109,7 @@ For a detailed breakdown of process lifecycles, data flows, and schemas, view th
 ## ⚙️ Workspace Setup & Installation
 
 ### Prerequisites
+
 - **Node.js**: `v18.0.0` or higher
 - **pnpm**: `v8.0.0` or higher
 - **Git**: Installed and configured
@@ -116,12 +118,14 @@ For a detailed breakdown of process lifecycles, data flows, and schemas, view th
 ### Installation
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/kjxcodez/leadforge-os.git
    cd leadforge-os
    ```
 
 2. Install dependencies:
+
    ```bash
    pnpm install
    ```

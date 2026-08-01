@@ -10,9 +10,12 @@ export function useTheme() {
 
   useEffect(() => {
     const root = document.documentElement;
-    const resolved = state.theme === 'system'
-      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-      : state.theme;
+    const resolved =
+      state.theme === 'system'
+        ? window.matchMedia('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light'
+        : state.theme;
 
     root.classList.remove('dark', 'light');
     root.classList.add(resolved);
@@ -21,6 +24,8 @@ export function useTheme() {
   return {
     theme: state.theme,
     setTheme: (t: Theme) => setTheme(t),
-    isDark: state.theme === 'dark' || (state.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches),
+    isDark:
+      state.theme === 'dark' ||
+      (state.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
   };
 }

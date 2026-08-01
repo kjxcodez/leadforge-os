@@ -1,17 +1,5 @@
-import {
-  ChevronsUpDownIcon,
-  Sparkles,
-  BadgeCheck,
-  CreditCard,
-  Bell,
-  LogOut,
-} from "lucide-react";
-import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar,
-} from "../ui/sidebar";
+import { ChevronsUpDownIcon, Sparkles, BadgeCheck, CreditCard, Bell, LogOut } from 'lucide-react';
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '../ui/sidebar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,14 +7,14 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "../ui/avatar";
+  DropdownMenuTrigger
+} from '../ui/dropdown-menu';
+import { Avatar, AvatarFallback } from '../ui/avatar';
 
 const SidebarBottomNav = ({
   user,
   activeWorkspace,
-  handleLogout,
+  handleLogout
 }: {
   user: any;
   activeWorkspace: any;
@@ -45,26 +33,24 @@ const SidebarBottomNav = ({
               />
             }
           >
-            <Avatar className={` ${open ? "h-8 w-8" : "h-6 w-6"} rounded-lg`}>
+            <Avatar className={` ${open ? 'h-8 w-8' : 'h-6 w-6'} rounded-lg`}>
               {/* <AvatarImage src={user.avatar} alt={user.name} /> */}
               <AvatarFallback className="rounded-md bg-accent text-white font-bold">
                 {user?.displayName?.charAt(0) || user?.name?.charAt(0)}
               </AvatarFallback>
             </Avatar>
             <span className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-medium">
-                {user?.displayName}
-              </span>
+              <span className="truncate font-medium">{user?.displayName}</span>
               <span className="truncate text-xs">{user?.email}</span>
               <span className="text-[10px] text-muted-foreground truncate block">
-                {activeWorkspace?.name ?? "No workspace"}
+                {activeWorkspace?.name ?? 'No workspace'}
               </span>
             </span>
             <ChevronsUpDownIcon className="ml-auto size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
-            side={isMobile ? "bottom" : "right"}
+            side={isMobile ? 'bottom' : 'right'}
             align="end"
             sideOffset={4}
           >

@@ -44,6 +44,7 @@ leadforge-os/
 ## Directory Audit & Metadata
 
 ### 1. `apps/desktop`
+
 - **Purpose**: Hosts the Electron app shell (desktop interface).
 - **Owner**: Core Desktop Engineering Squad.
 - **Dependencies**: React, Tailwind, Lucide, `@electron-toolkit/utils`, and internally structured files under `src/shared/`.
@@ -53,6 +54,7 @@ leadforge-os/
 - **Lifecycle**: Active.
 
 ### 2. `apps/docs`
+
 - **Purpose**: Contains visual design specifications and canonical architecture books.
 - **Owner**: Architecture Board / Product Designers.
 - **Dependencies**: Markdown compiler, Docusaurus (future).
@@ -62,6 +64,7 @@ leadforge-os/
 - **Lifecycle**: Active.
 
 ### 3. `packages/`
+
 - **Purpose**: Designated folder to extract common modules out of the desktop monolith.
 - **Owner**: Platform Infrastructure Team.
 - **Dependencies**: None (currently empty).

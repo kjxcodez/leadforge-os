@@ -5,7 +5,7 @@ import { ErrorCode, HttpStatus } from '@leadforge/schema';
 export function createAuthMiddleware(authInstance: any) {
   return createMiddleware(async (c, next) => {
     const session = await authInstance.api.getSession({
-      headers: c.req.raw.headers,
+      headers: c.req.raw.headers
     });
     if (!session) {
       return c.json(

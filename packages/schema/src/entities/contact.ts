@@ -19,7 +19,7 @@ export const contactSchema = z.object({
   status: contactStatusSchema,
   notes: z.string().nullable().optional(),
   createdAt: z.date(),
-  updatedAt: z.date(),
+  updatedAt: z.date()
 });
 
 export type Contact = z.infer<typeof contactSchema>;

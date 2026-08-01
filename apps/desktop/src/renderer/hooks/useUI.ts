@@ -5,7 +5,8 @@ import { useUIStore } from '../stores/ui-store';
  * without exposing the raw store dispatch.
  */
 export function useUI() {
-  const { state, toggleSidebar, setSidebar, toggleCommandPalette, closeCommandPalette } = useUIStore();
+  const { state, toggleSidebar, setSidebar, toggleCommandPalette, closeCommandPalette } =
+    useUIStore();
 
   return {
     sidebarCollapsed: state.sidebarCollapsed,
@@ -13,6 +14,6 @@ export function useUI() {
     toggleSidebar,
     setSidebar,
     toggleCommandPalette,
-    closeCommandPalette,
+    closeCommandPalette
   };
 }

@@ -9,7 +9,7 @@ export const createOutreachDtoSchema = z.object({
   companyId: objectIdField.nullable().optional(),
   provider: z.string(),
   status: z.string().optional(),
-  messageDetails: emailMessageSchema.optional(),
+  messageDetails: emailMessageSchema.optional()
 });
 export type CreateOutreachDto = z.infer<typeof createOutreachDtoSchema>;
 
@@ -18,13 +18,13 @@ export const outreachFiltersSchema = paginationParamsSchema.extend({
   campaignId: objectIdField.optional(),
   companyId: objectIdField.optional(),
   provider: z.string().optional(),
-  status: z.string().optional(),
+  status: z.string().optional()
 });
 export type OutreachFilters = z.infer<typeof outreachFiltersSchema>;
 
 export const outreachListResponseSchema = z.object({
   items: z.array(outreachSchema),
-  total: z.number(),
+  total: z.number()
 });
 export type OutreachListResponse = z.infer<typeof outreachListResponseSchema>;
 
@@ -35,7 +35,7 @@ export const createEmailAccountDtoSchema = z.object({
   password: z.string().min(1), // raw App Password for connect verification
   dailyLimit: z.number().int().optional(),
   hourlyLimit: z.number().int().optional(),
-  signature: z.string().optional(),
+  signature: z.string().optional()
 });
 export type CreateEmailAccountDto = z.infer<typeof createEmailAccountDtoSchema>;
 
@@ -43,6 +43,6 @@ export const createEmailTemplateDtoSchema = z.object({
   name: z.string().min(1),
   subject: z.string().min(1),
   body: z.string().min(1),
-  variables: z.array(z.string()).default([]),
+  variables: z.array(z.string()).default([])
 });
 export type CreateEmailTemplateDto = z.infer<typeof createEmailTemplateDtoSchema>;

@@ -1,18 +1,26 @@
-import mongoose, { Schema } from "mongoose";
-import { softDeletePlugin, auditPlugin, timestampPlugin, type SoftDeleteDocument, type AuditDocument, type TimestampDocument } from "../plugins/index.js";
+import mongoose, { Schema } from 'mongoose';
+import {
+  softDeletePlugin,
+  auditPlugin,
+  timestampPlugin,
+  type SoftDeleteDocument,
+  type AuditDocument,
+  type TimestampDocument
+} from '../plugins/index.js';
 
-export interface UserDocument extends mongoose.Document, SoftDeleteDocument, AuditDocument, TimestampDocument {
+export interface UserDocument
+  extends mongoose.Document, SoftDeleteDocument, AuditDocument, TimestampDocument {
   email: string;
   passwordHash?: string | null;
   name: string;
   displayName: string;
   image?: string | null;
   avatar?: string | null;
-  role: "ADMIN" | "MEMBER" | "OWNER";
+  role: 'ADMIN' | 'MEMBER' | 'OWNER';
   activeWorkspaceId?: string | null;
   emailVerified: boolean;
   lastLoginAt?: Date | null;
-  status: "active" | "suspended" | "pending";
+  status: 'active' | 'suspended' | 'pending';
 }
 
 const userSchema = new Schema<UserDocument>(
@@ -23,58 +31,58 @@ const userSchema = new Schema<UserDocument>(
       unique: true,
       lowercase: true,
       trim: true,
-      index: true,
+      index: true
     },
     passwordHash: {
       type: String,
-      default: null,
+      default: null
     },
     name: {
       type: String,
       required: true,
-      trim: true,
+      trim: true
     },
     displayName: {
       type: String,
       trim: true,
       default: function (this: any) {
-        return this.name || "";
-      },
+        return this.name || '';
+      }
     },
     image: {
       type: String,
-      default: null,
+      default: null
     },
     avatar: {
       type: String,
-      default: null,
+      default: null
     },
     role: {
       type: String,
-      enum: ["ADMIN", "MEMBER", "OWNER"],
-      default: "MEMBER",
+      enum: ['ADMIN', 'MEMBER', 'OWNER'],
+      default: 'MEMBER'
     },
     activeWorkspaceId: {
       type: String,
-      default: null,
+      default: null
     },
     lastLoginAt: {
       type: Date,
-      default: null,
+      default: null
     },
     status: {
       type: String,
-      enum: ["active", "suspended", "pending"],
-      default: "active",
+      enum: ['active', 'suspended', 'pending'],
+      default: 'active'
     },
     emailVerified: {
       type: Boolean,
-      default: false,
-    },
+      default: false
+    }
   },
   {
     strict: true,
-    optimisticConcurrency: true,
+    optimisticConcurrency: true
   }
 );
 
@@ -82,6 +90,6 @@ userSchema.plugin(softDeletePlugin);
 userSchema.plugin(auditPlugin);
 userSchema.plugin(timestampPlugin);
 
-export const UserModel = mongoose.models.User 
+export const UserModel = mongoose.models.User
   ? (mongoose.models.User as mongoose.Model<UserDocument>)
-  : mongoose.model<UserDocument>("User", userSchema);
+  : mongoose.model<UserDocument>('User', userSchema);

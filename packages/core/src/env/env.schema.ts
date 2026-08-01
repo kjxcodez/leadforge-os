@@ -7,7 +7,7 @@ export const envSchema = z.object({
   BETTER_AUTH_SECRET: z.string().min(1, { message: 'BETTER_AUTH_SECRET must be provided' }),
   BETTER_AUTH_URL: z.string().url({ message: 'BETTER_AUTH_URL must be a valid URL' }),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
-  CORS_ORIGIN: z.string().default('*'),
+  CORS_ORIGIN: z.string().default('*')
 });
 
 export type Env = z.infer<typeof envSchema>;

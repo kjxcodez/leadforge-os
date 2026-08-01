@@ -12,10 +12,18 @@ async function runTests() {
   };
   manager.registerScheduler(mockScheduler);
 
-  assert.strictEqual(manager.isSafeToInstall(), true, 'Manager should be safe to install when scheduler is idle.');
+  assert.strictEqual(
+    manager.isSafeToInstall(),
+    true,
+    'Manager should be safe to install when scheduler is idle.'
+  );
 
   mockScheduler.activeWorkers.add('job-1');
-  assert.strictEqual(manager.isSafeToInstall(), false, 'Manager should block install when scheduler has active workers.');
+  assert.strictEqual(
+    manager.isSafeToInstall(),
+    false,
+    'Manager should block install when scheduler has active workers.'
+  );
   console.log('✅ Safe coordinator idle checks verified.');
 
   // Test 2: Checksum Cryptography Validation
@@ -27,7 +35,7 @@ async function runTests() {
   console.log('--- ALL AUTO-UPDATE INFRASTRUCTURE TESTS PASSED ---');
 }
 
-runTests().catch(err => {
+runTests().catch((err) => {
   console.error('❌ Test execution failed:', err);
   process.exit(1);
 });

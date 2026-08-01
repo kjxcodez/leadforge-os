@@ -5,6 +5,7 @@ Every company field, traced from source to renderer.
 ---
 
 ## Field: id
+
 - **Source**: randomUUID() in scraper.ts:328
 - **Normalization**: None needed (UUID)
 - **Persistence**: companies.id PRIMARY KEY
@@ -14,6 +15,7 @@ Every company field, traced from source to renderer.
 ---
 
 ## Field: name
+
 - **Source**: `page.locator("h1").first().innerText()` — scraper.ts:296
 - **Normalization**: None. Raw DOM text.
 - **Persistence**: companies.name TEXT NOT NULL
@@ -24,6 +26,7 @@ Every company field, traced from source to renderer.
 ---
 
 ## Field: domain
+
 - **Source**: `extractDomain(website)` — scraper.ts:315 → scraper.ts:38
 - **Normalization**: Hostname lowercased, `www.` stripped
 - **Persistence**: companies.domain TEXT
@@ -34,6 +37,7 @@ Every company field, traced from source to renderer.
 ---
 
 ## Field: website
+
 - **Source**: `page.locator('a[data-item-id="authority"]').getAttribute("href")` — scraper.ts:303
 - **Normalization**: `resolveRedirect()` follows link shorteners. Domain extracted separately.
 - **Persistence**: companies.website TEXT (migration 007, redundantly in 016)
@@ -43,6 +47,7 @@ Every company field, traced from source to renderer.
 ---
 
 ## Field: location
+
 - **Source**: `page.locator('[data-item-id="address"]').first().innerText()` — scraper.ts:307
 - **Normalization**: NONE. Raw DOM text with Google Maps UI separators.
 - **Persistence**: companies.location TEXT (migration 007)
@@ -53,6 +58,7 @@ Every company field, traced from source to renderer.
 ---
 
 ## Field: phone
+
 - **Source**: `page.locator('[data-item-id^="phone:tel:"]').getAttribute("data-item-id")` — scraper.ts:304
 - **Normalization**: `.replace("phone:tel:", "").trim()` — raw international format
 - **Persistence**: companies.phone TEXT (migration 016 — redundant, already in 009)
@@ -62,6 +68,7 @@ Every company field, traced from source to renderer.
 ---
 
 ## Field: status
+
 - **Source**: NOT EXTRACTED by scraper
 - **Normalization**: N/A
 - **Persistence**: companies.status TEXT — never set by scraper INSERT
@@ -72,6 +79,7 @@ Every company field, traced from source to renderer.
 ---
 
 ## Field: industry
+
 - **Source**: NOT EXTRACTABLE from Google Maps
 - **Normalization**: N/A
 - **Persistence**: companies.industry TEXT (migration 006)
@@ -82,6 +90,7 @@ Every company field, traced from source to renderer.
 ---
 
 ## Field: size
+
 - **Source**: NOT EXTRACTABLE from Google Maps
 - **Normalization**: N/A
 - **Persistence**: companies.size TEXT (migration 006)
@@ -92,6 +101,7 @@ Every company field, traced from source to renderer.
 ---
 
 ## Field: rating
+
 - **Source**: `extractRating(page)` — scraper.ts:56–74 — extracted but never persisted
 - **Normalization**: parseFloat(), NaN check
 - **Persistence**: companies.rating REAL (migration 016). INSERT never includes it.
@@ -101,6 +111,7 @@ Every company field, traced from source to renderer.
 ---
 
 ## Field: crawlStatus
+
 - **Source**: Set by crawler.ts on UPDATE
 - **Normalization**: Enum: pending/in_progress/completed/failed/skipped
 - **Persistence**: companies.crawlStatus TEXT (migration 009)
@@ -110,6 +121,7 @@ Every company field, traced from source to renderer.
 ---
 
 ## Field: contactCount
+
 - **Source**: Set by crawler.ts:385 via UPDATE
 - **Normalization**: Count of discovered email contacts
 - **Persistence**: companies.contactCount INTEGER (migration 009)
@@ -119,6 +131,7 @@ Every company field, traced from source to renderer.
 ---
 
 ## Field: tags
+
 - **Source**: Manual user input
 - **Normalization**: JSON array stored as TEXT
 - **Persistence**: companies.tags TEXT (migration 006)
@@ -128,6 +141,7 @@ Every company field, traced from source to renderer.
 ---
 
 ## Field: notes
+
 - **Source**: Manual user input
 - **Normalization**: JSON stored as TEXT
 - **Persistence**: companies.notes TEXT (migration 006)
@@ -137,6 +151,7 @@ Every company field, traced from source to renderer.
 ---
 
 ## Field: createdAt / updatedAt
+
 - **Source**: `datetime("now")` in scraper INSERT
 - **Normalization**: SQLite datetime format
 - **Persistence**: OK
@@ -147,19 +162,19 @@ Every company field, traced from source to renderer.
 
 ## Summary Table
 
-| Field | Scraped | Normalized | Persisted | Rendered | Issue |
-|-------|---------|------------|-----------|----------|-------|
-| id | ✓ | ✓ | ✓ | — | None |
-| name | ✓ | Partial (no trim) | ✓ | ✓ | Minor |
-| domain | ✓ | ✓ | ✓ | ✓ | None |
-| website | ✓ | ✓ | ✓ | ✗ | Missing from renderer |
-| location | ✓ | ✗ | ✓ | ✓ (raw) | Unicode + hours text mixed in |
-| phone | ✓ | Partial | ✓ | ✗ | Not shown on company panel |
-| status | ✗ | — | ✗ | ✗ (null) | Never set |
-| industry | ✗ | — | ✗ | ✗ (N/A) | Not available from Maps |
-| size | ✗ | — | ✗ | ✗ (N/A) | Not available from Maps |
-| rating | ✓ extracted | ✓ | ✗ | ✗ | Extracted but discarded |
-| crawlStatus | ✓ (crawler) | ✓ | ✓ | ✗ | Not rendered |
-| contactCount | ✓ (crawler) | ✓ | ✓ | ✗ | Not rendered |
-| tags | Manual | ✓ | ✓ | ✓ | None |
-| notes | Manual | ✓ | ✓ | ✓ | None |
+| Field        | Scraped     | Normalized        | Persisted | Rendered | Issue                         |
+| ------------ | ----------- | ----------------- | --------- | -------- | ----------------------------- |
+| id           | ✓           | ✓                 | ✓         | —        | None                          |
+| name         | ✓           | Partial (no trim) | ✓         | ✓        | Minor                         |
+| domain       | ✓           | ✓                 | ✓         | ✓        | None                          |
+| website      | ✓           | ✓                 | ✓         | ✗        | Missing from renderer         |
+| location     | ✓           | ✗                 | ✓         | ✓ (raw)  | Unicode + hours text mixed in |
+| phone        | ✓           | Partial           | ✓         | ✗        | Not shown on company panel    |
+| status       | ✗           | —                 | ✗         | ✗ (null) | Never set                     |
+| industry     | ✗           | —                 | ✗         | ✗ (N/A)  | Not available from Maps       |
+| size         | ✗           | —                 | ✗         | ✗ (N/A)  | Not available from Maps       |
+| rating       | ✓ extracted | ✓                 | ✗         | ✗        | Extracted but discarded       |
+| crawlStatus  | ✓ (crawler) | ✓                 | ✓         | ✗        | Not rendered                  |
+| contactCount | ✓ (crawler) | ✓                 | ✓         | ✗        | Not rendered                  |
+| tags         | Manual      | ✓                 | ✓         | ✓        | None                          |
+| notes        | Manual      | ✓                 | ✓         | ✓        | None                          |

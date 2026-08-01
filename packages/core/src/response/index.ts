@@ -1,11 +1,16 @@
-import type { SuccessResponse, ApiErrorResponse, PaginatedResponse, PaginationMeta } from '@leadforge/schema';
+import type {
+  SuccessResponse,
+  ApiErrorResponse,
+  PaginatedResponse,
+  PaginationMeta
+} from '@leadforge/schema';
 import { ErrorCode } from '@leadforge/schema';
 
 export function successResponse<T>(data: T, meta?: Record<string, unknown>): SuccessResponse<T> {
   const result: SuccessResponse<T> = {
     success: true,
     data,
-    error: null,
+    error: null
   };
   if (meta) {
     result.meta = meta;
@@ -24,8 +29,8 @@ export function errorResponse(
     error: {
       code: code as ErrorCode,
       message,
-      details,
-    },
+      details
+    }
   };
 }
 
@@ -35,7 +40,7 @@ export function paginatedResponse<T>(data: T[], meta: PaginationMeta): Paginated
     data,
     error: null,
     meta: {
-      pagination: meta,
-    },
+      pagination: meta
+    }
   };
 }

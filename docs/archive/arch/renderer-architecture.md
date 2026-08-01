@@ -7,6 +7,7 @@ The React frontend application lives inside `apps/desktop/src/renderer/`. This d
 ## 1. Directory Tree & Folder Responsibilities
 
 The React codebase is currently structured into three directories:
+
 - `src/renderer/app/`: bootstrapping entry (`main.tsx`) and layout shell (`App.tsx`).
 - `src/renderer/screens/`: modular files representing dashboard pages.
 - `src/renderer/components/ui/`: primitive Shadcn UI components.

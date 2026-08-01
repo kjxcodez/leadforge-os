@@ -1,8 +1,8 @@
-import Database from "better-sqlite3";
-import { randomUUID } from "crypto";
-import nodemailer from "nodemailer";
+import Database from 'better-sqlite3';
+import { randomUUID } from 'crypto';
+import nodemailer from 'nodemailer';
 import { AIRuntime, PromptsLibrary } from '@leadforge/ai';
-import type { JobContext } from "../../../shared/types/job";
+import type { JobContext } from '../../../shared/types/job';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -68,16 +68,16 @@ interface StepDefinition {
 }
 
 type StepResult =
-  | { status: "success" }
-  | { status: "wait"; delaySeconds: number }
-  | { status: "goto"; targetIndex: number; targetLabel: string }
-  | { status: "skip"; skipCount: number };
+  | { status: 'success' }
+  | { status: 'wait'; delaySeconds: number }
+  | { status: 'goto'; targetIndex: number; targetLabel: string }
+  | { status: 'skip'; skipCount: number };
 
 // ── Event publisher ────────────────────────────────────────────────────────────
 
 function publishAutomationEvent(event: string, payload: any): void {
   if (process.send) {
-    process.send({ type: "automation_event", event, payload });
+    process.send({ type: 'automation_event', event, payload });
   }
 }
 
@@ -93,74 +93,73 @@ function publishAutomationEvent(event: string, payload: any): void {
  */
 function resolveTokenPath(path: string, ctx: ExecutionContext): string {
   const trimmed = path.trim();
-  const dotIdx = trimmed.indexOf(".");
+  const dotIdx = trimmed.indexOf('.');
   const ns = dotIdx === -1 ? trimmed : trimmed.slice(0, dotIdx);
-  const field = dotIdx === -1 ? "" : trimmed.slice(dotIdx + 1);
+  const field = dotIdx === -1 ? '' : trimmed.slice(dotIdx + 1);
 
   switch (ns) {
-    case "contact":
-      if (field === "name") {
-        return `${ctx.contact.firstName || ""} ${ctx.contact.lastName || ""}`.trim();
+    case 'contact':
+      if (field === 'name') {
+        return `${ctx.contact.firstName || ''} ${ctx.contact.lastName || ''}`.trim();
       }
-      return String(ctx.contact[field] ?? "");
+      return String(ctx.contact[field] ?? '');
 
-    case "company":
-      return String(ctx.company[field] ?? "");
+    case 'company':
+      return String(ctx.company[field] ?? '');
 
-    case "workspace":
+    case 'workspace':
       return ctx.workspace.id;
 
-    case "execution":
-      if (field === "id") return ctx.execution.id;
-      if (field === "currentStep") return String(ctx.execution.currentStep);
-      if (field === "startedAt") return ctx.execution.startedAt;
-      return "";
+    case 'execution':
+      if (field === 'id') return ctx.execution.id;
+      if (field === 'currentStep') return String(ctx.execution.currentStep);
+      if (field === 'startedAt') return ctx.execution.startedAt;
+      return '';
 
-    case "sequence":
-      if (field === "id") return ctx.sequence.id;
-      if (field === "name") return ctx.sequence.name;
-      return "";
+    case 'sequence':
+      if (field === 'id') return ctx.sequence.id;
+      if (field === 'name') return ctx.sequence.name;
+      return '';
 
-    case "variables":
+    case 'variables':
       // Support nested object access in execution context (e.g. variables.apiResponse.status)
-      if (field.includes(".")) {
-        const parts = field.split(".");
+      if (field.includes('.')) {
+        const parts = field.split('.');
         let currentObj: any = ctx.variables;
         for (const p of parts) {
-          if (currentObj === null || currentObj === undefined) return "";
+          if (currentObj === null || currentObj === undefined) return '';
           currentObj = currentObj[p];
         }
-        return String(currentObj ?? "");
+        return String(currentObj ?? '');
       }
-      return String(ctx.variables[field] ?? "");
+      return String(ctx.variables[field] ?? '');
 
-    case "today":
-      return new Date().toISOString().split("T")[0] ?? "";
+    case 'today':
+      return new Date().toISOString().split('T')[0] ?? '';
 
-    case "now":
+    case 'now':
       return new Date().toISOString();
 
-    case "currentStep":
+    case 'currentStep':
       return String(ctx.execution.currentStep);
 
     default: {
       // Legacy single-word tokens ({{firstName}}, {{sequence}}, etc.) and
       // bare variable names ({{score}} maps to ctx.variables.score).
       const legacy: Record<string, () => string> = {
-        firstName: () => String(ctx.contact.firstName ?? ""),
-        lastName: () => String(ctx.contact.lastName ?? ""),
-        fullName: () =>
-          `${ctx.contact.firstName || ""} ${ctx.contact.lastName || ""}`.trim(),
-        email: () => String(ctx.contact.email ?? ""),
-        phone: () => String(ctx.contact.phone ?? ""),
-        title: () => String(ctx.contact.title ?? ""),
+        firstName: () => String(ctx.contact.firstName ?? ''),
+        lastName: () => String(ctx.contact.lastName ?? ''),
+        fullName: () => `${ctx.contact.firstName || ''} ${ctx.contact.lastName || ''}`.trim(),
+        email: () => String(ctx.contact.email ?? ''),
+        phone: () => String(ctx.contact.phone ?? ''),
+        title: () => String(ctx.contact.title ?? ''),
         sequence: () => ctx.sequence.name,
-        today: () => new Date().toISOString().split("T")[0] ?? "",
-        now: () => new Date().toISOString(),
+        today: () => new Date().toISOString().split('T')[0] ?? '',
+        now: () => new Date().toISOString()
       };
       if (trimmed in legacy) return legacy[trimmed]!();
-      if (trimmed in ctx.variables) return String(ctx.variables[trimmed] ?? "");
-      return "";
+      if (trimmed in ctx.variables) return String(ctx.variables[trimmed] ?? '');
+      return '';
     }
   }
 }
@@ -169,14 +168,11 @@ function resolveTokenPath(path: string, ctx: ExecutionContext): string {
  * Replaces all `{{token}}` references in a template string using the ExecutionContext.
  * Used by SEND_EMAIL, ASSIGN_TAG, and SET_VARIABLE step handlers.
  */
-export function resolveVariables(
-  template: string,
-  ctx: ExecutionContext,
-): string {
-  if (template === null || template === undefined) return "";
-  if (typeof template !== "string") return String(template);
+export function resolveVariables(template: string, ctx: ExecutionContext): string {
+  if (template === null || template === undefined) return '';
+  if (typeof template !== 'string') return String(template);
   return template.replace(/\{\{([^}]+)\}\}/g, (_m, raw: string) =>
-    resolveTokenPath(raw.trim(), ctx),
+    resolveTokenPath(raw.trim(), ctx)
   );
 }
 
@@ -185,20 +181,16 @@ export function resolveVariablesRecursive(
   ctx: ExecutionContext,
   db?: Database.Database,
   workspaceId?: string,
-  secrets?: Record<string, string>,
+  secrets?: Record<string, string>
 ): any {
   if (val === null || val === undefined) return val;
 
-  if (typeof val === "string") {
+  if (typeof val === 'string') {
     // 1. Resolve secrets first
-    if (val.includes("{{secret.")) {
+    if (val.includes('{{secret.')) {
       return val.replace(/\{\{secret\.([^}]+)\}\}/g, (_m, key: string) => {
         const trimmedKey = key.trim();
-        const possibleKeys = [
-          trimmedKey,
-          `secret.${trimmedKey}`,
-          `secrets.${trimmedKey}`,
-        ];
+        const possibleKeys = [trimmedKey, `secret.${trimmedKey}`, `secrets.${trimmedKey}`];
         // 1.1 Check injected secrets from payload first (Least Privilege)
         if (secrets) {
           for (const pk of possibleKeys) {
@@ -211,14 +203,12 @@ export function resolveVariablesRecursive(
         if (db && workspaceId) {
           for (const pk of possibleKeys) {
             const row = db
-              .prepare(
-                "SELECT value FROM settings WHERE workspaceId = ? AND key = ?",
-              )
+              .prepare('SELECT value FROM settings WHERE workspaceId = ? AND key = ?')
               .get(workspaceId, pk) as { value: string } | undefined;
             if (row?.value) return row.value;
           }
         }
-        return "";
+        return '';
       });
     }
     // 2. Resolve standard templates
@@ -226,12 +216,10 @@ export function resolveVariablesRecursive(
   }
 
   if (Array.isArray(val)) {
-    return val.map((item) =>
-      resolveVariablesRecursive(item, ctx, db, workspaceId, secrets),
-    );
+    return val.map((item) => resolveVariablesRecursive(item, ctx, db, workspaceId, secrets));
   }
 
-  if (typeof val === "object") {
+  if (typeof val === 'object') {
     const res: Record<string, any> = {};
     for (const [k, v] of Object.entries(val)) {
       res[k] = resolveVariablesRecursive(v, ctx, db, workspaceId, secrets);
@@ -245,18 +233,18 @@ export function resolveVariablesRecursive(
 // ── Expression Engine ─────────────────────────────────────────────────────────
 
 type TokenKind =
-  | "NUM"
-  | "STR"
-  | "TEMPLATE"
-  | "IDENT"
-  | "LPAREN"
-  | "RPAREN"
-  | "COMMA"
-  | "OP"
-  | "AND"
-  | "OR"
-  | "NOT"
-  | "EOF";
+  | 'NUM'
+  | 'STR'
+  | 'TEMPLATE'
+  | 'IDENT'
+  | 'LPAREN'
+  | 'RPAREN'
+  | 'COMMA'
+  | 'OP'
+  | 'AND'
+  | 'OR'
+  | 'NOT'
+  | 'EOF';
 
 interface Token {
   kind: TokenKind;
@@ -275,14 +263,10 @@ function tokenize(src: string): Token[] {
     }
 
     // Template: {{ ... }}
-    if (src.charAt(i) === "{" && src.charAt(i + 1) === "{") {
+    if (src.charAt(i) === '{' && src.charAt(i + 1) === '{') {
       let j = i + 2;
-      while (
-        j < src.length &&
-        !(src.charAt(j) === "}" && src.charAt(j + 1) === "}")
-      )
-        j++;
-      tokens.push({ kind: "TEMPLATE", value: src.slice(i + 2, j).trim() });
+      while (j < src.length && !(src.charAt(j) === '}' && src.charAt(j + 1) === '}')) j++;
+      tokens.push({ kind: 'TEMPLATE', value: src.slice(i + 2, j).trim() });
       i = j + 2;
       continue;
     }
@@ -290,66 +274,66 @@ function tokenize(src: string): Token[] {
     // Two-char operators
     if (i + 1 < src.length) {
       const two = src.slice(i, i + 2);
-      if (two === "==") {
-        tokens.push({ kind: "OP", value: "==" });
+      if (two === '==') {
+        tokens.push({ kind: 'OP', value: '==' });
         i += 2;
         continue;
       }
-      if (two === "!=") {
-        tokens.push({ kind: "OP", value: "!=" });
+      if (two === '!=') {
+        tokens.push({ kind: 'OP', value: '!=' });
         i += 2;
         continue;
       }
-      if (two === ">=") {
-        tokens.push({ kind: "OP", value: ">=" });
+      if (two === '>=') {
+        tokens.push({ kind: 'OP', value: '>=' });
         i += 2;
         continue;
       }
-      if (two === "<=") {
-        tokens.push({ kind: "OP", value: "<=" });
+      if (two === '<=') {
+        tokens.push({ kind: 'OP', value: '<=' });
         i += 2;
         continue;
       }
-      if (two === "&&") {
-        tokens.push({ kind: "AND", value: "&&" });
+      if (two === '&&') {
+        tokens.push({ kind: 'AND', value: '&&' });
         i += 2;
         continue;
       }
-      if (two === "||") {
-        tokens.push({ kind: "OR", value: "||" });
+      if (two === '||') {
+        tokens.push({ kind: 'OR', value: '||' });
         i += 2;
         continue;
       }
     }
 
     const c = src.charAt(i);
-    if (c === ">") {
-      tokens.push({ kind: "OP", value: ">" });
+    if (c === '>') {
+      tokens.push({ kind: 'OP', value: '>' });
       i++;
       continue;
     }
-    if (c === "<") {
-      tokens.push({ kind: "OP", value: "<" });
+    if (c === '<') {
+      tokens.push({ kind: 'OP', value: '<' });
       i++;
       continue;
     }
-    if (c === "!") {
-      tokens.push({ kind: "NOT", value: "!" });
+    if (c === '!') {
+      tokens.push({ kind: 'NOT', value: '!' });
       i++;
       continue;
     }
-    if (c === "(") {
-      tokens.push({ kind: "LPAREN", value: "(" });
+    if (c === '(') {
+      tokens.push({ kind: 'LPAREN', value: '(' });
       i++;
       continue;
     }
-    if (c === ")") {
-      tokens.push({ kind: "RPAREN", value: ")" });
+    if (c === ')') {
+      tokens.push({ kind: 'RPAREN', value: ')' });
       i++;
       continue;
     }
-    if (c === ",") {
-      tokens.push({ kind: "COMMA", value: "," });
+    if (c === ',') {
+      tokens.push({ kind: 'COMMA', value: ',' });
       i++;
       continue;
     }
@@ -359,7 +343,7 @@ function tokenize(src: string): Token[] {
       const q = c;
       let j = i + 1;
       while (j < src.length && src.charAt(j) !== q) j++;
-      tokens.push({ kind: "STR", value: src.slice(i + 1, j) });
+      tokens.push({ kind: 'STR', value: src.slice(i + 1, j) });
       i = j + 1;
       continue;
     }
@@ -368,20 +352,20 @@ function tokenize(src: string): Token[] {
     const prevToken = tokens.length > 0 ? tokens[tokens.length - 1] : undefined;
     const nextChar = src.charAt(i + 1);
     const canBeNeg =
-      c === "-" &&
+      c === '-' &&
       /[0-9]/.test(nextChar) &&
       (!prevToken ||
-        prevToken.kind === "OP" ||
-        prevToken.kind === "AND" ||
-        prevToken.kind === "OR" ||
-        prevToken.kind === "NOT" ||
-        prevToken.kind === "LPAREN" ||
-        prevToken.kind === "COMMA");
+        prevToken.kind === 'OP' ||
+        prevToken.kind === 'AND' ||
+        prevToken.kind === 'OR' ||
+        prevToken.kind === 'NOT' ||
+        prevToken.kind === 'LPAREN' ||
+        prevToken.kind === 'COMMA');
     if (/[0-9]/.test(c) || canBeNeg) {
       let j = i;
-      if (src.charAt(j) === "-") j++;
+      if (src.charAt(j) === '-') j++;
       while (j < src.length && /[0-9.]/.test(src.charAt(j))) j++;
-      tokens.push({ kind: "NUM", value: src.slice(i, j) });
+      tokens.push({ kind: 'NUM', value: src.slice(i, j) });
       i = j;
       continue;
     }
@@ -390,17 +374,17 @@ function tokenize(src: string): Token[] {
     if (/[a-zA-Z_]/.test(c)) {
       let j = i;
       while (j < src.length && /[a-zA-Z0-9_.]/.test(src.charAt(j))) j++;
-      tokens.push({ kind: "IDENT", value: src.slice(i, j) });
+      tokens.push({ kind: 'IDENT', value: src.slice(i, j) });
       i = j;
       continue;
     }
 
     throw new Error(
-      `Expression parser: unexpected character '${c}' at position ${i} in expression: ${src}`,
+      `Expression parser: unexpected character '${c}' at position ${i} in expression: ${src}`
     );
   }
 
-  tokens.push({ kind: "EOF", value: "" });
+  tokens.push({ kind: 'EOF', value: '' });
   return tokens;
 }
 
@@ -423,9 +407,7 @@ class ExpressionParser {
   private expect(kind: TokenKind): Token {
     const t = this.consume();
     if (t.kind !== kind) {
-      throw new Error(
-        `Expression parser: expected ${kind}, got ${t.kind} ("${t.value}")`,
-      );
+      throw new Error(`Expression parser: expected ${kind}, got ${t.kind} ("${t.value}")`);
     }
     return t;
   }
@@ -436,7 +418,7 @@ class ExpressionParser {
 
   private parseOr(): boolean {
     let left = this.parseAnd();
-    while (this.peek().kind === "OR") {
+    while (this.peek().kind === 'OR') {
       this.consume();
       const right = this.parseAnd();
       left = left || right;
@@ -446,7 +428,7 @@ class ExpressionParser {
 
   private parseAnd(): boolean {
     let left = this.parseNot();
-    while (this.peek().kind === "AND") {
+    while (this.peek().kind === 'AND') {
       this.consume();
       const right = this.parseNot();
       left = left && right;
@@ -455,7 +437,7 @@ class ExpressionParser {
   }
 
   private parseNot(): boolean {
-    if (this.peek().kind === "NOT") {
+    if (this.peek().kind === 'NOT') {
       this.consume();
       return !this.parseNot();
     }
@@ -465,7 +447,7 @@ class ExpressionParser {
   private parseComparison(): boolean {
     const left = this.parseValue();
     const op = this.peek();
-    if (op.kind !== "OP") {
+    if (op.kind !== 'OP') {
       return this.coerceBool(left);
     }
     this.consume();
@@ -476,108 +458,91 @@ class ExpressionParser {
   private parseValue(): any {
     const t = this.peek();
 
-    if (t.kind === "LPAREN") {
+    if (t.kind === 'LPAREN') {
       this.consume();
       const val = this.parseExpr();
-      this.expect("RPAREN");
+      this.expect('RPAREN');
       return val;
     }
 
-    if (t.kind === "TEMPLATE") {
+    if (t.kind === 'TEMPLATE') {
       this.consume();
       // Resolve lazily — safe for any character sequence including @, ., spaces, etc.
       const resolved = resolveTokenPath(t.value, this.ctx);
       const asNum = parseFloat(resolved);
-      return !isNaN(asNum) && String(asNum) === resolved.trim()
-        ? asNum
-        : resolved;
+      return !isNaN(asNum) && String(asNum) === resolved.trim() ? asNum : resolved;
     }
 
-    if (t.kind === "NUM") {
+    if (t.kind === 'NUM') {
       this.consume();
       return parseFloat(t.value);
     }
 
-    if (t.kind === "STR") {
+    if (t.kind === 'STR') {
       this.consume();
       return t.value;
     }
 
-    if (t.kind === "IDENT") {
+    if (t.kind === 'IDENT') {
       // Function call — check next token without consuming
       const nextTok = this.tokens[this.pos + 1];
-      if (nextTok?.kind === "LPAREN") {
+      if (nextTok?.kind === 'LPAREN') {
         return this.parseFnCall();
       }
       this.consume();
-      if (t.value === "true") return true;
-      if (t.value === "false") return false;
-      if (t.value === "null") return null;
+      if (t.value === 'true') return true;
+      if (t.value === 'false') return false;
+      if (t.value === 'null') return null;
       // Dotted lookup in variables namespace directly
-      if (
-        t.value.startsWith("apiResponse.") ||
-        t.value.startsWith("variables.")
-      ) {
-        const path = t.value.startsWith("variables.")
-          ? t.value
-          : `variables.${t.value}`;
+      if (t.value.startsWith('apiResponse.') || t.value.startsWith('variables.')) {
+        const path = t.value.startsWith('variables.') ? t.value : `variables.${t.value}`;
         const resolved = resolveTokenPath(path, this.ctx);
         const asNum = parseFloat(resolved);
         if (!isNaN(asNum) && String(asNum) === resolved.trim()) return asNum;
-        if (resolved === "true") return true;
-        if (resolved === "false") return false;
-        if (resolved === "null") return null;
+        if (resolved === 'true') return true;
+        if (resolved === 'false') return false;
+        if (resolved === 'null') return null;
         return resolved;
       }
       // Bare identifier → look up in ctx.variables
       if (t.value in this.ctx.variables) {
         const v = this.ctx.variables[t.value];
-        return typeof v === "number" ? v : String(v ?? "");
+        return typeof v === 'number' ? v : String(v ?? '');
       }
       // Unknown → treat as string literal (allows comparisons like status == ACTIVE)
       return t.value;
     }
 
-    throw new Error(
-      `Expression parser: unexpected token ${t.kind} ("${t.value}")`,
-    );
+    throw new Error(`Expression parser: unexpected token ${t.kind} ("${t.value}")`);
   }
 
   private parseFnCall(): any {
     const name = this.consume().value;
-    this.expect("LPAREN");
+    this.expect('LPAREN');
     const args: any[] = [];
-    if (this.peek().kind !== "RPAREN") {
+    if (this.peek().kind !== 'RPAREN') {
       args.push(this.parseValue());
-      while (this.peek().kind === "COMMA") {
+      while (this.peek().kind === 'COMMA') {
         this.consume();
         args.push(this.parseValue());
       }
     }
-    this.expect("RPAREN");
+    this.expect('RPAREN');
 
-    const a = String(args[0] ?? "");
-    const b = String(args[1] ?? "");
+    const a = String(args[0] ?? '');
+    const b = String(args[1] ?? '');
 
     switch (name) {
-      case "contains":
+      case 'contains':
         return a.includes(b);
-      case "startsWith":
+      case 'startsWith':
         return a.startsWith(b);
-      case "endsWith":
+      case 'endsWith':
         return a.endsWith(b);
-      case "exists":
-        return (
-          args[0] !== null &&
-          args[0] !== undefined &&
-          String(args[0]).trim() !== ""
-        );
-      case "empty":
-        return (
-          args[0] === null ||
-          args[0] === undefined ||
-          String(args[0]).trim() === ""
-        );
+      case 'exists':
+        return args[0] !== null && args[0] !== undefined && String(args[0]).trim() !== '';
+      case 'empty':
+        return args[0] === null || args[0] === undefined || String(args[0]).trim() === '';
       default:
         throw new Error(`Expression parser: unknown function "${name}".`);
     }
@@ -588,48 +553,42 @@ class ExpressionParser {
     const rNum = parseFloat(String(right));
     if (!isNaN(lNum) && !isNaN(rNum)) {
       switch (op) {
-        case "==":
+        case '==':
           return lNum === rNum;
-        case "!=":
+        case '!=':
           return lNum !== rNum;
-        case ">":
+        case '>':
           return lNum > rNum;
-        case "<":
+        case '<':
           return lNum < rNum;
-        case ">=":
+        case '>=':
           return lNum >= rNum;
-        case "<=":
+        case '<=':
           return lNum <= rNum;
       }
     }
     const l = String(left);
     const r = String(right);
     switch (op) {
-      case "==":
+      case '==':
         return l === r;
-      case "!=":
+      case '!=':
         return l !== r;
-      case ">":
+      case '>':
         return l > r;
-      case "<":
+      case '<':
         return l < r;
-      case ">=":
+      case '>=':
         return l >= r;
-      case "<=":
+      case '<=':
         return l <= r;
     }
     return false;
   }
 
   private coerceBool(val: any): boolean {
-    if (typeof val === "boolean") return val;
-    if (
-      val === null ||
-      val === undefined ||
-      val === "" ||
-      val === "0" ||
-      val === "false"
-    )
+    if (typeof val === 'boolean') return val;
+    if (val === null || val === undefined || val === '' || val === '0' || val === 'false')
       return false;
     return true;
   }
@@ -640,10 +599,7 @@ class ExpressionParser {
  * `{{...}}` tokens are resolved lazily by the parser — no pre-resolution pass.
  * Does not use eval().
  */
-function evaluateExpression(
-  expression: string,
-  ctx: ExecutionContext,
-): boolean {
+function evaluateExpression(expression: string, ctx: ExecutionContext): boolean {
   if (!expression || !expression.trim()) return false;
   const tokens = tokenize(expression);
   const parser = new ExpressionParser(tokens, ctx);
@@ -660,7 +616,7 @@ function buildLabelMap(steps: StepDefinition[]): Map<string, number> {
   const map = new Map<string, number>();
   for (let i = 0; i < steps.length; i++) {
     const s = steps[i];
-    if (s && s.type === "LABEL" && s.config?.name) {
+    if (s && s.type === 'LABEL' && s.config?.name) {
       map.set(String(s.config.name).toLowerCase(), i);
     }
   }
@@ -692,26 +648,22 @@ function validateWorkflow(steps: StepDefinition[]): string[] {
 
     // Action-specific validations
     const actionErrors = registryAction.validate(step, labelMap);
-    errors.push(
-      ...actionErrors.map((e) => `Step at index ${i} (${step.type}): ${e}`),
-    );
+    errors.push(...actionErrors.map((e) => `Step at index ${i} (${step.type}): ${e}`));
 
     // Sequence-wide assertions
-    if (step.type === "LABEL" && step.config?.name) {
+    if (step.type === 'LABEL' && step.config?.name) {
       const name = String(step.config.name).toLowerCase();
       if (seenLabels.has(name)) {
-        errors.push(
-          `Step at index ${i} (LABEL): Duplicate label "${step.config.name}"`,
-        );
+        errors.push(`Step at index ${i} (LABEL): Duplicate label "${step.config.name}"`);
       }
       seenLabels.add(name);
     }
 
-    if (step.type === "HTTP_REQUEST" && step.config?.saveResponseAs) {
+    if (step.type === 'HTTP_REQUEST' && step.config?.saveResponseAs) {
       const saveResponseAs = String(step.config.saveResponseAs).trim();
       if (seenResponseVars.has(saveResponseAs)) {
         errors.push(
-          `Step at index ${i} (HTTP_REQUEST): Duplicate saveResponseAs variable "${saveResponseAs}" across workflow`,
+          `Step at index ${i} (HTTP_REQUEST): Duplicate saveResponseAs variable "${saveResponseAs}" across workflow`
         );
       }
       seenResponseVars.add(saveResponseAs);
@@ -720,33 +672,30 @@ function validateWorkflow(steps: StepDefinition[]): string[] {
     // Inspect config properties for malformed secrets or recursive assignments
     if (step.config) {
       const inspectValue = (val: any, path: string) => {
-        if (typeof val === "string") {
-          if (val.includes("{{secret.")) {
+        if (typeof val === 'string') {
+          if (val.includes('{{secret.')) {
             val.replace(/\{\{secret\.([^}]+)\}\}/g, (_m, key: string) => {
               const trimmed = key.trim();
               if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) {
                 errors.push(
-                  `Step at index ${i} (${step.type}): Invalid secret reference format in "${path}": "${trimmed}" (must be alphanumeric)`,
+                  `Step at index ${i} (${step.type}): Invalid secret reference format in "${path}": "${trimmed}" (must be alphanumeric)`
                 );
               }
-              return "";
+              return '';
             });
           }
-          if (step.type === "SET_VARIABLE" && step.config?.assignments) {
+          if (step.type === 'SET_VARIABLE' && step.config?.assignments) {
             step.config.assignments.forEach((assignment: any) => {
-              if (
-                assignment.variable &&
-                val.includes(`{{variables.${assignment.variable}}}`)
-              ) {
+              if (assignment.variable && val.includes(`{{variables.${assignment.variable}}}`)) {
                 errors.push(
-                  `Step at index ${i} (${step.type}): Recursive variable reference detected: "${assignment.variable}" references itself`,
+                  `Step at index ${i} (${step.type}): Recursive variable reference detected: "${assignment.variable}" references itself`
                 );
               }
             });
           }
         } else if (Array.isArray(val)) {
           val.forEach((item, idx) => inspectValue(item, `${path}[${idx}]`));
-        } else if (typeof val === "object" && val !== null) {
+        } else if (typeof val === 'object' && val !== null) {
           for (const [k, v] of Object.entries(val)) {
             inspectValue(v, `${path}.${k}`);
           }
@@ -770,7 +719,7 @@ function createExecutionContext(
   workspaceId: string,
   contact: Record<string, any>,
   company: Record<string, any>,
-  startedAt: string,
+  startedAt: string
 ): ExecutionContext {
   return {
     variables: {},
@@ -779,7 +728,7 @@ function createExecutionContext(
     sequence: { id: sequenceId, name: sequenceName },
     workspace: { id: workspaceId },
     execution: { id: executionId, currentStep: 0, startedAt },
-    runtime: { loopCount: 0, jumpCount: 0, currentLabel: null },
+    runtime: { loopCount: 0, jumpCount: 0, currentLabel: null }
   };
 }
 
@@ -787,28 +736,28 @@ function loadEntityData(
   db: Database.Database,
   entityId: string,
   entityType: string,
-  workspaceId: string,
+  workspaceId: string
 ): { contact: Record<string, any>; company: Record<string, any> } {
   let contact: Record<string, any> = {};
   let company: Record<string, any> = {};
 
-  if (entityType === "contact") {
+  if (entityType === 'contact') {
     const row = db
       .prepare(
         `
       SELECT id, firstName, lastName, email, phone, title, status, tags
       FROM contacts WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-    `,
+    `
       )
       .get(entityId, workspaceId) as any;
     if (row) contact = row;
-  } else if (entityType === "company") {
+  } else if (entityType === 'company') {
     const row = db
       .prepare(
         `
       SELECT id, name, domain, industry, status
       FROM companies WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-    `,
+    `
       )
       .get(entityId, workspaceId) as any;
     if (row) company = row;
@@ -830,7 +779,7 @@ function loadEntityData(
  * dynamic secrets resolution, retry classification, and diagnostic logs redaction.
  */
 export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
-  ctx.emitLog("Automation workflow plugin execution starting.", "info");
+  ctx.emitLog('Automation workflow plugin execution starting.', 'info');
 
   const executionStartTime = Date.now();
   const MAX_EXECUTION_DURATION_MS = 300_000; // 5 minutes
@@ -850,12 +799,8 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
     const checkpoint = ctx.getCheckpoint() as AutomationCheckpoint | null;
     const isResume = !!checkpoint?.executionId;
 
-    executionId = isResume
-      ? checkpoint!.executionId
-      : (payload as any).executionId || randomUUID();
-    currentStep = isResume
-      ? checkpoint!.currentStep
-      : ((payload as any).resumeFrom ?? 0);
+    executionId = isResume ? checkpoint!.executionId : (payload as any).executionId || randomUUID();
+    currentStep = isResume ? checkpoint!.currentStep : ((payload as any).resumeFrom ?? 0);
 
     sequenceId = payload?.sequenceId;
     entityId = payload?.entityId;
@@ -868,7 +813,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           `
         SELECT sequenceId, contactId, companyId
         FROM sequence_executions WHERE id = ? AND workspaceId = ?
-      `,
+      `
         )
         .get(executionId, ctx.workspaceId) as
         | {
@@ -882,58 +827,50 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         sequenceId = execRecord.sequenceId;
         if (execRecord.contactId) {
           entityId = execRecord.contactId;
-          entityType = "contact";
+          entityType = 'contact';
         } else if (execRecord.companyId) {
           entityId = execRecord.companyId;
-          entityType = "company";
+          entityType = 'company';
         }
       }
     }
 
     // ── 2. Validate required fields ───────────────────────────────────────────
     if (!sequenceId)
-      throw new Error(
-        "Automation workflow: missing required payload field: sequenceId.",
-      );
+      throw new Error('Automation workflow: missing required payload field: sequenceId.');
     if (!entityId)
-      throw new Error(
-        "Automation workflow: missing required payload field: entityId.",
-      );
+      throw new Error('Automation workflow: missing required payload field: entityId.');
     if (!entityType)
-      throw new Error(
-        "Automation workflow: missing required payload field: entityType.",
-      );
+      throw new Error('Automation workflow: missing required payload field: entityType.');
 
     // ── 2.1. Acquire execution lock ───────────────────────────────────────────
     db.prepare(
       `
       DELETE FROM automation_locks
       WHERE sequenceId = ? AND entityId = ? AND expiresAt <= datetime('now')
-    `,
+    `
     ).run(sequenceId, entityId);
 
     try {
-      const lockExpiresAt = new Date(
-        Date.now() + MAX_EXECUTION_DURATION_MS,
-      ).toISOString();
+      const lockExpiresAt = new Date(Date.now() + MAX_EXECUTION_DURATION_MS).toISOString();
       db.prepare(
         `
         INSERT INTO automation_locks (sequenceId, entityId, workspaceId, expiresAt)
         VALUES (?, ?, ?, ?)
-      `,
+      `
       ).run(sequenceId, entityId, ctx.workspaceId, lockExpiresAt);
     } catch {
       ctx.emitLog(
         `Duplicate execution prevented: lock held for sequence "${sequenceId}" / entity "${entityId}". Skipping.`,
-        "warn",
+        'warn'
       );
       db.close();
-      return { status: "locked_duplicate", sequenceId, entityId };
+      return { status: 'locked_duplicate', sequenceId, entityId };
     }
 
     if (executionId) {
       db.prepare(
-        "UPDATE sequence_executions SET workerPid = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
+        'UPDATE sequence_executions SET workerPid = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?'
       ).run(process.pid, executionId);
     }
 
@@ -941,55 +878,55 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
     if (ctx.isCancelled()) {
       ctx.emitLog(
         `Execution Cancelled (early): executionId=${executionId}, sequenceId=${sequenceId}`,
-        "warn",
+        'warn'
       );
-      db.prepare(
-        "DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?",
-      ).run(sequenceId, entityId);
-      publishAutomationEvent("automation:cancelled", {
+      db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
+        sequenceId,
+        entityId
+      );
+      publishAutomationEvent('automation:cancelled', {
         executionId,
         sequenceId,
         workspaceId: ctx.workspaceId,
         entityId,
         currentStep,
         workerPid: process.pid,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       });
       db.close();
-      return { status: "cancelled", sequenceId, entityId };
+      return { status: 'cancelled', sequenceId, entityId };
     }
 
     // ── 4. Load sequence ──────────────────────────────────────────────────────
-    ctx.updateProgress(10, { description: "Loading sequence template..." });
+    ctx.updateProgress(10, { description: 'Loading sequence template...' });
 
     const sequence = db
       .prepare(
         `
       SELECT id, name, status, trigger, steps
       FROM sequences WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-    `,
+    `
       )
       .get(sequenceId, ctx.workspaceId) as SequenceRecord | undefined;
 
     if (!sequence) {
       throw new Error(
-        `Automation workflow: sequence "${sequenceId}" not found in workspace "${ctx.workspaceId}".`,
+        `Automation workflow: sequence "${sequenceId}" not found in workspace "${ctx.workspaceId}".`
       );
     }
-    if (sequence.status !== "active") {
+    if (sequence.status !== 'active') {
       throw new Error(
-        `Automation workflow: sequence "${sequence.name}" is not active (status: "${sequence.status}").`,
+        `Automation workflow: sequence "${sequence.name}" is not active (status: "${sequence.status}").`
       );
     }
 
     try {
-      const parsed = JSON.parse(sequence.steps || "[]");
-      if (!Array.isArray(parsed))
-        throw new Error("steps field is not an array.");
+      const parsed = JSON.parse(sequence.steps || '[]');
+      if (!Array.isArray(parsed)) throw new Error('steps field is not an array.');
       steps = parsed;
     } catch (e: any) {
       throw new Error(
-        `Automation workflow: invalid steps JSON in sequence "${sequence.name}": ${e.message}`,
+        `Automation workflow: invalid steps JSON in sequence "${sequence.name}": ${e.message}`
       );
     }
 
@@ -998,7 +935,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
     if (validationErrors.length > 0) {
       throw new Error(
         `Automation workflow: sequence "${sequence.name}" failed validation:\n` +
-          validationErrors.map((e) => `  - ${e}`).join("\n"),
+          validationErrors.map((e) => `  - ${e}`).join('\n')
       );
     }
 
@@ -1013,14 +950,9 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
 
     if (isNewRun) {
       ctx.updateProgress(30, {
-        description: "Initializing sequence execution...",
+        description: 'Initializing sequence execution...'
       });
-      const { contact, company } = loadEntityData(
-        db,
-        entityId!,
-        entityType!,
-        ctx.workspaceId,
-      );
+      const { contact, company } = loadEntityData(db, entityId!, entityType!, ctx.workspaceId);
       execCtx = createExecutionContext(
         executionId!,
         sequenceId!,
@@ -1028,7 +960,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         ctx.workspaceId,
         contact,
         company,
-        now,
+        now
       );
 
       db.transaction(() => {
@@ -1038,25 +970,25 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             id, sequenceId, workspaceId, contactId, companyId,
             currentStep, status, startedAt, createdAt, updatedAt, parentJobId, executionContext
           ) VALUES (?, ?, ?, ?, ?, 0, 'running', ?, ?, ?, ?, ?)
-        `,
+        `
         ).run(
           executionId,
           sequenceId,
           ctx.workspaceId,
-          entityType === "contact" ? entityId : null,
-          entityType === "company" ? entityId : null,
+          entityType === 'contact' ? entityId : null,
+          entityType === 'company' ? entityId : null,
           now,
           now,
           now,
           ctx.jobId,
-          JSON.stringify(execCtx),
+          JSON.stringify(execCtx)
         );
         db.prepare(
           `
           INSERT INTO sequence_logs (
             id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
           ) VALUES (?, ?, ?, ?, 0, 'INITIALIZED', 'success', ?, ?, ?)
-        `,
+        `
         ).run(
           randomUUID(),
           executionId,
@@ -1064,29 +996,27 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           now,
           `Workflow initialized for sequence "${sequence.name}". Entity: ${entityType}/${entityId}.`,
           now,
-          now,
+          now
         );
       })();
 
       ctx.emitLog(
         `Execution Started: executionId=${executionId}, sequenceId=${sequenceId}`,
-        "info",
+        'info'
       );
-      publishAutomationEvent("automation:started", {
+      publishAutomationEvent('automation:started', {
         executionId,
         sequenceId,
         workspaceId: ctx.workspaceId,
         entityId,
         currentStep,
         workerPid: process.pid,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       });
     } else {
       // ── Resume: load ExecutionContext from DB (authoritative), fall back to checkpoint ──
       const execRow = db
-        .prepare(
-          `SELECT executionContext FROM sequence_executions WHERE id = ?`,
-        )
+        .prepare(`SELECT executionContext FROM sequence_executions WHERE id = ?`)
         .get(executionId) as { executionContext: string | null } | undefined;
 
       let loaded = false;
@@ -1106,12 +1036,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
 
       if (!loaded) {
         // Last resort: rebuild from entity data (variables are lost, but execution is safe)
-        const { contact, company } = loadEntityData(
-          db,
-          entityId!,
-          entityType!,
-          ctx.workspaceId,
-        );
+        const { contact, company } = loadEntityData(db, entityId!, entityType!, ctx.workspaceId);
         execCtx = createExecutionContext(
           executionId!,
           sequenceId!,
@@ -1119,7 +1044,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           ctx.workspaceId,
           contact,
           company,
-          now,
+          now
         );
       }
 
@@ -1129,16 +1054,16 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
 
       ctx.emitLog(
         `Resuming execution: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}`,
-        "info",
+        'info'
       );
-      publishAutomationEvent("automation:resumed", {
+      publishAutomationEvent('automation:resumed', {
         executionId,
         sequenceId,
         workspaceId: ctx.workspaceId,
         entityId,
         currentStep,
         workerPid: process.pid,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       });
     }
 
@@ -1152,48 +1077,46 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             id, sequenceId, workspaceId, contactId, companyId,
             currentStep, status, startedAt, completedAt, createdAt, updatedAt, parentJobId, executionContext
           ) VALUES (?, ?, ?, ?, ?, 0, 'completed', ?, ?, ?, ?, ?, ?)
-        `,
+        `
         ).run(
           executionId,
           sequenceId,
           ctx.workspaceId,
-          entityType === "contact" ? entityId : null,
-          entityType === "company" ? entityId : null,
+          entityType === 'contact' ? entityId : null,
+          entityType === 'company' ? entityId : null,
           n,
           n,
           n,
           n,
           ctx.jobId,
-          JSON.stringify(execCtx!),
+          JSON.stringify(execCtx!)
         );
       })();
-      db.prepare(
-        "DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?",
-      ).run(sequenceId, entityId);
+      db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
+        sequenceId,
+        entityId
+      );
       db.close();
       ctx.updateProgress(100, {
-        description: "Sequence has no steps. Completed.",
-        total: 0,
+        description: 'Sequence has no steps. Completed.',
+        total: 0
       });
-      ctx.emitLog(
-        `Execution Completed (empty sequence): executionId=${executionId}`,
-        "info",
-      );
-      publishAutomationEvent("automation:completed", {
+      ctx.emitLog(`Execution Completed (empty sequence): executionId=${executionId}`, 'info');
+      publishAutomationEvent('automation:completed', {
         executionId,
         sequenceId,
         workspaceId: ctx.workspaceId,
         entityId,
         currentStep: 0,
         workerPid: process.pid,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       });
       return {
-        status: "completed",
+        status: 'completed',
         executionId,
         sequenceId,
         entityId,
-        stepsTotal: 0,
+        stepsTotal: 0
       };
     }
 
@@ -1204,7 +1127,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
       // Loop guard (prevents CPU spin from misconfigured GOTO cycles within a single run)
       if (execCtx!.runtime.loopCount >= MAX_AUTOMATION_STEPS_PER_RUN) {
         throw new Error(
-          `Max automation step iterations reached (${MAX_AUTOMATION_STEPS_PER_RUN}). Possible infinite loop.`,
+          `Max automation step iterations reached (${MAX_AUTOMATION_STEPS_PER_RUN}). Possible infinite loop.`
         );
       }
       execCtx!.runtime.loopCount++;
@@ -1212,22 +1135,22 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
       // Overall execution timeout
       if (Date.now() - executionStartTime > MAX_EXECUTION_DURATION_MS) {
         throw new Error(
-          `Execution timeout: workflow exceeded ${MAX_EXECUTION_DURATION_MS / 1000}s.`,
+          `Execution timeout: workflow exceeded ${MAX_EXECUTION_DURATION_MS / 1000}s.`
         );
       }
 
       // ── Fresh contact status verification (Stop-if-replied/bounced/unsubscribed check) ──
-      if (entityType === "contact") {
+      if (entityType === 'contact') {
         const freshContact = db
-          .prepare("SELECT status FROM contacts WHERE id = ? AND workspaceId = ?")
+          .prepare('SELECT status FROM contacts WHERE id = ? AND workspaceId = ?')
           .get(entityId, ctx.workspaceId) as { status: string | null } | undefined;
 
         if (freshContact) {
-          const status = (freshContact.status || "").toUpperCase();
-          if (status === "REPLIED" || status === "BOUNCED" || status === "UNSUBSCRIBED") {
+          const status = (freshContact.status || '').toUpperCase();
+          if (status === 'REPLIED' || status === 'BOUNCED' || status === 'UNSUBSCRIBED') {
             ctx.emitLog(
               `Aborting execution loop: contact status is "${status}". Stop condition matched.`,
-              "info",
+              'info'
             );
             const stopNow = new Date().toISOString();
             db.transaction(() => {
@@ -1236,7 +1159,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
                 UPDATE sequence_executions
                 SET status = 'completed', completedAt = ?, updatedAt = ?
                 WHERE id = ?
-              `,
+              `
               ).run(stopNow, stopNow, executionId);
 
               db.prepare(
@@ -1244,7 +1167,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
                 INSERT INTO sequence_logs (
                   id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
                 ) VALUES (?, ?, ?, ?, ?, 'STOP', 'success', ?, ?, ?)
-              `,
+              `
               ).run(
                 randomUUID(),
                 executionId,
@@ -1253,32 +1176,33 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
                 currentStep,
                 `Stopped early: contact status changed to "${status}".`,
                 stopNow,
-                stopNow,
+                stopNow
               );
             })();
 
-            db.prepare(
-              "DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?",
-            ).run(sequenceId, entityId);
+            db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
+              sequenceId,
+              entityId
+            );
 
-            publishAutomationEvent("automation:completed", {
+            publishAutomationEvent('automation:completed', {
               executionId,
               sequenceId,
               workspaceId: ctx.workspaceId,
               entityId,
               currentStep,
               workerPid: process.pid,
-              timestamp: new Date().toISOString(),
+              timestamp: new Date().toISOString()
             });
 
             db.close();
             return {
-              status: "completed",
+              status: 'completed',
               executionId,
               sequenceId,
               entityId,
               currentStep,
-              stoppedReason: `status_${status.toLowerCase()}`,
+              stoppedReason: `status_${status.toLowerCase()}`
             };
           }
         }
@@ -1293,31 +1217,32 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           sequenceId: sequenceId!,
           entityId: entityId!,
           entityType: entityType!,
-          executionContext: execCtx!,
+          executionContext: execCtx!
         } satisfies AutomationCheckpoint);
         ctx.emitLog(
           `Execution Paused: executionId=${executionId}, stepIndex=${currentStep}`,
-          "info",
+          'info'
         );
-        db.prepare(
-          "DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?",
-        ).run(sequenceId, entityId);
-        publishAutomationEvent("automation:paused", {
+        db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
+          sequenceId,
+          entityId
+        );
+        publishAutomationEvent('automation:paused', {
           executionId,
           sequenceId,
           workspaceId: ctx.workspaceId,
           entityId,
           currentStep,
           workerPid: process.pid,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString()
         });
         db.close();
         return {
-          status: "paused",
+          status: 'paused',
           executionId,
           sequenceId,
           entityId,
-          currentStep,
+          currentStep
         };
       }
 
@@ -1325,71 +1250,64 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
       if (ctx.isCancelled()) {
         ctx.emitLog(
           `Execution Cancelled: executionId=${executionId}, stepIndex=${currentStep}`,
-          "warn",
+          'warn'
         );
         const nc = new Date().toISOString();
         db.transaction(() => {
           db.prepare(
             `
             UPDATE sequence_executions SET status = 'cancelled', completedAt = ?, updatedAt = ? WHERE id = ?
-          `,
+          `
           ).run(nc, nc, executionId);
           db.prepare(
             `
             INSERT INTO sequence_logs (
               id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
             ) VALUES (?, ?, ?, ?, ?, 'CANCEL', 'success', 'Cancelled by user request', ?, ?)
-          `,
-          ).run(
-            randomUUID(),
-            executionId,
-            ctx.workspaceId,
-            nc,
-            currentStep,
-            nc,
-            nc,
-          );
+          `
+          ).run(randomUUID(), executionId, ctx.workspaceId, nc, currentStep, nc, nc);
         })();
-        db.prepare(
-          "DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?",
-        ).run(sequenceId, entityId);
-        publishAutomationEvent("automation:cancelled", {
+        db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
+          sequenceId,
+          entityId
+        );
+        publishAutomationEvent('automation:cancelled', {
           executionId,
           sequenceId,
           workspaceId: ctx.workspaceId,
           entityId,
           currentStep,
           workerPid: process.pid,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString()
         });
         db.close();
         return {
-          status: "cancelled",
+          status: 'cancelled',
           executionId,
           sequenceId,
           entityId,
-          currentStep,
+          currentStep
         };
       }
 
       const step = steps[currentStep];
       if (!step || !step.type) {
         throw new Error(
-          `Automation workflow: step at index ${currentStep} is malformed or missing a type.`,
+          `Automation workflow: step at index ${currentStep} is malformed or missing a type.`
         );
       }
 
       ctx.updateProgress(Math.floor((currentStep / steps.length) * 100), {
         description: `Step ${currentStep + 1}/${steps.length}: ${step.type}`,
         step: currentStep,
-        total: steps.length,
+        total: steps.length
       });
 
       const stepStart = Date.now();
       ctx.emitLog(
         `Step Started: executionId=${executionId}, stepIndex=${currentStep}, ` +
           `stepType=${step.type}, entity=${entityType}/${entityId}`,
-        "info",
+        'info'
       );
 
       // ── Dispatch ────────────────────────────────────────────────────────────
@@ -1411,7 +1329,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             step,
             ctx,
             execCtx!,
-            labelMap,
+            labelMap
           );
         })();
 
@@ -1420,11 +1338,11 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             () =>
               reject(
                 new Error(
-                  `Step execution timeout: step of type "${step.type}" exceeded ${MAX_STEP_DURATION_MS / 1000}s.`,
-                ),
+                  `Step execution timeout: step of type "${step.type}" exceeded ${MAX_STEP_DURATION_MS / 1000}s.`
+                )
               ),
-            MAX_STEP_DURATION_MS,
-          ),
+            MAX_STEP_DURATION_MS
+          )
         );
 
         dispatchResult = await Promise.race([stepPromise, timeoutPromise]);
@@ -1433,7 +1351,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         ctx.emitLog(
           `Step Failed: executionId=${executionId}, stepIndex=${currentStep}, ` +
             `stepType=${step.type}, elapsed=${elapsed}ms, error=${stepErr.message || String(stepErr)}`,
-          "error",
+          'error'
         );
         throw stepErr;
       }
@@ -1442,14 +1360,14 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
       ctx.emitLog(
         `Step Completed: executionId=${executionId}, stepIndex=${currentStep}, ` +
           `stepType=${step.type}, elapsed=${elapsed}ms`,
-        "info",
+        'info'
       );
 
       // ── Handle result ──────────────────────────────────────────────────────
       const nowStr = new Date().toISOString();
       const logId = randomUUID();
 
-      if (dispatchResult.status === "success") {
+      if (dispatchResult.status === 'success') {
         const nextStep = currentStep + 1;
         const isCompleted = nextStep >= steps.length;
         execCtx!.execution.currentStep = nextStep;
@@ -1460,14 +1378,14 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             UPDATE sequence_executions
             SET currentStep = ?, status = ?, completedAt = ?, updatedAt = ?, executionContext = ?
             WHERE id = ?
-          `,
+          `
           ).run(
             nextStep,
-            isCompleted ? "completed" : "running",
+            isCompleted ? 'completed' : 'running',
             isCompleted ? nowStr : null,
             nowStr,
             JSON.stringify(execCtx!),
-            executionId,
+            executionId
           );
 
           db.prepare(
@@ -1475,7 +1393,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             INSERT INTO sequence_logs (
               id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
             ) VALUES (?, ?, ?, ?, ?, ?, 'success', ?, ?, ?)
-          `,
+          `
           ).run(
             logId,
             executionId,
@@ -1485,7 +1403,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             step.type,
             `Step "${step.type}" completed successfully.`,
             nowStr,
-            nowStr,
+            nowStr
           );
         })();
 
@@ -1494,39 +1412,38 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         if (isCompleted) {
           ctx.emitLog(
             `Execution Completed: executionId=${executionId}, sequenceId=${sequenceId}`,
-            "info",
+            'info'
           );
-          db.prepare(
-            "DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?",
-          ).run(sequenceId, entityId);
-          publishAutomationEvent("automation:completed", {
+          db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
+            sequenceId,
+            entityId
+          );
+          publishAutomationEvent('automation:completed', {
             executionId,
             sequenceId,
             workspaceId: ctx.workspaceId,
             entityId,
             currentStep,
             workerPid: process.pid,
-            timestamp: new Date().toISOString(),
+            timestamp: new Date().toISOString()
           });
           db.close();
           ctx.updateProgress(100, {
-            description: "Workflow complete.",
+            description: 'Workflow complete.',
             step: currentStep,
-            total: steps.length,
+            total: steps.length
           });
           return {
-            status: "completed",
+            status: 'completed',
             executionId,
             sequenceId,
             entityId,
-            currentStep,
+            currentStep
           };
         }
-      } else if (dispatchResult.status === "wait") {
+      } else if (dispatchResult.status === 'wait') {
         const delay = dispatchResult.delaySeconds || 60;
-        const nextExecutionAt = new Date(
-          Date.now() + delay * 1000,
-        ).toISOString();
+        const nextExecutionAt = new Date(Date.now() + delay * 1000).toISOString();
         const nextStep = currentStep + 1;
         execCtx!.execution.currentStep = nextStep;
 
@@ -1536,21 +1453,15 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             UPDATE sequence_executions
             SET currentStep = ?, status = 'waiting', nextExecutionAt = ?, updatedAt = ?, executionContext = ?
             WHERE id = ?
-          `,
-          ).run(
-            nextStep,
-            nextExecutionAt,
-            nowStr,
-            JSON.stringify(execCtx!),
-            executionId,
-          );
+          `
+          ).run(nextStep, nextExecutionAt, nowStr, JSON.stringify(execCtx!), executionId);
 
           db.prepare(
             `
             INSERT INTO sequence_logs (
               id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
             ) VALUES (?, ?, ?, ?, ?, 'WAIT', 'success', ?, ?, ?)
-          `,
+          `
           ).run(
             logId,
             executionId,
@@ -1559,7 +1470,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             currentStep,
             `Scheduled delay of ${delay}s. Next execution at: ${nextExecutionAt}`,
             nowStr,
-            nowStr,
+            nowStr
           );
         })();
 
@@ -1569,45 +1480,45 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           sequenceId: sequenceId!,
           entityId: entityId!,
           entityType: entityType!,
-          executionContext: execCtx!,
+          executionContext: execCtx!
         } satisfies AutomationCheckpoint);
 
         const lockExpires = new Date(
-          new Date(nextExecutionAt).getTime() + 5 * 60 * 1000,
+          new Date(nextExecutionAt).getTime() + 5 * 60 * 1000
         ).toISOString();
         db.prepare(
-          "UPDATE automation_locks SET expiresAt = ? WHERE sequenceId = ? AND entityId = ?",
+          'UPDATE automation_locks SET expiresAt = ? WHERE sequenceId = ? AND entityId = ?'
         ).run(lockExpires, sequenceId, entityId);
 
         ctx.emitLog(
           `Execution Waiting: executionId=${executionId}, stepIndex=${currentStep}, delay=${delay}s`,
-          "info",
+          'info'
         );
-        publishAutomationEvent("automation:waiting", {
+        publishAutomationEvent('automation:waiting', {
           executionId,
           sequenceId,
           workspaceId: ctx.workspaceId,
           entityId,
           currentStep: nextStep,
           workerPid: process.pid,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString()
         });
         db.close();
         ctx.updateProgress(100, {
-          description: "Waiting scheduled.",
+          description: 'Waiting scheduled.',
           step: nextStep,
-          total: steps.length,
+          total: steps.length
         });
         return {
-          status: "waiting",
+          status: 'waiting',
           executionId,
           sequenceId,
           entityId,
-          currentStep: nextStep,
+          currentStep: nextStep
         };
-      } else if (dispatchResult.status === "goto") {
+      } else if (dispatchResult.status === 'goto') {
         const { targetIndex, targetLabel } = dispatchResult as {
-          status: "goto";
+          status: 'goto';
           targetIndex: number;
           targetLabel: string;
         };
@@ -1618,7 +1529,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             `
             UPDATE sequence_executions
             SET currentStep = ?, updatedAt = ?, executionContext = ? WHERE id = ?
-          `,
+          `
           ).run(targetIndex, nowStr, JSON.stringify(execCtx!), executionId);
 
           db.prepare(
@@ -1626,7 +1537,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             INSERT INTO sequence_logs (
               id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
             ) VALUES (?, ?, ?, ?, ?, ?, 'success', ?, ?, ?)
-          `,
+          `
           ).run(
             logId,
             executionId,
@@ -1636,14 +1547,14 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             step.type,
             `Jump to label "${targetLabel}" (index ${targetIndex}). jumpCount=${execCtx!.runtime.jumpCount}`,
             nowStr,
-            nowStr,
+            nowStr
           );
         })();
 
         currentStep = targetIndex;
-      } else if (dispatchResult.status === "skip") {
+      } else if (dispatchResult.status === 'skip') {
         const { skipCount } = dispatchResult as {
-          status: "skip";
+          status: 'skip';
           skipCount: number;
         };
         const nextStep = Math.min(currentStep + 1 + skipCount, steps.length);
@@ -1654,7 +1565,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             `
             UPDATE sequence_executions
             SET currentStep = ?, updatedAt = ?, executionContext = ? WHERE id = ?
-          `,
+          `
           ).run(nextStep, nowStr, JSON.stringify(execCtx!), executionId);
 
           db.prepare(
@@ -1662,7 +1573,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             INSERT INTO sequence_logs (
               id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
             ) VALUES (?, ?, ?, ?, ?, ?, 'success', ?, ?, ?)
-          `,
+          `
           ).run(
             logId,
             executionId,
@@ -1672,7 +1583,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             step.type,
             `Skipped ${skipCount} step(s). Advancing to step index ${nextStep}.`,
             nowStr,
-            nowStr,
+            nowStr
           );
         })();
 
@@ -1683,87 +1594,88 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           db.prepare(
             `
             UPDATE sequence_executions SET status = 'completed', completedAt = ?, updatedAt = ? WHERE id = ?
-          `,
+          `
           ).run(n2, n2, executionId);
-          db.prepare(
-            "DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?",
-          ).run(sequenceId, entityId);
-          publishAutomationEvent("automation:completed", {
+          db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
+            sequenceId,
+            entityId
+          );
+          publishAutomationEvent('automation:completed', {
             executionId,
             sequenceId,
             workspaceId: ctx.workspaceId,
             entityId,
             currentStep,
             workerPid: process.pid,
-            timestamp: new Date().toISOString(),
+            timestamp: new Date().toISOString()
           });
           db.close();
           ctx.updateProgress(100, {
-            description: "Workflow complete (via SKIP).",
+            description: 'Workflow complete (via SKIP).',
             step: currentStep,
-            total: steps.length,
+            total: steps.length
           });
           return {
-            status: "completed",
+            status: 'completed',
             executionId,
             sequenceId,
             entityId,
-            currentStep,
+            currentStep
           };
         }
       }
     } // end while
 
     // Loop exited naturally (all steps processed without early return above)
-    db.prepare(
-      "DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?",
-    ).run(sequenceId, entityId);
-    publishAutomationEvent("automation:completed", {
+    db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
+      sequenceId,
+      entityId
+    );
+    publishAutomationEvent('automation:completed', {
       executionId,
       sequenceId,
       workspaceId: ctx.workspaceId,
       entityId,
       currentStep,
       workerPid: process.pid,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     });
     db.close();
     return {
-      status: "completed",
+      status: 'completed',
       executionId,
       sequenceId,
       entityId,
-      currentStep,
+      currentStep
     };
   } catch (err: any) {
     try {
       const payload = ctx.payload as AutomationWorkflowPayload;
       const checkpoint = ctx.getCheckpoint() as AutomationCheckpoint | null;
-      const resolvedExecId =
-        checkpoint?.executionId || executionId || (payload as any).executionId;
+      const resolvedExecId = checkpoint?.executionId || executionId || (payload as any).executionId;
       const resolvedStep = checkpoint?.currentStep ?? currentStep ?? 0;
       const resolvedSeqId = sequenceId || payload?.sequenceId;
       const resolvedEntId = entityId || payload?.entityId;
 
       if (resolvedExecId) {
         ctx.emitLog(
-          `Execution Failed: executionId=${resolvedExecId}, sequenceId=${resolvedSeqId || "unknown"}, ` +
+          `Execution Failed: executionId=${resolvedExecId}, sequenceId=${resolvedSeqId || 'unknown'}, ` +
             `stepIndex=${resolvedStep}, error=${err.message || String(err)}`,
-          "error",
+          'error'
         );
         const n = new Date().toISOString();
         db.transaction(() => {
           db.prepare(
             `
             UPDATE sequence_executions SET status = 'failed', completedAt = ?, updatedAt = ? WHERE id = ?
-          `,
+          `
           ).run(n, n, resolvedExecId);
           db.prepare(
             `
             INSERT INTO sequence_logs (
               id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
             ) VALUES (?, ?, ?, ?, ?, 'ERROR', 'failed', ?, ?, ?)
-          `,
+          `
           ).run(
             randomUUID(),
             resolvedExecId,
@@ -1772,24 +1684,21 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             resolvedStep,
             err.message || String(err),
             n,
-            n,
+            n
           );
         })();
 
         if (resolvedSeqId && resolvedEntId) {
-          db.prepare(
-            "DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?",
-          ).run(resolvedSeqId, resolvedEntId);
+          db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
+            resolvedSeqId,
+            resolvedEntId
+          );
         }
 
         // Retry vs Permanent Failure Classification
         const currentStepDef = steps && steps[resolvedStep];
-        const registryAction = currentStepDef
-          ? ActionRegistry[currentStepDef.type]
-          : null;
-        const supportsRetry = registryAction
-          ? registryAction.supportsRetry(err)
-          : false;
+        const registryAction = currentStepDef ? ActionRegistry[currentStepDef.type] : null;
+        const supportsRetry = registryAction ? registryAction.supportsRetry(err) : false;
 
         if (!supportsRetry && ctx.jobId) {
           db.prepare(
@@ -1797,19 +1706,19 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             UPDATE jobs
             SET maxRetries = 0, updatedAt = CURRENT_TIMESTAMP
             WHERE id = ?
-          `,
+          `
           ).run(ctx.jobId);
         }
 
-        publishAutomationEvent("automation:failed", {
+        publishAutomationEvent('automation:failed', {
           executionId: resolvedExecId,
-          sequenceId: resolvedSeqId || "unknown",
+          sequenceId: resolvedSeqId || 'unknown',
           workspaceId: ctx.workspaceId,
-          entityId: resolvedEntId || "unknown",
+          entityId: resolvedEntId || 'unknown',
           currentStep: resolvedStep,
           workerPid: process.pid,
           error: err.message || String(err),
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString()
         });
       }
     } catch {
@@ -1830,12 +1739,9 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
 
 // ── Step Handlers ─────────────────────────────────────────────────────────────
 
-function loadSettings(
-  db: Database.Database,
-  workspaceId: string,
-): Map<string, string> {
+function loadSettings(db: Database.Database, workspaceId: string): Map<string, string> {
   const rows = db
-    .prepare("SELECT key, value FROM settings WHERE workspaceId = ?")
+    .prepare('SELECT key, value FROM settings WHERE workspaceId = ?')
     .all(workspaceId) as { key: string; value: string }[];
   const map = new Map<string, string>();
   for (const row of rows) {
@@ -1850,12 +1756,16 @@ function resolveSettingValue(
   ...keys: string[]
 ): string | undefined {
   for (const key of keys) {
-    if (secrets && secrets[key] !== undefined && secrets[key] !== null && secrets[key].trim() !== '') {
+    if (
+      secrets &&
+      secrets[key] !== undefined &&
+      secrets[key] !== null &&
+      secrets[key].trim() !== ''
+    ) {
       return secrets[key].trim();
     }
     const val = settings.get(key);
-    if (val !== undefined && val !== null && val.trim() !== "")
-      return val.trim();
+    if (val !== undefined && val !== null && val.trim() !== '') return val.trim();
   }
   return undefined;
 }
@@ -1867,12 +1777,12 @@ async function handleSendEmailStep(
   sequenceId: string,
   step: StepDefinition,
   ctx: JobContext,
-  execCtx: ExecutionContext,
-): Promise<{ status: "success" }> {
+  execCtx: ExecutionContext
+): Promise<{ status: 'success' }> {
   const templateId = step.config?.templateId;
   if (!templateId) {
     throw new Error(
-      "Automation workflow: SEND_EMAIL step config missing required parameter: templateId.",
+      'Automation workflow: SEND_EMAIL step config missing required parameter: templateId.'
     );
   }
 
@@ -1881,7 +1791,7 @@ async function handleSendEmailStep(
       `
     SELECT id, firstName, lastName, email, title, phone
     FROM contacts WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-  `,
+  `
     )
     .get(entityId, workspaceId) as
     | {
@@ -1895,25 +1805,23 @@ async function handleSendEmailStep(
     | undefined;
 
   if (!contact) throw new Error(`Contact not found: ${entityId}`);
-  if (!contact.email)
-    throw new Error(`Contact ${entityId} has no valid email address.`);
+  if (!contact.email) throw new Error(`Contact ${entityId} has no valid email address.`);
 
   const tpl = db
     .prepare(
       `
     SELECT subject, body FROM templates
     WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-  `,
+  `
     )
-    .get(templateId, workspaceId) as
-    { subject: string; body: string } | undefined;
+    .get(templateId, workspaceId) as { subject: string; body: string } | undefined;
 
   if (!tpl) throw new Error(`Template not found: ${templateId}`);
 
   // Merge fresh DB snapshot into context for accurate rendering
   const renderCtx: ExecutionContext = {
     ...execCtx,
-    contact: { ...execCtx.contact, ...contact },
+    contact: { ...execCtx.contact, ...contact }
   };
   const renderedSubject = resolveVariables(tpl.subject, renderCtx);
   const renderedBody = resolveVariables(tpl.body, renderCtx);
@@ -1926,51 +1834,56 @@ async function handleSendEmailStep(
     FROM email_accounts
     WHERE workspaceId = ? AND status = 'connected' AND deletedAt IS NULL
     ORDER BY createdAt ASC LIMIT 1
-  `,
+  `
     )
-    .get(workspaceId) as
-    { id: string; email: string; name: string } | undefined;
+    .get(workspaceId) as { id: string; email: string; name: string } | undefined;
 
-  let host = resolveSettingValue(ctx.payload._secrets, settings, "smtp.host", "smtpHost", "host");
-  let portStr = resolveSettingValue(ctx.payload._secrets, settings, "smtp.port", "smtpPort", "port");
+  let host = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.host', 'smtpHost', 'host');
+  let portStr = resolveSettingValue(
+    ctx.payload._secrets,
+    settings,
+    'smtp.port',
+    'smtpPort',
+    'port'
+  );
   let secureStr = resolveSettingValue(
     ctx.payload._secrets,
     settings,
-    "smtp.secure",
-    "smtpSecure",
-    "secure",
+    'smtp.secure',
+    'smtpSecure',
+    'secure'
   );
   let username = resolveSettingValue(
     ctx.payload._secrets,
     settings,
-    "smtp.username",
-    "smtp.user",
-    "smtpUsername",
-    "username",
+    'smtp.username',
+    'smtp.user',
+    'smtpUsername',
+    'username'
   );
   let password = resolveSettingValue(
     ctx.payload._secrets,
     settings,
-    "smtp.password",
-    "smtp.pass",
-    "smtpPassword",
-    "password",
+    'smtp.password',
+    'smtp.pass',
+    'smtpPassword',
+    'password'
   );
   let senderName =
     resolveSettingValue(
       ctx.payload._secrets,
       settings,
-      "smtp.senderName",
-      "smtpSenderName",
-      "senderName",
-    ) || "LeadForge OS";
+      'smtp.senderName',
+      'smtpSenderName',
+      'senderName'
+    ) || 'LeadForge OS';
   let senderEmail =
     resolveSettingValue(
       ctx.payload._secrets,
       settings,
-      "smtp.senderEmail",
-      "smtpSenderEmail",
-      "senderEmail",
+      'smtp.senderEmail',
+      'smtpSenderEmail',
+      'senderEmail'
     ) || username;
 
   if (account) {
@@ -1980,12 +1893,12 @@ async function handleSendEmailStep(
 
   if (!host || !username || !password) {
     throw new Error(
-      "SMTP credentials not found in workspace settings (required: host, username, password).",
+      'SMTP credentials not found in workspace settings (required: host, username, password).'
     );
   }
 
   const port = portStr ? parseInt(portStr, 10) : 465;
-  const secure = secureStr !== undefined ? secureStr === "true" : port === 465;
+  const secure = secureStr !== undefined ? secureStr === 'true' : port === 465;
 
   const transporter = nodemailer.createTransport({
     host,
@@ -1994,7 +1907,7 @@ async function handleSendEmailStep(
     auth: { user: username, pass: password },
     connectionTimeout: 10000,
     greetingTimeout: 5000,
-    socketTimeout: 15000,
+    socketTimeout: 15000
   } as any);
 
   try {
@@ -2002,13 +1915,13 @@ async function handleSendEmailStep(
       from: `"${senderName}" <${senderEmail}>`,
       to: contact.email,
       subject: renderedSubject,
-      html: renderedBody,
+      html: renderedBody
     });
     const sentMsgId = sendResult.messageId;
     if (sentMsgId) {
       try {
         const row = db
-          .prepare("SELECT sentMessageIds FROM sequence_executions WHERE id = ?")
+          .prepare('SELECT sentMessageIds FROM sequence_executions WHERE id = ?')
           .get(execCtx.execution.id) as { sentMessageIds: string | null } | undefined;
         let ids: string[] = [];
         if (row?.sentMessageIds) {
@@ -2021,19 +1934,19 @@ async function handleSendEmailStep(
         }
         ids.push(sentMsgId);
         db.prepare(
-          "UPDATE sequence_executions SET sentMessageIds = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
+          'UPDATE sequence_executions SET sentMessageIds = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?'
         ).run(JSON.stringify(ids), execCtx.execution.id);
       } catch (err: any) {
-        ctx.emitLog(`Failed to record sent messageId: ${err.message}`, "error");
+        ctx.emitLog(`Failed to record sent messageId: ${err.message}`, 'error');
       }
     }
 
     ctx.emitLog(
-      `SMTP send success: messageId=${sentMsgId || "unknown"}, ` +
+      `SMTP send success: messageId=${sentMsgId || 'unknown'}, ` +
         `recipient=${contact.email}, subject=${renderedSubject}`,
-      "info",
+      'info'
     );
-    return { status: "success" };
+    return { status: 'success' };
   } catch (sendErr: any) {
     throw new Error(`SMTP send failed: ${sendErr.message || sendErr}`);
   } finally {
@@ -2042,18 +1955,14 @@ async function handleSendEmailStep(
 }
 
 function handleWaitStep(step: StepDefinition): {
-  status: "wait";
+  status: 'wait';
   delaySeconds: number;
 } {
-  const delaySeconds = Number(
-    step.config?.delaySeconds || step.config?.duration || 60,
-  );
+  const delaySeconds = Number(step.config?.delaySeconds || step.config?.duration || 60);
   if (isNaN(delaySeconds) || delaySeconds < 0) {
-    throw new Error(
-      "Automation workflow: WAIT step config contains invalid delaySeconds.",
-    );
+    throw new Error('Automation workflow: WAIT step config contains invalid delaySeconds.');
   }
-  return { status: "wait", delaySeconds };
+  return { status: 'wait', delaySeconds };
 }
 
 function handleAssignTagStep(
@@ -2062,30 +1971,27 @@ function handleAssignTagStep(
   workspaceId: string,
   step: StepDefinition,
   ctx: JobContext,
-  execCtx: ExecutionContext,
-): { status: "success" } {
+  execCtx: ExecutionContext
+): { status: 'success' } {
   // Defensive schema resilience — ignore if column already exists
   try {
-    db.prepare("ALTER TABLE contacts ADD COLUMN tags TEXT").run();
+    db.prepare('ALTER TABLE contacts ADD COLUMN tags TEXT').run();
   } catch {
     /* already exists */
   }
 
   const rawTag = step.config?.tag;
   if (!rawTag)
-    throw new Error(
-      "Automation workflow: ASSIGN_TAG step config missing required parameter: tag.",
-    );
+    throw new Error('Automation workflow: ASSIGN_TAG step config missing required parameter: tag.');
   const newTag = resolveVariables(String(rawTag), execCtx);
 
   const contact = db
     .prepare(
       `
     SELECT id, tags FROM contacts WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-  `,
+  `
     )
-    .get(entityId, workspaceId) as
-    { id: string; tags: string | null } | undefined;
+    .get(entityId, workspaceId) as { id: string; tags: string | null } | undefined;
 
   if (!contact) throw new Error(`Contact not found: ${entityId}`);
 
@@ -2096,7 +2002,7 @@ function handleAssignTagStep(
       if (Array.isArray(parsed)) existingTags = parsed;
     } catch {
       existingTags = contact.tags
-        .split(",")
+        .split(',')
         .map((t) => t.trim())
         .filter(Boolean);
     }
@@ -2105,9 +2011,9 @@ function handleAssignTagStep(
   if (existingTags.includes(newTag)) {
     ctx.emitLog(
       `Tag "${newTag}" already assigned to contact ${entityId} (idempotent skip).`,
-      "info",
+      'info'
     );
-    return { status: "success" };
+    return { status: 'success' };
   }
 
   const updatedTags = [...existingTags, newTag];
@@ -2116,29 +2022,27 @@ function handleAssignTagStep(
       `
       UPDATE contacts SET tags = ?, updatedAt = CURRENT_TIMESTAMP, version = version + 1
       WHERE id = ? AND workspaceId = ?
-    `,
+    `
     ).run(JSON.stringify(updatedTags), entityId, workspaceId);
 
-    const updatedContact = db
-      .prepare("SELECT * FROM contacts WHERE id = ?")
-      .get(entityId);
+    const updatedContact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(entityId);
     db.prepare(
       `
       INSERT INTO sync_queue (
         id, workspaceId, entityType, entityId, operation, payload, version,
         retryCount, lastError, createdAt, updatedAt
       ) VALUES (?, ?, 'contacts', ?, 'UPDATE', ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `,
+    `
     ).run(
       randomUUID(),
       workspaceId,
       entityId,
       JSON.stringify(updatedContact),
-      (updatedContact as any).version || 1,
+      (updatedContact as any).version || 1
     );
   })();
 
-  return { status: "success" };
+  return { status: 'success' };
 }
 
 function handleUpdateStageStep(
@@ -2146,24 +2050,18 @@ function handleUpdateStageStep(
   entityId: string,
   workspaceId: string,
   step: StepDefinition,
-  ctx: JobContext,
-): { status: "success" } {
+  ctx: JobContext
+): { status: 'success' } {
   const stage = step.config?.stage || step.config?.status;
   if (!stage)
     throw new Error(
-      "Automation workflow: UPDATE_STAGE step config missing required parameter: stage.",
+      'Automation workflow: UPDATE_STAGE step config missing required parameter: stage.'
     );
 
-  const validStages = [
-    "NEW",
-    "CONTACTED",
-    "REPLIED",
-    "BOUNCED",
-    "UNSUBSCRIBED",
-  ];
+  const validStages = ['NEW', 'CONTACTED', 'REPLIED', 'BOUNCED', 'UNSUBSCRIBED'];
   if (!validStages.includes(stage.toUpperCase())) {
     throw new Error(
-      `Invalid destination stage "${stage}". Valid stages: ${validStages.join(", ")}`,
+      `Invalid destination stage "${stage}". Valid stages: ${validStages.join(', ')}`
     );
   }
 
@@ -2171,19 +2069,18 @@ function handleUpdateStageStep(
     .prepare(
       `
     SELECT id, status FROM contacts WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-  `,
+  `
     )
-    .get(entityId, workspaceId) as
-    { id: string; status: string | null } | undefined;
+    .get(entityId, workspaceId) as { id: string; status: string | null } | undefined;
 
   if (!contact) throw new Error(`Contact not found: ${entityId}`);
 
   if (contact.status === stage.toUpperCase()) {
     ctx.emitLog(
       `Contact ${entityId} is already in stage "${stage.toUpperCase()}" (idempotent skip).`,
-      "info",
+      'info'
     );
-    return { status: "success" };
+    return { status: 'success' };
   }
 
   db.transaction(() => {
@@ -2191,35 +2088,33 @@ function handleUpdateStageStep(
       `
       UPDATE contacts SET status = ?, updatedAt = CURRENT_TIMESTAMP, version = version + 1
       WHERE id = ? AND workspaceId = ?
-    `,
+    `
     ).run(stage.toUpperCase(), entityId, workspaceId);
 
-    const updatedContact = db
-      .prepare("SELECT * FROM contacts WHERE id = ?")
-      .get(entityId);
+    const updatedContact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(entityId);
     db.prepare(
       `
       INSERT INTO sync_queue (
         id, workspaceId, entityType, entityId, operation, payload, version,
         retryCount, lastError, createdAt, updatedAt
       ) VALUES (?, ?, 'contacts', ?, 'UPDATE', ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `,
+    `
     ).run(
       randomUUID(),
       workspaceId,
       entityId,
       JSON.stringify(updatedContact),
-      (updatedContact as any).version || 1,
+      (updatedContact as any).version || 1
     );
   })();
 
-  return { status: "success" };
+  return { status: 'success' };
 }
 
 function handleSetVariableStep(
   step: StepDefinition,
-  execCtx: ExecutionContext,
-): { status: "success" } {
+  execCtx: ExecutionContext
+): { status: 'success' } {
   const assignments: Array<{
     variable: string;
     value: string;
@@ -2227,20 +2122,16 @@ function handleSetVariableStep(
   }> = step.config?.assignments || [];
 
   for (const assignment of assignments) {
-    const resolved = resolveVariables(String(assignment.value ?? ""), execCtx);
-    const op = assignment.operator || "=";
+    const resolved = resolveVariables(String(assignment.value ?? ''), execCtx);
+    const op = assignment.operator || '=';
 
-    if (op === "+=") {
-      const current = parseFloat(
-        String(execCtx.variables[assignment.variable] ?? "0"),
-      );
+    if (op === '+=') {
+      const current = parseFloat(String(execCtx.variables[assignment.variable] ?? '0'));
       const delta = parseFloat(resolved);
       execCtx.variables[assignment.variable] =
         !isNaN(current) && !isNaN(delta) ? current + delta : resolved;
-    } else if (op === "-=") {
-      const current = parseFloat(
-        String(execCtx.variables[assignment.variable] ?? "0"),
-      );
+    } else if (op === '-=') {
+      const current = parseFloat(String(execCtx.variables[assignment.variable] ?? '0'));
       const delta = parseFloat(resolved);
       execCtx.variables[assignment.variable] =
         !isNaN(current) && !isNaN(delta) ? current - delta : resolved;
@@ -2252,36 +2143,34 @@ function handleSetVariableStep(
     }
   }
 
-  return { status: "success" };
+  return { status: 'success' };
 }
 
 function handleIfStep(
   step: StepDefinition,
   execCtx: ExecutionContext,
   labelMap: Map<string, number>,
-  ctx: JobContext,
+  ctx: JobContext
 ):
-  | { status: "success" }
-  | { status: "goto"; targetIndex: number; targetLabel: string }
-  | { status: "skip"; skipCount: number } {
-  const condition = step.config?.condition || "";
-  if (!condition) throw new Error("IF step: condition is empty.");
+  | { status: 'success' }
+  | { status: 'goto'; targetIndex: number; targetLabel: string }
+  | { status: 'skip'; skipCount: number } {
+  const condition = step.config?.condition || '';
+  if (!condition) throw new Error('IF step: condition is empty.');
 
   const evalStart = Date.now();
   let result: boolean;
   try {
     result = evaluateExpression(condition, execCtx);
   } catch (e: any) {
-    throw new Error(
-      `IF step evaluation failed — ${e.message}. Expression: "${condition}"`,
-    );
+    throw new Error(`IF step evaluation failed — ${e.message}. Expression: "${condition}"`);
   }
 
   const resolvedForLog = resolveVariables(condition, execCtx);
   ctx.emitLog(
     `IF evaluation: condition="${condition}" resolved="${resolvedForLog}" ` +
       `result=${result} duration=${Date.now() - evalStart}ms`,
-    "info",
+    'info'
   );
 
   if (result) {
@@ -2295,39 +2184,35 @@ function handleIfStep(
       execCtx.runtime.jumpCount++;
       if (execCtx.runtime.jumpCount > 100) {
         throw new Error(
-          `Jump limit exceeded (100). Possible infinite loop via IF → "${thenGoto}".`,
+          `Jump limit exceeded (100). Possible infinite loop via IF → "${thenGoto}".`
         );
       }
       execCtx.runtime.currentLabel = thenGoto;
-      return { status: "goto", targetIndex, targetLabel: thenGoto };
+      return { status: 'goto', targetIndex, targetLabel: thenGoto };
     }
-    return { status: "success" };
+    return { status: 'success' };
   } else {
     const elseSkip = step.config?.elseSkip;
     if (elseSkip !== undefined && Number(elseSkip) > 0) {
-      return { status: "skip", skipCount: Number(elseSkip) };
+      return { status: 'skip', skipCount: Number(elseSkip) };
     }
-    return { status: "success" };
+    return { status: 'success' };
   }
 }
 
-function handleLabelStep(
-  step: StepDefinition,
-  execCtx: ExecutionContext,
-): { status: "success" } {
+function handleLabelStep(step: StepDefinition, execCtx: ExecutionContext): { status: 'success' } {
   execCtx.runtime.currentLabel = step.config?.name || null;
-  return { status: "success" };
+  return { status: 'success' };
 }
 
 function handleGotoStep(
   step: StepDefinition,
   labelMap: Map<string, number>,
   execCtx: ExecutionContext,
-  ctx: JobContext,
-): { status: "goto"; targetIndex: number; targetLabel: string } {
+  ctx: JobContext
+): { status: 'goto'; targetIndex: number; targetLabel: string } {
   const label = step.config?.label;
-  if (!label)
-    throw new Error('GOTO step: missing required config field: "label".');
+  if (!label) throw new Error('GOTO step: missing required config field: "label".');
 
   const key = String(label).toLowerCase();
   const targetIndex = labelMap.get(key);
@@ -2337,26 +2222,24 @@ function handleGotoStep(
 
   execCtx.runtime.jumpCount++;
   if (execCtx.runtime.jumpCount > 100) {
-    throw new Error(
-      `Jump limit exceeded (100). Infinite loop detected via GOTO → "${label}".`,
-    );
+    throw new Error(`Jump limit exceeded (100). Infinite loop detected via GOTO → "${label}".`);
   }
   execCtx.runtime.currentLabel = label;
 
   ctx.emitLog(
     `GOTO: jumping to label "${label}" (index ${targetIndex}). jumpCount=${execCtx.runtime.jumpCount}`,
-    "info",
+    'info'
   );
 
-  return { status: "goto", targetIndex, targetLabel: label };
+  return { status: 'goto', targetIndex, targetLabel: label };
 }
 
 function handleSkipStep(step: StepDefinition): {
-  status: "skip";
+  status: 'skip';
   skipCount: number;
 } {
   const count = Math.max(1, Number(step.config?.count ?? 1));
-  return { status: "skip", skipCount: count };
+  return { status: 'skip', skipCount: count };
 }
 
 // ── HTTP Action Implementation (STAB-013E) ────────────────────────────────────
@@ -2365,31 +2248,31 @@ export class HttpError extends Error {
   constructor(
     public status: number,
     message: string,
-    public body: string,
+    public body: string
   ) {
     super(message);
-    this.name = "HttpError";
+    this.name = 'HttpError';
   }
 }
 
 function redactHeaders(headers: Record<string, any>): Record<string, string> {
   const redacted: Record<string, string> = {};
   const sensitiveKeys = [
-    "authorization",
-    "cookie",
-    "api-key",
-    "apikey",
-    "secret",
-    "password",
-    "token",
-    "x-api-key",
-    "pass",
-    "sec",
+    'authorization',
+    'cookie',
+    'api-key',
+    'apikey',
+    'secret',
+    'password',
+    'token',
+    'x-api-key',
+    'pass',
+    'sec'
   ];
   for (const [k, v] of Object.entries(headers)) {
     const kl = k.toLowerCase();
     if (sensitiveKeys.some((sk) => kl.includes(sk))) {
-      redacted[k] = "[REDACTED]";
+      redacted[k] = '[REDACTED]';
     } else {
       redacted[k] = String(v);
     }
@@ -2399,38 +2282,38 @@ function redactHeaders(headers: Record<string, any>): Record<string, string> {
 
 function redactBody(body: any): any {
   if (body === null || body === undefined) return body;
-  if (typeof body === "string") {
+  if (typeof body === 'string') {
     try {
       const parsed = JSON.parse(body);
       return JSON.stringify(redactBody(parsed));
     } catch {
       return body.replace(
         /(password|token|secret|auth|apikey|api_key|pass|sec)=[^&]*/gi,
-        "$1=[REDACTED]",
+        '$1=[REDACTED]'
       );
     }
   }
   if (Array.isArray(body)) {
     return body.map((item) => redactBody(item));
   }
-  if (typeof body === "object") {
+  if (typeof body === 'object') {
     const redacted: Record<string, any> = {};
     const sensitiveKeys = [
-      "authorization",
-      "cookie",
-      "api-key",
-      "apikey",
-      "secret",
-      "password",
-      "token",
-      "x-api-key",
-      "pass",
-      "sec",
+      'authorization',
+      'cookie',
+      'api-key',
+      'apikey',
+      'secret',
+      'password',
+      'token',
+      'x-api-key',
+      'pass',
+      'sec'
     ];
     for (const [k, v] of Object.entries(body)) {
       const kl = k.toLowerCase();
       if (sensitiveKeys.some((sk) => kl.includes(sk))) {
-        redacted[k] = "[REDACTED]";
+        redacted[k] = '[REDACTED]';
       } else {
         redacted[k] = redactBody(v);
       }
@@ -2445,23 +2328,22 @@ export function isRetryableHttpError(err: any): boolean {
   if (err instanceof HttpError) {
     return err.status === 429 || (err.status >= 500 && err.status <= 599);
   }
-  const message = String(err.message || "").toLowerCase();
-  const name = String(err.name || "");
-  if (name === "AbortError" || message.includes("timeout")) return true;
+  const message = String(err.message || '').toLowerCase();
+  const name = String(err.name || '');
+  if (name === 'AbortError' || message.includes('timeout')) return true;
 
-  const code = String(err.code || "");
+  const code = String(err.code || '');
   const retryableCodes = [
-    "ENOTFOUND",
-    "ETIMEDOUT",
-    "ECONNREFUSED",
-    "ECONNRESET",
-    "EADDRINUSE",
-    "EPIPE",
+    'ENOTFOUND',
+    'ETIMEDOUT',
+    'ECONNREFUSED',
+    'ECONNRESET',
+    'EADDRINUSE',
+    'EPIPE'
   ];
   if (retryableCodes.includes(code)) return true;
 
-  if (message.includes("fetch failed") || message.includes("network"))
-    return true;
+  if (message.includes('fetch failed') || message.includes('network')) return true;
   return false;
 }
 
@@ -2470,17 +2352,17 @@ async function handleHttpRequestStep(
   workspaceId: string,
   step: StepDefinition,
   ctx: JobContext,
-  execCtx: ExecutionContext,
-): Promise<{ status: "success" }> {
-  const method = String(step.config?.method || "GET").toUpperCase();
+  execCtx: ExecutionContext
+): Promise<{ status: 'success' }> {
+  const method = String(step.config?.method || 'GET').toUpperCase();
   const rawUrl = step.config?.url;
   const timeoutMs = Number(step.config?.timeout ?? 30000);
   const saveResponseAs = step.config?.saveResponseAs;
 
-  if (!rawUrl) throw new Error("HTTP_REQUEST: missing url");
+  if (!rawUrl) throw new Error('HTTP_REQUEST: missing url');
 
   const resolvedUrl = String(
-    resolveVariablesRecursive(rawUrl, execCtx, db, workspaceId, ctx.payload._secrets),
+    resolveVariablesRecursive(rawUrl, execCtx, db, workspaceId, ctx.payload._secrets)
   );
   const redactedHdrs = redactHeaders(
     resolveVariablesRecursive(
@@ -2488,15 +2370,15 @@ async function handleHttpRequestStep(
       execCtx,
       db,
       workspaceId,
-      ctx.payload._secrets,
-    ),
+      ctx.payload._secrets
+    )
   );
   const resolvedBody = resolveVariablesRecursive(
     step.config?.body,
     execCtx,
     db,
     workspaceId,
-    ctx.payload._secrets,
+    ctx.payload._secrets
   );
 
   // Unredacted configurations for sending
@@ -2505,15 +2387,14 @@ async function handleHttpRequestStep(
     execCtx,
     db,
     workspaceId,
-    ctx.payload._secrets,
+    ctx.payload._secrets
   );
 
   let bodyToSend: any = undefined;
   if (resolvedBody !== undefined && resolvedBody !== null) {
-    if (typeof resolvedBody === "object") {
+    if (typeof resolvedBody === 'object') {
       bodyToSend = JSON.stringify(resolvedBody);
-      actualHeaders["content-type"] =
-        actualHeaders["content-type"] || "application/json";
+      actualHeaders['content-type'] = actualHeaders['content-type'] || 'application/json';
     } else {
       bodyToSend = String(resolvedBody);
     }
@@ -2530,14 +2411,14 @@ async function handleHttpRequestStep(
       method,
       headers: actualHeaders,
       body: bodyToSend,
-      signal: controller.signal,
+      signal: controller.signal
     });
   } catch (err: any) {
     const duration = Date.now() - requestStartTime;
     ctx.emitLog(
       `HTTP Request Failed: method=${method} url=${resolvedUrl} ` +
         `duration=${duration}ms timeout=${timeoutMs}ms error=${err.message}`,
-      "error",
+      'error'
     );
     throw err;
   } finally {
@@ -2546,7 +2427,7 @@ async function handleHttpRequestStep(
 
   const duration = Date.now() - requestStartTime;
   const bodyText = await response.text();
-  const payloadSize = Buffer.byteLength(bodyText, "utf8");
+  const payloadSize = Buffer.byteLength(bodyText, 'utf8');
 
   let parsedBody: any = bodyText;
   try {
@@ -2559,7 +2440,7 @@ async function handleHttpRequestStep(
     `HTTP Request Completed: method=${method} url=${resolvedUrl} ` +
       `status=${response.status} duration=${duration}ms payloadSize=${payloadSize}bytes ` +
       `headers=${JSON.stringify(redactedHdrs)}`,
-    "info",
+    'info'
   );
 
   // Save response context
@@ -2568,19 +2449,15 @@ async function handleHttpRequestStep(
       status: response.status,
       headers: Object.fromEntries(response.headers.entries()),
       body: parsedBody,
-      duration,
+      duration
     };
   }
 
   if (response.status >= 400) {
-    throw new HttpError(
-      response.status,
-      `HTTP error ${response.status}`,
-      bodyText,
-    );
+    throw new HttpError(response.status, `HTTP error ${response.status}`, bodyText);
   }
 
-  return { status: "success" };
+  return { status: 'success' };
 }
 
 // ── Generic Plugin Action Registry (Phase 1 & 10) ─────────────────────────────
@@ -2594,7 +2471,7 @@ interface AutomationAction {
     step: StepDefinition,
     ctx: JobContext,
     execCtx: ExecutionContext,
-    labelMap: Map<string, number>,
+    labelMap: Map<string, number>
   ): Promise<StepResult> | StepResult;
 
   validate(step: StepDefinition, labelMap: Map<string, number>): string[];
@@ -2604,58 +2481,39 @@ interface AutomationAction {
 
 export const ActionRegistry: Record<string, AutomationAction> = {
   SEND_EMAIL: {
-    execute: async (
-      db,
-      entityId,
-      workspaceId,
-      sequenceId,
-      step,
-      ctx,
-      execCtx,
-    ) => {
-      return await handleSendEmailStep(
-        db,
-        entityId,
-        workspaceId,
-        sequenceId,
-        step,
-        ctx,
-        execCtx,
-      );
+    execute: async (db, entityId, workspaceId, sequenceId, step, ctx, execCtx) => {
+      return await handleSendEmailStep(db, entityId, workspaceId, sequenceId, step, ctx, execCtx);
     },
     validate: (step) => {
       const errors: string[] = [];
-      if (!step.config?.templateId) errors.push("missing templateId");
+      if (!step.config?.templateId) errors.push('missing templateId');
       return errors;
     },
-    supportsRetry: () => true,
+    supportsRetry: () => true
   },
   WAIT: {
-    execute: (_db, _entityId, _workspaceId, _sequenceId, step) =>
-      handleWaitStep(step),
+    execute: (_db, _entityId, _workspaceId, _sequenceId, step) => handleWaitStep(step),
     validate: (step) => {
       const errors: string[] = [];
       const delay = step.config?.delaySeconds || step.config?.duration;
       if (delay === undefined) {
-        errors.push("missing delaySeconds or duration");
+        errors.push('missing delaySeconds or duration');
       } else if (isNaN(Number(delay)) || Number(delay) < 0) {
-        errors.push(
-          `invalid delaySeconds/duration "${delay}" (must be a positive number)`,
-        );
+        errors.push(`invalid delaySeconds/duration "${delay}" (must be a positive number)`);
       }
       return errors;
     },
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   ASSIGN_TAG: {
     execute: (db, entityId, workspaceId, _sequenceId, step, ctx, execCtx) =>
       handleAssignTagStep(db, entityId, workspaceId, step, ctx, execCtx),
     validate: (step) => {
       const errors: string[] = [];
-      if (!step.config?.tag) errors.push("missing tag");
+      if (!step.config?.tag) errors.push('missing tag');
       return errors;
     },
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   UPDATE_STAGE: {
     execute: (db, entityId, workspaceId, _sequenceId, step, ctx) =>
@@ -2664,22 +2522,16 @@ export const ActionRegistry: Record<string, AutomationAction> = {
       const errors: string[] = [];
       const stage = step.config?.stage || step.config?.status;
       if (!stage) {
-        errors.push("missing stage");
+        errors.push('missing stage');
       } else {
-        const validStages = [
-          "NEW",
-          "CONTACTED",
-          "REPLIED",
-          "BOUNCED",
-          "UNSUBSCRIBED",
-        ];
+        const validStages = ['NEW', 'CONTACTED', 'REPLIED', 'BOUNCED', 'UNSUBSCRIBED'];
         if (!validStages.includes(String(stage).toUpperCase())) {
           errors.push(`invalid stage "${stage}"`);
         }
       }
       return errors;
     },
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   SET_VARIABLE: {
     execute: (_db, _entityId, _workspaceId, _sequenceId, step, _ctx, execCtx) =>
@@ -2688,32 +2540,23 @@ export const ActionRegistry: Record<string, AutomationAction> = {
       const errors: string[] = [];
       const assignments = step.config?.assignments;
       if (!Array.isArray(assignments) || assignments.length === 0) {
-        errors.push("no assignments provided");
+        errors.push('no assignments provided');
       } else {
         assignments.forEach((a: any, j: number) => {
-          if (!a?.variable)
-            errors.push(`assignment ${j} is missing variable name`);
+          if (!a?.variable) errors.push(`assignment ${j} is missing variable name`);
         });
       }
       return errors;
     },
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   IF: {
-    execute: (
-      _db,
-      _entityId,
-      _workspaceId,
-      _sequenceId,
-      step,
-      ctx,
-      execCtx,
-      labelMap,
-    ) => handleIfStep(step, execCtx, labelMap, ctx),
+    execute: (_db, _entityId, _workspaceId, _sequenceId, step, ctx, execCtx, labelMap) =>
+      handleIfStep(step, execCtx, labelMap, ctx),
     validate: (step, labelMap) => {
       const errors: string[] = [];
       if (!step.config?.condition) {
-        errors.push("condition is empty");
+        errors.push('condition is empty');
       }
       const thenGoto = step.config?.thenGoto;
       if (thenGoto && !labelMap.has(String(thenGoto).toLowerCase())) {
@@ -2721,44 +2564,35 @@ export const ActionRegistry: Record<string, AutomationAction> = {
       }
       return errors;
     },
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   LABEL: {
     execute: (_db, _entityId, _workspaceId, _sequenceId, step, _ctx, execCtx) =>
       handleLabelStep(step, execCtx),
     validate: (step, _labelMap) => {
       const errors: string[] = [];
-      if (!step.config?.name) errors.push("missing name");
+      if (!step.config?.name) errors.push('missing name');
       return errors;
     },
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   GOTO: {
-    execute: (
-      _db,
-      _entityId,
-      _workspaceId,
-      _sequenceId,
-      step,
-      ctx,
-      execCtx,
-      labelMap,
-    ) => handleGotoStep(step, labelMap, execCtx, ctx),
+    execute: (_db, _entityId, _workspaceId, _sequenceId, step, ctx, execCtx, labelMap) =>
+      handleGotoStep(step, labelMap, execCtx, ctx),
     validate: (step, labelMap) => {
       const errors: string[] = [];
       const label = step.config?.label;
       if (!label) {
-        errors.push("missing label");
+        errors.push('missing label');
       } else if (!labelMap.has(String(label).toLowerCase())) {
         errors.push(`references undefined label "${label}"`);
       }
       return errors;
     },
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   SKIP: {
-    execute: (_db, _entityId, _workspaceId, _sequenceId, step) =>
-      handleSkipStep(step),
+    execute: (_db, _entityId, _workspaceId, _sequenceId, step) => handleSkipStep(step),
     validate: (step) => {
       const errors: string[] = [];
       const count = step.config?.count;
@@ -2767,18 +2601,10 @@ export const ActionRegistry: Record<string, AutomationAction> = {
       }
       return errors;
     },
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   HTTP_REQUEST: {
-    execute: async (
-      db,
-      _entityId,
-      workspaceId,
-      _sequenceId,
-      step,
-      ctx,
-      execCtx,
-    ) => {
+    execute: async (db, _entityId, workspaceId, _sequenceId, step, ctx, execCtx) => {
       return await handleHttpRequestStep(db, workspaceId, step, ctx, execCtx);
     },
     validate: (step) => {
@@ -2789,9 +2615,9 @@ export const ActionRegistry: Record<string, AutomationAction> = {
       const saveResponseAs = step.config?.saveResponseAs;
 
       if (!url) {
-        errors.push("missing url");
+        errors.push('missing url');
       } else {
-        const isVariableUrl = url.includes("{{");
+        const isVariableUrl = url.includes('{{');
         if (!isVariableUrl) {
           try {
             new URL(url);
@@ -2802,114 +2628,109 @@ export const ActionRegistry: Record<string, AutomationAction> = {
       }
 
       if (!method) {
-        errors.push("missing method");
+        errors.push('missing method');
       } else {
-        const allowedMethods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+        const allowedMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
         if (!allowedMethods.includes(String(method).toUpperCase())) {
           errors.push(`unsupported method "${method}"`);
         }
       }
 
-      if (
-        timeout !== undefined &&
-        (isNaN(Number(timeout)) || Number(timeout) <= 0)
-      ) {
+      if (timeout !== undefined && (isNaN(Number(timeout)) || Number(timeout) <= 0)) {
         errors.push(`invalid timeout "${timeout}" (must be a positive number)`);
       }
 
-      if (step.config?.headers && typeof step.config.headers !== "object") {
-        errors.push("headers must be an object");
+      if (step.config?.headers && typeof step.config.headers !== 'object') {
+        errors.push('headers must be an object');
       }
 
       if (saveResponseAs) {
         if (!/^[a-zA-Z0-9_]+$/.test(saveResponseAs)) {
-          errors.push(
-            `invalid saveResponseAs variable name "${saveResponseAs}"`,
-          );
+          errors.push(`invalid saveResponseAs variable name "${saveResponseAs}"`);
         }
       }
 
       return errors;
     },
-    supportsRetry: (err) => isRetryableHttpError(err),
+    supportsRetry: (err) => isRetryableHttpError(err)
   },
   RUN_DISCOVERY: {
     execute: async (db, _entityId, workspaceId, _sequenceId, step, ctx) => {
       const query = step.config?.query;
       const limit = step.config?.limit || 50;
-      if (!query) throw new Error("RUN_DISCOVERY: missing query parameter");
+      if (!query) throw new Error('RUN_DISCOVERY: missing query parameter');
 
       const jobId = randomUUID();
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
         VALUES (?, ?, 'scraper:maps', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))
-      `).run(
-        jobId,
-        workspaceId,
-        JSON.stringify({ query, maxResults: limit })
-      );
-      ctx.emitLog(`Queued RUN_DISCOVERY scraper job ${jobId} for query "${query}"`, "info");
-      return { status: "success" };
+      `
+      ).run(jobId, workspaceId, JSON.stringify({ query, maxResults: limit }));
+      ctx.emitLog(`Queued RUN_DISCOVERY scraper job ${jobId} for query "${query}"`, 'info');
+      return { status: 'success' };
     },
     validate: (step) => {
       const errors: string[] = [];
-      if (!step.config?.query) errors.push("missing query");
+      if (!step.config?.query) errors.push('missing query');
       return errors;
     },
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   RUN_CRAWLER: {
     execute: async (db, entityId, workspaceId, _sequenceId, step, ctx) => {
       const companyId = step.config?.companyId || entityId;
       const website = step.config?.website || ctx.payload.website;
-      if (!companyId || !website) throw new Error("RUN_CRAWLER: missing companyId or website");
+      if (!companyId || !website) throw new Error('RUN_CRAWLER: missing companyId or website');
 
       const jobId = randomUUID();
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
         VALUES (?, ?, 'crawler:website', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))
-      `).run(
-        jobId,
-        workspaceId,
-        JSON.stringify({ companyId, website })
-      );
-      ctx.emitLog(`Queued RUN_CRAWLER crawler job ${jobId} for company "${companyId}"`, "info");
-      return { status: "success" };
+      `
+      ).run(jobId, workspaceId, JSON.stringify({ companyId, website }));
+      ctx.emitLog(`Queued RUN_CRAWLER crawler job ${jobId} for company "${companyId}"`, 'info');
+      return { status: 'success' };
     },
     validate: () => [],
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   RUN_INTELLIGENCE: {
     execute: async (db, entityId, workspaceId, _sequenceId, step, ctx) => {
       const companyId = step.config?.companyId || entityId;
-      if (!companyId) throw new Error("RUN_INTELLIGENCE: missing companyId");
+      if (!companyId) throw new Error('RUN_INTELLIGENCE: missing companyId');
 
       const jobId = randomUUID();
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
         VALUES (?, ?, 'enrich:intelligence', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))
-      `).run(
-        jobId,
-        workspaceId,
-        JSON.stringify({ companyId })
+      `
+      ).run(jobId, workspaceId, JSON.stringify({ companyId }));
+      ctx.emitLog(
+        `Queued RUN_INTELLIGENCE enricher job ${jobId} for company "${companyId}"`,
+        'info'
       );
-      ctx.emitLog(`Queued RUN_INTELLIGENCE enricher job ${jobId} for company "${companyId}"`, "info");
-      return { status: "success" };
+      return { status: 'success' };
     },
     validate: () => [],
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   GENERATE_AI_SUMMARY: {
     execute: async (db, entityId, workspaceId, _sequenceId, step, ctx, execCtx) => {
       const companyId = step.config?.companyId || entityId;
-      if (!companyId) throw new Error("GENERATE_AI_SUMMARY: missing companyId");
+      if (!companyId) throw new Error('GENERATE_AI_SUMMARY: missing companyId');
 
-      const company = db.prepare('SELECT name, industry FROM companies WHERE id = ?').get(companyId) as any;
+      const company = db
+        .prepare('SELECT name, industry FROM companies WHERE id = ?')
+        .get(companyId) as any;
       const companyName = company?.name || 'Unknown Company';
       const industry = company?.industry || 'Software';
 
       const settings = loadSettings(db, workspaceId);
-      const openRouterKey = resolveSettingValue(ctx.payload._secrets, settings, 'openrouter_key') || '';
+      const openRouterKey =
+        resolveSettingValue(ctx.payload._secrets, settings, 'openrouter_key') || '';
       const aiMode = resolveSettingValue(ctx.payload._secrets, settings, 'ai_mode') as any;
 
       let summaryText = 'AI summary generation completed.';
@@ -2932,30 +2753,35 @@ export const ActionRegistry: Record<string, AutomationAction> = {
         ctx.emitLog(`GENERATE_AI_SUMMARY: Execution error: ${err.message}`, 'warn');
       }
 
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO company_intelligence (companyId, summary, createdAt, updatedAt)
         VALUES (?, ?, datetime('now'), datetime('now'))
         ON CONFLICT(companyId) DO UPDATE SET summary = excluded.summary, updatedAt = datetime('now')
-      `).run(companyId, summaryText);
+      `
+      ).run(companyId, summaryText);
 
       execCtx.variables.aiSummary = summaryText;
       ctx.emitLog(`Generated AI summary for company "${companyName}": "${summaryText}"`, 'info');
-      return { status: "success" };
+      return { status: 'success' };
     },
     validate: () => [],
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   GENERATE_OPENING_LINE: {
     execute: async (db, entityId, workspaceId, _sequenceId, step, ctx, execCtx) => {
       const companyId = step.config?.companyId || entityId;
-      if (!companyId) throw new Error("GENERATE_OPENING_LINE: missing companyId");
+      if (!companyId) throw new Error('GENERATE_OPENING_LINE: missing companyId');
 
-      const company = db.prepare('SELECT name, industry FROM companies WHERE id = ?').get(companyId) as any;
+      const company = db
+        .prepare('SELECT name, industry FROM companies WHERE id = ?')
+        .get(companyId) as any;
       const companyName = company?.name || 'Unknown Company';
       const industry = company?.industry || 'Software';
 
       const settings = loadSettings(db, workspaceId);
-      const openRouterKey = resolveSettingValue(ctx.payload._secrets, settings, 'openrouter_key') || '';
+      const openRouterKey =
+        resolveSettingValue(ctx.payload._secrets, settings, 'openrouter_key') || '';
       const aiMode = resolveSettingValue(ctx.payload._secrets, settings, 'ai_mode') as any;
 
       let openingLine = 'Hi there, reaching out to see if you have technical needs.';
@@ -2978,18 +2804,23 @@ export const ActionRegistry: Record<string, AutomationAction> = {
         ctx.emitLog(`GENERATE_OPENING_LINE: Execution error: ${err.message}`, 'warn');
       }
 
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO company_intelligence (companyId, openingLine, createdAt, updatedAt)
         VALUES (?, ?, datetime('now'), datetime('now'))
         ON CONFLICT(companyId) DO UPDATE SET openingLine = excluded.openingLine, updatedAt = datetime('now')
-      `).run(companyId, openingLine);
+      `
+      ).run(companyId, openingLine);
 
       execCtx.variables.openingLine = openingLine;
-      ctx.emitLog(`Generated AI opening line for company "${companyName}": "${openingLine}"`, 'info');
-      return { status: "success" };
+      ctx.emitLog(
+        `Generated AI opening line for company "${companyName}": "${openingLine}"`,
+        'info'
+      );
+      return { status: 'success' };
     },
     validate: () => [],
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   CREATE_CAMPAIGN: {
     execute: async (db, _entityId, workspaceId, _sequenceId, step, ctx) => {
@@ -2998,51 +2829,67 @@ export const ActionRegistry: Record<string, AutomationAction> = {
       const body = step.config?.body || 'Hello!';
 
       const campaignId = randomUUID();
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO campaigns (id, workspaceId, name, subject, body, status, createdAt, updatedAt)
         VALUES (?, ?, ?, ?, ?, 'Draft', datetime('now'), datetime('now'))
-      `).run(campaignId, workspaceId, name, subject, body);
+      `
+      ).run(campaignId, workspaceId, name, subject, body);
 
       ctx.emitLog(`Created campaign ${campaignId} named "${name}"`, 'info');
-      return { status: "success" };
+      return { status: 'success' };
     },
     validate: () => [],
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   ENROLL_CONTACT: {
     execute: async (db, entityId, workspaceId, _sequenceId, step, ctx) => {
       const campaignId = step.config?.campaignId;
       const contactId = step.config?.contactId || entityId;
-      if (!campaignId || !contactId) throw new Error("ENROLL_CONTACT: missing campaignId or contactId");
+      if (!campaignId || !contactId)
+        throw new Error('ENROLL_CONTACT: missing campaignId or contactId');
 
-      const campaign = db.prepare(`
+      const campaign = db
+        .prepare(
+          `
         SELECT sequenceId, status FROM campaigns 
         WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-      `).get(campaignId, workspaceId) as { sequenceId: string; status: string } | undefined;
+      `
+        )
+        .get(campaignId, workspaceId) as { sequenceId: string; status: string } | undefined;
 
       if (!campaign) throw new Error(`Campaign "${campaignId}" not found or deleted.`);
 
-      const existing = db.prepare(`
+      const existing = db
+        .prepare(
+          `
         SELECT id FROM sequence_executions
         WHERE campaignId = ? AND contactId = ? AND deletedAt IS NULL
-      `).get(campaignId, contactId);
+      `
+        )
+        .get(campaignId, contactId);
 
       if (existing) {
-        ctx.emitLog(`Contact ${contactId} already enrolled in campaign ${campaignId}. Skipping.`, 'info');
-        return { status: "success" };
+        ctx.emitLog(
+          `Contact ${contactId} already enrolled in campaign ${campaignId}. Skipping.`,
+          'info'
+        );
+        return { status: 'success' };
       }
 
       const enrollmentId = randomUUID();
       const now = new Date().toISOString();
 
       db.transaction(() => {
-        db.prepare(`
+        db.prepare(
+          `
           INSERT INTO sequence_executions (
             id, sequenceId, campaignId, workspaceId, contactId, companyId,
             currentStep, currentStepName, status, startedAt, logs,
             emailsSent, replies, failures, createdAt, updatedAt
           ) VALUES (?, ?, ?, ?, ?, NULL, 0, 'Initial', ?, ?, '[]', 0, 0, 0, ?, ?)
-        `).run(
+        `
+        ).run(
           enrollmentId,
           campaign.sequenceId,
           campaignId,
@@ -3056,10 +2903,12 @@ export const ActionRegistry: Record<string, AutomationAction> = {
 
         if (campaign.status === 'Active') {
           const jobId = randomUUID();
-          db.prepare(`
+          db.prepare(
+            `
             INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
             VALUES (?, ?, 'automation:workflow', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))
-          `).run(
+          `
+          ).run(
             jobId,
             workspaceId,
             JSON.stringify({
@@ -3067,71 +2916,79 @@ export const ActionRegistry: Record<string, AutomationAction> = {
               entityId: contactId,
               entityType: 'contact',
               executionId: enrollmentId,
-              workspaceId,
+              workspaceId
             })
           );
         }
       })();
 
       ctx.emitLog(`Enrolled contact ${contactId} in campaign ${campaignId}`, 'info');
-      return { status: "success" };
+      return { status: 'success' };
     },
     validate: (step) => {
       const errors: string[] = [];
-      if (!step.config?.campaignId) errors.push("missing campaignId");
+      if (!step.config?.campaignId) errors.push('missing campaignId');
       return errors;
     },
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   PAUSE_CAMPAIGN: {
     execute: async (db, _entityId, workspaceId, _sequenceId, step, ctx) => {
       const campaignId = step.config?.campaignId;
-      if (!campaignId) throw new Error("PAUSE_CAMPAIGN: missing campaignId");
+      if (!campaignId) throw new Error('PAUSE_CAMPAIGN: missing campaignId');
 
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE campaigns SET status = 'Paused', updatedAt = datetime('now')
         WHERE id = ? AND workspaceId = ?
-      `).run(campaignId, workspaceId);
+      `
+      ).run(campaignId, workspaceId);
 
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE sequence_executions SET status = 'paused', updatedAt = datetime('now')
         WHERE campaignId = ? AND workspaceId = ? AND status = 'running'
-      `).run(campaignId, workspaceId);
+      `
+      ).run(campaignId, workspaceId);
 
       ctx.emitLog(`Paused campaign ${campaignId}`, 'info');
-      return { status: "success" };
+      return { status: 'success' };
     },
     validate: (step) => {
       const errors: string[] = [];
-      if (!step.config?.campaignId) errors.push("missing campaignId");
+      if (!step.config?.campaignId) errors.push('missing campaignId');
       return errors;
     },
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   RESUME_CAMPAIGN: {
     execute: async (db, _entityId, workspaceId, _sequenceId, step, ctx) => {
       const campaignId = step.config?.campaignId;
-      if (!campaignId) throw new Error("RESUME_CAMPAIGN: missing campaignId");
+      if (!campaignId) throw new Error('RESUME_CAMPAIGN: missing campaignId');
 
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE campaigns SET status = 'Active', updatedAt = datetime('now')
         WHERE id = ? AND workspaceId = ?
-      `).run(campaignId, workspaceId);
+      `
+      ).run(campaignId, workspaceId);
 
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE sequence_executions SET status = 'running', updatedAt = datetime('now')
         WHERE campaignId = ? AND workspaceId = ? AND status = 'paused'
-      `).run(campaignId, workspaceId);
+      `
+      ).run(campaignId, workspaceId);
 
       ctx.emitLog(`Resumed campaign ${campaignId}`, 'info');
-      return { status: "success" };
+      return { status: 'success' };
     },
     validate: (step) => {
       const errors: string[] = [];
-      if (!step.config?.campaignId) errors.push("missing campaignId");
+      if (!step.config?.campaignId) errors.push('missing campaignId');
       return errors;
     },
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   SEND_NOTIFICATION: {
     execute: async (db, _entityId, workspaceId, _sequenceId, step, ctx) => {
@@ -3140,10 +2997,12 @@ export const ActionRegistry: Record<string, AutomationAction> = {
 
       const notificationId = randomUUID();
       try {
-        db.prepare(`
+        db.prepare(
+          `
           INSERT INTO notifications (id, workspaceId, message, type, isRead, createdAt, updatedAt)
           VALUES (?, ?, ?, ?, 0, datetime('now'), datetime('now'))
-        `).run(notificationId, workspaceId, message, type);
+        `
+        ).run(notificationId, workspaceId, message, type);
       } catch {
         // Fallback if table doesn't exist
       }
@@ -3158,31 +3017,31 @@ export const ActionRegistry: Record<string, AutomationAction> = {
       }
 
       ctx.emitLog(`[NOTIFICATION] [${type.toUpperCase()}]: ${message}`, 'info');
-      return { status: "success" };
+      return { status: 'success' };
     },
     validate: (step) => {
       const errors: string[] = [];
-      if (!step.config?.message) errors.push("missing message");
+      if (!step.config?.message) errors.push('missing message');
       return errors;
     },
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   EXPORT_CSV: {
     execute: async (_db, _entityId, _workspaceId, _sequenceId, _step, ctx) => {
       ctx.emitLog('Exported CSV data format successfully (auto-qualified leads).', 'info');
-      return { status: "success" };
+      return { status: 'success' };
     },
     validate: () => [],
-    supportsRetry: () => false,
+    supportsRetry: () => false
   },
   BACKUP_WORKSPACE: {
     execute: async (_db, _entityId, _workspaceId, _sequenceId, _step, ctx) => {
       ctx.emitLog('Completed database workspace automatic backup snapshot.', 'info');
-      return { status: "success" };
+      return { status: 'success' };
     },
     validate: () => [],
-    supportsRetry: () => false,
-  },
+    supportsRetry: () => false
+  }
 };
 
 // Aliases

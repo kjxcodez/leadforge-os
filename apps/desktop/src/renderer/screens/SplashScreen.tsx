@@ -18,7 +18,7 @@ export function SplashScreen() {
     { id: 'database:migrations', label: 'Applying database migrations', status: 'pending' },
     { id: 'scheduler:start', label: 'Starting job scheduler', status: 'pending' },
     { id: 'sync:start', label: 'Starting cloud sync engine', status: 'pending' },
-    { id: 'automation:start', label: 'Starting automation runtime', status: 'pending' },
+    { id: 'automation:start', label: 'Starting automation runtime', status: 'pending' }
   ]);
   const [isFadingOut, setIsFadingOut] = useState(false);
 
@@ -59,7 +59,9 @@ export function SplashScreen() {
   }, []);
 
   return (
-    <div className={`flex flex-col items-center justify-center gap-8 select-none max-w-sm w-full p-6 transition-all duration-500 ease-in-out ${isFadingOut ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}>
+    <div
+      className={`flex flex-col items-center justify-center gap-8 select-none max-w-sm w-full p-6 transition-all duration-500 ease-in-out ${isFadingOut ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}
+    >
       {/* Logo mark */}
       <div className="relative">
         <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center shadow-lg shadow-accent/30 animate-in zoom-in duration-300">
@@ -78,7 +80,9 @@ export function SplashScreen() {
       <div className="w-full bg-card border border-border-subtle rounded-xl p-4 space-y-3.5 shadow-sm">
         {steps.map((step) => (
           <div key={step.id} className="flex items-center justify-between text-xs">
-            <span className={`font-medium ${step.status === 'loading' ? 'text-accent' : step.status === 'completed' ? 'text-secondary' : 'text-muted-foreground'}`}>
+            <span
+              className={`font-medium ${step.status === 'loading' ? 'text-accent' : step.status === 'completed' ? 'text-secondary' : 'text-muted-foreground'}`}
+            >
               {step.label}
             </span>
             <div className="flex items-center shrink-0">
@@ -99,7 +103,9 @@ export function SplashScreen() {
       </div>
 
       {/* Tagline info */}
-      <p className="text-[10px] text-muted tracking-wider uppercase">Local-first • SQLite Isolated • Sync Queue</p>
+      <p className="text-[10px] text-muted tracking-wider uppercase">
+        Local-first • SQLite Isolated • Sync Queue
+      </p>
     </div>
   );
 }

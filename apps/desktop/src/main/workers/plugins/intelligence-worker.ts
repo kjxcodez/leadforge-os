@@ -34,20 +34,26 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
     ctx.updateProgress(10, { description: 'Loaded raw company records' });
 
     // 2. Load contacts associated with this company
-    const contacts = db.prepare('SELECT * FROM contacts WHERE companyId = ?').all(companyId) as any[];
+    const contacts = db
+      .prepare('SELECT * FROM contacts WHERE companyId = ?')
+      .all(companyId) as any[];
     ctx.updateProgress(20, { description: `Found ${contacts.length} associated contact(s)` });
 
     // 3. Analyze company & contacts
     const compIntel = CompanyAnalyzer.analyze(company, contacts);
-    const contactIntels = contacts.map(c => ContactAnalyzer.analyze(c));
+    const contactIntels = contacts.map((c) => ContactAnalyzer.analyze(c));
 
     // 4. Check if website html has been crawled
     // We can query from page_crawls or similar if available, or simulate website html analysis
     let htmlContent = '<html><body>Mock site content</body></html>';
     try {
-      const crawlerRow = db.prepare(`
+      const crawlerRow = db
+        .prepare(
+          `
         SELECT html FROM page_crawls WHERE companyId = ? ORDER BY id DESC LIMIT 1
-      `).get(companyId) as { html: string } | undefined;
+      `
+        )
+        .get(companyId) as { html: string } | undefined;
       if (crawlerRow?.html) {
         htmlContent = crawlerRow.html;
       }
@@ -76,7 +82,8 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
     // 7. Write to SQLite in a single transaction
     const writeTx = db.transaction(() => {
       // Save Company Intelligence
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO company_intelligence (
           companyId, summary, techStack, businessModel, estimatedRevenue,
           growthSignals, hiringSignals, decisionMakerLikelihood, leadConfidence, missingInformation
@@ -86,7 +93,8 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
           estimatedRevenue=excluded.estimatedRevenue, growthSignals=excluded.growthSignals,
           hiringSignals=excluded.hiringSignals, decisionMakerLikelihood=excluded.decisionMakerLikelihood,
           leadConfidence=excluded.leadConfidence, missingInformation=excluded.missingInformation
-      `).run(
+      `
+      ).run(
         companyId,
         compIntel.summary,
         JSON.stringify(compIntel.techStack),
@@ -100,7 +108,8 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
       );
 
       // Save Website Intelligence
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO website_intelligence (
           companyId, brandVoice, contentQuality, buyingSignals, seoSignals,
           technicalIssues, productsServices, testimonialsCaseStudies
@@ -110,7 +119,8 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
           buyingSignals=excluded.buyingSignals, seoSignals=excluded.seoSignals,
           technicalIssues=excluded.technicalIssues, productsServices=excluded.productsServices,
           testimonialsCaseStudies=excluded.testimonialsCaseStudies
-      `).run(
+      `
+      ).run(
         companyId,
         webIntel.brandVoice,
         webIntel.contentQuality,
@@ -123,7 +133,8 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
 
       // Save Contacts Intelligence
       for (const ci of contactIntels) {
-        db.prepare(`
+        db.prepare(
+          `
           INSERT INTO contact_intelligence (
             contactId, decisionMakerScore, seniority, buyingInfluence,
             personalizationOpportunities, relationshipStrength
@@ -132,7 +143,8 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
             decisionMakerScore=excluded.decisionMakerScore, seniority=excluded.seniority,
             buyingInfluence=excluded.buyingInfluence, personalizationOpportunities=excluded.personalizationOpportunities,
             relationshipStrength=excluded.relationshipStrength
-        `).run(
+        `
+        ).run(
           ci.contactId,
           ci.decisionMakerScore,
           ci.seniority,
@@ -143,7 +155,8 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
       }
 
       // Save Opportunity Scores
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO opportunity_scores (
           companyId, overallScore, fitScore, sizeScore, intentScore, urgencyScore, explanation
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -151,7 +164,8 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
           overallScore=excluded.overallScore, fitScore=excluded.fitScore,
           sizeScore=excluded.sizeScore, intentScore=excluded.intentScore,
           urgencyScore=excluded.urgencyScore, explanation=excluded.explanation
-      `).run(
+      `
+      ).run(
         companyId,
         opportunityScore.overallScore,
         opportunityScore.fitScore,
@@ -163,8 +177,13 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
     });
 
     writeTx();
-    ctx.updateProgress(100, { description: 'Intelligence enrichment successfully written to local SQLite database.' });
-    ctx.emitLog(`Lead Intelligence enrichment completed for Company: ${companyId}. Score: ${opportunityScore.overallScore}`, 'info');
+    ctx.updateProgress(100, {
+      description: 'Intelligence enrichment successfully written to local SQLite database.'
+    });
+    ctx.emitLog(
+      `Lead Intelligence enrichment completed for Company: ${companyId}. Score: ${opportunityScore.overallScore}`,
+      'info'
+    );
 
     return {
       success: true,

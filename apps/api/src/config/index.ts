@@ -1,6 +1,6 @@
-import { env } from "./env.js";
-import { logger } from "@leadforge/logger";
-import { auth } from "./auth.js";
+import { env } from './env.js';
+import { logger } from '@leadforge/logger';
+import { auth } from './auth.js';
 
 export { env, logger, auth };
 
@@ -10,25 +10,28 @@ export { env, logger, auth };
 export const corsConfig = {
   origin: env.CORS_ORIGIN,
   credentials: true,
-  allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-  allowHeaders: ["Content-Type", "Authorization", "X-Requested-With", "x-request-id"],
-  exposeHeaders: ["Content-Length", "X-Koa-Response-Time", "x-request-id"],
-  maxAge: 600,
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-request-id'],
+  exposeHeaders: ['Content-Length', 'X-Koa-Response-Time', 'x-request-id'],
+  maxAge: 600
 };
 
 /**
  * Security headers configurations central module.
  */
 export const securityConfig = {
-  contentSecurityPolicy: env.NODE_ENV === "production",
+  contentSecurityPolicy: env.NODE_ENV === 'production',
   dnsPrefetchControl: true,
-  frameguard: { action: "deny" as const },
+  frameguard: { action: 'deny' as const },
   hidePoweredBy: true,
-  hsts: env.NODE_ENV === "production" ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
+  hsts:
+    env.NODE_ENV === 'production'
+      ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+      : false,
   ieNoOpen: true,
   noSniff: true,
-  referrerPolicy: { policy: "no-referrer" as const },
-  xssFilter: true,
+  referrerPolicy: { policy: 'no-referrer' as const },
+  xssFilter: true
 };
 
 /**
@@ -41,8 +44,8 @@ export const dbConfig = {
     minPoolSize: 2,
     serverSelectionTimeoutMS: 5000,
     socketTimeoutMS: 45000,
-    family: 4,
-  },
+    family: 4
+  }
 };
 
 /**
@@ -51,5 +54,5 @@ export const dbConfig = {
 export const authConfig = {
   url: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
-  tokenExpiration: "7d",
+  tokenExpiration: '7d'
 };

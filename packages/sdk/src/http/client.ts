@@ -18,7 +18,7 @@ export class HttpClient {
   private async getHeaders(): Promise<Record<string, string>> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...this.config.headers,
+      ...this.config.headers
     };
 
     if (this.config.tokenResolver) {
@@ -43,7 +43,7 @@ export class HttpClient {
 
     const requestOptions: RequestInit = {
       method,
-      headers,
+      headers
     };
     if (body) {
       requestOptions.body = JSON.stringify(body);

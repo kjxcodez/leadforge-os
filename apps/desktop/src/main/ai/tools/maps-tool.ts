@@ -3,14 +3,15 @@ import type { Tool, ToolResult, ExecutionContext, SchedulerGateway } from '@lead
 
 export const SearchLocalBusinessesInputSchema = z.object({
   query: z.string().min(1, 'Search query is required'),
-  limit: z.number().int().positive().optional(),
+  limit: z.number().int().positive().optional()
 });
 
 export type SearchLocalBusinessesInput = z.infer<typeof SearchLocalBusinessesInputSchema>;
 
 export class SearchLocalBusinessesTool implements Tool<SearchLocalBusinessesInput, unknown> {
   public readonly name = 'search_local_businesses';
-  public readonly description = 'Searches local businesses on Google Maps by query and geographical context to discover company profiles.';
+  public readonly description =
+    'Searches local businesses on Google Maps by query and geographical context to discover company profiles.';
   public readonly inputSchema = SearchLocalBusinessesInputSchema;
   public readonly riskLevel = 'LOW' as const;
   private readonly gateway: SchedulerGateway;
@@ -30,7 +31,7 @@ export class SearchLocalBusinessesTool implements Tool<SearchLocalBusinessesInpu
         error: {
           code: 'VALIDATION_ERROR',
           message: `Invalid input parameters: ${parseResult.error.message}`,
-          isRetryable: false,
+          isRetryable: false
         },
         metadata: {
           startedAt: new Date().toISOString(),
@@ -40,8 +41,8 @@ export class SearchLocalBusinessesTool implements Tool<SearchLocalBusinessesInpu
           workspaceId: context.workspaceId,
           traceId: context.traceId,
           cached: false,
-          retryCount: 0,
-        },
+          retryCount: 0
+        }
       };
     }
 

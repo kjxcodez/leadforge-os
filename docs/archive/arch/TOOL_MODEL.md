@@ -52,6 +52,6 @@ export interface SchedulerGateway {
 }
 ```
 
-* **Database Decoupling**: If the database schema of the `jobs` table or the queue mechanism changes (e.g. migrating from SQLite queues to a memory queue or an external job queue), only the implementation of the `SchedulerGateway` changes.
-* **Typing Safety**: Inputs are type-checked at the gateway boundary, avoiding raw payload corruption.
-* **Tracing Correlation**: The gateway automatically propagates `traceId`, `executionId`, and `jobId` parameters from the `ExecutionContext` to the SQLite queue fields, guaranteeing end-to-end trace correlation in audit logs.
+- **Database Decoupling**: If the database schema of the `jobs` table or the queue mechanism changes (e.g. migrating from SQLite queues to a memory queue or an external job queue), only the implementation of the `SchedulerGateway` changes.
+- **Typing Safety**: Inputs are type-checked at the gateway boundary, avoiding raw payload corruption.
+- **Tracing Correlation**: The gateway automatically propagates `traceId`, `executionId`, and `jobId` parameters from the `ExecutionContext` to the SQLite queue fields, guaranteeing end-to-end trace correlation in audit logs.

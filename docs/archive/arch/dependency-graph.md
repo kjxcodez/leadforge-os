@@ -14,7 +14,7 @@ graph TD
     A -->|Depends on| C[packages/shared]
     A -->|Depends on| D[packages/types]
     A -->|Depends on| E[packages/integrations]
-    
+
     B -->|Depends on| D
     E -->|Depends on| C
     E -->|Depends on| D

@@ -2,12 +2,7 @@ import type { ToolResult } from '@leadforge/agent-core';
 
 // ─── Step Status ────────────────────────────────────────────────────────────
 
-export type WorkflowStepStatus =
-  | 'PENDING'
-  | 'RUNNING'
-  | 'COMPLETED'
-  | 'FAILED'
-  | 'SKIPPED';
+export type WorkflowStepStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'SKIPPED';
 
 // ─── Workflow Status ─────────────────────────────────────────────────────────
 

@@ -15,7 +15,7 @@ import {
 import { Button } from './button';
 
 const schema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
+  name: z.string().min(2, 'Name must be at least 2 characters')
 });
 type WorkspaceFormValues = z.infer<typeof schema>;
 
@@ -29,13 +29,17 @@ interface CreateWorkspaceDialogProps {
   onSuccess?: () => void;
 }
 
-export function CreateWorkspaceDialog({ open, onOpenChange, onSuccess }: CreateWorkspaceDialogProps) {
+export function CreateWorkspaceDialog({
+  open,
+  onOpenChange,
+  onSuccess
+}: CreateWorkspaceDialogProps) {
   const { createWorkspace } = useWorkspace();
   const {
     register,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting }
   } = useForm<WorkspaceFormValues>({ resolver: zodResolver(schema) });
 
   const onSubmit = async (values: WorkspaceFormValues) => {
@@ -72,25 +76,14 @@ export function CreateWorkspaceDialog({ open, onOpenChange, onSuccess }: CreateW
               {...register('name')}
               className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
-            {errors.name && (
-              <p className="text-[10px] text-danger-text">{errors.name.message}</p>
-            )}
+            {errors.name && <p className="text-[10px] text-danger-text">{errors.name.message}</p>}
           </div>
 
           <DialogFooter className="bg-transparent">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={isSubmitting}
-            >
+            <Button type="submit" size="sm" disabled={isSubmitting}>
               {isSubmitting ? 'Creating...' : 'Create workspace'}
             </Button>
           </DialogFooter>
@@ -123,7 +116,7 @@ export function RenameWorkspaceDialog({
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting }
   } = useForm<WorkspaceFormValues>({
     resolver: zodResolver(schema),
     defaultValues: { name: currentName }
@@ -162,25 +155,14 @@ export function RenameWorkspaceDialog({
               {...register('name')}
               className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-ring"
             />
-            {errors.name && (
-              <p className="text-[10px] text-danger-text">{errors.name.message}</p>
-            )}
+            {errors.name && <p className="text-[10px] text-danger-text">{errors.name.message}</p>}
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={isSubmitting}
-            >
+            <Button type="submit" size="sm" disabled={isSubmitting}>
               {isSubmitting ? 'Renaming...' : 'Rename'}
             </Button>
           </DialogFooter>
@@ -236,7 +218,8 @@ export function DeleteWorkspaceDialog({
         <DialogHeader>
           <DialogTitle className="text-danger-text">Delete Workspace</DialogTitle>
           <DialogDescription>
-            This action is irreversible. All contacts, campaigns, and settings will be permanently lost.
+            This action is irreversible. All contacts, campaigns, and settings will be permanently
+            lost.
           </DialogDescription>
         </DialogHeader>
 
@@ -254,12 +237,7 @@ export function DeleteWorkspaceDialog({
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button

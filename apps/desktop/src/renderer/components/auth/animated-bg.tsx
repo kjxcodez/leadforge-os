@@ -1,6 +1,5 @@
-import { useMemo } from "react";
-import { motion, useReducedMotion } from "motion/react";
-
+import { useMemo } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 
 /** Tuning values for the ambient authentication background animation. */
 
@@ -18,7 +17,6 @@ export const GRAPH_DRIFT_DISTANCE_PX = 24;
 const VIEWBOX_WIDTH = 800;
 const VIEWBOX_HEIGHT = 1000;
 
-
 export interface GraphNode {
   id: string;
   x: number;
@@ -32,16 +30,15 @@ export interface GraphEdge {
   distance: number;
 }
 
-
 /** Deterministic pseudo-random layout so the graph doesn't reshuffle on re-render. */
 function generateNodes(): GraphNode[] {
   return Array.from({ length: GRAPH_NODE_COUNT }, (_, index) => {
     const seed = index * 137.5;
     return {
       id: `node-${index}`,
-      x: (seed % VIEWBOX_WIDTH),
-      y: ((seed * 3.1) % VIEWBOX_HEIGHT),
-      driftDelaySeconds: (index % 5) * 0.8,
+      x: seed % VIEWBOX_WIDTH,
+      y: (seed * 3.1) % VIEWBOX_HEIGHT,
+      driftDelaySeconds: (index % 5) * 0.8
     };
   });
 }
@@ -123,13 +120,13 @@ export function AnimatedBackground() {
               className="text-neutral-300"
               style={{ opacity: GRAPH_NODE_OPACITY }}
               animate={{
-                cy: [node.y, node.y - GRAPH_DRIFT_DISTANCE_PX, node.y],
+                cy: [node.y, node.y - GRAPH_DRIFT_DISTANCE_PX, node.y]
               }}
               transition={{
                 duration: GRAPH_DRIFT_DURATION_SECONDS,
                 delay: node.driftDelaySeconds,
                 repeat: Infinity,
-                ease: "easeInOut",
+                ease: 'easeInOut'
               }}
             />
           );

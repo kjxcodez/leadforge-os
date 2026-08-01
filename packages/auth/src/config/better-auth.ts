@@ -19,11 +19,9 @@ export function createBetterAuth(options: BetterAuthConfigOptions) {
     baseURL: options.baseUrl,
     database: mongodbAdapter(db),
     emailAndPassword: {
-      enabled: true,
+      enabled: true
     },
-    plugins: [
-      bearer(),
-    ],
+    plugins: [bearer()],
     providers: [
       {
         id: 'credential',
@@ -33,12 +31,12 @@ export function createBetterAuth(options: BetterAuthConfigOptions) {
             return options.authorizeHook(credentials);
           }
           return null;
-        },
-      },
+        }
+      }
     ],
     session: {
       expiresIn: 60 * 60 * 24 * 7, // 7 days
-      updateAge: 60 * 60 * 24, // 1 day
-    },
+      updateAge: 60 * 60 * 24 // 1 day
+    }
   });
 }

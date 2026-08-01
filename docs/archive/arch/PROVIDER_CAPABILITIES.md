@@ -31,15 +31,15 @@ export interface ProviderCapabilities {
 
 The capabilities are resolved dynamically by the AI Runtime at startup:
 
-| Capability | Ollama (Local Llama 3) | OpenRouter (Cloud Core) | Anthropic (Claude 3.5 Sonnet) | OpenAI (GPT-4o) |
-| :--- | :---: | :---: | :---: | :---: |
-| **`supportsVision`** | ✅ | ✅ | ✅ | ✅ |
-| **`supportsEmbeddings`** | ✅ | ❌ | ❌ | ✅ |
-| **`supportsStreaming`** | ✅ | ✅ | ✅ | ✅ |
-| **`supportsTools`** | ✅ | ✅ | ✅ | ✅ |
-| **`supportsStructuredOutputs`** | ❌ | ✅ | ✅ | ✅ |
-| **`supportsThinking`** | ❌ | ✅ | ✅ | ❌ |
-| **`supportsContextCaching`** | ❌ | ❌ | ✅ | ✅ |
+| Capability                      | Ollama (Local Llama 3) | OpenRouter (Cloud Core) | Anthropic (Claude 3.5 Sonnet) | OpenAI (GPT-4o) |
+| :------------------------------ | :--------------------: | :---------------------: | :---------------------------: | :-------------: |
+| **`supportsVision`**            |           ✅           |           ✅            |              ✅               |       ✅        |
+| **`supportsEmbeddings`**        |           ✅           |           ❌            |              ❌               |       ✅        |
+| **`supportsStreaming`**         |           ✅           |           ✅            |              ✅               |       ✅        |
+| **`supportsTools`**             |           ✅           |           ✅            |              ✅               |       ✅        |
+| **`supportsStructuredOutputs`** |           ❌           |           ✅            |              ✅               |       ✅        |
+| **`supportsThinking`**          |           ❌           |           ✅            |              ✅               |       ❌        |
+| **`supportsContextCaching`**    |           ❌           |           ❌            |              ✅               |       ✅        |
 
 ---
 

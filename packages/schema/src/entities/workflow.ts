@@ -9,7 +9,7 @@ export const workflowStepSchema = z.object({
   id: objectIdField,
   type: workflowStepTypeSchema,
   config: z.record(z.string(), z.any()),
-  nextStepIds: z.array(objectIdField),
+  nextStepIds: z.array(objectIdField)
 });
 export type WorkflowStep = z.infer<typeof workflowStepSchema>;
 
@@ -21,6 +21,6 @@ export const workflowSchema = z.object({
   trigger: z.string(),
   steps: z.array(workflowStepSchema),
   createdAt: z.date(),
-  updatedAt: z.date(),
+  updatedAt: z.date()
 });
 export type Workflow = z.infer<typeof workflowSchema>;

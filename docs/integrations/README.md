@@ -43,6 +43,7 @@ This document details how LeadForge OS integrates with third-party APIs, web scr
 ## ✉️ SMTP & IMAP Outreach
 
 ### SMTP Nodemailer (`outreach:campaign`)
+
 - **Technology**: [Nodemailer](https://nodemailer.com/).
 - **Workflow**:
   - Decrypts workspace SMTP settings.
@@ -50,6 +51,7 @@ This document details how LeadForge OS integrates with third-party APIs, web scr
   - Dispatches emails using configured rate limits to preserve sending IP reputation.
 
 ### IMAP Polling (`outreach:imap-poll`)
+
 - **Technology**: [ImapFlow](https://imapflow.org/).
 - **Workflow**:
   - Connects to IMAP servers using decrypted credentials.

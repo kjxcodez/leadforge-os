@@ -14,7 +14,9 @@ export class ConsoleInvocationLogger implements InvocationLogger {
   }
 
   public logResponse(res: ToolResponse, log: ToolInvocationLog): void {
-    console.log(`[Tool Response - ${res.requestId}] Success: ${res.success}, Duration: ${res.durationMs}ms`);
+    console.log(
+      `[Tool Response - ${res.requestId}] Success: ${res.success}, Duration: ${res.durationMs}ms`
+    );
     this.logs.push(log);
   }
 

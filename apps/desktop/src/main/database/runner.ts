@@ -2,7 +2,6 @@ import Database from 'better-sqlite3';
 import { getDatabase } from './connection';
 import fs from 'fs';
 
-
 interface Migration {
   name: string;
   up: string;
@@ -136,7 +135,7 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_contacts_workspaceId ON contacts (workspaceId);
       CREATE INDEX IF NOT EXISTS idx_campaigns_workspaceId ON campaigns (workspaceId);
       CREATE INDEX IF NOT EXISTS idx_sync_queue_workspaceId ON sync_queue (workspaceId);
-    `,
+    `
   },
   {
     name: '002_discovery_schema',
@@ -181,7 +180,7 @@ export const MIGRATIONS: Migration[] = [
 
       CREATE INDEX IF NOT EXISTS idx_discovery_jobs_workspaceId ON discovery_jobs (workspaceId);
       CREATE INDEX IF NOT EXISTS idx_discovery_results_workspaceId ON discovery_results (workspaceId);
-    `,
+    `
   },
   {
     name: '003_outreach_schema',
@@ -223,7 +222,7 @@ export const MIGRATIONS: Migration[] = [
 
       CREATE INDEX IF NOT EXISTS idx_email_accounts_workspaceId ON email_accounts (workspaceId);
       CREATE INDEX IF NOT EXISTS idx_templates_workspaceId ON templates (workspaceId);
-    `,
+    `
   },
   {
     name: '004_automation_schema',
@@ -281,7 +280,7 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_sequences_workspaceId ON sequences (workspaceId);
       CREATE INDEX IF NOT EXISTS idx_sequence_executions_workspaceId ON sequence_executions (workspaceId);
       CREATE INDEX IF NOT EXISTS idx_sequence_logs_workspaceId ON sequence_logs (workspaceId);
-    `,
+    `
   },
   {
     name: '005_local_first_foundation',
@@ -334,7 +333,7 @@ export const MIGRATIONS: Migration[] = [
 
       CREATE INDEX IF NOT EXISTS idx_jobs_scheduler ON jobs(workspaceId, status, priority, createdAt);
       CREATE INDEX IF NOT EXISTS idx_sync_queue_v2_workspaceId ON sync_queue(workspaceId, createdAt);
-    `,
+    `
   },
   {
     name: '006_local_schema_enrichment',
@@ -354,14 +353,14 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE companies ADD COLUMN linkedinUrl TEXT;
       ALTER TABLE companies ADD COLUMN tags TEXT;
       ALTER TABLE companies ADD COLUMN notes TEXT;
-    `,
+    `
   },
   {
     name: '007_add_company_website_location',
     up: `
       ALTER TABLE companies ADD COLUMN website TEXT;
       ALTER TABLE companies ADD COLUMN location TEXT;
-    `,
+    `
   },
   {
     name: '008_job_lifecycle_hardening',
@@ -401,7 +400,7 @@ export const MIGRATIONS: Migration[] = [
 
       CREATE INDEX IF NOT EXISTS idx_jobs_scheduled ON jobs(workspaceId, status, scheduledAt);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_idempotency ON jobs(workspaceId, idempotencyKey) WHERE idempotencyKey IS NOT NULL;
-    `,
+    `
   },
   {
     name: '009_scraping_pipeline_schema',
@@ -422,7 +421,7 @@ export const MIGRATIONS: Migration[] = [
 
       CREATE INDEX IF NOT EXISTS idx_companies_crawl_status ON companies(workspaceId, crawlStatus);
       CREATE INDEX IF NOT EXISTS idx_contacts_confidence ON contacts(workspaceId, confidence, priority);
-    `,
+    `
   },
   {
     name: '010_sequence_execution_tracking',
@@ -432,7 +431,7 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE sequence_executions ADD COLUMN parentJobId TEXT;
 
       CREATE INDEX IF NOT EXISTS idx_seq_exec_parent_job ON sequence_executions(parentJobId) WHERE parentJobId IS NOT NULL;
-    `,
+    `
   },
   {
     name: '011_indexing_optimizations',
@@ -448,7 +447,7 @@ export const MIGRATIONS: Migration[] = [
 
       CREATE INDEX IF NOT EXISTS idx_sequence_exec_companyId
       ON sequence_executions(companyId);
-    `,
+    `
   },
   {
     name: '012_automation_reliability',
@@ -469,20 +468,20 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_sequence_executions_sched ON sequence_executions(workspaceId, status, nextExecutionAt);
       CREATE INDEX IF NOT EXISTS idx_sequence_executions_sequenceId ON sequence_executions(sequenceId);
       CREATE INDEX IF NOT EXISTS idx_sequence_logs_executionId ON sequence_logs(executionId);
-    `,
+    `
   },
   {
     name: '013_execution_context',
     up: `
       ALTER TABLE sequence_executions ADD COLUMN executionContext TEXT;
-    `,
+    `
   },
   {
     name: '014_drop_legacy_discovery',
     up: `
       DROP TABLE IF EXISTS discovery_jobs;
       DROP TABLE IF EXISTS discovery_results;
-    `,
+    `
   },
   {
     name: '015_sync_dead_letter',
@@ -502,7 +501,7 @@ export const MIGRATIONS: Migration[] = [
         archivedAt DATETIME DEFAULT CURRENT_TIMESTAMP
       );
       CREATE INDEX IF NOT EXISTS idx_sync_dead_letter_workspaceId ON sync_dead_letter(workspaceId);
-    `,
+    `
   },
   {
     name: '016_discovery_columns',
@@ -520,7 +519,7 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_companies_workspaceId ON companies(workspaceId);
       CREATE INDEX IF NOT EXISTS idx_contacts_workspaceId ON contacts(workspaceId);
       CREATE INDEX IF NOT EXISTS idx_contacts_companyId ON contacts(companyId);
-    `,
+    `
   },
   {
     name: '017_linkedin_enrichment',
@@ -531,7 +530,7 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE contacts ADD COLUMN profilePictureUrl TEXT;
       ALTER TABLE contacts ADD COLUMN type TEXT;
       ALTER TABLE contacts ADD COLUMN sourcePlatform TEXT;
-    `,
+    `
   },
   {
     name: '018_campaigns_and_enrollments',
@@ -555,7 +554,7 @@ export const MIGRATIONS: Migration[] = [
 
       -- Add indexes for fast lookup
       CREATE INDEX IF NOT EXISTS idx_sequence_executions_campaignId ON sequence_executions(campaignId);
-    `,
+    `
   },
   {
     name: '019_email_accounts_credentials',
@@ -570,13 +569,13 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE email_accounts ADD COLUMN imapSecure TEXT;
       ALTER TABLE email_accounts ADD COLUMN imapUsername TEXT;
       ALTER TABLE email_accounts ADD COLUMN imapPassword TEXT;
-    `,
+    `
   },
   {
     name: '020_sent_message_ids',
     up: `
       ALTER TABLE sequence_executions ADD COLUMN sentMessageIds TEXT;
-    `,
+    `
   },
   {
     name: '021_lead_intelligence_engine',
@@ -625,7 +624,7 @@ export const MIGRATIONS: Migration[] = [
       );
 
       CREATE INDEX IF NOT EXISTS idx_opportunity_scores_overall ON opportunity_scores(overallScore);
-    `,
+    `
   },
   {
     name: '023_audit_trail_and_observability',
@@ -644,7 +643,7 @@ export const MIGRATIONS: Migration[] = [
 
       CREATE INDEX IF NOT EXISTS idx_audit_logs_workspaceId ON audit_logs(workspaceId);
       CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp);
-    `,
+    `
   },
   {
     name: '024_agent_memory',
@@ -663,10 +662,9 @@ export const MIGRATIONS: Migration[] = [
       );
 
       CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_memory_key ON workspace_memory(workspaceId, scope, key);
-    `,
-  },
+    `
+  }
 ];
-
 
 class MigrationError extends Error {
   public statement: string;
@@ -714,33 +712,41 @@ function splitSqlStatements(sql: string): string[] {
   if (current.trim()) {
     statements.push(current.trim());
   }
-  return statements.filter(stmt => stmt.length > 0);
+  return statements.filter((stmt) => stmt.length > 0);
 }
 
 function tableExists(db: Database.Database, tableName: string): boolean {
-  const row = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName);
+  const row = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(tableName);
   return !!row;
 }
 
 function indexExists(db: Database.Database, indexName: string): boolean {
-  const row = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?").get(indexName);
+  const row = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?")
+    .get(indexName);
   return !!row;
 }
 
 function triggerExists(db: Database.Database, triggerName: string): boolean {
-  const row = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?").get(triggerName);
+  const row = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?")
+    .get(triggerName);
   return !!row;
 }
 
 function viewExists(db: Database.Database, viewName: string): boolean {
-  const row = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'view' AND name = ?").get(viewName);
+  const row = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'view' AND name = ?")
+    .get(viewName);
   return !!row;
 }
 
 function columnExists(db: Database.Database, tableName: string, columnName: string): boolean {
   try {
     const columns = db.pragma(`table_info(${tableName})`) as Array<{ name: string }>;
-    return columns.some(col => col.name.toLowerCase() === columnName.toLowerCase());
+    return columns.some((col) => col.name.toLowerCase() === columnName.toLowerCase());
   } catch {
     return false;
   }
@@ -750,7 +756,9 @@ function executeIdempotentStatement(db: Database.Database, sql: string): boolean
   const cleanSql = sql.trim().replace(/\s+/g, ' ');
 
   // 1. CREATE TABLE
-  const createTableMatch = cleanSql.match(/^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i);
+  const createTableMatch = cleanSql.match(
+    /^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i
+  );
   if (createTableMatch && createTableMatch[1]) {
     const tableName = createTableMatch[1];
     if (tableExists(db, tableName)) {
@@ -761,7 +769,9 @@ function executeIdempotentStatement(db: Database.Database, sql: string): boolean
   }
 
   // 2. CREATE INDEX
-  const createIndexMatch = cleanSql.match(/^CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i);
+  const createIndexMatch = cleanSql.match(
+    /^CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i
+  );
   if (createIndexMatch && createIndexMatch[1]) {
     const indexName = createIndexMatch[1];
     if (indexExists(db, indexName)) {
@@ -772,7 +782,9 @@ function executeIdempotentStatement(db: Database.Database, sql: string): boolean
   }
 
   // 3. CREATE TRIGGER
-  const createTriggerMatch = cleanSql.match(/^CREATE\s+TRIGGER\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i);
+  const createTriggerMatch = cleanSql.match(
+    /^CREATE\s+TRIGGER\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i
+  );
   if (createTriggerMatch && createTriggerMatch[1]) {
     const triggerName = createTriggerMatch[1];
     if (triggerExists(db, triggerName)) {
@@ -783,7 +795,9 @@ function executeIdempotentStatement(db: Database.Database, sql: string): boolean
   }
 
   // 4. CREATE VIEW
-  const createViewMatch = cleanSql.match(/^CREATE\s+VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i);
+  const createViewMatch = cleanSql.match(
+    /^CREATE\s+VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i
+  );
   if (createViewMatch && createViewMatch[1]) {
     const viewName = createViewMatch[1];
     if (viewExists(db, viewName)) {
@@ -808,7 +822,9 @@ function executeIdempotentStatement(db: Database.Database, sql: string): boolean
   }
 
   // 6. ALTER TABLE ADD COLUMN
-  const alterTableMatch = cleanSql.match(/^ALTER\s+TABLE\s+([a-zA-Z0-9_]+)\s+ADD\s+(?:COLUMN\s+)?([a-zA-Z0-9_]+)/i);
+  const alterTableMatch = cleanSql.match(
+    /^ALTER\s+TABLE\s+([a-zA-Z0-9_]+)\s+ADD\s+(?:COLUMN\s+)?([a-zA-Z0-9_]+)/i
+  );
   if (alterTableMatch && alterTableMatch[1] && alterTableMatch[2]) {
     const tableName = alterTableMatch[1];
     const columnName = alterTableMatch[2];
@@ -848,10 +864,13 @@ export function runMigrations(customDb?: Database.Database): void {
 
     // Determine current schema version
     let currentVersion = 'none';
-    const tableExistsInDb = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_migrations'").get();
+    const tableExistsInDb = db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_migrations'")
+      .get();
     if (tableExistsInDb) {
       try {
-        const row = db.prepare('SELECT name FROM _migrations ORDER BY id DESC LIMIT 1').get() as { name: string } | undefined;
+        const row = db.prepare('SELECT name FROM _migrations ORDER BY id DESC LIMIT 1').get() as
+          { name: string } | undefined;
         if (row) {
           currentVersion = row.name;
         }
@@ -862,13 +881,15 @@ export function runMigrations(customDb?: Database.Database): void {
     console.log(`[SQLite] Current schema version: ${currentVersion}`);
 
     // Create migration tracking table if missing
-    db.prepare(`
+    db.prepare(
+      `
       CREATE TABLE IF NOT EXISTS _migrations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE,
         runAt DATETIME DEFAULT CURRENT_TIMESTAMP
       )
-    `).run();
+    `
+    ).run();
 
     const runMigration = db.transaction((migration: Migration, statements: string[]) => {
       for (const stmt of statements) {
@@ -914,7 +935,10 @@ export function runMigrations(customDb?: Database.Database): void {
                 console.log(`[SQLite] Pre-migration backup created at: ${backupPath}`);
               }
             } catch (backupErr) {
-              console.error('[SQLite] Failed to create pre-migration backup for job lifecycle hardening:', backupErr);
+              console.error(
+                '[SQLite] Failed to create pre-migration backup for job lifecycle hardening:',
+                backupErr
+              );
             }
           }
 
@@ -937,7 +961,9 @@ export function runMigrations(customDb?: Database.Database): void {
           if (migration.name === '008_job_lifecycle_hardening') {
             const dbPath = db.name;
             if (dbPath && dbPath !== ':memory:') {
-              console.error(`[SQLite] Rollback manual recovery backup file is available at: ${dbPath}.pre008.bak`);
+              console.error(
+                `[SQLite] Rollback manual recovery backup file is available at: ${dbPath}.pre008.bak`
+              );
             }
           }
 
@@ -950,7 +976,7 @@ export function runMigrations(customDb?: Database.Database): void {
     if (tableExists(db, 'sequences')) {
       const match = db.name.match(/leadforge_([a-zA-Z0-9_-]+)\.db/);
       const wsId = match ? match[1] : 'default';
-      
+
       const count = db.prepare('SELECT count(*) as cnt FROM sequences').get() as { cnt: number };
       if (count && count.cnt === 0) {
         console.log(`[SQLite] Seeding workflow presets for workspace: ${wsId}`);
@@ -962,7 +988,11 @@ export function runMigrations(customDb?: Database.Database): void {
             status: 'active',
             trigger: JSON.stringify({ type: 'SCHEDULE', config: { cron: '0 9 * * *' } }),
             steps: JSON.stringify([
-              { id: 'step_1', type: 'RUN_DISCOVERY', config: { query: 'Software Companies', limit: 20 } },
+              {
+                id: 'step_1',
+                type: 'RUN_DISCOVERY',
+                config: { query: 'Software Companies', limit: 20 }
+              },
               { id: 'step_2', type: 'WAIT', config: { delaySeconds: 300 } },
               { id: 'step_3', type: 'EXPORT_CSV', config: {} }
             ])
@@ -996,7 +1026,8 @@ export function runMigrations(customDb?: Database.Database): void {
           {
             id: 'preset_follow_up',
             name: 'Follow Up After 3 Days',
-            description: 'Check reply status after 3 days and automatically send follow-up templates.',
+            description:
+              'Check reply status after 3 days and automatically send follow-up templates.',
             status: 'active',
             trigger: JSON.stringify({ type: 'EMAIL_SENT', config: {} }),
             steps: JSON.stringify([
@@ -1012,7 +1043,11 @@ export function runMigrations(customDb?: Database.Database): void {
             status: 'active',
             trigger: JSON.stringify({ type: 'REPLY_RECEIVED', config: {} }),
             steps: JSON.stringify([
-              { id: 'step_1', type: 'SEND_NOTIFICATION', config: { message: 'Lead replied to campaign!', type: 'success' } }
+              {
+                id: 'step_1',
+                type: 'SEND_NOTIFICATION',
+                config: { message: 'Lead replied to campaign!', type: 'success' }
+              }
             ])
           },
           {
@@ -1021,9 +1056,7 @@ export function runMigrations(customDb?: Database.Database): void {
             description: 'Trigger automatic nightly database snapshot backups.',
             status: 'active',
             trigger: JSON.stringify({ type: 'SCHEDULE', config: { cron: '0 1 * * *' } }),
-            steps: JSON.stringify([
-              { id: 'step_1', type: 'BACKUP_WORKSPACE', config: {} }
-            ])
+            steps: JSON.stringify([{ id: 'step_1', type: 'BACKUP_WORKSPACE', config: {} }])
           }
         ];
 
@@ -1059,5 +1092,3 @@ export function runMigrations(customDb?: Database.Database): void {
     throw err;
   }
 }
-
-

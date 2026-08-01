@@ -1,13 +1,16 @@
 import { HttpClient } from '../http/client';
-import type { Contact, CreateContactDto, UpdateContactDto, ContactFilters } from '@leadforge/schema';
+import type {
+  Contact,
+  CreateContactDto,
+  UpdateContactDto,
+  ContactFilters
+} from '@leadforge/schema';
 
 export class ContactsModule {
   constructor(private client: HttpClient) {}
 
   public async list(filters?: ContactFilters): Promise<Contact[]> {
-    const queryParams = filters
-      ? '?' + new URLSearchParams(filters as any).toString()
-      : '';
+    const queryParams = filters ? '?' + new URLSearchParams(filters as any).toString() : '';
     return this.client.get<Contact[]>(`/contacts${queryParams}`);
   }
 

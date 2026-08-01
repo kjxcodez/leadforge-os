@@ -31,9 +31,9 @@ export class GmailSmtpProvider implements EmailProvider {
       secure: config.secure ?? true,
       auth: {
         user: config.auth.user,
-        pass: config.auth.pass,
+        pass: config.auth.pass
       },
-      connectTimeout: 5000,
+      connectTimeout: 5000
     } as any);
 
     try {
@@ -62,8 +62,8 @@ export class GmailSmtpProvider implements EmailProvider {
       secure: config.secure ?? true,
       auth: {
         user: config.auth.user,
-        pass: config.auth.pass,
-      },
+        pass: config.auth.pass
+      }
     } as any);
 
     try {
@@ -71,11 +71,11 @@ export class GmailSmtpProvider implements EmailProvider {
         from: `"${config.auth.user}" <${config.auth.user}>`,
         to,
         subject,
-        html: body,
+        html: body
       });
 
       return {
-        messageId: info.messageId || Math.random().toString(),
+        messageId: info.messageId || Math.random().toString()
       };
     } catch (err: any) {
       console.error('[GmailSmtpProvider] Send email failed:', err);

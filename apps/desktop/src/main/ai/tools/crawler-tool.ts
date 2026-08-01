@@ -4,14 +4,15 @@ import type { Tool, ToolResult, ExecutionContext, SchedulerGateway } from '@lead
 export const CrawlWebsiteInputSchema = z.object({
   companyId: z.string().min(1, 'Company ID is required'),
   domain: z.string().min(1, 'Domain is required'),
-  maxDepth: z.number().int().positive().optional(),
+  maxDepth: z.number().int().positive().optional()
 });
 
 export type CrawlWebsiteInput = z.infer<typeof CrawlWebsiteInputSchema>;
 
 export class CrawlWebsiteTool implements Tool<CrawlWebsiteInput, unknown> {
   public readonly name = 'crawl_company_website';
-  public readonly description = 'Crawls a targeted business domain website to discover contact details (emails, phone numbers, and social URLs).';
+  public readonly description =
+    'Crawls a targeted business domain website to discover contact details (emails, phone numbers, and social URLs).';
   public readonly inputSchema = CrawlWebsiteInputSchema;
   public readonly riskLevel = 'LOW' as const;
   private readonly gateway: SchedulerGateway;
@@ -31,7 +32,7 @@ export class CrawlWebsiteTool implements Tool<CrawlWebsiteInput, unknown> {
         error: {
           code: 'VALIDATION_ERROR',
           message: `Invalid input parameters: ${parseResult.error.message}`,
-          isRetryable: false,
+          isRetryable: false
         },
         metadata: {
           startedAt: new Date().toISOString(),
@@ -41,8 +42,8 @@ export class CrawlWebsiteTool implements Tool<CrawlWebsiteInput, unknown> {
           workspaceId: context.workspaceId,
           traceId: context.traceId,
           cached: false,
-          retryCount: 0,
-        },
+          retryCount: 0
+        }
       };
     }
 

@@ -91,22 +91,23 @@ The schema correctly supports all required lifecycle states. The index is optimi
 
 ### 3.1 Worker Host
 
-| Concern | Finding | Severity |
-|---|---|---|
-| Build target resolution | `join(__dirname, 'worker.js')` assumes compiled output — no build step defined | **CRITICAL** |
-| Process isolation | Plugins open their own SQLite connections independently — correct isolation | OK |
-| Plugin registry | Static flat map, cannot be extended at runtime | MEDIUM |
-| IPC protocol | Single `message` event with `{type, ...}` — works but brittle as features grow | MEDIUM |
-| Error propagation | Catches errors and sends `{type:'error'}` — correct | OK |
-| Resource cleanup | `db.close()` at end of each plugin — correct | OK |
-| Multiple types per process | Only one job type per forked process — correct, by design | OK |
-| stdin/stdout | `stdio: 'inherit'` — logs go to parent terminal, not captured | LOW |
+| Concern                    | Finding                                                                        | Severity     |
+| -------------------------- | ------------------------------------------------------------------------------ | ------------ |
+| Build target resolution    | `join(__dirname, 'worker.js')` assumes compiled output — no build step defined | **CRITICAL** |
+| Process isolation          | Plugins open their own SQLite connections independently — correct isolation    | OK           |
+| Plugin registry            | Static flat map, cannot be extended at runtime                                 | MEDIUM       |
+| IPC protocol               | Single `message` event with `{type, ...}` — works but brittle as features grow | MEDIUM       |
+| Error propagation          | Catches errors and sends `{type:'error'}` — correct                            | OK           |
+| Resource cleanup           | `db.close()` at end of each plugin — correct                                   | OK           |
+| Multiple types per process | Only one job type per forked process — correct, by design                      | OK           |
+| stdin/stdout               | `stdio: 'inherit'` — logs go to parent terminal, not captured                  | LOW          |
 
 **Critical Gap**: The `worker-host.ts` must be compiled separately as a standalone Node entrypoint and explicitly bundled by electron-vite as an external worker chunk. Without this, `fork()` will throw `MODULE_NOT_FOUND`.
 
 ### 3.2 IPC Protocol
 
 The current IPC message protocol is:
+
 ```
 Main → Worker:  { command: 'start', jobId, workspaceId, type, payload }
 Worker → Main:  { type: 'progress', progress, metadata }
@@ -116,6 +117,7 @@ Worker → Main:  { type: 'progress', progress, metadata }
 ```
 
 **What's Missing**:
+
 - `{ type: 'cancel' }` — Main should be able to send a soft cancellation signal to the child without SIGTERM, allowing cleanup before exit
 - `{ type: 'pause' }` / `{ type: 'resume' }` — not implemented
 - `{ type: 'heartbeat' }` — no periodic liveness ping from worker to Main
@@ -124,16 +126,19 @@ Worker → Main:  { type: 'progress', progress, metadata }
 ### 3.3 Cancellation
 
 Current cancellation mechanism:
+
 1. `cancelJob(jobId)` calls `worker.kill('SIGTERM')`
 2. Worker listens for `SIGTERM` and sets `isCancelledState = true`
 3. Plugin loops check `ctx.isCancelled()` on each iteration
 
 **Problems**:
+
 - `SIGTERM` on Windows is not reliably honored by Node child processes — `kill('SIGTERM')` on Windows actually sends SIGKILL
 - The cancel check only fires at iteration boundaries — a slow single operation (e.g., a single Playwright page load) will not respond to cancellation mid-operation
 - No cleanup hooks — DB connections in the worker may not close if SIGTERM kills mid-transaction
 
 **Recommended Pattern**:
+
 ```
 Main → Worker: { command: 'cancel' }  (via process.send)
 Worker: sets isCancelledState = true, does NOT kill immediately
@@ -153,6 +158,7 @@ const worker = fork(workerHostPath, [], {
 ```
 
 **Problems**:
+
 - Path assumes CJS compiled output — must align with electron-vite build configuration
 - `stdio: 'inherit'` prevents capturing worker stdout/stderr in the Main process log sink
 - `env: { ...process.env }` passes all parent environment variables to the child — security risk; should pass only required variables
@@ -162,14 +168,16 @@ const worker = fork(workerHostPath, [], {
 ### 3.5 Lifecycle State Machine
 
 Current implemented states:
+
 - `queued` → `running` → `completed`
 - `queued` → `running` → `retrying` → `running` → `failed`
 - `running` → `cancelled` (via cancelJob)
 - `running` → `interrupted` (via scheduler.stop on app close)
 
 Missing states per spec:
+
 - `paused` — no implementation
-- `resumed` — no implementation  
+- `resumed` — no implementation
 - `waiting` — defined in schema/types but no scheduler path for it (needed for sequence steps)
 - `pending` — not defined (pre-queued state)
 
@@ -183,11 +191,13 @@ Missing states per spec:
 ### 3.7 Memory and Resource Cleanup
 
 When a job completes:
+
 1. `handleJobSuccess()` calls `worker.kill('SIGTERM')` after success message — this is **incorrect**: the worker already called `process.exit(0)` on success, so killing it again is a no-op but could cause spurious errors if the process hasn't exited yet.
 2. `this.activeWorkers.delete(jobId)` — correct
 3. No worker memory monitoring
 
 When the scheduler stops:
+
 - `worker.kill('SIGTERM')` + UPDATE status='interrupted' — correct pattern
 - `this.activeWorkers.clear()` — correct
 
@@ -219,19 +229,20 @@ The worker host must be compiled as a standalone CommonJS file separate from the
 // electron.vite.config.js — add worker entry
 export default {
   main: {
-    entry: 'src/main/index.ts',
+    entry: 'src/main/index.ts'
     // ... existing config
   },
   worker: {
     entry: 'src/main/workers/worker-host.ts',
     output: { format: 'cjs', dir: 'dist/worker' }
   }
-}
+};
 ```
 
 The scheduler must reference the correct compiled path:
+
 ```typescript
-const workerHostPath = join(__dirname, '../worker/worker-host.js'); 
+const workerHostPath = join(__dirname, '../worker/worker-host.js');
 // Adjust relative to main bundle output dir
 ```
 
@@ -241,22 +252,22 @@ const workerHostPath = join(__dirname, '../worker/worker-host.js');
 // Main → Worker messages
 type MainToWorkerMsg =
   | { command: 'start'; jobId: string; workspaceId: string; type: string; payload: any }
-  | { command: 'cancel' }       // soft cancel request
-  | { command: 'pause' }        // soft pause request
-  | { command: 'resume' }       // resume after pause
-  | { command: 'ping' }         // heartbeat check
+  | { command: 'cancel' } // soft cancel request
+  | { command: 'pause' } // soft pause request
+  | { command: 'resume' } // resume after pause
+  | { command: 'ping' }; // heartbeat check
 
 // Worker → Main messages
 type WorkerToMainMsg =
-  | { type: 'ready' }                                    // worker initialized
+  | { type: 'ready' } // worker initialized
   | { type: 'progress'; progress: number; metadata?: any; checkpoint?: any }
-  | { type: 'log'; severity: 'info'|'warn'|'error'; message: string; meta?: any }
-  | { type: 'checkpoint'; data: any }                    // resumable state snapshot
-  | { type: 'pong'; timestamp: string }                  // heartbeat response
-  | { type: 'paused'; checkpoint: any }                  // paused and saved state
-  | { type: 'cancelled'; cleanedUp: boolean }            // graceful cancel complete
+  | { type: 'log'; severity: 'info' | 'warn' | 'error'; message: string; meta?: any }
+  | { type: 'checkpoint'; data: any } // resumable state snapshot
+  | { type: 'pong'; timestamp: string } // heartbeat response
+  | { type: 'paused'; checkpoint: any } // paused and saved state
+  | { type: 'cancelled'; cleanedUp: boolean } // graceful cancel complete
   | { type: 'success'; result: any }
-  | { type: 'error'; error: string; recoverable: boolean }
+  | { type: 'error'; error: string; recoverable: boolean };
 ```
 
 ### 4.3 Enriched JobContext
@@ -266,21 +277,21 @@ export interface JobContext {
   jobId: string;
   workspaceId: string;
   payload: any;
-  
+
   // Progress & logging
   updateProgress(progress: number, metadata?: ProgressMetadata): void;
-  emitLog(message: string, severity?: 'info'|'warn'|'error', meta?: any): void;
-  
+  emitLog(message: string, severity?: 'info' | 'warn' | 'error', meta?: any): void;
+
   // Control signals
   isCancelled(): boolean;
   isPaused(): boolean;
-  
+
   // Checkpointing (resumable jobs)
   saveCheckpoint(data: any): void;
   getCheckpoint(): any | null;
-  
+
   // Resource helpers
-  dbPath: string;   // resolved SQLite path — worker opens its own connection
+  dbPath: string; // resolved SQLite path — worker opens its own connection
 }
 
 export interface ProgressMetadata {
@@ -288,8 +299,8 @@ export interface ProgressMetadata {
   total?: number;
   current?: number;
   description?: string;
-  eta?: number;       // estimated seconds remaining
-  entity?: string;    // current entity being processed (e.g., company name)
+  eta?: number; // estimated seconds remaining
+  entity?: string; // current entity being processed (e.g., company name)
 }
 ```
 
@@ -299,17 +310,17 @@ Concurrency settings must be stored in the workspace `settings` SQLite table and
 
 ```typescript
 interface SchedulerConfig {
-  maxConcurrency: number;             // global max workers (default: 3)
+  maxConcurrency: number; // global max workers (default: 3)
   concurrencyByType: {
-    'scraper:maps': number;           // default: 1 (browser-heavy)
-    'crawler:website': number;        // default: 2
-    'enrich:website': number;         // default: 3
-    'outreach:campaign': number;      // default: 1
-    'automation:workflow': number;    // default: 5
+    'scraper:maps': number; // default: 1 (browser-heavy)
+    'crawler:website': number; // default: 2
+    'enrich:website': number; // default: 3
+    'outreach:campaign': number; // default: 1
+    'automation:workflow': number; // default: 5
   };
-  workerTimeoutMs: number;            // default: 900000 (15 min)
-  heartbeatIntervalMs: number;        // default: 10000 (10s)
-  heartbeatTimeoutMs: number;         // default: 30000 (30s — 3 missed beats)
+  workerTimeoutMs: number; // default: 900000 (15 min)
+  heartbeatIntervalMs: number; // default: 10000 (10s)
+  heartbeatTimeoutMs: number; // default: 30000 (30s — 3 missed beats)
 }
 ```
 
@@ -321,14 +332,14 @@ const heartbeat = {
   lastSeen: Date.now(),
   intervalId: setInterval(() => {
     worker.send({ command: 'ping' });
-    
+
     const elapsed = Date.now() - heartbeat.lastSeen;
     if (elapsed > config.heartbeatTimeoutMs) {
       AppLogger.error('JobScheduler', `Heartbeat timeout for job ${job.id}`);
       worker.kill('SIGKILL');
       handleJobFailure(job.id, job.retryCount, job.maxRetries, 'Heartbeat timeout');
     }
-  }, config.heartbeatIntervalMs),
+  }, config.heartbeatIntervalMs)
 };
 
 // On 'pong' message:
@@ -344,16 +355,16 @@ Replace the static `JobRegistry` map with a plugin registry pattern:
 ```typescript
 class WorkerPluginRegistry {
   private plugins = new Map<string, (ctx: JobContext) => Promise<any>>();
-  
+
   register(type: string, fn: (ctx: JobContext) => Promise<any>): void {
     if (this.plugins.has(type)) throw new Error(`Plugin '${type}' already registered`);
     this.plugins.set(type, fn);
   }
-  
+
   resolve(type: string): ((ctx: JobContext) => Promise<any>) | null {
     return this.plugins.get(type) ?? null;
   }
-  
+
   listTypes(): string[] {
     return [...this.plugins.keys()];
   }
@@ -362,12 +373,12 @@ class WorkerPluginRegistry {
 // worker-host.ts entrypoint
 const registry = new WorkerPluginRegistry();
 registry.register('scraper:maps', scrapeMaps);
-registry.register('crawler:website', crawlWebsite);       // NEW
+registry.register('crawler:website', crawlWebsite); // NEW
 registry.register('enrich:website', enrichWebsite);
-registry.register('enrich:ai', aiEnrich);                 // FUTURE
+registry.register('enrich:ai', aiEnrich); // FUTURE
 registry.register('outreach:campaign', dispatchOutreach);
 registry.register('automation:workflow', executeWorkflow); // FUTURE
-registry.register('sequence:step', executeSequenceStep);  // FUTURE
+registry.register('sequence:step', executeSequenceStep); // FUTURE
 registry.register('mock:test', mockTest);
 ```
 
@@ -379,10 +390,10 @@ const worker = fork(workerHostPath, [], {
     // Minimal environment — never pass full process.env
     WORKSPACES_DB_DIR: join(app.getPath('userData'), 'workspaces'),
     NODE_ENV: process.env.NODE_ENV,
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY,  // only if needed by plugin
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY // only if needed by plugin
   },
   stdio: ['ignore', 'pipe', 'pipe', 'ipc'], // capture stdout/stderr
-  execArgv: is.dev ? ['--inspect=0'] : [],   // debuggable in dev
+  execArgv: is.dev ? ['--inspect=0'] : [] // debuggable in dev
 });
 
 // Pipe worker stdout/stderr to AppLogger
@@ -398,35 +409,35 @@ worker.stderr?.on('data', (data) => {
 
 ## 5. Component Responsibilities (Definitive)
 
-| Component | Owns | Does NOT Own |
-|---|---|---|
-| `WorkspaceRuntime` | Lifecycle of scheduler, syncEngine, eventBus per workspace | Executing jobs |
-| `JobScheduler` | Fork management, priority dispatch, concurrency, heartbeat | Job business logic |
-| `WorkerHost` | Plugin resolution, context building, IPC bridge | SQLite schema, sync |
-| `JobPlugin` (each) | Single job type execution against SQLite | IPC protocol, scheduling |
-| `LocalEventBus` | Pub/sub within Main process | Cross-process events |
-| `SyncEngine` | Push mutations to API, pull remote data | Job execution |
-| `AppLogger` | Structured log aggregation (console, SQLite, JSONL, IPC) | Business logic |
+| Component          | Owns                                                       | Does NOT Own             |
+| ------------------ | ---------------------------------------------------------- | ------------------------ |
+| `WorkspaceRuntime` | Lifecycle of scheduler, syncEngine, eventBus per workspace | Executing jobs           |
+| `JobScheduler`     | Fork management, priority dispatch, concurrency, heartbeat | Job business logic       |
+| `WorkerHost`       | Plugin resolution, context building, IPC bridge            | SQLite schema, sync      |
+| `JobPlugin` (each) | Single job type execution against SQLite                   | IPC protocol, scheduling |
+| `LocalEventBus`    | Pub/sub within Main process                                | Cross-process events     |
+| `SyncEngine`       | Push mutations to API, pull remote data                    | Job execution            |
+| `AppLogger`        | Structured log aggregation (console, SQLite, JSONL, IPC)   | Business logic           |
 
 ---
 
 ## 6. Missing Components Checklist
 
-| Component | Status | Priority |
-|---|---|---|
-| Worker host build target in electron-vite | ❌ Missing | P0 |
-| Soft cancel via IPC (not SIGTERM) | ❌ Missing | P0 |
-| Heartbeat / watchdog timer | ❌ Missing | P0 |
-| Pause / Resume state machine | ❌ Missing | P1 |
-| Resumable checkpoint persistence | ❌ Missing | P1 |
-| Per-type concurrency limits | ❌ Missing | P1 |
-| Worker warm pool | ❌ Missing | P2 |
-| Job deduplication before queueing | ❌ Missing | P1 |
-| Worker memory/CPU usage reporting | ❌ Missing | P2 |
-| Configurable worker timeout | ❌ Missing | P1 |
-| stdio capture from workers | ❌ Missing | P1 |
-| Real Playwright scraper plugin | ❌ Simulated | P0 |
-| Real Cheerio crawler plugin | ❌ Simulated | P0 |
-| Real SMTP outreach plugin | ❌ Simulated | P0 |
-| Automation worker plugin | ❌ Missing | P1 |
-| Sequence step worker plugin | ❌ Missing | P1 |
+| Component                                 | Status       | Priority |
+| ----------------------------------------- | ------------ | -------- |
+| Worker host build target in electron-vite | ❌ Missing   | P0       |
+| Soft cancel via IPC (not SIGTERM)         | ❌ Missing   | P0       |
+| Heartbeat / watchdog timer                | ❌ Missing   | P0       |
+| Pause / Resume state machine              | ❌ Missing   | P1       |
+| Resumable checkpoint persistence          | ❌ Missing   | P1       |
+| Per-type concurrency limits               | ❌ Missing   | P1       |
+| Worker warm pool                          | ❌ Missing   | P2       |
+| Job deduplication before queueing         | ❌ Missing   | P1       |
+| Worker memory/CPU usage reporting         | ❌ Missing   | P2       |
+| Configurable worker timeout               | ❌ Missing   | P1       |
+| stdio capture from workers                | ❌ Missing   | P1       |
+| Real Playwright scraper plugin            | ❌ Simulated | P0       |
+| Real Cheerio crawler plugin               | ❌ Simulated | P0       |
+| Real SMTP outreach plugin                 | ❌ Simulated | P0       |
+| Automation worker plugin                  | ❌ Missing   | P1       |
+| Sequence step worker plugin               | ❌ Missing   | P1       |

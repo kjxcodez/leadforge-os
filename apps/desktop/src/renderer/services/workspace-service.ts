@@ -156,10 +156,8 @@ export const WorkspaceService = {
   ): Workspace | null {
     if (!workspaces.length) return null;
     if (!activeWorkspaceId) return workspaces[0] ?? null;
-    return (
-      workspaces.find((w) => w.id === activeWorkspaceId) ??
+    return (workspaces.find((w) => w.id === activeWorkspaceId) ??
       workspaces[0] ??
-      null
-    ) as Workspace | null;
-  },
+      null) as Workspace | null;
+  }
 };

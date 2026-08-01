@@ -83,10 +83,26 @@ const mockFailingTool: Tool = {
   const ctx = new WorkflowContext({ query: 'test query' });
   assert.strictEqual(ctx.get('query'), 'test query', 'Context should seed initial values');
   ctx.set('step_one', [1, 2, 3]);
-  assert.deepStrictEqual(ctx.get('step_one'), [1, 2, 3], 'Context should store and retrieve values');
-  assert.strictEqual(ctx.has('step_one'), true, 'Context.has() should return true for existing key');
-  assert.strictEqual(ctx.has('missing'), false, 'Context.has() should return false for missing key');
-  assert.strictEqual(ctx.get('missing'), undefined, 'Context.get() should return undefined for missing key');
+  assert.deepStrictEqual(
+    ctx.get('step_one'),
+    [1, 2, 3],
+    'Context should store and retrieve values'
+  );
+  assert.strictEqual(
+    ctx.has('step_one'),
+    true,
+    'Context.has() should return true for existing key'
+  );
+  assert.strictEqual(
+    ctx.has('missing'),
+    false,
+    'Context.has() should return false for missing key'
+  );
+  assert.strictEqual(
+    ctx.get('missing'),
+    undefined,
+    'Context.get() should return undefined for missing key'
+  );
   console.log('  ✅ WorkflowContext: seed, get, set, has verified');
 }
 
@@ -102,12 +118,46 @@ const mockFailingTool: Tool = {
   events.onCompleted(() => emitted.push('completed'));
   events.onFailed(() => emitted.push('failed'));
 
-  events.emitStarted({ workflowId: 'w', workflowName: 'W', traceId: 't', timestamp: '', totalSteps: 1 });
-  events.emitStepStarted({ workflowId: 'w', stepId: 's', stepName: 'S', stepIndex: 0, totalSteps: 1, traceId: 't', timestamp: '' });
-  events.emitStepCompleted({ workflowId: 'w', stepId: 's', stepName: 'S', stepIndex: 0, totalSteps: 1, traceId: 't', timestamp: '', durationMs: 1 });
-  events.emitCompleted({ workflowId: 'w', workflowName: 'W', traceId: 't', timestamp: '', durationMs: 1, stepsCompleted: 1 });
+  events.emitStarted({
+    workflowId: 'w',
+    workflowName: 'W',
+    traceId: 't',
+    timestamp: '',
+    totalSteps: 1
+  });
+  events.emitStepStarted({
+    workflowId: 'w',
+    stepId: 's',
+    stepName: 'S',
+    stepIndex: 0,
+    totalSteps: 1,
+    traceId: 't',
+    timestamp: ''
+  });
+  events.emitStepCompleted({
+    workflowId: 'w',
+    stepId: 's',
+    stepName: 'S',
+    stepIndex: 0,
+    totalSteps: 1,
+    traceId: 't',
+    timestamp: '',
+    durationMs: 1
+  });
+  events.emitCompleted({
+    workflowId: 'w',
+    workflowName: 'W',
+    traceId: 't',
+    timestamp: '',
+    durationMs: 1,
+    stepsCompleted: 1
+  });
 
-  assert.deepStrictEqual(emitted, ['started', 'step:started', 'step:completed', 'completed'], 'All events should fire in order');
+  assert.deepStrictEqual(
+    emitted,
+    ['started', 'step:started', 'step:completed', 'completed'],
+    'All events should fire in order'
+  );
   console.log('  ✅ WorkflowEvents: all five event types emit and subscribe correctly');
 }
 
@@ -173,7 +223,10 @@ const mockFailingTool: Tool = {
   assert.deepStrictEqual(stepsExecuted, ['A', 'B', 'C'], 'Steps must execute in declaration order');
   assert.ok(eventsEmitted.includes('workflow:started'), 'workflow:started must be emitted');
   assert.ok(eventsEmitted.includes('workflow:completed'), 'workflow:completed must be emitted');
-  assert.ok(eventsEmitted.indexOf('workflow:started') < eventsEmitted.indexOf('workflow:completed'), 'started must come before completed');
+  assert.ok(
+    eventsEmitted.indexOf('workflow:started') < eventsEmitted.indexOf('workflow:completed'),
+    'started must come before completed'
+  );
   console.log('  ✅ Sequential execution: steps run in correct order, all events emitted');
 }
 
@@ -212,7 +265,11 @@ const mockFailingTool: Tool = {
 
   assert.strictEqual(result.status, 'COMPLETED', 'Context workflow should complete');
   // Final output from last step (count)
-  assert.strictEqual(result.output, 2, 'Transform step should count 2 companies from search results');
+  assert.strictEqual(
+    result.output,
+    2,
+    'Transform step should count 2 companies from search results'
+  );
   console.log('  ✅ Context accumulation: step outputs flow correctly into downstream steps');
 }
 
@@ -240,7 +297,10 @@ const mockFailingTool: Tool = {
         type: 'TransformStep',
         id: 'step_after',
         name: 'Step After Failure',
-        transform: () => { step2Ran = true; return null; }
+        transform: () => {
+          step2Ran = true;
+          return null;
+        }
       }
     ]
   };

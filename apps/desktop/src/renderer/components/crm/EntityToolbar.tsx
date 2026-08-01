@@ -38,7 +38,7 @@ export function EntityToolbar({
   onBulkStatusChange,
   bulkStatusOptions = [],
   onBulkEnroll,
-  children,
+  children
 }: EntityToolbarProps & { children?: React.ReactNode }) {
   const [localSearch, setLocalSearch] = useState(search);
 

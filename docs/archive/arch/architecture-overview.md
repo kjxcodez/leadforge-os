@@ -6,34 +6,34 @@ LeadForge OS is built using a **Monorepo Strategy** powered by **pnpm workspaces
 
 ### Rationale for Core Stack Selection:
 
-1. **Turborepo**: 
-   - *Why*: Turborepo operates as the orchestrator for building, linting, and testing tasks. It uses local caching (`.turbo`) to skip execution for unchanged code, which is critical for reducing CI/CD execution time.
-   - *Advantages*: Significant speedups in monorepo compilation pipelines; declarative task definition (`turbo.json`) makes build ordering predictable.
-   - *Disadvantages*: Requires learning a task syntax; misconfigured caching keys can lead to stale build assets in local development.
-   - *Long-term implications*: Scales cleanly up to 100+ packages without linearly increasing execution times.
+1. **Turborepo**:
+   - _Why_: Turborepo operates as the orchestrator for building, linting, and testing tasks. It uses local caching (`.turbo`) to skip execution for unchanged code, which is critical for reducing CI/CD execution time.
+   - _Advantages_: Significant speedups in monorepo compilation pipelines; declarative task definition (`turbo.json`) makes build ordering predictable.
+   - _Disadvantages_: Requires learning a task syntax; misconfigured caching keys can lead to stale build assets in local development.
+   - _Long-term implications_: Scales cleanly up to 100+ packages without linearly increasing execution times.
 
 2. **pnpm workspaces**:
-   - *Why*: Fast dependency resolution and a content-addressable storage store that avoids duplicating identical dependencies across projects.
-   - *Advantages*: Hard links prevent the "phantom dependencies" common in npm or yarn workspaces; faster installations.
-   - *Disadvantages*: Simlinked layouts can sometimes cause compatibility issues with legacy node tools.
-   - *Long-term implications*: Keeps disk space minimal and enables modular package boundaries.
+   - _Why_: Fast dependency resolution and a content-addressable storage store that avoids duplicating identical dependencies across projects.
+   - _Advantages_: Hard links prevent the "phantom dependencies" common in npm or yarn workspaces; faster installations.
+   - _Disadvantages_: Simlinked layouts can sometimes cause compatibility issues with legacy node tools.
+   - _Long-term implications_: Keeps disk space minimal and enables modular package boundaries.
 
 3. **Electron**:
-   - *Why*: Offers desktop-native integration (system tray control, local SQLite databases, child process spawning for scrapers, hardware access) while using standard web development tooling.
-   - *Advantages*: Bypasses hosting costs for scraping operations by executing them directly on client machines; runs completely offline.
-   - *Disadvantages*: Increased memory consumption and installer bundle sizes.
-   - *Long-term implications*: Decoupled backend boundaries (Internal API) make migrating to a cloud client in the future a minor transport layer update.
+   - _Why_: Offers desktop-native integration (system tray control, local SQLite databases, child process spawning for scrapers, hardware access) while using standard web development tooling.
+   - _Advantages_: Bypasses hosting costs for scraping operations by executing them directly on client machines; runs completely offline.
+   - _Disadvantages_: Increased memory consumption and installer bundle sizes.
+   - _Long-term implications_: Decoupled backend boundaries (Internal API) make migrating to a cloud client in the future a minor transport layer update.
 
 4. **React**:
-   - *Why*: Component modularity matches the high-density dashboard layouts required for lead acquisition screens.
-   - *Advantages*: Wide developer pool; excellent virtualized tables support.
-   - *Disadvantages*: React rendering cycles can block UI threads if state updates are unoptimized.
-   - *Long-term implications*: Easily reusable layout elements for future web applications.
+   - _Why_: Component modularity matches the high-density dashboard layouts required for lead acquisition screens.
+   - _Advantages_: Wide developer pool; excellent virtualized tables support.
+   - _Disadvantages_: React rendering cycles can block UI threads if state updates are unoptimized.
+   - _Long-term implications_: Easily reusable layout elements for future web applications.
 
 5. **TypeScript**:
-   - *Why*: Type safety is essential when passing data boundaries between the Main, Preload, and Renderer processes.
-   - *Advantages*: Early compile-time catching of mismatched contracts.
-   - *Disadvantages*: Additional build time overhead.
+   - _Why_: Type safety is essential when passing data boundaries between the Main, Preload, and Renderer processes.
+   - _Advantages_: Early compile-time catching of mismatched contracts.
+   - _Disadvantages_: Additional build time overhead.
 
 ---
 

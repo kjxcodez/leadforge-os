@@ -70,10 +70,20 @@ export class JobScheduler {
       // 1. Run SMTP settings automatic migration
       this.migrateLegacySmtpSettings();
 
-      const staleJobs = this.db.prepare(`
+      const staleJobs = this.db
+        .prepare(
+          `
         SELECT id, type, payload, retryCount, maxRetries FROM jobs
         WHERE workspaceId = ? AND status IN ('running', 'starting')
-      `).all(this.workspaceId) as { id: string; type: string; payload: string; retryCount: number; maxRetries: number }[];
+      `
+        )
+        .all(this.workspaceId) as {
+        id: string;
+        type: string;
+        payload: string;
+        retryCount: number;
+        maxRetries: number;
+      }[];
 
       for (const job of staleJobs) {
         let executionId: string | null = null;
@@ -87,38 +97,56 @@ export class JobScheduler {
         }
 
         if (job.retryCount < job.maxRetries) {
-          this.db.prepare(`
+          this.db
+            .prepare(
+              `
             UPDATE jobs
             SET status = 'retrying', retryCount = retryCount + 1, lastError = 'Worker execution interrupted due to application restart.', updatedAt = CURRENT_TIMESTAMP
             WHERE id = ?
-          `).run(job.id);
+          `
+            )
+            .run(job.id);
 
           if (executionId) {
-            this.db.prepare(`
+            this.db
+              .prepare(
+                `
               UPDATE sequence_executions
               SET status = 'waiting', updatedAt = CURRENT_TIMESTAMP
               WHERE id = ? AND status IN ('running', 'starting')
-            `).run(executionId);
+            `
+              )
+              .run(executionId);
           }
         } else {
-          this.db.prepare(`
+          this.db
+            .prepare(
+              `
             UPDATE jobs
             SET status = 'failed', lastError = 'Worker execution interrupted due to application restart. Max retries exceeded.', updatedAt = CURRENT_TIMESTAMP
             WHERE id = ?
-          `).run(job.id);
+          `
+            )
+            .run(job.id);
 
           if (executionId) {
-            this.db.prepare(`
+            this.db
+              .prepare(
+                `
               UPDATE sequence_executions
               SET status = 'paused', lastError = 'Max retries exceeded due to restart interruption.', updatedAt = CURRENT_TIMESTAMP
               WHERE id = ? AND status IN ('running', 'starting')
-            `).run(executionId);
+            `
+              )
+              .run(executionId);
           }
         }
       }
 
       // Transition any orphaned sequence executions stuck in running/starting back to waiting
-      this.db.prepare(`
+      this.db
+        .prepare(
+          `
         UPDATE sequence_executions
         SET status = 'waiting', updatedAt = CURRENT_TIMESTAMP
         WHERE workspaceId = ? AND status IN ('running', 'starting')
@@ -126,17 +154,32 @@ export class JobScheduler {
             SELECT json_extract(payload, '$.executionId') FROM jobs
             WHERE workspaceId = ? AND status IN ('queued', 'starting', 'running', 'retrying')
           )
-      `).run(this.workspaceId, this.workspaceId);
+      `
+        )
+        .run(this.workspaceId, this.workspaceId);
 
       if (staleJobs.length > 0) {
-        AppLogger.info('JobScheduler', `Reconciled ${staleJobs.length} stale starting/running jobs on startup.`, this.workspaceId);
+        AppLogger.info(
+          'JobScheduler',
+          `Reconciled ${staleJobs.length} stale starting/running jobs on startup.`,
+          this.workspaceId
+        );
       }
     } catch (err) {
-      AppLogger.error('JobScheduler', 'Failed to reconcile stale jobs on startup', this.workspaceId, err);
+      AppLogger.error(
+        'JobScheduler',
+        'Failed to reconcile stale jobs on startup',
+        this.workspaceId,
+        err
+      );
     }
 
     this.intervalId = setInterval(() => this.tick(), 1000);
-    AppLogger.info('JobScheduler', `Scheduler started for workspace: ${this.workspaceId}`, this.workspaceId);
+    AppLogger.info(
+      'JobScheduler',
+      `Scheduler started for workspace: ${this.workspaceId}`,
+      this.workspaceId
+    );
   }
 
   /**
@@ -159,18 +202,30 @@ export class JobScheduler {
     for (const jobId of [...this.heartbeats.keys()]) this.clearHeartbeat(jobId);
 
     for (const [jobId, worker] of this.activeWorkers.entries()) {
-      AppLogger.warn('JobScheduler', `Terminating job "${jobId}" due to scheduler stop`, this.workspaceId);
+      AppLogger.warn(
+        'JobScheduler',
+        `Terminating job "${jobId}" due to scheduler stop`,
+        this.workspaceId
+      );
       worker.kill('SIGTERM');
 
-      this.db.prepare(`
+      this.db
+        .prepare(
+          `
         UPDATE jobs
         SET status = 'interrupted', updatedAt = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).run(jobId);
+      `
+        )
+        .run(jobId);
     }
     this.activeWorkers.clear();
     this.typeActiveCount.clear(); // TASK-013: reset all per-type counts on stop
-    AppLogger.info('JobScheduler', `Scheduler stopped for workspace: ${this.workspaceId}`, this.workspaceId);
+    AppLogger.info(
+      'JobScheduler',
+      `Scheduler stopped for workspace: ${this.workspaceId}`,
+      this.workspaceId
+    );
   }
 
   /**
@@ -190,13 +245,17 @@ export class JobScheduler {
           // Find next queued job, excluding types already at their per-type limit.
           // We fetch a small batch (LIMIT 10) and pick the first one that fits.
           // This avoids starvation when a high-priority type is at its limit.
-          const candidates = this.db.prepare(`
+          const candidates = this.db
+            .prepare(
+              `
             SELECT * FROM jobs
             WHERE workspaceId = ? AND status IN ('queued', 'retrying')
               AND (scheduledAt IS NULL OR scheduledAt <= datetime('now'))
             ORDER BY priority DESC, createdAt ASC
             LIMIT 10
-          `).all(this.workspaceId) as JobPayload[];
+          `
+            )
+            .all(this.workspaceId) as JobPayload[];
 
           for (const candidate of candidates) {
             const typeLimit = config.typeLimits[candidate.type];
@@ -210,11 +269,15 @@ export class JobScheduler {
             }
 
             // Atomic lock/claim: update status to starting inside transaction
-            const result = this.db.prepare(`
+            const result = this.db
+              .prepare(
+                `
               UPDATE jobs
               SET status = 'starting', workerId = ?, updatedAt = CURRENT_TIMESTAMP
               WHERE id = ? AND status = ?
-            `).run(workerId, candidate.id, candidate.status);
+            `
+              )
+              .run(workerId, candidate.id, candidate.status);
 
             if (result.changes > 0) {
               job = candidate;
@@ -233,36 +296,57 @@ export class JobScheduler {
 
     // ─── Phase 2: Resume waiting sequence executions ──────────────────────
     try {
-      const dueExecutions = this.db.prepare(`
+      const dueExecutions = this.db
+        .prepare(
+          `
         SELECT id, sequenceId, currentStep, retryCount
         FROM sequence_executions
         WHERE workspaceId = ? 
           AND status = 'waiting' 
           AND nextExecutionAt <= datetime('now')
         LIMIT 5
-      `).all(this.workspaceId) as { id: string; sequenceId: string; currentStep: number; retryCount?: number }[];
+      `
+        )
+        .all(this.workspaceId) as {
+        id: string;
+        sequenceId: string;
+        currentStep: number;
+        retryCount?: number;
+      }[];
 
       for (const exec of dueExecutions) {
         try {
           // Check if a resume job is already queued, starting, running, or retrying
-          const existing = this.db.prepare(`
+          const existing = this.db
+            .prepare(
+              `
             SELECT id FROM jobs
             WHERE workspaceId = ? AND type = 'automation:workflow'
               AND json_extract(payload, '$.executionId') = ?
               AND status IN ('queued', 'starting', 'running', 'retrying')
-          `).get(this.workspaceId, exec.id);
+          `
+            )
+            .get(this.workspaceId, exec.id);
 
           if (!existing) {
             const execRetryCount = exec.retryCount || 0;
-            this.db.prepare(`
+            this.db
+              .prepare(
+                `
               INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
               VALUES (?, ?, 'automation:workflow', 'queued', 4, ?, 0, ?, 3, datetime('now'), datetime('now'))
-            `).run(
-              randomUUID(),
-              this.workspaceId,
-              JSON.stringify({ executionId: exec.id, resumeFrom: exec.currentStep, retryCount: execRetryCount }),
-              execRetryCount
-            );
+            `
+              )
+              .run(
+                randomUUID(),
+                this.workspaceId,
+                JSON.stringify({
+                  executionId: exec.id,
+                  resumeFrom: exec.currentStep,
+                  retryCount: execRetryCount
+                }),
+                execRetryCount
+              );
 
             this.eventBus.publish('automation:queued', {
               executionId: exec.id,
@@ -274,11 +358,21 @@ export class JobScheduler {
             });
           }
         } catch (execErr) {
-          AppLogger.error('JobScheduler', `Failed to queue resumption job for execution "${exec.id}"`, this.workspaceId, execErr);
+          AppLogger.error(
+            'JobScheduler',
+            `Failed to queue resumption job for execution "${exec.id}"`,
+            this.workspaceId,
+            execErr
+          );
         }
       }
     } catch (err) {
-      AppLogger.error('JobScheduler', 'Error in scheduler wait-resume scan phase', this.workspaceId, err);
+      AppLogger.error(
+        'JobScheduler',
+        'Error in scheduler wait-resume scan phase',
+        this.workspaceId,
+        err
+      );
     }
   }
 
@@ -304,21 +398,25 @@ export class JobScheduler {
       globalMaxConcurrency: this.defaultMaxConcurrency,
       typeLimits: {
         'scraper:maps': 1,
-        'crawler:website': 2,
-      },
+        'crawler:website': 2
+      }
     };
 
     try {
-      const rows = this.db.prepare(`
+      const rows = this.db
+        .prepare(
+          `
         SELECT key, value FROM settings
         WHERE workspaceId = ? AND key LIKE 'scheduler:concurrency:%'
-      `).all(this.workspaceId) as { key: string; value: string }[];
+      `
+        )
+        .all(this.workspaceId) as { key: string; value: string }[];
 
       if (rows.length === 0) return defaults;
 
       const config: SchedulerConfig = {
         globalMaxConcurrency: defaults.globalMaxConcurrency,
-        typeLimits: { ...defaults.typeLimits },
+        typeLimits: { ...defaults.typeLimits }
       };
 
       for (const row of rows) {
@@ -337,7 +435,12 @@ export class JobScheduler {
       return config;
     } catch (err) {
       // If the settings table query fails for any reason, continue with defaults.
-      AppLogger.warn('JobScheduler', 'Failed to load scheduler config from settings table — using defaults', this.workspaceId, err);
+      AppLogger.warn(
+        'JobScheduler',
+        'Failed to load scheduler config from settings table — using defaults',
+        this.workspaceId,
+        err
+      );
       return defaults;
     }
   }
@@ -347,16 +450,25 @@ export class JobScheduler {
    */
   private runJob(job: JobPayload): void {
     const workerId = `worker-fork-${Date.now()}`;
-    AppLogger.info('JobScheduler', `Launching job "${job.id}" of type "${job.type}"`, this.workspaceId, { jobId: job.id });
+    AppLogger.info(
+      'JobScheduler',
+      `Launching job "${job.id}" of type "${job.type}"`,
+      this.workspaceId,
+      { jobId: job.id }
+    );
 
     // 1. Transition to 'starting' — forked but not yet confirmed initialised.
     //    Transition to 'running' happens when the worker sends { type: 'ready' }.
     //    BC-008: 'starting' is a new JobStatus value. Spec: worker_runtime_spec.md §4.2
-    this.db.prepare(`
+    this.db
+      .prepare(
+        `
       UPDATE jobs
       SET status = 'starting', workerId = ?, updatedAt = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(workerId, job.id);
+    `
+      )
+      .run(workerId, job.id);
 
     this.eventBus.publish('job:starting', { jobId: job.id, workerId });
 
@@ -366,13 +478,13 @@ export class JobScheduler {
     const worker = fork(workerHostPath, [], {
       env: {
         WORKSPACES_DB_DIR: join(app.getPath('userData'), 'workspaces'),
-        NODE_ENV: process.env.NODE_ENV,
+        NODE_ENV: process.env.NODE_ENV
       },
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
       // Dev only: attach Node.js inspector on a random available port.
       // In production is.dev === false so execArgv is an empty array.
       // Spec: worker_runtime_spec.md §4.7 / TASK-009
-      execArgv: is.dev ? ['--inspect=0'] : [],
+      execArgv: is.dev ? ['--inspect=0'] : []
     });
 
     // Pipe worker stdout / stderr into the Main-process AppLogger.
@@ -401,11 +513,15 @@ export class JobScheduler {
         // file_level_tasks items 4-5 / worker_runtime_spec.md §4.2
         // ---------------------------------------------------------------
         case 'ready':
-          this.db.prepare(`
+          this.db
+            .prepare(
+              `
             UPDATE jobs
             SET status = 'running', startedAt = ?, updatedAt = CURRENT_TIMESTAMP
             WHERE id = ?
-          `).run(new Date().toISOString(), job.id);
+          `
+            )
+            .run(new Date().toISOString(), job.id);
           this.eventBus.publish('job:started', { jobId: job.id, workerId });
           // -----------------------------------------------------------------
           // Start heartbeat watchdog. Worker is now confirmed alive and must
@@ -438,7 +554,7 @@ export class JobScheduler {
                 // Worker is healthy — send ping to keep watchdog alive.
                 worker.send({ command: 'ping' } as MainToWorkerMsg);
               }
-            }, this.heartbeatIntervalMs),
+            }, this.heartbeatIntervalMs)
           });
           break;
 
@@ -453,12 +569,20 @@ export class JobScheduler {
         }
 
         case 'progress':
-          this.db.prepare(`
+          this.db
+            .prepare(
+              `
             UPDATE jobs
             SET progress = ?, updatedAt = CURRENT_TIMESTAMP
             WHERE id = ?
-          `).run(msg.progress, job.id);
-          this.eventBus.publish('job:progress', { jobId: job.id, progress: msg.progress, metadata: msg.metadata });
+          `
+            )
+            .run(msg.progress, job.id);
+          this.eventBus.publish('job:progress', {
+            jobId: job.id,
+            progress: msg.progress,
+            metadata: msg.metadata
+          });
           break;
 
         case 'log':
@@ -468,7 +592,7 @@ export class JobScheduler {
             severity: msg.severity || 'info',
             task: job.type,
             message: msg.message,
-            metadata: msg.meta,
+            metadata: msg.meta
           });
           break;
 
@@ -485,11 +609,15 @@ export class JobScheduler {
         // file_level_tasks item 8 / worker_runtime_spec.md §4.2
         // ---------------------------------------------------------------
         case 'checkpoint':
-          this.db.prepare(`
+          this.db
+            .prepare(
+              `
             UPDATE jobs
             SET checkpointData = ?, checkpointAt = ?, updatedAt = CURRENT_TIMESTAMP
             WHERE id = ?
-          `).run(JSON.stringify(msg.data), new Date().toISOString(), job.id);
+          `
+            )
+            .run(JSON.stringify(msg.data), new Date().toISOString(), job.id);
           break;
 
         // ---------------------------------------------------------------
@@ -497,15 +625,19 @@ export class JobScheduler {
         // file_level_tasks item 9 / worker_runtime_spec.md §4.2
         // ---------------------------------------------------------------
         case 'paused':
-          this.db.prepare(`
+          this.db
+            .prepare(
+              `
             UPDATE jobs
             SET status = 'paused', checkpointData = ?, checkpointAt = ?, updatedAt = CURRENT_TIMESTAMP
             WHERE id = ?
-          `).run(
-            msg.checkpoint ? JSON.stringify(msg.checkpoint) : null,
-            new Date().toISOString(),
-            job.id
-          );
+          `
+            )
+            .run(
+              msg.checkpoint ? JSON.stringify(msg.checkpoint) : null,
+              new Date().toISOString(),
+              job.id
+            );
           this.clearHeartbeat(job.id);
           this.activeWorkers.delete(job.id);
           this.eventBus.publish('job:paused', { jobId: job.id });
@@ -524,11 +656,15 @@ export class JobScheduler {
             this.cancelTimeouts.delete(job.id);
           }
           this.clearHeartbeat(job.id);
-          this.db.prepare(`
+          this.db
+            .prepare(
+              `
             UPDATE jobs
             SET status = 'cancelled', finishedAt = ?, updatedAt = CURRENT_TIMESTAMP
             WHERE id = ?
-          `).run(new Date().toISOString(), job.id);
+          `
+            )
+            .run(new Date().toISOString(), job.id);
           this.activeWorkers.delete(job.id);
           this.eventBus.publish('job:cancelled', { jobId: job.id });
 
@@ -562,11 +698,17 @@ export class JobScheduler {
       this.activeWorkers.delete(job.id);
       this.decrementTypeCount(job.type); // TASK-013: release per-type slot
 
-      const current = this.db.prepare('SELECT status FROM jobs WHERE id = ?').get(job.id) as { status: string } | undefined;
+      const current = this.db.prepare('SELECT status FROM jobs WHERE id = ?').get(job.id) as
+        { status: string } | undefined;
       if (current && (current.status === 'running' || current.status === 'starting')) {
         const errorMsg = `Worker process exited abnormally with code ${code} (signal: ${signal})`;
-        AppLogger.error('JobScheduler', `Job "${job.id}" worker crashed: ${errorMsg}`, this.workspaceId, { jobId: job.id });
-        
+        AppLogger.error(
+          'JobScheduler',
+          `Job "${job.id}" worker crashed: ${errorMsg}`,
+          this.workspaceId,
+          { jobId: job.id }
+        );
+
         try {
           const { LocalCrashReporter } = require('../lib/crash-reporter');
           LocalCrashReporter.report(new Error(errorMsg), `worker:crash:${job.type}`);
@@ -600,19 +742,32 @@ export class JobScheduler {
       if (job.type === 'automation:workflow') {
         // 1. Resolve specific SMTP/IMAP credentials of the campaign's connected account
         if (parsedPayload.executionId) {
-          const execRow = this.db.prepare(`
+          const execRow = this.db
+            .prepare(
+              `
             SELECT campaignId FROM sequence_executions WHERE id = ?
-          `).get(parsedPayload.executionId) as { campaignId: string | null } | undefined;
+          `
+            )
+            .get(parsedPayload.executionId) as { campaignId: string | null } | undefined;
 
           if (execRow?.campaignId) {
-            const campRow = this.db.prepare(`
+            const campRow = this.db
+              .prepare(
+                `
               SELECT sendingAccountId FROM campaigns WHERE id = ?
-            `).get(execRow.campaignId) as { sendingAccountId: string | null } | undefined;
+            `
+              )
+              .get(execRow.campaignId) as { sendingAccountId: string | null } | undefined;
 
             if (campRow?.sendingAccountId) {
-              const accRow = this.db.prepare(`
+              const accRow = this.db
+                .prepare(
+                  `
                 SELECT smtpPassword, imapPassword FROM email_accounts WHERE id = ?
-              `).get(campRow.sendingAccountId) as { smtpPassword: string | null; imapPassword: string | null } | undefined;
+              `
+                )
+                .get(campRow.sendingAccountId) as
+                { smtpPassword: string | null; imapPassword: string | null } | undefined;
 
               if (accRow) {
                 if (accRow.smtpPassword) {
@@ -628,9 +783,13 @@ export class JobScheduler {
 
         // 2. Scan the sequence steps for any requested {{secret.xxx}} keys
         if (parsedPayload.sequenceId) {
-          const seqRow = this.db.prepare(`
+          const seqRow = this.db
+            .prepare(
+              `
             SELECT steps FROM sequences WHERE id = ?
-          `).get(parsedPayload.sequenceId) as { steps: string } | undefined;
+          `
+            )
+            .get(parsedPayload.sequenceId) as { steps: string } | undefined;
 
           if (seqRow?.steps) {
             const stepsStr = seqRow.steps;
@@ -640,9 +799,13 @@ export class JobScheduler {
               if (!rawKey) continue;
               const possibleKeys = [rawKey, `secret.${rawKey}`, `secrets.${rawKey}`];
               for (const pk of possibleKeys) {
-                const row = this.db.prepare(`
+                const row = this.db
+                  .prepare(
+                    `
                   SELECT value FROM settings WHERE workspaceId = ? AND key = ?
-                `).get(this.workspaceId, pk) as { value: string } | undefined;
+                `
+                  )
+                  .get(this.workspaceId, pk) as { value: string } | undefined;
                 if (row?.value) {
                   secrets[pk] = decryptSecret(row.value);
                   break;
@@ -654,16 +817,24 @@ export class JobScheduler {
       } else if (job.type === 'outreach:campaign') {
         const campaignId = parsedPayload.campaignId;
         if (campaignId) {
-          const campRow = this.db.prepare(`
+          const campRow = this.db
+            .prepare(
+              `
             SELECT sendingAccountId FROM campaigns WHERE id = ?
-          `).get(campaignId) as { sendingAccountId: string | null } | undefined;
+          `
+            )
+            .get(campaignId) as { sendingAccountId: string | null } | undefined;
 
           if (campRow?.sendingAccountId) {
-            const accRow = this.db.prepare(`
+            const accRow = this.db
+              .prepare(
+                `
               SELECT smtpHost, smtpPort, smtpSecure, smtpUsername, smtpPassword,
                      imapHost, imapPort, imapSecure, imapUsername, imapPassword
               FROM email_accounts WHERE id = ?
-            `).get(campRow.sendingAccountId) as any;
+            `
+              )
+              .get(campRow.sendingAccountId) as any;
 
             if (accRow) {
               secrets['smtp.host'] = accRow.smtpHost || '';
@@ -671,7 +842,7 @@ export class JobScheduler {
               secrets['smtp.secure'] = accRow.smtpSecure || 'true';
               secrets['smtp.username'] = accRow.smtpUsername || '';
               secrets['smtp.password'] = decryptSecret(accRow.smtpPassword || '');
-              
+
               secrets['imap.host'] = accRow.imapHost || '';
               secrets['imap.port'] = String(accRow.imapPort || 993);
               secrets['imap.secure'] = accRow.imapSecure || 'true';
@@ -681,16 +852,20 @@ export class JobScheduler {
           }
         }
       } else if (job.type === 'outreach:imap-poll' || job.type === 'imap-poll') {
-        const accounts = this.db.prepare(`
+        const accounts = this.db
+          .prepare(
+            `
           SELECT smtpHost, smtpPort, smtpSecure, smtpUsername, smtpPassword,
                  imapHost, imapPort, imapSecure, imapUsername, imapPassword
           FROM email_accounts WHERE workspaceId = ? AND deletedAt IS NULL
-        `).all(this.workspaceId) as any[];
+        `
+          )
+          .all(this.workspaceId) as any[];
 
         if (accounts.length > 0) {
           let target = accounts[0];
           if (parsedPayload.accountId) {
-            const match = accounts.find(a => a.id === parsedPayload.accountId);
+            const match = accounts.find((a) => a.id === parsedPayload.accountId);
             if (match) target = match;
           }
           if (target) {
@@ -699,7 +874,7 @@ export class JobScheduler {
             secrets['smtp.secure'] = target.smtpSecure || 'true';
             secrets['smtp.username'] = target.smtpUsername || '';
             secrets['smtp.password'] = decryptSecret(target.smtpPassword || '');
-            
+
             secrets['imap.host'] = target.imapHost || '';
             secrets['imap.port'] = String(target.imapPort || 993);
             secrets['imap.secure'] = target.imapSecure || 'true';
@@ -709,22 +884,35 @@ export class JobScheduler {
         }
       } else if (job.type.includes('linkedin') || job.type.includes('enrich')) {
         // LinkedIn / enrichment workers only need the linkedin cookie
-        const row = this.db.prepare(`
+        const row = this.db
+          .prepare(
+            `
           SELECT value FROM settings WHERE workspaceId = ? AND key = 'linkedin_li_at'
-        `).get(this.workspaceId) as { value: string } | undefined;
+        `
+          )
+          .get(this.workspaceId) as { value: string } | undefined;
         if (row?.value) {
           secrets['linkedin_li_at'] = decryptSecret(row.value);
         }
-        const orRow = this.db.prepare(`
+        const orRow = this.db
+          .prepare(
+            `
           SELECT value FROM settings WHERE workspaceId = ? AND key = 'openrouter_key'
-        `).get(this.workspaceId) as { value: string } | undefined;
+        `
+          )
+          .get(this.workspaceId) as { value: string } | undefined;
         if (orRow?.value) {
           secrets['openrouter_key'] = decryptSecret(orRow.value);
         }
       }
       parsedPayload._secrets = secrets;
     } catch (err) {
-      AppLogger.error('JobScheduler', 'Failed to load secrets for worker payload', this.workspaceId, err);
+      AppLogger.error(
+        'JobScheduler',
+        'Failed to load secrets for worker payload',
+        this.workspaceId,
+        err
+      );
     }
 
     worker.send({
@@ -732,37 +920,57 @@ export class JobScheduler {
       jobId: job.id,
       workspaceId: this.workspaceId,
       type: job.type,
-      payload: parsedPayload,
+      payload: parsedPayload
     } as MainToWorkerMsg);
   }
 
   private handleJobSuccess(jobId: string, result: any): void {
-    AppLogger.info('JobScheduler', `Job "${jobId}" completed successfully.`, this.workspaceId, { jobId });
+    AppLogger.info('JobScheduler', `Job "${jobId}" completed successfully.`, this.workspaceId, {
+      jobId
+    });
     this.clearHeartbeat(jobId); // TASK-010: clear watchdog on success
 
-    this.db.prepare(`
+    this.db
+      .prepare(
+        `
       UPDATE jobs
       SET status = 'completed', progress = 100, finishedAt = ?, error = NULL, updatedAt = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(new Date().toISOString(), jobId);
+    `
+      )
+      .run(new Date().toISOString(), jobId);
 
     // Auto-queue intelligence enrichment on website crawl completion
     try {
-      const job = this.db.prepare('SELECT type, payload FROM jobs WHERE id = ?').get(jobId) as { type: string; payload: string } | undefined;
+      const job = this.db.prepare('SELECT type, payload FROM jobs WHERE id = ?').get(jobId) as
+        { type: string; payload: string } | undefined;
       if (job?.type === 'crawler:website') {
         const payload = JSON.parse(job.payload || '{}');
         const companyId = payload.companyId;
         if (companyId) {
           const newJobId = randomUUID();
-          this.db.prepare(`
+          this.db
+            .prepare(
+              `
             INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
             VALUES (?, ?, 'enrich:intelligence', 'queued', 5, ?, 0, 0, 3, datetime('now'), datetime('now'))
-          `).run(newJobId, this.workspaceId, JSON.stringify({ companyId }));
-          AppLogger.info('JobScheduler', `Auto-queued enrich:intelligence job for Company: ${companyId}`, this.workspaceId);
+          `
+            )
+            .run(newJobId, this.workspaceId, JSON.stringify({ companyId }));
+          AppLogger.info(
+            'JobScheduler',
+            `Auto-queued enrich:intelligence job for Company: ${companyId}`,
+            this.workspaceId
+          );
         }
       }
     } catch (err) {
-      AppLogger.error('JobScheduler', 'Failed to auto-queue intelligence enrichment after website crawl', this.workspaceId, err);
+      AppLogger.error(
+        'JobScheduler',
+        'Failed to auto-queue intelligence enrichment after website crawl',
+        this.workspaceId,
+        err
+      );
     }
 
     this.activeWorkers.delete(jobId);
@@ -776,7 +984,12 @@ export class JobScheduler {
     }
   }
 
-  private handleJobFailure(jobId: string, currentRetry: number, maxRetries: number, error: string): void {
+  private handleJobFailure(
+    jobId: string,
+    currentRetry: number,
+    maxRetries: number,
+    error: string
+  ): void {
     this.clearHeartbeat(jobId); // TASK-010: clear watchdog on all failure paths
     const nextRetry = currentRetry + 1;
     const worker = this.activeWorkers.get(jobId);
@@ -785,7 +998,8 @@ export class JobScheduler {
       this.activeWorkers.delete(jobId);
     }
 
-    const job = this.db.prepare('SELECT type, payload FROM jobs WHERE id = ?').get(jobId) as { type: string; payload: string } | undefined;
+    const job = this.db.prepare('SELECT type, payload FROM jobs WHERE id = ?').get(jobId) as
+      { type: string; payload: string } | undefined;
     const isAutomation = job?.type === 'automation:workflow';
 
     if (isAutomation) {
@@ -795,7 +1009,18 @@ export class JobScheduler {
       } catch {}
 
       if (executionId) {
-        const exec = this.db.prepare('SELECT sequenceId, contactId, companyId, currentStep FROM sequence_executions WHERE id = ?').get(executionId) as { sequenceId: string; contactId: string | null; companyId: string | null; currentStep: number } | undefined;
+        const exec = this.db
+          .prepare(
+            'SELECT sequenceId, contactId, companyId, currentStep FROM sequence_executions WHERE id = ?'
+          )
+          .get(executionId) as
+          | {
+              sequenceId: string;
+              contactId: string | null;
+              companyId: string | null;
+              currentStep: number;
+            }
+          | undefined;
         const sequenceId = exec?.sequenceId || 'unknown';
         const entityId = exec?.contactId || exec?.companyId || 'unknown';
 
@@ -804,29 +1029,41 @@ export class JobScheduler {
           const nextRun = new Date(Date.now() + delaySec * 1000).toISOString();
 
           this.db.transaction(() => {
-            this.db.prepare(`
+            this.db
+              .prepare(
+                `
               UPDATE sequence_executions
               SET status = 'waiting', nextExecutionAt = ?, retryCount = ?, updatedAt = CURRENT_TIMESTAMP
               WHERE id = ?
-            `).run(nextRun, nextRetry, executionId);
+            `
+              )
+              .run(nextRun, nextRetry, executionId);
 
-            this.db.prepare(`
+            this.db
+              .prepare(
+                `
               INSERT INTO sequence_logs (id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt)
               VALUES (?, ?, ?, ?, ?, 'RETRY', 'failed', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            `).run(
-              randomUUID(),
-              executionId,
-              this.workspaceId,
-              new Date().toISOString(),
-              exec?.currentStep || 0,
-              `Worker process crashed/failed. Scheduling retry ${nextRetry}/${maxRetries} in ${delaySec} seconds. Error: ${error}`
-            );
+            `
+              )
+              .run(
+                randomUUID(),
+                executionId,
+                this.workspaceId,
+                new Date().toISOString(),
+                exec?.currentStep || 0,
+                `Worker process crashed/failed. Scheduling retry ${nextRetry}/${maxRetries} in ${delaySec} seconds. Error: ${error}`
+              );
 
-            this.db.prepare(`
+            this.db
+              .prepare(
+                `
               UPDATE jobs
               SET status = 'failed', error = ?, finishedAt = ?, updatedAt = CURRENT_TIMESTAMP
               WHERE id = ?
-            `).run(error, new Date().toISOString(), jobId);
+            `
+              )
+              .run(error, new Date().toISOString(), jobId);
           })();
 
           this.eventBus.publish('automation:failed', {
@@ -852,32 +1089,46 @@ export class JobScheduler {
         } else {
           // Permanent failure
           this.db.transaction(() => {
-            this.db.prepare(`
+            this.db
+              .prepare(
+                `
               UPDATE sequence_executions
               SET status = 'failed', completedAt = CURRENT_TIMESTAMP, retryCount = ?, updatedAt = CURRENT_TIMESTAMP
               WHERE id = ?
-            `).run(nextRetry, executionId);
+            `
+              )
+              .run(nextRetry, executionId);
 
-            this.db.prepare(`
+            this.db
+              .prepare(
+                `
               INSERT INTO sequence_logs (id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt)
               VALUES (?, ?, ?, ?, ?, 'ERROR', 'failed', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            `).run(
-              randomUUID(),
-              executionId,
-              this.workspaceId,
-              new Date().toISOString(),
-              exec?.currentStep || 0,
-              `Worker crashed/failed permanently after ${maxRetries} retries. Error: ${error}`
-            );
+            `
+              )
+              .run(
+                randomUUID(),
+                executionId,
+                this.workspaceId,
+                new Date().toISOString(),
+                exec?.currentStep || 0,
+                `Worker crashed/failed permanently after ${maxRetries} retries. Error: ${error}`
+              );
 
-            this.db.prepare(`
+            this.db
+              .prepare(
+                `
               UPDATE jobs
               SET status = 'failed', error = ?, finishedAt = ?, updatedAt = CURRENT_TIMESTAMP
               WHERE id = ?
-            `).run(error, new Date().toISOString(), jobId);
+            `
+              )
+              .run(error, new Date().toISOString(), jobId);
 
             // Release lock
-            this.db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(sequenceId, entityId);
+            this.db
+              .prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?')
+              .run(sequenceId, entityId);
           })();
 
           this.eventBus.publish('automation:failed', {
@@ -896,20 +1147,38 @@ export class JobScheduler {
       if (nextRetry <= maxRetries) {
         const delaySec = Math.pow(2, nextRetry);
         const scheduledAt = new Date(Date.now() + delaySec * 1000).toISOString();
-        AppLogger.warn('JobScheduler', `Job "${jobId}" failed. Retrying (Attempt ${nextRetry}/${maxRetries}). Error: ${error}`, this.workspaceId, { jobId });
-        this.db.prepare(`
+        AppLogger.warn(
+          'JobScheduler',
+          `Job "${jobId}" failed. Retrying (Attempt ${nextRetry}/${maxRetries}). Error: ${error}`,
+          this.workspaceId,
+          { jobId }
+        );
+        this.db
+          .prepare(
+            `
           UPDATE jobs
           SET status = 'retrying', retryCount = ?, error = ?, scheduledAt = ?, updatedAt = CURRENT_TIMESTAMP
           WHERE id = ?
-        `).run(nextRetry, error, scheduledAt, jobId);
+        `
+          )
+          .run(nextRetry, error, scheduledAt, jobId);
         this.eventBus.publish('job:failed', { jobId, error, willRetry: true });
       } else {
-        AppLogger.error('JobScheduler', `Job "${jobId}" failed permanently after ${maxRetries} retries. Error: ${error}`, this.workspaceId, { jobId });
-        this.db.prepare(`
+        AppLogger.error(
+          'JobScheduler',
+          `Job "${jobId}" failed permanently after ${maxRetries} retries. Error: ${error}`,
+          this.workspaceId,
+          { jobId }
+        );
+        this.db
+          .prepare(
+            `
           UPDATE jobs
           SET status = 'failed', error = ?, finishedAt = ?, updatedAt = CURRENT_TIMESTAMP
           WHERE id = ?
-        `).run(error, new Date().toISOString(), jobId);
+        `
+          )
+          .run(error, new Date().toISOString(), jobId);
         this.eventBus.publish('job:failed', { jobId, error, willRetry: false });
       }
     }
@@ -937,7 +1206,9 @@ export class JobScheduler {
   public cancelJob(jobId: string): Promise<void> {
     const worker = this.activeWorkers.get(jobId);
     if (worker) {
-      AppLogger.warn('JobScheduler', `Sending cancel command to job "${jobId}"`, this.workspaceId, { jobId });
+      AppLogger.warn('JobScheduler', `Sending cancel command to job "${jobId}"`, this.workspaceId, {
+        jobId
+      });
 
       // Soft cancel — let the worker clean up before exiting.
       worker.send({ command: 'cancel' } as MainToWorkerMsg);
@@ -949,18 +1220,27 @@ export class JobScheduler {
       // Hard-kill fallback: force-kill if worker does not ack within 15 seconds.
       const hardKillTimeout = setTimeout(() => {
         if (this.activeWorkers.has(jobId)) {
-          AppLogger.error('JobScheduler', `Hard-killing job "${jobId}" — cancel not acknowledged within 15s`, this.workspaceId, { jobId });
+          AppLogger.error(
+            'JobScheduler',
+            `Hard-killing job "${jobId}" — cancel not acknowledged within 15s`,
+            this.workspaceId,
+            { jobId }
+          );
           const w = this.activeWorkers.get(jobId);
           w?.kill('SIGKILL');
           this.activeWorkers.delete(jobId);
           this.cancelTimeouts.delete(jobId);
           this.clearHeartbeat(jobId); // TASK-010: clear watchdog on hard-kill
 
-          this.db.prepare(`
+          this.db
+            .prepare(
+              `
             UPDATE jobs
             SET status = 'cancelled', finishedAt = ?, updatedAt = CURRENT_TIMESTAMP
             WHERE id = ?
-          `).run(new Date().toISOString(), jobId);
+          `
+            )
+            .run(new Date().toISOString(), jobId);
 
           this.eventBus.publish('job:cancelled', { jobId });
 
@@ -976,11 +1256,15 @@ export class JobScheduler {
       return cancelPromise;
     } else {
       // No active worker — job is queued or already terminal. Update DB directly.
-      this.db.prepare(`
+      this.db
+        .prepare(
+          `
         UPDATE jobs
         SET status = 'cancelled', finishedAt = ?, updatedAt = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).run(new Date().toISOString(), jobId);
+      `
+        )
+        .run(new Date().toISOString(), jobId);
 
       this.eventBus.publish('job:cancelled', { jobId });
       return Promise.resolve();
@@ -999,15 +1283,21 @@ export class JobScheduler {
   public pauseJob(jobId: string): void {
     const worker = this.activeWorkers.get(jobId);
     if (worker) {
-      AppLogger.info('JobScheduler', `Sending pause command to job "${jobId}"`, this.workspaceId, { jobId });
+      AppLogger.info('JobScheduler', `Sending pause command to job "${jobId}"`, this.workspaceId, {
+        jobId
+      });
       worker.send({ command: 'pause' } as MainToWorkerMsg);
     } else {
       // Job is not currently running — directly set queued jobs to paused.
-      this.db.prepare(`
+      this.db
+        .prepare(
+          `
         UPDATE jobs
         SET status = 'paused', updatedAt = CURRENT_TIMESTAMP
         WHERE id = ? AND status = 'queued'
-      `).run(jobId);
+      `
+        )
+        .run(jobId);
     }
   }
 
@@ -1051,53 +1341,112 @@ export class JobScheduler {
    */
   private migrateLegacySmtpSettings(): void {
     try {
-      const legacyPassRow = this.db.prepare(`
+      const legacyPassRow = this.db
+        .prepare(
+          `
         SELECT value FROM settings WHERE workspaceId = ? AND key = 'smtp.password'
-      `).get(this.workspaceId) as { value: string } | undefined;
+      `
+        )
+        .get(this.workspaceId) as { value: string } | undefined;
 
       if (legacyPassRow && legacyPassRow.value) {
-        const firstAccount = this.db.prepare(`
+        const firstAccount = this.db
+          .prepare(
+            `
           SELECT id, email FROM email_accounts WHERE workspaceId = ? AND deletedAt IS NULL LIMIT 1
-        `).get(this.workspaceId) as { id: string; email: string } | undefined;
+        `
+          )
+          .get(this.workspaceId) as { id: string; email: string } | undefined;
 
         if (firstAccount) {
-          const accountDetails = this.db.prepare(`
+          const accountDetails = this.db
+            .prepare(
+              `
             SELECT smtpPassword FROM email_accounts WHERE id = ?
-          `).get(firstAccount.id) as { smtpPassword: string } | undefined;
+          `
+            )
+            .get(firstAccount.id) as { smtpPassword: string } | undefined;
 
           if (!accountDetails?.smtpPassword) {
-            const smtpHost = (this.db.prepare(`SELECT value FROM settings WHERE workspaceId = ? AND key = 'smtp.host'`).get(this.workspaceId) as { value: string } | undefined)?.value || 'smtp.gmail.com';
-            const smtpPort = (this.db.prepare(`SELECT value FROM settings WHERE workspaceId = ? AND key = 'smtp.port'`).get(this.workspaceId) as { value: string } | undefined)?.value || '465';
-            const smtpSecure = (this.db.prepare(`SELECT value FROM settings WHERE workspaceId = ? AND key = 'smtp.secure'`).get(this.workspaceId) as { value: string } | undefined)?.value || 'true';
-            const imapHost = (this.db.prepare(`SELECT value FROM settings WHERE workspaceId = ? AND key = 'imap.host'`).get(this.workspaceId) as { value: string } | undefined)?.value || 'imap.gmail.com';
-            const imapPort = (this.db.prepare(`SELECT value FROM settings WHERE workspaceId = ? AND key = 'imap.port'`).get(this.workspaceId) as { value: string } | undefined)?.value || '993';
-            const imapSecure = (this.db.prepare(`SELECT value FROM settings WHERE workspaceId = ? AND key = 'imap.secure'`).get(this.workspaceId) as { value: string } | undefined)?.value || 'true';
+            const smtpHost =
+              (
+                this.db
+                  .prepare(`SELECT value FROM settings WHERE workspaceId = ? AND key = 'smtp.host'`)
+                  .get(this.workspaceId) as { value: string } | undefined
+              )?.value || 'smtp.gmail.com';
+            const smtpPort =
+              (
+                this.db
+                  .prepare(`SELECT value FROM settings WHERE workspaceId = ? AND key = 'smtp.port'`)
+                  .get(this.workspaceId) as { value: string } | undefined
+              )?.value || '465';
+            const smtpSecure =
+              (
+                this.db
+                  .prepare(
+                    `SELECT value FROM settings WHERE workspaceId = ? AND key = 'smtp.secure'`
+                  )
+                  .get(this.workspaceId) as { value: string } | undefined
+              )?.value || 'true';
+            const imapHost =
+              (
+                this.db
+                  .prepare(`SELECT value FROM settings WHERE workspaceId = ? AND key = 'imap.host'`)
+                  .get(this.workspaceId) as { value: string } | undefined
+              )?.value || 'imap.gmail.com';
+            const imapPort =
+              (
+                this.db
+                  .prepare(`SELECT value FROM settings WHERE workspaceId = ? AND key = 'imap.port'`)
+                  .get(this.workspaceId) as { value: string } | undefined
+              )?.value || '993';
+            const imapSecure =
+              (
+                this.db
+                  .prepare(
+                    `SELECT value FROM settings WHERE workspaceId = ? AND key = 'imap.secure'`
+                  )
+                  .get(this.workspaceId) as { value: string } | undefined
+              )?.value || 'true';
 
-            this.db.prepare(`
+            this.db
+              .prepare(
+                `
               UPDATE email_accounts
               SET smtpHost = ?, smtpPort = ?, smtpSecure = ?, smtpUsername = ?, smtpPassword = ?,
                   imapHost = ?, imapPort = ?, imapSecure = ?, imapUsername = ?, imapPassword = ?
               WHERE id = ?
-            `).run(
-              smtpHost,
-              parseInt(smtpPort, 10) || 465,
-              smtpSecure,
-              firstAccount.email,
-              legacyPassRow.value,
-              imapHost,
-              parseInt(imapPort, 10) || 993,
-              imapSecure,
-              firstAccount.email,
-              legacyPassRow.value,
-              firstAccount.id
-            );
+            `
+              )
+              .run(
+                smtpHost,
+                parseInt(smtpPort, 10) || 465,
+                smtpSecure,
+                firstAccount.email,
+                legacyPassRow.value,
+                imapHost,
+                parseInt(imapPort, 10) || 993,
+                imapSecure,
+                firstAccount.email,
+                legacyPassRow.value,
+                firstAccount.id
+              );
 
-            AppLogger.info('JobScheduler', `Successfully migrated legacy SMTP credentials to email_account: ${firstAccount.email}`, this.workspaceId);
+            AppLogger.info(
+              'JobScheduler',
+              `Successfully migrated legacy SMTP credentials to email_account: ${firstAccount.email}`,
+              this.workspaceId
+            );
           }
         }
       }
     } catch (err) {
-      AppLogger.error('JobScheduler', 'Failed to migrate legacy SMTP/IMAP settings on start', this.workspaceId, err);
+      AppLogger.error(
+        'JobScheduler',
+        'Failed to migrate legacy SMTP/IMAP settings on start',
+        this.workspaceId,
+        err
+      );
     }
   }
 }

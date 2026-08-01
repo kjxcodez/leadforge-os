@@ -1,5 +1,5 @@
-import { BaseRepository } from "../base/base.repository.js";
-import { CampaignModel, type CampaignDocument } from "../../db/models/campaign.model.js";
+import { BaseRepository } from '../base/base.repository.js';
+import { CampaignModel, type CampaignDocument } from '../../db/models/campaign.model.js';
 
 export class CampaignRepository extends BaseRepository<CampaignDocument> {
   constructor(workspaceId?: string) {

@@ -35,9 +35,9 @@
 
 ## 1.1 Why LeadForge Is an Operating System, Not a CRM
 
-A CRM answers one question: *"What is the state of my relationships with prospects and customers?"* It is a system of record. LeadForge has to answer a much larger set of questions: *Where do new companies come from? Who are the right people to contact inside them? What do we know about them? Is this email valid? Should an AI agent qualify this lead before a human ever sees it? What message should we send, in what sequence, through what channel? Did they reply? What do we do next?*
+A CRM answers one question: _"What is the state of my relationships with prospects and customers?"_ It is a system of record. LeadForge has to answer a much larger set of questions: _Where do new companies come from? Who are the right people to contact inside them? What do we know about them? Is this email valid? Should an AI agent qualify this lead before a human ever sees it? What message should we send, in what sequence, through what channel? Did they reply? What do we do next?_
 
-That is not a single application feature — it is a **lifecycle**, spanning discovery, enrichment, qualification, outreach, conversation, and reporting. A CRM is the system of record for the *output* of that lifecycle (the contact, the deal, the note). LeadForge is the system that *runs* the lifecycle end to end. The CRM module is real and important, but it is one of ~20 modules sitting on top of a shared kernel: a workspace-scoped data layer, a workflow engine, a worker fleet, and a provider-adapter layer that lets external services do the heavy lifting.
+That is not a single application feature — it is a **lifecycle**, spanning discovery, enrichment, qualification, outreach, conversation, and reporting. A CRM is the system of record for the _output_ of that lifecycle (the contact, the deal, the note). LeadForge is the system that _runs_ the lifecycle end to end. The CRM module is real and important, but it is one of ~20 modules sitting on top of a shared kernel: a workspace-scoped data layer, a workflow engine, a worker fleet, and a provider-adapter layer that lets external services do the heavy lifting.
 
 The operating-system framing matters practically, not just rhetorically. An OS provides: process scheduling (→ workflow engine + job queue), a filesystem (→ MongoDB collections + repositories), device drivers (→ provider adapters for Apify, Hunter, SMTP, etc.), a shell (→ command palette + UI), and inter-process communication (→ Electron IPC + internal API). Every architectural decision in this document maps back to that analogy: LeadForge's job is to schedule work, route it to the right executor (human, internal worker, or external API), and record what happened — not to reimplement scraping, email verification, or LLM inference internally.
 
@@ -45,7 +45,7 @@ The operating-system framing matters practically, not just rhetorically. An OS p
 
 Three philosophical commitments run through this document:
 
-1. **Orchestrate, don't reinvent.** Wherever a mature external service (Apify, n8n, Hunter, NeverBounce, OpenRouter) solves a problem reliably, LeadForge integrates it behind an adapter rather than building an in-house equivalent. Custom code is reserved for the things that are actually LeadForge's differentiation: the workflow model, the data model, the desktop-native orchestration UX, and workspace-scoped governance (audit, permissions, telemetry) *around* those external calls.
+1. **Orchestrate, don't reinvent.** Wherever a mature external service (Apify, n8n, Hunter, NeverBounce, OpenRouter) solves a problem reliably, LeadForge integrates it behind an adapter rather than building an in-house equivalent. Custom code is reserved for the things that are actually LeadForge's differentiation: the workflow model, the data model, the desktop-native orchestration UX, and workspace-scoped governance (audit, permissions, telemetry) _around_ those external calls.
 2. **Workflows, not commands.** Users think in outcomes ("find me qualified MEP leads in Texas"), not in discrete CLI-style steps. The product surface is a small number of composable workflows; underneath, the workflow engine fans out into many discrete worker executions, some local, some remote (n8n, Apify actors, LLM calls).
 3. **Workspace is the universal scope.** Every document, every job, every credential, every report is scoped to a workspace from day one — even though today there is exactly one workspace (Green Tech Modelers). Retrofitting multi-tenancy later is far more expensive than designing for it now, even in a $0-budget MVP; it costs nothing extra to add a `workspaceId` field today.
 
@@ -70,7 +70,6 @@ LeadForge evolves in three horizons:
 - **Horizon 2 (6–18 months):** Workflow engine matures, AI agents assist qualification and drafting, n8n becomes the automation backbone for anything more complex than the built-in workflow nodes, multi-workspace is activated for a second pilot customer.
 - **Horizon 3 (18+ months):** Cloud sync, licensing/subscriptions, a plugin marketplace, and a partner ecosystem around provider adapters — at which point paid tiers of Apify/Hunter/NeverBounce/etc. become justified by revenue.
 
-
 ---
 
 # 2. Product Roadmap
@@ -78,41 +77,52 @@ LeadForge evolves in three horizons:
 The roadmap is organized into phases that each deliver a usable increment, ordered so that later phases depend only on earlier ones — never the reverse. Every phase below assumes $0 cash cost using free tiers unless explicitly noted.
 
 ## Phase 0 — Foundation (Weeks 1–3)
+
 Monorepo scaffold, MongoDB (local, free), internal API skeleton, auth stub (single workspace, single user), logging (Pino), config/env layer, base UI shell (Electron + React + shadcn). **No external integrations yet.** Dependency: none.
 
 ## Phase 1 — CRM Core
+
 Companies, Contacts, Opportunities modules. Manual CRUD, tables, filters, saved views, activity feed. This is the system of record that every later phase writes into. Dependency: Phase 0.
 
 ## Phase 2 — Discovery
+
 Google Maps scraping via a free-tier-friendly approach (Google Places API free monthly credit, or Apify's free-credit actors) + Playwright for website scraping. Produces Company + raw contact candidates into the CRM. Dependency: Phase 1 (needs somewhere to store results).
 
 ## Phase 3 — Enrichment & Verification
+
 Adapters for Hunter (free tier: 25 searches/month), Apollo, Dropcontact as alternates; email verification via Reoon/NeverBounce/ZeroBounce free-tier credits, with a fallback to a simple SMTP-handshake verifier written in-house for $0 when free tiers are exhausted. Dependency: Phase 2 (needs raw contacts to enrich).
 
 ## Phase 4 — AI Qualification
+
 OpenRouter as the provider abstraction (free/low-cost models like Gemini Flash or Llama variants first), scoring and qualifying contacts/companies against ICP criteria, drafting outreach copy. Dependency: Phase 3 (needs enriched data to qualify).
 
 ## Phase 5 — Outreach & Campaigns
+
 Multi-step email campaigns via SMTP/Nodemailer (free — using the customer's existing mailbox or a free-tier transactional provider), reply tracking via IMAP polling, conversation timeline. Dependency: Phase 4 (qualified leads feed campaigns).
 
 ## Phase 6 — Workflow Engine (Generalization)
+
 Everything built as bespoke pipelines in Phases 2–5 gets refactored into the generic workflow engine (triggers, nodes, executors) so future pipelines are configured, not coded. Dependency: Phases 2–5 provide the reference implementations the engine generalizes from.
 
 ## Phase 7 — Automation via n8n
+
 Self-hosted n8n (free, open-source, Docker container) is introduced as the escape hatch for any automation more complex or more volatile than what's worth hardcoding into the native workflow engine — e.g. Slack/Discord notifications, Google Sheets sync, ad-hoc integrations. LeadForge invokes and monitors n8n workflows via its REST API, while keeping logging/audit/workspace-scoping inside LeadForge. Dependency: Phase 6 (engine + adapters must exist for n8n to plug into the same audit/telemetry pipeline).
 
 ## Phase 8 — Reports & Analytics
+
 Cross-module reporting (pipeline velocity, response rates, source ROI). Dependency: Phases 1–5 (needs data from all modules).
 
 ## Phase 9 — Multi-Tenancy Activation
+
 Turn on true multi-workspace support for a second customer; introduce workspace-level settings and billing hooks (still unpriced). Dependency: Phase 0's workspace scoping being honored everywhere.
 
 ## Phase 10 — Marketplace & Plugin SDK
+
 Public workflow-node SDK, community adapters, listing/install mechanism. Dependency: Phase 6's workflow engine and Phase 9's multi-tenancy.
 
 ## Phase 11 — Cloud Sync & Commercialization
-Optional cloud mirror of local data, licensing, subscriptions. Only pursued once there is a paying customer base. Dependency: Phase 9.
 
+Optional cloud mirror of local data, licensing, subscriptions. Only pursued once there is a paying customer base. Dependency: Phase 9.
 
 ---
 
@@ -159,7 +169,6 @@ Background Workers   External Services (Apify, Hunter, OpenRouter, n8n, SMTP...)
 ## 3.3 Why This Layering
 
 The strict repository/service/adapter separation exists so that (a) MongoDB could be swapped for another store without touching services, (b) any provider could be swapped without touching business logic, and (c) the UI could be swapped (e.g., a future web client) without touching anything below the Internal API. This is the same reasoning as classic hexagonal/ports-and-adapters architecture, applied to a desktop app instead of a server.
-
 
 ---
 
@@ -215,7 +224,6 @@ leadforge/
 
 pnpm's content-addressable store keeps install size and time low (relevant when running everything locally with no CI budget); Turborepo's task caching means `pnpm build`/`test` only re-runs what changed, which matters once `worker-python` and `desktop` both grow. Both tools are free and open-source, consistent with the $0 constraint.
 
-
 ---
 
 # 5. Data Architecture
@@ -259,7 +267,6 @@ Rather than adding Redis (an extra process/cost) purely for a queue, v1 uses a M
 
 Every service-layer mutation that matters (contact enriched, email sent, workflow run, credential changed) writes an immutable `auditLogs` entry and emits a domain event on an in-process event bus (`packages/telemetry`). The workflow engine and any n8n bridge both subscribe to this bus so that automation actions and manual actions produce the same audit trail — auditability is a property of the event bus, not of any one code path.
 
-
 ---
 
 # 6. Workflow Engine
@@ -299,7 +306,6 @@ Each node's output is stored under a `runId`-scoped variable bag (`{ nodeId: out
 
 Node executors implement a documented `WorkflowNode` interface (`type`, `inputSchema` (Zod), `outputSchema`, `execute`). Once this interface is stable (post Phase 6), third parties can ship node packages that self-register, which is the foundation for the Phase 10 marketplace — no engine rewrite required, only a package-loading mechanism.
 
-
 ---
 
 # 7. Worker Architecture
@@ -329,7 +335,6 @@ Jobs are claimed with an atomic `findOneAndUpdate` setting `status: 'processing'
 
 v1 runs all workers as child processes of the single desktop app on the user's machine — $0 infra cost. The queue abstraction (5.5) is written so that swapping the Mongo-backed queue for Redis/BullMQ, and swapping child-process workers for real distributed workers, requires no change to service-layer code — only to the queue package's internals. This is the deliberate seam for eventual cloud/team-scale deployment (Phase 11).
 
-
 ---
 
 # 8. Desktop Architecture
@@ -357,7 +362,6 @@ A single typed `window.leadforge.invoke(channel, payload)` surface backed by a g
 
 electron-builder produces per-OS installers; electron-updater checks a GitHub Releases feed (free) for new versions. Semantic versioning; every release includes a migration script (Section 14) run automatically on first launch after update.
 
-
 ---
 
 # 9. Integrations & Orchestration Layer
@@ -373,7 +377,9 @@ Every integration category defines a small TypeScript interface in `packages/int
 ```ts
 interface EmailVerificationProvider {
   name: string;
-  verify(email: string): Promise<{ status: 'valid'|'invalid'|'risky'|'unknown'; raw: unknown }>;
+  verify(
+    email: string
+  ): Promise<{ status: 'valid' | 'invalid' | 'risky' | 'unknown'; raw: unknown }>;
 }
 ```
 
@@ -381,18 +387,18 @@ Concrete adapters (`ReoonProvider`, `NeverBounceProvider`, `ZeroBounceProvider`,
 
 ## 9.3 Integration Catalog & Default (Free) Choice
 
-| Capability | Adapters supported | Default (v1, $0) |
-|---|---|---|
-| Company discovery | Google Maps, Apify actors | Google Maps API free monthly credit |
-| Website scraping | Playwright (self-hosted), Apify | Self-hosted Playwright |
-| Contact enrichment | Hunter, Apollo, Dropcontact | Hunter free tier (25 searches/mo) |
-| Email verification | Reoon, NeverBounce, ZeroBounce, in-house SMTP check | Free-tier credits → in-house fallback |
-| AI / LLM | OpenRouter, Gemini, Claude, OpenAI | OpenRouter routing to free/cheap models |
-| Email sending | SMTP/Nodemailer | Customer's existing mailbox (no new cost) |
-| Automation | n8n (self-hosted) | Local Docker n8n instance |
-| Team notifications | Slack, Discord | Whichever the customer already uses (free webhook) |
-| File/sheet sync | Google Sheets, Google Drive, Microsoft 365 | Google Sheets/Drive (free personal account) |
-| Social/professional | LinkedIn | Manual-assist only initially (ToS-safe, no scraping automation) |
+| Capability          | Adapters supported                                  | Default (v1, $0)                                                |
+| ------------------- | --------------------------------------------------- | --------------------------------------------------------------- |
+| Company discovery   | Google Maps, Apify actors                           | Google Maps API free monthly credit                             |
+| Website scraping    | Playwright (self-hosted), Apify                     | Self-hosted Playwright                                          |
+| Contact enrichment  | Hunter, Apollo, Dropcontact                         | Hunter free tier (25 searches/mo)                               |
+| Email verification  | Reoon, NeverBounce, ZeroBounce, in-house SMTP check | Free-tier credits → in-house fallback                           |
+| AI / LLM            | OpenRouter, Gemini, Claude, OpenAI                  | OpenRouter routing to free/cheap models                         |
+| Email sending       | SMTP/Nodemailer                                     | Customer's existing mailbox (no new cost)                       |
+| Automation          | n8n (self-hosted)                                   | Local Docker n8n instance                                       |
+| Team notifications  | Slack, Discord                                      | Whichever the customer already uses (free webhook)              |
+| File/sheet sync     | Google Sheets, Google Drive, Microsoft 365          | Google Sheets/Drive (free personal account)                     |
+| Social/professional | LinkedIn                                            | Manual-assist only initially (ToS-safe, no scraping automation) |
 
 ## 9.4 The n8n Bridge
 
@@ -401,7 +407,6 @@ n8n is treated as a first-class **execution target**, not a bypass of LeadForge'
 ## 9.5 Credential Management for Integrations
 
 All third-party credentials live in `integrationCredentials`, encrypted at rest (Section 11), scoped per workspace, and resolved by the `ProviderRegistry` at call time — adapters never read credentials directly from environment variables in production use, only in local dev.
-
 
 ---
 
@@ -434,7 +439,6 @@ AI "agents" in LeadForge are modeled as workflow nodes with **tool access** limi
 
 Because provider adapters and workflow nodes already share a typed input/output schema convention, exposing selected LeadForge capabilities as MCP tools (or consuming external MCP-compatible tools as new adapters) is additive rather than a redesign — this is the intended integration point for "future MCP-compatible tools and AI agents."
 
-
 ---
 
 # 11. Security
@@ -465,7 +469,6 @@ All inputs — IPC payloads, workflow node inputs, adapter responses — are val
 
 Primary risks at this stage: (1) leaked API keys if `safeStorage` encryption is misconfigured — mitigated by never logging credential values and encrypting at rest; (2) malicious/compromised n8n workflows executing unexpected actions — mitigated by scoping the n8n bridge's LeadForge-side credentials narrowly and logging every invocation; (3) prompt injection via scraped web content reaching an AI qualification prompt — mitigated by treating scraped text as untrusted data, never as instructions, enforced via structured-output prompting and never letting AI output directly trigger a send/write without a human-in-the-loop node for anything outward-facing.
 
-
 ---
 
 # 12. UX Architecture
@@ -489,7 +492,6 @@ A single ⌘K/Ctrl+K command palette provides fuzzy navigation (via the Mongo te
 ## 12.5 Infinite Scroll, Pagination & Filtering
 
 List views use cursor-based pagination (stable under concurrent inserts, unlike offset pagination) with an optional infinite-scroll UX for feeds (activity, conversation timeline) and page-based UX for tables (clearer for scanning/sorting large CRM lists).
-
 
 ---
 
@@ -535,7 +537,6 @@ Each release that changes the data model ships a numbered migration script (`pac
 
 Local MongoDB is backed up via a scheduled `mongodump` to a local (and optionally user-configured Google Drive, using the existing free adapter) folder — giving off-machine backup redundancy at $0 additional infrastructure cost. Restore is a documented `mongorestore` flow exposed as a Settings-page action.
 
-
 ---
 
 # 15. Coding Standards
@@ -568,7 +569,6 @@ Unit tests for services and repositories (with an in-memory Mongo instance for r
 
 Every package has a `README.md` stating its responsibility and its allowed dependencies (mirroring Section 4.2's import rules) so the boundary rules are documented in the same place a new contributor would look first.
 
-
 ---
 
 # 16. Engineering Principles
@@ -587,7 +587,6 @@ These are non-negotiable. A pull request violating any of these should not merge
 10. **Human approval gates any outward-facing automated action** (sending an email, posting publicly) until the qualification/drafting pipeline has a proven track record — matching the "stop-and-propose" discipline used elsewhere in this project for compliance/data-integrity-sensitive decisions.
 11. **Every mutation worth remembering is audited.** If it changes state a user or customer cares about, it goes through the event bus and lands in `auditLogs`.
 12. **Free tier first, paid tier only with a documented reason.** Any dependency that costs money before there is revenue needs an explicit note in the relevant adapter's README explaining why no free/self-hosted alternative was sufficient.
-
 
 ---
 
@@ -609,7 +608,7 @@ Hunter's 25 searches/month, Google Maps' free credit, and similar limits are rea
 
 ## 17.4 The n8n Bridge Is a Governance Risk If Under-Specified
 
-n8n workflows can call arbitrary HTTP endpoints and execute arbitrary logic outside LeadForge's own codebase. If the n8n bridge (9.4) is implemented loosely — e.g., giving n8n broad credentials instead of narrowly scoped ones per bridge invocation — it becomes the easiest way to accidentally violate workspace isolation or leak a credential, since n8n's own execution logs live outside LeadForge's audit trail. **Recommendation:** treat every n8n workflow as an external, semi-trusted integration: scope its credentials per-invocation (short-lived tokens where possible), never hand it a workspace-wide credential, and always log both the *invocation* and the *result* on the LeadForge side even though n8n has its own internal logs — LeadForge's audit trail must be self-sufficient, not dependent on cross-referencing n8n's UI.
+n8n workflows can call arbitrary HTTP endpoints and execute arbitrary logic outside LeadForge's own codebase. If the n8n bridge (9.4) is implemented loosely — e.g., giving n8n broad credentials instead of narrowly scoped ones per bridge invocation — it becomes the easiest way to accidentally violate workspace isolation or leak a credential, since n8n's own execution logs live outside LeadForge's audit trail. **Recommendation:** treat every n8n workflow as an external, semi-trusted integration: scope its credentials per-invocation (short-lived tokens where possible), never hand it a workspace-wide credential, and always log both the _invocation_ and the _result_ on the LeadForge side even though n8n has its own internal logs — LeadForge's audit trail must be self-sufficient, not dependent on cross-referencing n8n's UI.
 
 ## 17.5 AI Qualification Risks Silent Bias/Drift Without Ground Truth
 
@@ -617,12 +616,12 @@ An LLM-based ICP qualification score (Section 10.3) will drift in quality as pro
 
 ## 17.6 Single-User Auth Will Need Real Design Attention Sooner Than Phase 9 Suggests
 
-Even a single freelancer today may want a second collaborator (a VA, a sales rep at Green Tech Modelers) well before "Phase 9 — Multi-Tenancy Activation" as currently scoped for a *second customer*. **Recommendation:** split multi-*user* (multiple humans in one workspace) from multi-*tenant* (multiple workspaces/customers) explicitly — the former is far cheaper to bring forward (the `users`/`workspaceMemberships` model in Section 11.1 already supports it) and should likely land around Phase 5–6, well before true multi-tenancy.
+Even a single freelancer today may want a second collaborator (a VA, a sales rep at Green Tech Modelers) well before "Phase 9 — Multi-Tenancy Activation" as currently scoped for a _second customer_. **Recommendation:** split multi-_user_ (multiple humans in one workspace) from multi-_tenant_ (multiple workspaces/customers) explicitly — the former is far cheaper to bring forward (the `users`/`workspaceMemberships` model in Section 11.1 already supports it) and should likely land around Phase 5–6, well before true multi-tenancy.
 
 ## 17.7 The Biggest Long-Term Risk: Scope
 
-The long-term module list in the vision document (20+ modules) is a strong articulation of ambition, but it is also the classic way an infrastructure-minded engineer over-builds a platform before it has one delighted customer. The single most important discipline for the next 6 months is resisting the pull toward Section 3's full layered architecture before Phase 1's CRM and Phase 2's Discovery are genuinely used daily by Green Tech Modelers. This document should guide *direction*, not *sequencing pressure* — every phase in Section 2 is deliberately ordered so that the next line of code written is always the one that gets the pilot customer closer to daily real usage, not the one that makes the architecture more "complete."
+The long-term module list in the vision document (20+ modules) is a strong articulation of ambition, but it is also the classic way an infrastructure-minded engineer over-builds a platform before it has one delighted customer. The single most important discipline for the next 6 months is resisting the pull toward Section 3's full layered architecture before Phase 1's CRM and Phase 2's Discovery are genuinely used daily by Green Tech Modelers. This document should guide _direction_, not _sequencing pressure_ — every phase in Section 2 is deliberately ordered so that the next line of code written is always the one that gets the pilot customer closer to daily real usage, not the one that makes the architecture more "complete."
 
 ---
 
-*End of document. This handbook should be revisited and versioned as LeadForge moves through each roadmap phase — particularly Sections 9 (Integrations) and 16 (Engineering Principles), which will accumulate the most real-world exceptions and lessons over time.*
+_End of document. This handbook should be revisited and versioned as LeadForge moves through each roadmap phase — particularly Sections 9 (Integrations) and 16 (Engineering Principles), which will accumulate the most real-world exceptions and lessons over time._

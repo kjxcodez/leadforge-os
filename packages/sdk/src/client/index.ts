@@ -11,7 +11,7 @@ import {
   DiscoveryModule,
   ActivitiesModule,
   SequencesModule,
-  ExecutionsModule,
+  ExecutionsModule
 } from '../modules';
 
 export class SdkClient {

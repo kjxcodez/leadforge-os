@@ -1,7 +1,22 @@
-import mongoose, { Schema } from "mongoose";
-import { softDeletePlugin, auditPlugin, timestampPlugin, workspacePlugin, type SoftDeleteDocument, type AuditDocument, type TimestampDocument, type WorkspaceScopedDocument } from "../plugins/index.js";
+import mongoose, { Schema } from 'mongoose';
+import {
+  softDeletePlugin,
+  auditPlugin,
+  timestampPlugin,
+  workspacePlugin,
+  type SoftDeleteDocument,
+  type AuditDocument,
+  type TimestampDocument,
+  type WorkspaceScopedDocument
+} from '../plugins/index.js';
 
-export interface CompanyDocument extends mongoose.Document, SoftDeleteDocument, AuditDocument, TimestampDocument, WorkspaceScopedDocument {
+export interface CompanyDocument
+  extends
+    mongoose.Document,
+    SoftDeleteDocument,
+    AuditDocument,
+    TimestampDocument,
+    WorkspaceScopedDocument {
   name: string;
   domain: string;
   website?: string | null;
@@ -12,7 +27,7 @@ export interface CompanyDocument extends mongoose.Document, SoftDeleteDocument, 
   linkedin?: string | null;
   linkedinUrl?: string | null;
   location?: string | null;
-  status: "LEAD" | "QUALIFIED" | "CUSTOMER" | "ARCHIVED";
+  status: 'LEAD' | 'QUALIFIED' | 'CUSTOMER' | 'ARCHIVED';
   tags: string[];
   notes?: string | null;
 }
@@ -22,68 +37,68 @@ const companySchema = new Schema<CompanyDocument>(
     name: {
       type: String,
       required: true,
-      trim: true,
+      trim: true
     },
     domain: {
       type: String,
       required: true,
       trim: true,
-      lowercase: true,
+      lowercase: true
     },
     website: {
       type: String,
       default: null,
-      trim: true,
+      trim: true
     },
     industry: {
       type: String,
       default: null,
-      trim: true,
+      trim: true
     },
     size: {
       type: String,
-      default: null,
+      default: null
     },
     employeeCount: {
       type: Number,
-      default: null,
+      default: null
     },
     revenue: {
       type: String,
-      default: null,
+      default: null
     },
     linkedin: {
       type: String,
       default: null,
-      trim: true,
+      trim: true
     },
     linkedinUrl: {
       type: String,
       default: null,
-      trim: true,
+      trim: true
     },
     location: {
       type: String,
       default: null,
-      trim: true,
+      trim: true
     },
     status: {
       type: String,
-      enum: ["LEAD", "QUALIFIED", "CUSTOMER", "ARCHIVED"],
-      default: "LEAD",
+      enum: ['LEAD', 'QUALIFIED', 'CUSTOMER', 'ARCHIVED'],
+      default: 'LEAD'
     },
     tags: {
       type: [String],
-      default: [],
+      default: []
     },
     notes: {
       type: String,
-      default: null,
-    },
+      default: null
+    }
   },
   {
     strict: true,
-    optimisticConcurrency: true,
+    optimisticConcurrency: true
   }
 );
 
@@ -100,4 +115,4 @@ companySchema.plugin(timestampPlugin);
 
 export const CompanyModel = mongoose.models.Company
   ? (mongoose.models.Company as mongoose.Model<CompanyDocument>)
-  : mongoose.model<CompanyDocument>("Company", companySchema);
+  : mongoose.model<CompanyDocument>('Company', companySchema);

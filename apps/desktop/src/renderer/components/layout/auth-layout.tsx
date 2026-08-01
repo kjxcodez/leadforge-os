@@ -1,8 +1,7 @@
-import type { ReactNode } from "react";
-import { BrandPanel } from "../auth/brand-panel";
-import { ContentPanel } from "../auth/content-panel";
-import { AnimatedBackground } from "../auth/animated-bg";
-
+import type { ReactNode } from 'react';
+import { BrandPanel } from '../auth/brand-panel';
+import { ContentPanel } from '../auth/content-panel';
+import { AnimatedBackground } from '../auth/animated-bg';
 
 interface AuthenticationLayoutProps {
   children?: ReactNode;

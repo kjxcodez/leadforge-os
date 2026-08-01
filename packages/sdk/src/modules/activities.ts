@@ -10,9 +10,7 @@ export class ActivitiesModule {
    * Retrieves logged audit activities from the API.
    */
   public async list(filters?: Record<string, any>): Promise<any[]> {
-    const queryParams = filters
-      ? '?' + new URLSearchParams(filters as any).toString()
-      : '';
+    const queryParams = filters ? '?' + new URLSearchParams(filters as any).toString() : '';
     return this.client.get<any[]>(`/activities${queryParams}`);
   }
 }

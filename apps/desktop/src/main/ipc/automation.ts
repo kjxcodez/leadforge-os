@@ -14,7 +14,11 @@ export function registerAutomationIpc(sdk: SdkClient) {
     if (!runtime) throw new Error('No active workspace runtime');
     try {
       const list = await sdk.sequences.list();
-      await LocalCRMRepository.saveMany('sequences', list.map(item => ({ ...item, workspaceId: runtime.workspaceId })), true);
+      await LocalCRMRepository.saveMany(
+        'sequences',
+        list.map((item) => ({ ...item, workspaceId: runtime.workspaceId })),
+        true
+      );
       return list;
     } catch (err) {
       console.warn('[IPC] Failed to list sequences from remote, falling back to local cache:', err);
@@ -27,7 +31,11 @@ export function registerAutomationIpc(sdk: SdkClient) {
     if (!runtime) throw new Error('No active workspace runtime');
     try {
       const res = await sdk.sequences.get(id);
-      await LocalCRMRepository.save('sequences', { ...res, workspaceId: runtime.workspaceId }, true);
+      await LocalCRMRepository.save(
+        'sequences',
+        { ...res, workspaceId: runtime.workspaceId },
+        true
+      );
       return res;
     } catch (err) {
       const cached = await LocalCRMRepository.findById('sequences', runtime.workspaceId, id);
@@ -71,7 +79,11 @@ export function registerAutomationIpc(sdk: SdkClient) {
       try {
         sequence = await sdk.sequences.get(sequenceId);
         if (sequence) {
-          await LocalCRMRepository.save('sequences', { ...sequence, workspaceId: runtime.workspaceId }, true);
+          await LocalCRMRepository.save(
+            'sequences',
+            { ...sequence, workspaceId: runtime.workspaceId },
+            true
+          );
         }
       } catch (err) {
         console.warn('[IPC] Could not fetch sequence template from remote:', err);
@@ -95,7 +107,7 @@ export function registerAutomationIpc(sdk: SdkClient) {
       logs: JSON.stringify([]),
       syncStatus: 'pending',
       createdAt: now,
-      updatedAt: now,
+      updatedAt: now
     };
 
     // 2. Write execution record into local SQLite database (syncStatus = pending triggers background SyncEngine)
@@ -108,7 +120,7 @@ export function registerAutomationIpc(sdk: SdkClient) {
       entityId,
       entityType,
       executionId,
-      workspaceId: runtime.workspaceId,
+      workspaceId: runtime.workspaceId
     });
 
     const stmtInsertJob = runtime.sqliteDb.prepare(`
@@ -125,7 +137,11 @@ export function registerAutomationIpc(sdk: SdkClient) {
     if (!runtime) throw new Error('No active workspace runtime');
 
     const now = new Date().toISOString();
-    const current = await LocalCRMRepository.findById('sequence_executions', runtime.workspaceId, id);
+    const current = await LocalCRMRepository.findById(
+      'sequence_executions',
+      runtime.workspaceId,
+      id
+    );
 
     const updatedRecord = {
       ...(current || {}),
@@ -135,7 +151,7 @@ export function registerAutomationIpc(sdk: SdkClient) {
       completedAt: now,
       cancelledAt: now,
       syncStatus: 'pending',
-      updatedAt: now,
+      updatedAt: now
     };
 
     // 1. Update status in local SQLite database
@@ -167,17 +183,20 @@ export function registerAutomationIpc(sdk: SdkClient) {
     const localList = await LocalCRMRepository.findMany('sequence_executions', runtime.workspaceId);
 
     // 2. Background non-blocking remote sync pull
-    sdk.executions.list().then(async (remoteList) => {
-      if (Array.isArray(remoteList)) {
-        await LocalCRMRepository.saveMany(
-          'sequence_executions',
-          remoteList.map((item) => ({ ...item, workspaceId: runtime.workspaceId })),
-          true
-        );
-      }
-    }).catch((err) => {
-      console.warn('[IPC] Remote executions pull skipped:', err.message);
-    });
+    sdk.executions
+      .list()
+      .then(async (remoteList) => {
+        if (Array.isArray(remoteList)) {
+          await LocalCRMRepository.saveMany(
+            'sequence_executions',
+            remoteList.map((item) => ({ ...item, workspaceId: runtime.workspaceId })),
+            true
+          );
+        }
+      })
+      .catch((err) => {
+        console.warn('[IPC] Remote executions pull skipped:', err.message);
+      });
 
     return localList;
   });
@@ -187,13 +206,21 @@ export function registerAutomationIpc(sdk: SdkClient) {
     if (!runtime) throw new Error('No active workspace runtime');
 
     // Read directly from local SQLite database first
-    const cached = await LocalCRMRepository.findById('sequence_executions', runtime.workspaceId, id);
+    const cached = await LocalCRMRepository.findById(
+      'sequence_executions',
+      runtime.workspaceId,
+      id
+    );
     if (cached) return cached;
 
     try {
       const res = await sdk.executions.get(id);
       if (res) {
-        await LocalCRMRepository.save('sequence_executions', { ...res, workspaceId: runtime.workspaceId }, true);
+        await LocalCRMRepository.save(
+          'sequence_executions',
+          { ...res, workspaceId: runtime.workspaceId },
+          true
+        );
       }
       return res;
     } catch (err) {
@@ -221,10 +248,15 @@ export function registerAutomationIpc(sdk: SdkClient) {
     }
 
     // 2. Fallback to parsing embedded logs column on sequence_executions record
-    const execRecord = await LocalCRMRepository.findById('sequence_executions', runtime.workspaceId, id);
+    const execRecord = await LocalCRMRepository.findById(
+      'sequence_executions',
+      runtime.workspaceId,
+      id
+    );
     if (execRecord?.logs) {
       try {
-        const parsed = typeof execRecord.logs === 'string' ? JSON.parse(execRecord.logs) : execRecord.logs;
+        const parsed =
+          typeof execRecord.logs === 'string' ? JSON.parse(execRecord.logs) : execRecord.logs;
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch {}
     }
@@ -237,4 +269,3 @@ export function registerAutomationIpc(sdk: SdkClient) {
     }
   });
 }
-

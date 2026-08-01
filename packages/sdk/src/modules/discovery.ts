@@ -52,7 +52,11 @@ export class DiscoveryModule {
   /**
    * Creates/triggers a new discovery search job.
    */
-  public async createJob(payload: { name: string; provider: string; query: string }): Promise<DiscoveryJob> {
+  public async createJob(payload: {
+    name: string;
+    provider: string;
+    query: string;
+  }): Promise<DiscoveryJob> {
     return this.client.post<DiscoveryJob>('/discovery/jobs', payload);
   }
 

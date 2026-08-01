@@ -15,9 +15,7 @@ export class OutreachModule {
   // ── Outbound Log Listing ────────────────────────────────────────────────
 
   public async list(filters?: OutreachFilters): Promise<Outreach[]> {
-    const queryParams = filters
-      ? '?' + new URLSearchParams(filters as any).toString()
-      : '';
+    const queryParams = filters ? '?' + new URLSearchParams(filters as any).toString() : '';
     return this.client.get<Outreach[]>(`/outreach${queryParams}`);
   }
 
@@ -57,8 +55,13 @@ export class OutreachModule {
     return this.client.delete<void>(`/outreach/templates/${id}`);
   }
 
-  public async previewTemplate(id: string, contactId?: string): Promise<{ subject: string; body: string }> {
+  public async previewTemplate(
+    id: string,
+    contactId?: string
+  ): Promise<{ subject: string; body: string }> {
     const queryParams = contactId ? `?contactId=${contactId}` : '';
-    return this.client.get<{ subject: string; body: string }>(`/outreach/templates/${id}/preview${queryParams}`);
+    return this.client.get<{ subject: string; body: string }>(
+      `/outreach/templates/${id}/preview${queryParams}`
+    );
   }
 }

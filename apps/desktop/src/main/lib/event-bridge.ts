@@ -22,7 +22,7 @@ export class EventBridge {
         this.broadcast('job:progress', {
           jobId: event.payload.jobId,
           progress: event.payload.progress,
-          metadata: event.payload.metadata,
+          metadata: event.payload.metadata
         });
       })
     );
@@ -32,7 +32,7 @@ export class EventBridge {
       this.eventBus.subscribe('job:completed', (event: AppEvent) => {
         this.broadcast('job:completed', {
           jobId: event.payload.jobId,
-          result: event.payload.result,
+          result: event.payload.result
         });
       })
     );
@@ -43,7 +43,7 @@ export class EventBridge {
         this.broadcast('job:failed', {
           jobId: event.payload.jobId,
           error: event.payload.error,
-          willRetry: event.payload.willRetry,
+          willRetry: event.payload.willRetry
         });
       })
     );
@@ -53,7 +53,7 @@ export class EventBridge {
       this.eventBus.subscribe('job:starting', (event: AppEvent) => {
         this.broadcast('job:starting', {
           jobId: event.payload.jobId,
-          workerId: event.payload.workerId,
+          workerId: event.payload.workerId
         });
       })
     );
@@ -63,7 +63,7 @@ export class EventBridge {
       this.eventBus.subscribe('job:started', (event: AppEvent) => {
         this.broadcast('job:started', {
           jobId: event.payload.jobId,
-          workerId: event.payload.workerId,
+          workerId: event.payload.workerId
         });
       })
     );
@@ -72,7 +72,7 @@ export class EventBridge {
     this.unsubscribes.push(
       this.eventBus.subscribe('job:paused', (event: AppEvent) => {
         this.broadcast('job:paused', {
-          jobId: event.payload.jobId,
+          jobId: event.payload.jobId
         });
       })
     );
@@ -81,7 +81,7 @@ export class EventBridge {
     this.unsubscribes.push(
       this.eventBus.subscribe('job:cancelled', (event: AppEvent) => {
         this.broadcast('job:cancelled', {
-          jobId: event.payload.jobId,
+          jobId: event.payload.jobId
         });
       })
     );
@@ -106,7 +106,7 @@ export class EventBridge {
       'automation:completed',
       'automation:cancelled',
       'automation:failed',
-      'automation:recovered',
+      'automation:recovered'
     ];
 
     autoEvents.forEach((ch) => {

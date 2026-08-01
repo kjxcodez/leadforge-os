@@ -8,7 +8,14 @@ import { LocalCRMRepository } from '../database/repositories/local-crm';
 interface QueueItem {
   id: string;
   workspaceId: string;
-  entityType: 'companies' | 'contacts' | 'campaigns' | 'sequences' | 'sequence_executions' | 'email_accounts' | 'templates';
+  entityType:
+    | 'companies'
+    | 'contacts'
+    | 'campaigns'
+    | 'sequences'
+    | 'sequence_executions'
+    | 'email_accounts'
+    | 'templates';
   entityId: string;
   operation: 'CREATE' | 'UPDATE' | 'DELETE';
   payload: string;
@@ -49,7 +56,11 @@ export class SyncEngine {
 
     // Check queue every 5 seconds
     this.intervalId = setInterval(() => this.tick(), 5000);
-    AppLogger.info('SyncEngine', `Sync engine started for workspace: ${this.workspaceId}`, this.workspaceId);
+    AppLogger.info(
+      'SyncEngine',
+      `Sync engine started for workspace: ${this.workspaceId}`,
+      this.workspaceId
+    );
 
     // Perform initial remote pull sync asynchronously
     this.pullRemoteUpdates().catch((err) => {
@@ -65,7 +76,11 @@ export class SyncEngine {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
-    AppLogger.info('SyncEngine', `Sync engine stopped for workspace: ${this.workspaceId}`, this.workspaceId);
+    AppLogger.info(
+      'SyncEngine',
+      `Sync engine stopped for workspace: ${this.workspaceId}`,
+      this.workspaceId
+    );
   }
 
   /**
@@ -73,7 +88,11 @@ export class SyncEngine {
    */
   public async pullRemoteUpdates(): Promise<void> {
     try {
-      AppLogger.info('SyncEngine', `Pulling remote updates for workspace: ${this.workspaceId}`, this.workspaceId);
+      AppLogger.info(
+        'SyncEngine',
+        `Pulling remote updates for workspace: ${this.workspaceId}`,
+        this.workspaceId
+      );
 
       // A. Pull companies
       try {
@@ -82,7 +101,7 @@ export class SyncEngine {
           const records = companies.map((c: any) => ({
             ...c,
             workspaceId: this.workspaceId,
-            syncStatus: 'synced',
+            syncStatus: 'synced'
           }));
           await LocalCRMRepository.saveMany('companies', records, true); // skipQueue = true
         }
@@ -97,7 +116,7 @@ export class SyncEngine {
           const records = contacts.map((c: any) => ({
             ...c,
             workspaceId: this.workspaceId,
-            syncStatus: 'synced',
+            syncStatus: 'synced'
           }));
           await LocalCRMRepository.saveMany('contacts', records, true); // skipQueue = true
         }
@@ -112,7 +131,7 @@ export class SyncEngine {
           const records = campaigns.map((c: any) => ({
             ...c,
             workspaceId: this.workspaceId,
-            syncStatus: 'synced',
+            syncStatus: 'synced'
           }));
           await LocalCRMRepository.saveMany('campaigns', records, true); // skipQueue = true
         }
@@ -127,7 +146,7 @@ export class SyncEngine {
           const records = sequences.map((s: any) => ({
             ...s,
             workspaceId: this.workspaceId,
-            syncStatus: 'synced',
+            syncStatus: 'synced'
           }));
           await LocalCRMRepository.saveMany('sequences', records, true); // skipQueue = true
         }
@@ -142,7 +161,7 @@ export class SyncEngine {
           const records = executions.map((ex: any) => ({
             ...ex,
             workspaceId: this.workspaceId,
-            syncStatus: 'synced',
+            syncStatus: 'synced'
           }));
           await LocalCRMRepository.saveMany('sequence_executions', records, true); // skipQueue = true
         }
@@ -157,7 +176,7 @@ export class SyncEngine {
           const records = accounts.map((a: any) => ({
             ...a,
             workspaceId: this.workspaceId,
-            syncStatus: 'synced',
+            syncStatus: 'synced'
           }));
           await LocalCRMRepository.saveMany('email_accounts', records, true);
         }
@@ -172,8 +191,9 @@ export class SyncEngine {
           const records = templates.map((t: any) => ({
             ...t,
             workspaceId: this.workspaceId,
-            variables: typeof t.variables === 'string' ? t.variables : JSON.stringify(t.variables || []),
-            syncStatus: 'synced',
+            variables:
+              typeof t.variables === 'string' ? t.variables : JSON.stringify(t.variables || []),
+            syncStatus: 'synced'
           }));
           await LocalCRMRepository.saveMany('templates', records, true);
         }
@@ -181,7 +201,11 @@ export class SyncEngine {
         AppLogger.warn('SyncEngine', 'Failed to pull templates', this.workspaceId, e);
       }
 
-      AppLogger.info('SyncEngine', `Remote updates pulled successfully for workspace: ${this.workspaceId}`, this.workspaceId);
+      AppLogger.info(
+        'SyncEngine',
+        `Remote updates pulled successfully for workspace: ${this.workspaceId}`,
+        this.workspaceId
+      );
       this.broadcastToRenderer();
     } catch (err) {
       AppLogger.error('SyncEngine', 'Critical error pulling remote updates', this.workspaceId, err);
@@ -224,10 +248,14 @@ export class SyncEngine {
    */
   private async processQueue(): Promise<void> {
     // Detect and archive permanently failed/poisoned sync items to the dead-letter table
-    const poisonedItems = this.db.prepare(`
+    const poisonedItems = this.db
+      .prepare(
+        `
       SELECT * FROM sync_queue
       WHERE workspaceId = ? AND retryCount >= ?
-    `).all(this.workspaceId, MAX_SYNC_RETRIES) as QueueItem[];
+    `
+      )
+      .all(this.workspaceId, MAX_SYNC_RETRIES) as QueueItem[];
 
     if (poisonedItems.length > 0) {
       const insertDeadLetter = this.db.prepare(`
@@ -266,19 +294,32 @@ export class SyncEngine {
         );
         this.broadcastToRenderer();
       } catch (err) {
-        AppLogger.error('SyncEngine', 'Failed to archive poisoned sync items', this.workspaceId, err);
+        AppLogger.error(
+          'SyncEngine',
+          'Failed to archive poisoned sync items',
+          this.workspaceId,
+          err
+        );
       }
     }
 
-    const pendingItems = this.db.prepare(`
+    const pendingItems = this.db
+      .prepare(
+        `
       SELECT * FROM sync_queue
       WHERE workspaceId = ? AND retryCount < ?
       ORDER BY createdAt ASC
-    `).all(this.workspaceId, MAX_SYNC_RETRIES) as QueueItem[];
+    `
+      )
+      .all(this.workspaceId, MAX_SYNC_RETRIES) as QueueItem[];
 
     if (pendingItems.length === 0) return;
 
-    AppLogger.info('SyncEngine', `Found ${pendingItems.length} pending mutations to sync.`, this.workspaceId);
+    AppLogger.info(
+      'SyncEngine',
+      `Found ${pendingItems.length} pending mutations to sync.`,
+      this.workspaceId
+    );
     this.eventBus.publish('sync:started', { count: pendingItems.length });
 
     let hasUpdates = false;
@@ -286,14 +327,16 @@ export class SyncEngine {
     for (const item of pendingItems) {
       try {
         const payload = JSON.parse(item.payload || '{}');
-        
+
         // Resolve SDK module dynamically
         const clientModule = this.resolveSdkModule(item.entityType);
         if (!clientModule) {
           throw new Error(`Unsupported sync entity type: ${item.entityType}`);
         }
 
-        ctxLog(`Syncing "${item.operation}" on ${item.entityType}/${item.entityId} (Version ${item.version})`);
+        ctxLog(
+          `Syncing "${item.operation}" on ${item.entityType}/${item.entityId} (Version ${item.version})`
+        );
 
         if (item.operation === 'CREATE') {
           await clientModule.create(payload);
@@ -306,25 +349,32 @@ export class SyncEngine {
         // Mutation synced successfully: remove from local queue
         this.db.prepare('DELETE FROM sync_queue WHERE id = ?').run(item.id);
         hasUpdates = true;
-        
+
         this.eventBus.publish('sync:progress', {
           queueItemId: item.id,
           entityId: item.entityId,
           status: 'success'
         });
-
       } catch (err: any) {
         const errorMsg = err.message || String(err);
         const isNetworkErr = this.isNetworkError(err);
 
-        AppLogger.warn('SyncEngine', `Sync failed for item "${item.id}": ${errorMsg}`, this.workspaceId);
+        AppLogger.warn(
+          'SyncEngine',
+          `Sync failed for item "${item.id}": ${errorMsg}`,
+          this.workspaceId
+        );
 
         // Update retry logs in database
-        this.db.prepare(`
+        this.db
+          .prepare(
+            `
           UPDATE sync_queue
           SET retryCount = retryCount + 1, lastError = ?, updatedAt = CURRENT_TIMESTAMP
           WHERE id = ?
-        `).run(errorMsg, item.id);
+        `
+          )
+          .run(errorMsg, item.id);
 
         this.eventBus.publish('sync:failed', {
           queueItemId: item.id,
@@ -334,7 +384,11 @@ export class SyncEngine {
 
         if (isNetworkErr) {
           // Suspend sequential queue processing until next tick if offline/network failed
-          AppLogger.warn('SyncEngine', 'Network connection issue detected. Suspending sync execution.', this.workspaceId);
+          AppLogger.warn(
+            'SyncEngine',
+            'Network connection issue detected. Suspending sync execution.',
+            this.workspaceId
+          );
           break;
         }
       }
@@ -359,14 +413,14 @@ export class SyncEngine {
       return {
         create: (payload: any) => this.sdk.outreach.createAccount(payload),
         update: (id: string, payload: any) => Promise.resolve(),
-        delete: (id: string) => this.sdk.outreach.deleteAccount(id),
+        delete: (id: string) => this.sdk.outreach.deleteAccount(id)
       };
     }
     if (entityType === 'templates') {
       return {
         create: (payload: any) => this.sdk.outreach.createTemplate(payload),
         update: (id: string, payload: any) => Promise.resolve(),
-        delete: (id: string) => this.sdk.outreach.deleteTemplate(id),
+        delete: (id: string) => this.sdk.outreach.deleteTemplate(id)
       };
     }
     return null;

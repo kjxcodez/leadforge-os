@@ -181,7 +181,7 @@ flowchart LR
     STEP1 -->|exec.save()| COLL_EXEC
     STEP2 -->|log.save()| COLL_LOG
     STEP3 -->|findByIdAndUpdate $push| COLL_EXEC
-    
+
     API_SVC -.->|Response returned to Desktop Main Process| MAIN_SAVE["LocalCRMRepository.save()"]
     MAIN_SAVE -->|INSERT OR REPLACE| TABLE_EXEC
 ```

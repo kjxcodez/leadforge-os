@@ -1,6 +1,6 @@
 appId: com.leadforge.desktop
 
-productName: LeadForge
+productName: "LeadForge OS"
 
 npmRebuild: false
 
@@ -39,4 +39,7 @@ nsis:
   shortcutName: "LeadForge OS"
   runAfterFinish: true
 
-publish: null
+publish:
+  provider: github
+  owner: kjxcodez
+  repo: leadforge-os

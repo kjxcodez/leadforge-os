@@ -9,7 +9,7 @@ export const emailTemplateSchema = z.object({
   body: z.string(),
   variables: z.array(z.string()),
   createdAt: z.date(),
-  updatedAt: z.date(),
+  updatedAt: z.date()
 });
 export type EmailTemplate = z.infer<typeof emailTemplateSchema>;
 
@@ -17,7 +17,7 @@ export const emailMessageSchema = z.object({
   messageId: z.string(),
   threadId: z.string().optional(),
   subject: z.string(),
-  body: z.string(),
+  body: z.string()
 });
 export type EmailMessage = z.infer<typeof emailMessageSchema>;
 
@@ -33,7 +33,7 @@ export const outreachSchema = z.object({
   lastSentAt: z.date().nullable().optional(),
   messageDetails: emailMessageSchema.nullable().optional(),
   createdAt: z.date(),
-  updatedAt: z.date(),
+  updatedAt: z.date()
 });
 export type Outreach = z.infer<typeof outreachSchema>;
 
@@ -52,6 +52,6 @@ export const emailAccountSchema = z.object({
   lastVerifiedAt: z.date().nullable().optional(),
   lastError: z.string().nullable().optional(),
   createdAt: z.date(),
-  updatedAt: z.date(),
+  updatedAt: z.date()
 });
 export type EmailAccount = z.infer<typeof emailAccountSchema>;

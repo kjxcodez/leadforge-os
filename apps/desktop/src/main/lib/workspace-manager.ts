@@ -2,7 +2,6 @@ import { WorkspaceRuntime } from './workspace-runtime';
 import type { SdkClient } from '@leadforge/sdk';
 import { telemetry } from './telemetry';
 
-
 /**
  * WorkspaceManager acts as the Main process runtime supervisor, managing the active
  * workspace instance lifecycle.
@@ -30,13 +29,17 @@ class WorkspaceManagerClass {
    */
   public async setActiveWorkspace(workspaceId: string | null): Promise<WorkspaceRuntime | null> {
     if (this.activeRuntime && this.activeRuntime.workspaceId === workspaceId) {
-      console.log(`[WorkspaceManager] Workspace ${workspaceId} is already active, skipping restart.`);
+      console.log(
+        `[WorkspaceManager] Workspace ${workspaceId} is already active, skipping restart.`
+      );
       return this.activeRuntime;
     }
 
     // 1. Cleanly spin down current runtime if running
     if (this.activeRuntime) {
-      console.log(`[WorkspaceManager] Spinning down active workspace: ${this.activeRuntime.workspaceId}`);
+      console.log(
+        `[WorkspaceManager] Spinning down active workspace: ${this.activeRuntime.workspaceId}`
+      );
       this.previousRuntimeId = this.activeRuntime.workspaceId;
       await this.activeRuntime.stop();
       this.activeRuntime = null;
@@ -49,17 +52,17 @@ class WorkspaceManagerClass {
     }
 
     console.log(`[WorkspaceManager] Swapping active workspace runtime to: ${workspaceId}`);
-    
+
     // 2. Initialize new isolated runtime environment
     const runtime = new WorkspaceRuntime(workspaceId, this.getSdk());
     const activateStart = Date.now();
     try {
       await runtime.start();
-      
+
       const activateDuration = Date.now() - activateStart;
       this.totalStarts++;
       this.totalStartupDuration += activateDuration;
-      
+
       telemetry.workspaceActivationDuration = activateDuration;
 
       this.activeRuntime = runtime;
@@ -67,7 +70,10 @@ class WorkspaceManagerClass {
       return runtime;
     } catch (err: any) {
       this.lastFailureMessage = err.message || String(err);
-      console.error(`[WorkspaceManager] Failed to start runtime for workspace ${workspaceId}:`, err);
+      console.error(
+        `[WorkspaceManager] Failed to start runtime for workspace ${workspaceId}:`,
+        err
+      );
       // Ensure we don't leave a semi-initialized runtime active
       await runtime.stop();
       throw err;

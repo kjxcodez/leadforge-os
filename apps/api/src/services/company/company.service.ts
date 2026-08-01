@@ -1,6 +1,11 @@
-import { CompanyRepository } from "../../repositories/company/company.repository.js";
-import type { CompanyDocument } from "../../db/models/company.model.js";
-import { createCompanyDtoSchema, updateCompanyDtoSchema, type CreateCompanyDto, type UpdateCompanyDto } from "@leadforge/schema";
+import { CompanyRepository } from '../../repositories/company/company.repository.js';
+import type { CompanyDocument } from '../../db/models/company.model.js';
+import {
+  createCompanyDtoSchema,
+  updateCompanyDtoSchema,
+  type CreateCompanyDto,
+  type UpdateCompanyDto
+} from '@leadforge/schema';
 
 export class CompanyService {
   private companyRepository: CompanyRepository;
@@ -13,7 +18,10 @@ export class CompanyService {
     return this.companyRepository.findById(id);
   }
 
-  public async listCompanies(page?: number, limit?: number): Promise<{ data: CompanyDocument[]; total: number }> {
+  public async listCompanies(
+    page?: number,
+    limit?: number
+  ): Promise<{ data: CompanyDocument[]; total: number }> {
     return this.companyRepository.paginate({}, page, limit);
   }
 
@@ -21,7 +29,7 @@ export class CompanyService {
     const validated = createCompanyDtoSchema.parse(dto);
     return this.companyRepository.create({
       ...validated,
-      tags: [],
+      tags: []
     });
   }
 

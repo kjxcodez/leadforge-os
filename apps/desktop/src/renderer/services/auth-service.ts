@@ -74,5 +74,5 @@ export const AuthService = {
    */
   async logout(): Promise<void> {
     await window.ipc.invoke('auth:logout', undefined);
-  },
+  }
 };

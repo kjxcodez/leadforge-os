@@ -3,7 +3,10 @@ import type { SequenceExecution, SequenceLog, Sequence } from '@leadforge/schema
 import { LocalCRMRepository } from './local-crm';
 
 export class WorkflowRepositoryImpl implements WorkflowRepository {
-  public async getExecutionById(id: string, workspaceId: string): Promise<SequenceExecution | null> {
+  public async getExecutionById(
+    id: string,
+    workspaceId: string
+  ): Promise<SequenceExecution | null> {
     return LocalCRMRepository.findById('sequence_executions', workspaceId, id);
   }
 
@@ -15,7 +18,10 @@ export class WorkflowRepositoryImpl implements WorkflowRepository {
     return LocalCRMRepository.save('sequence_logs', log);
   }
 
-  public async findExecutions(workspaceId: string, filter?: Record<string, any>): Promise<SequenceExecution[]> {
+  public async findExecutions(
+    workspaceId: string,
+    filter?: Record<string, any>
+  ): Promise<SequenceExecution[]> {
     return LocalCRMRepository.findMany('sequence_executions', workspaceId, filter);
   }
 

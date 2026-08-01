@@ -17,7 +17,7 @@ LeadForge OS leverages LLMs and agents to qualify leads, draft email outreach, a
 2. **Local Vector Database**: Integrates `sqlite-vec` (a lightweight SQLite extension) to store embeddings for RAG contexts and semantic lead searches directly on client machines, avoiding the cost of cloud vector hosts.
 
 ```text
-       [ User Action ] 
+       [ User Action ]
               │
               ▼
     [ AI Orchestrator ] ──► [ Prompts YAML ]

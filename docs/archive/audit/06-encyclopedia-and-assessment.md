@@ -9,6 +9,7 @@ This document serves as the project's encyclopedia, cataloging configurations, s
 This index logs the purpose, exports, and consumer details for all critical files in the codebase.
 
 ### 1.1 Desktop App Main Process (`apps/desktop/src/main/`)
+
 1. **`index.ts`**:
    - **Purpose**: App entrypoint. Launches Electron shell, runs SQLite migrations, registers IPCs, and manages browser windows.
    - **Exports**: `ipcHandlers` Map, `createWindow` function.
@@ -39,6 +40,7 @@ This index logs the purpose, exports, and consumer details for all critical file
    - **Consumers**: `ipc/register.ts`.
 
 ### 1.2 Desktop App Renderer Process (`apps/desktop/src/renderer/`)
+
 1. **`app/main.tsx`**:
    - **Purpose**: React application mounting file.
    - **Consumers**: Electron Browser Window.
@@ -68,6 +70,7 @@ This index logs the purpose, exports, and consumer details for all critical file
    - **Consumers**: `AppLayout.tsx`.
 
 ### 1.3 Backend API Server (`apps/api/src/`)
+
 1. **`app.ts`**:
    - **Purpose**: Aggregates hono Middlewares (RequestId, Cors, Logger, Compression, Security headers) and routes.
    - **Exports**: `app` OpenAPIHono instance.
@@ -109,11 +112,13 @@ This index logs the purpose, exports, and consumer details for all critical file
 ## 3. Security & Performance Audit
 
 ### 3.1 Security Profile
+
 - **Tenant Isolation**: Protected by `workspaceMiddleware` in `apps/api/src/middleware/auth.ts`, verifying that the session user belongs to the requested workspace.
 - **Electron Sandbox**: Preload uses a strict, hardcoded allowlist of strings. Any IPC requests targeting non-allowlisted channels are rejected, preventing remote code execution (RCE) via web page hijacking.
 - **Credential Storage**: Active JWT session tokens are stored in the memory space of Electron Main (`index.ts`). The renderer process has no direct access to write or dump this variable, shielding tokens from cross-site scripting (XSS) attacks.
 
 ### 3.2 Performance Profile
+
 - **SQLiteWAL Mode**: WAL (Write-Ahead Logging) enables high-concurrency writes while serving parallel read requests without lockouts.
 - **Transactional Bulk Saves**: Bulk CRM imports are compiled into single transaction blocks using `db.transaction()` inside `local-crm.ts`, avoiding I/O thread bottlenecks.
 - **Stale-While-Revalidate**: Instant rendering (0ms latency) via local cache checks on `listAndSync()` ensures GTM prospectors experience zero delays during page changes.
@@ -122,11 +127,11 @@ This index logs the purpose, exports, and consumer details for all critical file
 
 ## 4. Technical Debt Register
 
-| ID | Description | Severity | Location | Recommended Fix | Priority |
-| :--- | :--- | :---: | :--- | :--- | :---: |
-| **TD-01** | Simulated Scraper | **Medium** | `DiscoveryService.ts` | Replace timeout simulator with real child processes spawning Playwright scrapers. | **P1** |
-| **TD-02** | Stubbed AI layer | **Medium** | `packages/prompts` | Integrate OpenRouter API and configure `sqlite-vec` embeddings. | **P2** |
-| **TD-03** | Empty Worker Stubs | **Low** | `apps/worker` / `apps/web` | Remove empty workspace folders if not needed, or migrate SequenceWorkers. | **P3** |
+| ID        | Description        |  Severity  | Location                   | Recommended Fix                                                                   | Priority |
+| :-------- | :----------------- | :--------: | :------------------------- | :-------------------------------------------------------------------------------- | :------: |
+| **TD-01** | Simulated Scraper  | **Medium** | `DiscoveryService.ts`      | Replace timeout simulator with real child processes spawning Playwright scrapers. |  **P1**  |
+| **TD-02** | Stubbed AI layer   | **Medium** | `packages/prompts`         | Integrate OpenRouter API and configure `sqlite-vec` embeddings.                   |  **P2**  |
+| **TD-03** | Empty Worker Stubs |  **Low**   | `apps/worker` / `apps/web` | Remove empty workspace folders if not needed, or migrate SequenceWorkers.         |  **P3**  |
 
 ---
 
@@ -142,6 +147,7 @@ This index logs the purpose, exports, and consumer details for all critical file
 ## 6. Development Cookbook
 
 ### 6.1 How to Create a New CRM Entity (e.g. Opportunity)
+
 1. **Schema**: Add `OpportunitySchema` in `packages/schema/src/entities/opportunity.ts`.
 2. **SQLite Migration**: Add a CREATE TABLE SQL statement inside `005_opportunity_schema` migration in `apps/desktop/src/main/database/runner.ts`.
 3. **Mongoose Model**: Create `opportunity.model.ts` in `apps/api/src/db/models/`.

@@ -7,6 +7,7 @@ This guide covers common errors, recovery actions, and diagnostic steps for reso
 ## 🛑 Application Won't Start
 
 ### SQLite Binary DLL Mismatch
+
 - **Symptom**: Startup crashes with an error:
   ```text
   better_sqlite3.node was compiled against a different Node.js version
@@ -22,6 +23,7 @@ This guide covers common errors, recovery actions, and diagnostic steps for reso
 ## 🗄️ Database & Migration Failures
 
 ### Stuck or Corrupt Migrations
+
 - **Symptom**: Application displays database connection errors on startup, or loops during migrations.
 - **Self-Healing Mechanism**:
   - The migration runner (`runner.ts`) copies your SQLite database file to `leadforge_${workspaceId}.db.migration.bak` before applying migrations.
@@ -35,6 +37,7 @@ This guide covers common errors, recovery actions, and diagnostic steps for reso
 ## ⚙️ Scheduler & Worker Crashes
 
 ### Worker Heartbeat Timeout
+
 - **Symptom**: Long-running scraper jobs change status from `running` to `failed` with the error `Worker process lost heartbeat`.
 - **Cause**: The child worker process failed to respond to the scheduler's ping within 30 seconds (due to out-of-memory or system sleep).
 - **Solution**:
@@ -47,6 +50,7 @@ This guide covers common errors, recovery actions, and diagnostic steps for reso
 ## 🔄 Sync Engine Failures
 
 ### Queue Stalling
+
 - **Symptom**: Locally modified companies or contacts do not appear on your Hono server dashboard, and the sync queue grows.
 - **Diagnosis**:
   - Review the `lastError` column in the `sync_queue` table or check the **Sync Engine Status** in the Operations Center.
@@ -61,6 +65,7 @@ This guide covers common errors, recovery actions, and diagnostic steps for reso
 ## 🤖 AI Provider Issues
 
 ### OpenRouter Authorization Failures
+
 - **Symptom**: Lead scoring returns mock template fallbacks, and logs display authorization errors.
 - **Solution**:
   - Check your OpenRouter API key under Settings.
@@ -68,6 +73,7 @@ This guide covers common errors, recovery actions, and diagnostic steps for reso
   - Run `pnpm test:ai` in the monorepo root to verify connection health.
 
 ### Ollama Model Unavailable
+
 - **Symptom**: Offline qualification runs fail with model not found.
 - **Solution**:
   - Verify Ollama is running:

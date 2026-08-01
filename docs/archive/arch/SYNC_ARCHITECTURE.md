@@ -33,9 +33,9 @@ Change Tracking           Replication     Orchestration Planners        Tool Exe
     X (No AI Execution)       X (No Tools)       X (No Sync Control)           X (No Sync Outbox)
 ```
 
-* **No AI Execution**: The Sync Engine must never call LLMs or prompts.
-* **No Planners or Loops**: The Sync Engine does not interact with agent routing or execution loops.
-* **No Direct Tool Invocation**: Tools do not trigger the sync queue directly. Synchronization is an automatic database-level observer side-effect.
+- **No AI Execution**: The Sync Engine must never call LLMs or prompts.
+- **No Planners or Loops**: The Sync Engine does not interact with agent routing or execution loops.
+- **No Direct Tool Invocation**: Tools do not trigger the sync queue directly. Synchronization is an automatic database-level observer side-effect.
 
 ---
 
@@ -52,6 +52,7 @@ Local SQLite Write ──► outbox Entry ──► SyncEngine ──► Batchin
                                                                                       ▼
                                                                              Inbound Local Sync
 ```
+
 1. **Outbox Log**: Local writes write change records to a `sync_outbox` table.
 2. **Batching**: The Sync Engine compiles logs into a compressed JSON payload.
 3. **Transmission**: The Engine executes a secure POST request to the Atlas API with a transaction version stamp.

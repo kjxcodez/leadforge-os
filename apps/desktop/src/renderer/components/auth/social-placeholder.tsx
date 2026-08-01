@@ -1,4 +1,4 @@
-import { Chrome } from "lucide-react";
+import { Chrome } from 'lucide-react';
 
 interface SocialLoginPlaceholderProps {
   className?: string;
@@ -10,8 +10,8 @@ interface SocialLoginPlaceholderProps {
  * Kept disabled since OAuth integration is scheduled for later phases.
  */
 export function SocialLoginPlaceholder({
-  className = "",
-  onGoogleClick,
+  className = '',
+  onGoogleClick
 }: SocialLoginPlaceholderProps) {
   return (
     <div className={`space-y-2 ${className}`}>

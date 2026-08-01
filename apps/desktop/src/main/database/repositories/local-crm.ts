@@ -6,8 +6,15 @@ import { getDatabase } from '../connection';
  * into their native JS types so consumers never receive raw JSON strings.
  */
 const JSON_COLUMNS = new Set([
-  'tags', 'notes', 'steps', 'variables', 'logs', 'contactsJson',
-  'statisticsJson', 'executionContext', 'metadata'
+  'tags',
+  'notes',
+  'steps',
+  'variables',
+  'logs',
+  'contactsJson',
+  'statisticsJson',
+  'executionContext',
+  'metadata'
 ]);
 
 /**
@@ -37,16 +44,20 @@ export const LocalCRMRepository = {
   /**
    * Finds records in a table, strictly isolated by workspaceId and optional column filters.
    */
-  async findMany(tableName: string, workspaceId: string, filter?: Record<string, any>): Promise<any[]> {
+  async findMany(
+    tableName: string,
+    workspaceId: string,
+    filter?: Record<string, any>
+  ): Promise<any[]> {
     const db = getDatabase(workspaceId);
-    
+
     // Ensure table name contains safe alphanumeric chars to prevent SQL injection
     if (!/^[a-zA-Z0-9_]+$/.test(tableName)) {
       throw new Error(`Invalid table name: ${tableName}`);
     }
 
     const tableInfo = db.pragma(`table_info(${tableName})`) as Array<{ name: string }>;
-    const hasDeletedAt = tableInfo.some(col => col.name === 'deletedAt');
+    const hasDeletedAt = tableInfo.some((col) => col.name === 'deletedAt');
 
     let query = `SELECT * FROM ${tableName} WHERE workspaceId = ?`;
     if (hasDeletedAt) {
@@ -92,17 +103,21 @@ export const LocalCRMRepository = {
     delete record._id;
 
     if (!record.id) {
-      record.id = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : require('crypto').randomUUID();
+      record.id = globalThis.crypto?.randomUUID
+        ? globalThis.crypto.randomUUID()
+        : require('crypto').randomUUID();
     }
 
     // Resolve valid table columns from SQLite schema pragma
     const tableInfo = db.pragma(`table_info(${tableName})`) as Array<{ name: string }>;
-    const validColumns = new Set(tableInfo.map(col => col.name));
+    const validColumns = new Set(tableInfo.map((col) => col.name));
 
-    const columns = Object.keys(record).filter(col => validColumns.has(col) && /^[a-zA-Z0-9_]+$/.test(col));
+    const columns = Object.keys(record).filter(
+      (col) => validColumns.has(col) && /^[a-zA-Z0-9_]+$/.test(col)
+    );
     const placeholders = columns.map(() => '?').join(', ');
     const query = `INSERT OR REPLACE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
-    
+
     const params = columns.map((col) => {
       const val = record[col];
       if (val instanceof Date) return val.toISOString();
@@ -119,13 +134,25 @@ export const LocalCRMRepository = {
       db.prepare(query).run(...params);
 
       // 3. Queue offline mutation task if this is a syncable crm table
-      const syncableTables = ['companies', 'contacts', 'campaigns', 'sequences', 'sequence_executions', 'email_accounts', 'templates'];
+      const syncableTables = [
+        'companies',
+        'contacts',
+        'campaigns',
+        'sequences',
+        'sequence_executions',
+        'email_accounts',
+        'templates'
+      ];
       if (!skipQueue && syncableTables.includes(tableName)) {
-        db.prepare(`
+        db.prepare(
+          `
           INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
           VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `).run(
-          globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : require('crypto').randomUUID(),
+        `
+        ).run(
+          globalThis.crypto?.randomUUID
+            ? globalThis.crypto.randomUUID()
+            : require('crypto').randomUUID(),
           workspaceId,
           tableName,
           record.id,
@@ -137,11 +164,15 @@ export const LocalCRMRepository = {
 
       // 4. Audit Trail Logging (Phase 8)
       try {
-        const auditLogId = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : require('crypto').randomUUID();
-        db.prepare(`
+        const auditLogId = globalThis.crypto?.randomUUID
+          ? globalThis.crypto.randomUUID()
+          : require('crypto').randomUUID();
+        db.prepare(
+          `
           INSERT INTO audit_logs (id, workspaceId, actor, action, entityId, entityType, beforeValue, afterValue, timestamp)
           VALUES (?, ?, 'user', ?, ?, ?, ?, ?, datetime('now'))
-        `).run(
+        `
+        ).run(
           auditLogId,
           workspaceId,
           `${tableName.toLowerCase()}:${operation.toLowerCase()}`,
@@ -179,12 +210,14 @@ export const LocalCRMRepository = {
 
     // Resolve valid table columns from SQLite schema pragma
     const tableInfo = db.pragma(`table_info(${tableName})`) as Array<{ name: string }>;
-    const validColumns = new Set(tableInfo.map(col => col.name));
+    const validColumns = new Set(tableInfo.map((col) => col.name));
 
-    const columns = Object.keys(records[0]).filter(col => validColumns.has(col) && /^[a-zA-Z0-9_]+$/.test(col));
+    const columns = Object.keys(records[0]).filter(
+      (col) => validColumns.has(col) && /^[a-zA-Z0-9_]+$/.test(col)
+    );
     const placeholders = columns.map(() => '?').join(', ');
     const query = `INSERT OR REPLACE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
-    
+
     const statement = db.prepare(query);
     const checkStmt = db.prepare(`SELECT * FROM ${tableName} WHERE id = ?`);
     const insertSyncQueue = db.prepare(`
@@ -192,7 +225,15 @@ export const LocalCRMRepository = {
       VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `);
 
-    const syncableTables = ['companies', 'contacts', 'campaigns', 'sequences', 'sequence_executions', 'email_accounts', 'templates'];
+    const syncableTables = [
+      'companies',
+      'contacts',
+      'campaigns',
+      'sequences',
+      'sequence_executions',
+      'email_accounts',
+      'templates'
+    ];
 
     const transaction = db.transaction((list: any[]) => {
       for (const item of list) {
@@ -210,7 +251,9 @@ export const LocalCRMRepository = {
 
         if (!skipQueue && syncableTables.includes(tableName)) {
           insertSyncQueue.run(
-            globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : require('crypto').randomUUID(),
+            globalThis.crypto?.randomUUID
+              ? globalThis.crypto.randomUUID()
+              : require('crypto').randomUUID(),
             workspaceId,
             tableName,
             item.id,
@@ -222,11 +265,15 @@ export const LocalCRMRepository = {
 
         // Audit Trail Logging (Phase 8)
         try {
-          const auditLogId = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : require('crypto').randomUUID();
-          db.prepare(`
+          const auditLogId = globalThis.crypto?.randomUUID
+            ? globalThis.crypto.randomUUID()
+            : require('crypto').randomUUID();
+          db.prepare(
+            `
             INSERT INTO audit_logs (id, workspaceId, actor, action, entityId, entityType, beforeValue, afterValue, timestamp)
             VALUES (?, ?, 'user', ?, ?, ?, ?, ?, datetime('now'))
-          `).run(
+          `
+          ).run(
             auditLogId,
             workspaceId,
             `${tableName.toLowerCase()}:${operation.toLowerCase()}`,
@@ -264,11 +311,15 @@ export const LocalCRMRepository = {
 
       // 2. Queue sync operation
       if (syncableTables.includes(tableName)) {
-        db.prepare(`
+        db.prepare(
+          `
           INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
           VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `).run(
-          globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : require('crypto').randomUUID(),
+        `
+        ).run(
+          globalThis.crypto?.randomUUID
+            ? globalThis.crypto.randomUUID()
+            : require('crypto').randomUUID(),
           workspaceId,
           tableName,
           id,
@@ -280,11 +331,15 @@ export const LocalCRMRepository = {
 
       // 3. Audit Trail Logging (Phase 8)
       try {
-        const auditLogId = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : require('crypto').randomUUID();
-        db.prepare(`
+        const auditLogId = globalThis.crypto?.randomUUID
+          ? globalThis.crypto.randomUUID()
+          : require('crypto').randomUUID();
+        db.prepare(
+          `
           INSERT INTO audit_logs (id, workspaceId, actor, action, entityId, entityType, beforeValue, afterValue, timestamp)
           VALUES (?, ?, 'user', ?, ?, ?, ?, NULL, datetime('now'))
-        `).run(
+        `
+        ).run(
           auditLogId,
           workspaceId,
           `${tableName.toLowerCase()}:delete`,
@@ -308,6 +363,5 @@ export const LocalCRMRepository = {
     if (!/^[a-zA-Z0-9_]+$/.test(tableName)) throw new Error(`Invalid table: ${tableName}`);
 
     db.prepare(`DELETE FROM ${tableName} WHERE id = ?`).run(id);
-  },
+  }
 };
-

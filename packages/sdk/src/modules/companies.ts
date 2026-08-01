@@ -1,13 +1,16 @@
 import { HttpClient } from '../http/client';
-import type { Company, CreateCompanyDto, UpdateCompanyDto, CompanyFilters } from '@leadforge/schema';
+import type {
+  Company,
+  CreateCompanyDto,
+  UpdateCompanyDto,
+  CompanyFilters
+} from '@leadforge/schema';
 
 export class CompaniesModule {
   constructor(private client: HttpClient) {}
 
   public async list(filters?: CompanyFilters): Promise<Company[]> {
-    const queryParams = filters
-      ? '?' + new URLSearchParams(filters as any).toString()
-      : '';
+    const queryParams = filters ? '?' + new URLSearchParams(filters as any).toString() : '';
     return this.client.get<Company[]>(`/companies${queryParams}`);
   }
 

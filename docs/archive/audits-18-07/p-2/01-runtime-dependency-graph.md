@@ -109,41 +109,42 @@
 
 ### [1] AppLogger
 
-| Field | Value |
-|---|---|
-| **File** | `apps/desktop/src/main/lib/logger.ts` |
+| Field                | Value                                                                           |
+| -------------------- | ------------------------------------------------------------------------------- |
+| **File**             | `apps/desktop/src/main/lib/logger.ts`                                           |
 | **Responsibilities** | Structured logging to console, SQLite `system_logs`, JSONL files, IPC broadcast |
-| **Dependencies** | `better-sqlite3` (via getDatabase), `electron.app`, `fs`, `BrowserWindow` |
-| **Dependents** | JobScheduler, WorkspaceRuntime, SyncEngine, all IPC handlers |
-| **Init Order** | #1 — initialized on module import, no explicit init call required |
-| **Shutdown Order** | Last — no explicit shutdown needed |
-| **Lifecycle** | Singleton. Active for entire app lifetime. Cannot be stopped. |
+| **Dependencies**     | `better-sqlite3` (via getDatabase), `electron.app`, `fs`, `BrowserWindow`       |
+| **Dependents**       | JobScheduler, WorkspaceRuntime, SyncEngine, all IPC handlers                    |
+| **Init Order**       | #1 — initialized on module import, no explicit init call required               |
+| **Shutdown Order**   | Last — no explicit shutdown needed                                              |
+| **Lifecycle**        | Singleton. Active for entire app lifetime. Cannot be stopped.                   |
 
 ### [2] getDatabase (Connection Pool)
 
-| Field | Value |
-|---|---|
-| **File** | `apps/desktop/src/main/database/connection.ts` |
-| **Responsibilities** | Open and cache workspace-scoped SQLite connections (WAL mode, busy_timeout) |
-| **Dependencies** | `better-sqlite3`, `electron.app`, `fs` |
-| **Dependents** | JobScheduler, SyncEngine, AutomationTriggerEvaluator, LocalCRMRepository, all IPC handlers |
-| **Init Order** | #2 — first call per workspaceId creates the connection |
-| **Shutdown Order** | #2 from end — `closeDatabase(workspaceId)` called by WorkspaceRuntime.stop() |
-| **Lifecycle** | Per-workspace connection cached in `workspaceDbs` Map. Closed on WorkspaceRuntime.stop(). |
+| Field                | Value                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| **File**             | `apps/desktop/src/main/database/connection.ts`                                             |
+| **Responsibilities** | Open and cache workspace-scoped SQLite connections (WAL mode, busy_timeout)                |
+| **Dependencies**     | `better-sqlite3`, `electron.app`, `fs`                                                     |
+| **Dependents**       | JobScheduler, SyncEngine, AutomationTriggerEvaluator, LocalCRMRepository, all IPC handlers |
+| **Init Order**       | #2 — first call per workspaceId creates the connection                                     |
+| **Shutdown Order**   | #2 from end — `closeDatabase(workspaceId)` called by WorkspaceRuntime.stop()               |
+| **Lifecycle**        | Per-workspace connection cached in `workspaceDbs` Map. Closed on WorkspaceRuntime.stop().  |
 
 ### [3] LocalEventBus
 
-| Field | Value |
-|---|---|
-| **File** | `apps/desktop/src/main/lib/event-bus.ts` |
-| **Responsibilities** | Scoped pub/sub within a single WorkspaceRuntime. Events: job:*, sync:*, crm:*, system:log |
-| **Dependencies** | Node.js `EventEmitter` |
-| **Dependents** | JobScheduler (publishes), SyncEngine (publishes), AutomationTriggerEvaluator (subscribes), EventBus→Renderer Bridge (subscribes) |
-| **Init Order** | #3 — instantiated inside WorkspaceRuntime constructor |
-| **Shutdown Order** | #3 from end — `eventBus.clear()` called by WorkspaceRuntime.stop() |
-| **Lifecycle** | Per-workspace. Created with WorkspaceRuntime. Destroyed with WorkspaceRuntime. |
+| Field                | Value                                                                                                                            |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **File**             | `apps/desktop/src/main/lib/event-bus.ts`                                                                                         |
+| **Responsibilities** | Scoped pub/sub within a single WorkspaceRuntime. Events: job:_, sync:_, crm:*, system:log                                        |
+| **Dependencies**     | Node.js `EventEmitter`                                                                                                           |
+| **Dependents**       | JobScheduler (publishes), SyncEngine (publishes), AutomationTriggerEvaluator (subscribes), EventBus→Renderer Bridge (subscribes) |
+| **Init Order**       | #3 — instantiated inside WorkspaceRuntime constructor                                                                            |
+| **Shutdown Order**   | #3 from end — `eventBus.clear()` called by WorkspaceRuntime.stop()                                                               |
+| **Lifecycle**        | Per-workspace. Created with WorkspaceRuntime. Destroyed with WorkspaceRuntime.                                                   |
 
 **Required new events** (not yet in EventType union):
+
 - `'job:starting'` — emitted when worker is forked, before 'ready'
 - `'job:paused'` — emitted on successful pause with checkpoint
 - `'job:resumed'` — emitted when paused job is re-queued
@@ -153,29 +154,30 @@
 
 ### [4] SyncEngine
 
-| Field | Value |
-|---|---|
-| **File** | `apps/desktop/src/main/services/sync-engine.ts` |
-| **Responsibilities** | Push sync_queue mutations to API (FIFO, LWW). Pull remote records to local cache. |
-| **Dependencies** | getDatabase, LocalEventBus, SdkClient, LocalCRMRepository |
-| **Dependents** | WorkspaceRuntime (owns it) |
-| **Init Order** | #5 — started after JobScheduler in WorkspaceRuntime.start() |
-| **Shutdown Order** | #2 from end — stopped before eventBus.clear(), after scheduler.stop() |
-| **Lifecycle** | Per-workspace. `setInterval` every 5000ms. Started by WorkspaceRuntime.start(). Stopped by WorkspaceRuntime.stop(). |
+| Field                | Value                                                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **File**             | `apps/desktop/src/main/services/sync-engine.ts`                                                                     |
+| **Responsibilities** | Push sync_queue mutations to API (FIFO, LWW). Pull remote records to local cache.                                   |
+| **Dependencies**     | getDatabase, LocalEventBus, SdkClient, LocalCRMRepository                                                           |
+| **Dependents**       | WorkspaceRuntime (owns it)                                                                                          |
+| **Init Order**       | #5 — started after JobScheduler in WorkspaceRuntime.start()                                                         |
+| **Shutdown Order**   | #2 from end — stopped before eventBus.clear(), after scheduler.stop()                                               |
+| **Lifecycle**        | Per-workspace. `setInterval` every 5000ms. Started by WorkspaceRuntime.start(). Stopped by WorkspaceRuntime.stop(). |
 
 ### [5] JobScheduler
 
-| Field | Value |
-|---|---|
-| **File** | `apps/desktop/src/main/services/scheduler.ts` |
+| Field                | Value                                                                                                 |
+| -------------------- | ----------------------------------------------------------------------------------------------------- |
+| **File**             | `apps/desktop/src/main/services/scheduler.ts`                                                         |
 | **Responsibilities** | Fork workers, manage concurrency, dispatch jobs by priority, heartbeat, handle success/failure/cancel |
-| **Dependencies** | getDatabase, LocalEventBus, AppLogger, `child_process.fork`, worker-host.js build artifact |
-| **Dependents** | WorkspaceRuntime (owns it), registerSchedulerIpc (calls cancelJob) |
-| **Init Order** | #4 — started before SyncEngine in WorkspaceRuntime.start() |
-| **Shutdown Order** | #1 — stopped first in WorkspaceRuntime.stop(), SIGTERM all active workers |
-| **Lifecycle** | Per-workspace. `setInterval` every 1000ms. |
+| **Dependencies**     | getDatabase, LocalEventBus, AppLogger, `child_process.fork`, worker-host.js build artifact            |
+| **Dependents**       | WorkspaceRuntime (owns it), registerSchedulerIpc (calls cancelJob)                                    |
+| **Init Order**       | #4 — started before SyncEngine in WorkspaceRuntime.start()                                            |
+| **Shutdown Order**   | #1 — stopped first in WorkspaceRuntime.stop(), SIGTERM all active workers                             |
+| **Lifecycle**        | Per-workspace. `setInterval` every 1000ms.                                                            |
 
 **Missing implementations required**:
+
 - Heartbeat timer per active worker
 - Soft cancel via IPC message (not SIGTERM)
 - `scheduledAt` check in tick (for delayed retries)
@@ -187,29 +189,30 @@
 
 ### [6] AutomationTriggerEvaluator [NEW]
 
-| Field | Value |
-|---|---|
-| **File** | `apps/desktop/src/main/services/automation-trigger.ts` (NEW) |
+| Field                | Value                                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **File**             | `apps/desktop/src/main/services/automation-trigger.ts` (NEW)                                                                               |
 | **Responsibilities** | Subscribe to EventBus crm:* events. Find matching active sequences in SQLite. Queue automation:workflow jobs. Prevent duplicate execution. |
-| **Dependencies** | getDatabase, LocalEventBus |
-| **Dependents** | WorkspaceRuntime (owns it) |
-| **Init Order** | #6 — after JobScheduler and SyncEngine in WorkspaceRuntime.start() |
-| **Shutdown Order** | #3 from end — unsubscribe from EventBus before clear() |
-| **Lifecycle** | Per-workspace. Lives inside WorkspaceRuntime. Binds on start, unbinds on stop. |
+| **Dependencies**     | getDatabase, LocalEventBus                                                                                                                 |
+| **Dependents**       | WorkspaceRuntime (owns it)                                                                                                                 |
+| **Init Order**       | #6 — after JobScheduler and SyncEngine in WorkspaceRuntime.start()                                                                         |
+| **Shutdown Order**   | #3 from end — unsubscribe from EventBus before clear()                                                                                     |
+| **Lifecycle**        | Per-workspace. Lives inside WorkspaceRuntime. Binds on start, unbinds on stop.                                                             |
 
 ### [7] WorkspaceRuntime
 
-| Field | Value |
-|---|---|
-| **File** | `apps/desktop/src/main/lib/workspace-runtime.ts` |
-| **Responsibilities** | Orchestrate sqliteDb, eventBus, scheduler, syncEngine, automationTrigger lifecycle |
-| **Dependencies** | getDatabase, LocalEventBus, JobScheduler, SyncEngine, AutomationTriggerEvaluator, runMigrations |
-| **Dependents** | WorkspaceManager (owns it) |
-| **Init Order** | Created by WorkspaceManager.setActiveWorkspace() |
-| **Shutdown Order** | Destroyed by WorkspaceManager.setActiveWorkspace(null) or workspace switch |
-| **Lifecycle** | One active instance at a time. start() → running → stop() → destroyed. |
+| Field                | Value                                                                                           |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| **File**             | `apps/desktop/src/main/lib/workspace-runtime.ts`                                                |
+| **Responsibilities** | Orchestrate sqliteDb, eventBus, scheduler, syncEngine, automationTrigger lifecycle              |
+| **Dependencies**     | getDatabase, LocalEventBus, JobScheduler, SyncEngine, AutomationTriggerEvaluator, runMigrations |
+| **Dependents**       | WorkspaceManager (owns it)                                                                      |
+| **Init Order**       | Created by WorkspaceManager.setActiveWorkspace()                                                |
+| **Shutdown Order**   | Destroyed by WorkspaceManager.setActiveWorkspace(null) or workspace switch                      |
+| **Lifecycle**        | One active instance at a time. start() → running → stop() → destroyed.                          |
 
 **Required additions to `start()`**:
+
 1. Run migrations
 2. Start JobScheduler
 3. Start SyncEngine
@@ -218,6 +221,7 @@
 6. Resume overdue WAIT executions [NEW]
 
 **Required additions to `stop()`**:
+
 1. Stop JobScheduler (SIGTERM active workers, UPDATE interrupted)
 2. Stop SyncEngine
 3. Stop AutomationTriggerEvaluator [NEW]
@@ -226,29 +230,30 @@
 
 ### [8] WorkspaceManager
 
-| Field | Value |
-|---|---|
-| **File** | `apps/desktop/src/main/lib/workspace-manager.ts` |
+| Field                | Value                                                                   |
+| -------------------- | ----------------------------------------------------------------------- |
+| **File**             | `apps/desktop/src/main/lib/workspace-manager.ts`                        |
 | **Responsibilities** | Singleton supervisor. setActiveWorkspace() spin-down/spin-up lifecycle. |
-| **Dependencies** | WorkspaceRuntime, SdkClient |
-| **Dependents** | All IPC handlers (via getActiveRuntime()), main/index.ts |
-| **Init Order** | Module-level singleton. setSdk() called in registerAllIpc(). |
-| **Shutdown Order** | Not explicitly stopped — WorkspaceRuntime.stop() handles cleanup |
-| **Lifecycle** | App-lifetime singleton. |
+| **Dependencies**     | WorkspaceRuntime, SdkClient                                             |
+| **Dependents**       | All IPC handlers (via getActiveRuntime()), main/index.ts                |
+| **Init Order**       | Module-level singleton. setSdk() called in registerAllIpc().            |
+| **Shutdown Order**   | Not explicitly stopped — WorkspaceRuntime.stop() handles cleanup        |
+| **Lifecycle**        | App-lifetime singleton.                                                 |
 
 ### [9] EventBus→Renderer Bridge [NEW]
 
-| Field | Value |
-|---|---|
-| **File** | `apps/desktop/src/main/lib/event-bridge.ts` (NEW) |
+| Field                | Value                                                                                                 |
+| -------------------- | ----------------------------------------------------------------------------------------------------- |
+| **File**             | `apps/desktop/src/main/lib/event-bridge.ts` (NEW)                                                     |
 | **Responsibilities** | Subscribe to LocalEventBus job:* events and forward them to all BrowserWindows via webContents.send() |
-| **Dependencies** | LocalEventBus, BrowserWindow |
-| **Dependents** | Renderer (receives events) |
-| **Init Order** | #7 — after WorkspaceRuntime.start() or inside it |
-| **Shutdown Order** | #4 from end — unsubscribe before eventBus.clear() |
-| **Lifecycle** | Per-workspace. Must reinitialize on workspace switch. |
+| **Dependencies**     | LocalEventBus, BrowserWindow                                                                          |
+| **Dependents**       | Renderer (receives events)                                                                            |
+| **Init Order**       | #7 — after WorkspaceRuntime.start() or inside it                                                      |
+| **Shutdown Order**   | #4 from end — unsubscribe before eventBus.clear()                                                     |
+| **Lifecycle**        | Per-workspace. Must reinitialize on workspace switch.                                                 |
 
 **Events to bridge**:
+
 - `job:started` → `win.webContents.send('job:started', payload)`
 - `job:progress` → `win.webContents.send('job:progress', payload)`
 - `job:completed` → `win.webContents.send('job:completed', payload)`
@@ -258,27 +263,27 @@
 
 ### [W1] WorkerPluginRegistry [NEW — replaces static map]
 
-| Field | Value |
-|---|---|
-| **File** | `apps/desktop/src/main/workers/plugin-registry.ts` (NEW) |
+| Field                | Value                                                                  |
+| -------------------- | ---------------------------------------------------------------------- |
+| **File**             | `apps/desktop/src/main/workers/plugin-registry.ts` (NEW)               |
 | **Responsibilities** | Type-safe plugin registration and resolution within the worker process |
-| **Dependencies** | None |
-| **Dependents** | worker-host.ts |
-| **Init Order** | Instantiated at top of worker-host.ts before process.on('message') |
-| **Shutdown Order** | N/A — garbage collected on process exit |
-| **Lifecycle** | Per-worker-process. Lives for the lifetime of one forked worker. |
+| **Dependencies**     | None                                                                   |
+| **Dependents**       | worker-host.ts                                                         |
+| **Init Order**       | Instantiated at top of worker-host.ts before process.on('message')     |
+| **Shutdown Order**   | N/A — garbage collected on process exit                                |
+| **Lifecycle**        | Per-worker-process. Lives for the lifetime of one forked worker.       |
 
 ### [W2] JobContext (enriched)
 
-| Field | Value |
-|---|---|
-| **File** | `apps/desktop/src/shared/types/job.ts` (MODIFIED) |
+| Field                | Value                                                                                              |
+| -------------------- | -------------------------------------------------------------------------------------------------- |
+| **File**             | `apps/desktop/src/shared/types/job.ts` (MODIFIED)                                                  |
 | **Responsibilities** | Runtime context injected into plugins. Progress, logging, cancellation, pause, checkpoint, dbPath. |
-| **Dependencies** | None (interface only) |
-| **Dependents** | All plugins |
-| **Init Order** | Built by worker-host.ts after receiving 'start' command |
-| **Shutdown Order** | N/A |
-| **Lifecycle** | One instance per job execution. |
+| **Dependencies**     | None (interface only)                                                                              |
+| **Dependents**       | All plugins                                                                                        |
+| **Init Order**       | Built by worker-host.ts after receiving 'start' command                                            |
+| **Shutdown Order**   | N/A                                                                                                |
+| **Lifecycle**        | One instance per job execution.                                                                    |
 
 ---
 
@@ -335,9 +340,9 @@ App Quit (app.on('will-quit') or 'window-all-closed')
 
 ## 5. Conflict Register
 
-| Conflict ID | Description | Specs Involved | Resolution Needed |
-|---|---|---|---|
-| C1 | `job_lifecycle_spec.md` defines `starting` as a state but the scheduler schema CHECK constraint in `runner.ts` does not include it | job_lifecycle_spec.md §1.2, worker_runtime_spec.md §2.2 | Migration 008 must add `starting` to the CHECK constraint |
-| C2 | `scraping_pipeline_spec.md` §2.1 shows `crawler:website` and `enrich:website` as separate sequential jobs, but `worker_runtime_spec.md` §4.6 lists them both in the registry without clarifying whether crawl+enrich is one plugin or two | scraping_pipeline_spec.md §2.1, worker_runtime_spec.md §4.6 | **Required Investigation**: Determine if `crawler:website` and `enrich:website` are separate job types or merged. Current spec shows them separately — recommend keeping separate for resumability. |
-| C3 | `automation_engine_spec.md` §2.2 shows `AutomationTriggerEvaluator` queuing a job with `automation:workflow` type, but `scraping_pipeline_spec.md` §7.2 shows pipeline chaining handled directly in `handleJobSuccess()` inside the scheduler — these are two different chaining mechanisms | automation_engine_spec.md §2.2, scraping_pipeline_spec.md §7.2 | Both mechanisms are valid for different purposes (automation triggers vs pipeline chaining). Must not be merged. |
-| C4 | `job_lifecycle_spec.md` §3.3 defines `retrying` as a status in the state machine where the job stays `retrying` until `scheduledAt` passes. However `scheduler.ts` tick query selects `status IN ('queued', 'retrying')` meaning `retrying` jobs are immediately re-dispatched without delay | job_lifecycle_spec.md §3.3, worker_runtime_spec.md §3.5 | The tick must be updated to check `scheduledAt <= NOW` for retrying jobs |
+| Conflict ID | Description                                                                                                                                                                                                                                                                                  | Specs Involved                                                 | Resolution Needed                                                                                                                                                                                   |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1          | `job_lifecycle_spec.md` defines `starting` as a state but the scheduler schema CHECK constraint in `runner.ts` does not include it                                                                                                                                                           | job_lifecycle_spec.md §1.2, worker_runtime_spec.md §2.2        | Migration 008 must add `starting` to the CHECK constraint                                                                                                                                           |
+| C2          | `scraping_pipeline_spec.md` §2.1 shows `crawler:website` and `enrich:website` as separate sequential jobs, but `worker_runtime_spec.md` §4.6 lists them both in the registry without clarifying whether crawl+enrich is one plugin or two                                                    | scraping_pipeline_spec.md §2.1, worker_runtime_spec.md §4.6    | **Required Investigation**: Determine if `crawler:website` and `enrich:website` are separate job types or merged. Current spec shows them separately — recommend keeping separate for resumability. |
+| C3          | `automation_engine_spec.md` §2.2 shows `AutomationTriggerEvaluator` queuing a job with `automation:workflow` type, but `scraping_pipeline_spec.md` §7.2 shows pipeline chaining handled directly in `handleJobSuccess()` inside the scheduler — these are two different chaining mechanisms  | automation_engine_spec.md §2.2, scraping_pipeline_spec.md §7.2 | Both mechanisms are valid for different purposes (automation triggers vs pipeline chaining). Must not be merged.                                                                                    |
+| C4          | `job_lifecycle_spec.md` §3.3 defines `retrying` as a status in the state machine where the job stays `retrying` until `scheduledAt` passes. However `scheduler.ts` tick query selects `status IN ('queued', 'retrying')` meaning `retrying` jobs are immediately re-dispatched without delay | job_lifecycle_spec.md §3.3, worker_runtime_spec.md §3.5        | The tick must be updated to check `scheduledAt <= NOW` for retrying jobs                                                                                                                            |

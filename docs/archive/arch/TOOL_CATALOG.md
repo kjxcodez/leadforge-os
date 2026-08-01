@@ -6,10 +6,10 @@ This specification defines the `ToolCatalog` structure, which separates tool dis
 
 ## Catalog vs. Registry Responsibilities
 
-| Subsystem | Primary Responsibility | Dependency Footprint | Usage Phase |
-| :--- | :--- | :--- | :--- |
-| **`ToolCatalog`** | Holds metadata profiles of all available capabilities for discovery. | Zero runtime dependencies (JSON/Static Schema only). | Planning & Agent Reasoning |
-| **`ToolRegistry`**| Registers, resolves, and manages concrete tool instances for execution. | Requires adapters and connection scopes. | Execution Phase |
+| Subsystem          | Primary Responsibility                                                  | Dependency Footprint                                 | Usage Phase                |
+| :----------------- | :---------------------------------------------------------------------- | :--------------------------------------------------- | :------------------------- |
+| **`ToolCatalog`**  | Holds metadata profiles of all available capabilities for discovery.    | Zero runtime dependencies (JSON/Static Schema only). | Planning & Agent Reasoning |
+| **`ToolRegistry`** | Registers, resolves, and manages concrete tool instances for execution. | Requires adapters and connection scopes.             | Execution Phase            |
 
 ---
 
@@ -17,22 +17,22 @@ This specification defines the `ToolCatalog` structure, which separates tool dis
 
 Every tool catalog entry must expose a structured profile containing the following metadata:
 
-* **`identity`**: Unique string key (e.g., `crawl_company_website`).
-* **`displayName`**: User-friendly label.
-* **`description`**: Detailed description explaining *why* and *when* an agent should select this tool.
-* **`categories`**: Array of classifications (e.g. `['Scraper', 'Discovery']`).
-* **`tags`**: List of identifiers for keyword lookup.
-* **`requiredCapabilities`**: Infrastructure features needed (e.g. `['browser']`).
-* **`requiredPermissions`**: User authorization boundaries (e.g., `['network:outbound', 'file:write']`).
-* **`riskLevel`**: `LOW` | `MEDIUM` | `HIGH`.
-* **`estimatedDuration`**: Baseline duration in milliseconds (e.g., `60000` for deep crawling).
-* **`supportsCancellation`**: Boolean flag.
-* **`supportsStreaming`**: Boolean flag.
-* **`requiresBrowser`**: Boolean flag.
-* **`requiresNetwork`**: Boolean flag.
-* **`requiresHumanApproval`**: Boolean flag (overrides safety loops if true).
-* **`sideEffects`**: Description of state mutations (e.g., "Updates CRM sequence status").
-* **`version`**: Semantic version string.
+- **`identity`**: Unique string key (e.g., `crawl_company_website`).
+- **`displayName`**: User-friendly label.
+- **`description`**: Detailed description explaining _why_ and _when_ an agent should select this tool.
+- **`categories`**: Array of classifications (e.g. `['Scraper', 'Discovery']`).
+- **`tags`**: List of identifiers for keyword lookup.
+- **`requiredCapabilities`**: Infrastructure features needed (e.g. `['browser']`).
+- **`requiredPermissions`**: User authorization boundaries (e.g., `['network:outbound', 'file:write']`).
+- **`riskLevel`**: `LOW` | `MEDIUM` | `HIGH`.
+- **`estimatedDuration`**: Baseline duration in milliseconds (e.g., `60000` for deep crawling).
+- **`supportsCancellation`**: Boolean flag.
+- **`supportsStreaming`**: Boolean flag.
+- **`requiresBrowser`**: Boolean flag.
+- **`requiresNetwork`**: Boolean flag.
+- **`requiresHumanApproval`**: Boolean flag (overrides safety loops if true).
+- **`sideEffects`**: Description of state mutations (e.g., "Updates CRM sequence status").
+- **`version`**: Semantic version string.
 
 ---
 
@@ -62,4 +62,5 @@ The catalog contains the following pre-defined profiles:
             ▼
     [ ToolRegistry ] ──► Resolves CrawlWebsiteTool class and executes it
 ```
+
 This decoupling allows planners to run offline or in remote serverless nodes without importing desktop-specific libraries or sqlite databases.

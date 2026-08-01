@@ -28,30 +28,35 @@ export function logDevModeEvent(type: string, message: string, meta?: any) {
 
 export function registerObservabilityIpc() {
   // Query structured system logs
-  safeRegister('system-logs:query', async (_event, { workspaceId, query, severity, limit = 100 }) => {
-    if (!workspaceId) throw new Error('workspaceId is required.');
-    const db = getDatabase(workspaceId);
-    let sql = 'SELECT * FROM system_logs WHERE workspaceId = ?';
-    const params: any[] = [workspaceId];
-    if (query) {
-      sql += ' AND (message LIKE ? OR task LIKE ?)';
-      params.push(`%${query}%`, `%${query}%`);
+  safeRegister(
+    'system-logs:query',
+    async (_event, { workspaceId, query, severity, limit = 100 }) => {
+      if (!workspaceId) throw new Error('workspaceId is required.');
+      const db = getDatabase(workspaceId);
+      let sql = 'SELECT * FROM system_logs WHERE workspaceId = ?';
+      const params: any[] = [workspaceId];
+      if (query) {
+        sql += ' AND (message LIKE ? OR task LIKE ?)';
+        params.push(`%${query}%`, `%${query}%`);
+      }
+      if (severity && severity !== 'all') {
+        sql += ' AND severity = ?';
+        params.push(severity);
+      }
+      sql += ' ORDER BY timestamp DESC LIMIT ?';
+      params.push(limit);
+      return db.prepare(sql).all(...params);
     }
-    if (severity && severity !== 'all') {
-      sql += ' AND severity = ?';
-      params.push(severity);
-    }
-    sql += ' ORDER BY timestamp DESC LIMIT ?';
-    params.push(limit);
-    return db.prepare(sql).all(...params);
-  });
+  );
 
   // Query audit trail logs
   safeRegister('audit-logs:list', async (_event, { workspaceId, limit = 100 }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     const db = getDatabase(workspaceId);
     try {
-      return db.prepare('SELECT * FROM audit_logs WHERE workspaceId = ? ORDER BY timestamp DESC LIMIT ?').all(workspaceId, limit);
+      return db
+        .prepare('SELECT * FROM audit_logs WHERE workspaceId = ? ORDER BY timestamp DESC LIMIT ?')
+        .all(workspaceId, limit);
     } catch {
       return [];
     }
@@ -65,7 +70,12 @@ export function registerObservabilityIpc() {
     // Trigger automated observability test suite asynchronously (Phase 12)
     setTimeout(() => {
       runObservabilityTests(workspaceId).catch((err) => {
-        AppLogger.error('SRE_Diagnostics', 'Failed executing observability test suite', workspaceId, err);
+        AppLogger.error(
+          'SRE_Diagnostics',
+          'Failed executing observability test suite',
+          workspaceId,
+          err
+        );
       });
     }, 100);
 
@@ -73,7 +83,9 @@ export function registerObservabilityIpc() {
     let smtpStatus: any = { status: 'healthy', message: 'No accounts configured' };
     let imapStatus: any = { status: 'healthy', message: 'No accounts configured' };
     try {
-      const accounts = db.prepare('SELECT * FROM email_accounts WHERE workspaceId = ? AND deletedAt IS NULL').all(workspaceId) as any[];
+      const accounts = db
+        .prepare('SELECT * FROM email_accounts WHERE workspaceId = ? AND deletedAt IS NULL')
+        .all(workspaceId) as any[];
       if (accounts.length > 0) {
         const primary = accounts[0];
         // SMTP test connection
@@ -94,7 +106,8 @@ export function registerObservabilityIpc() {
           smtpStatus = {
             status: 'error',
             message: `SMTP connection failed: ${err.message}`,
-            guidance: 'Verify your SMTP port, host address, and app password credentials. Secure SSL/TLS configurations might be required.'
+            guidance:
+              'Verify your SMTP port, host address, and app password credentials. Secure SSL/TLS configurations might be required.'
           };
         }
 
@@ -103,16 +116,26 @@ export function registerObservabilityIpc() {
           await new Promise<void>((resolve, reject) => {
             const socket = net.createConnection(primary.imapPort, primary.imapHost);
             socket.setTimeout(3000);
-            socket.on('connect', () => { socket.destroy(); resolve(); });
-            socket.on('timeout', () => { socket.destroy(); reject(new Error('Connection timed out')); });
+            socket.on('connect', () => {
+              socket.destroy();
+              resolve();
+            });
+            socket.on('timeout', () => {
+              socket.destroy();
+              reject(new Error('Connection timed out'));
+            });
             socket.on('error', (err) => reject(err));
           });
-          imapStatus = { status: 'healthy', message: `Connected to IMAP port (${primary.imapHost}:${primary.imapPort})` };
+          imapStatus = {
+            status: 'healthy',
+            message: `Connected to IMAP port (${primary.imapHost}:${primary.imapPort})`
+          };
         } catch (err: any) {
           imapStatus = {
             status: 'warning',
             message: `IMAP socket failed: ${err.message}`,
-            guidance: 'IMAP connection timed out. Ensure your firewall allows outbound TCP traffic on your IMAP port (typically 993).'
+            guidance:
+              'IMAP connection timed out. Ensure your firewall allows outbound TCP traffic on your IMAP port (typically 993).'
           };
         }
       }
@@ -126,8 +149,14 @@ export function registerObservabilityIpc() {
       await new Promise<void>((resolve, reject) => {
         const socket = net.createConnection(80, '1.1.1.1');
         socket.setTimeout(2000);
-        socket.on('connect', () => { socket.destroy(); resolve(); });
-        socket.on('timeout', () => { socket.destroy(); reject(new Error('Connection timeout')); });
+        socket.on('connect', () => {
+          socket.destroy();
+          resolve();
+        });
+        socket.on('timeout', () => {
+          socket.destroy();
+          reject(new Error('Connection timeout'));
+        });
         socket.on('error', (err) => reject(err));
       });
     } catch {
@@ -151,7 +180,8 @@ export function registerObservabilityIpc() {
       dnsStatus = {
         status: 'error',
         message: `DNS lookup failed: ${err.message}`,
-        guidance: 'DNS nameservers could not resolve external APIs. Update your system DNS configuration to 1.1.1.1 or 8.8.8.8.'
+        guidance:
+          'DNS nameservers could not resolve external APIs. Update your system DNS configuration to 1.1.1.1 or 8.8.8.8.'
       };
     }
 
@@ -164,7 +194,8 @@ export function registerObservabilityIpc() {
         sqliteStatus = {
           status: 'error',
           message: `Corrupted database: ${result}`,
-          guidance: 'Database integrity check failed. Consider restoring from the last daily backup snapshot.'
+          guidance:
+            'Database integrity check failed. Consider restoring from the last daily backup snapshot.'
         };
       }
     } catch (err: any) {
@@ -174,8 +205,13 @@ export function registerObservabilityIpc() {
     // 5. Worker scheduler status
     let workersStatus: any = { status: 'healthy', message: 'Workers operating normally' };
     try {
-      const activeCount = db.prepare("SELECT count(*) as cnt FROM jobs WHERE status = 'running'").get() as any;
-      workersStatus = { status: 'healthy', message: `Scheduler Active (${activeCount?.cnt || 0} jobs running)` };
+      const activeCount = db
+        .prepare("SELECT count(*) as cnt FROM jobs WHERE status = 'running'")
+        .get() as any;
+      workersStatus = {
+        status: 'healthy',
+        message: `Scheduler Active (${activeCount?.cnt || 0} jobs running)`
+      };
     } catch (err: any) {
       workersStatus = { status: 'error', message: `Scheduler error: ${err.message}` };
     }
@@ -183,12 +219,15 @@ export function registerObservabilityIpc() {
     // 6. AI API Providers status
     let aiStatus: any = { status: 'healthy', message: 'API ready' };
     try {
-      const settings = db.prepare("SELECT value FROM settings WHERE key = 'openrouter_key' AND workspaceId = ?").get(workspaceId) as any;
+      const settings = db
+        .prepare("SELECT value FROM settings WHERE key = 'openrouter_key' AND workspaceId = ?")
+        .get(workspaceId) as any;
       if (!settings?.value) {
         aiStatus = {
           status: 'warning',
           message: 'OpenRouter Key missing',
-          guidance: 'AI summaries and opening lines require an OpenRouter API key. Configure it in settings.'
+          guidance:
+            'AI summaries and opening lines require an OpenRouter API key. Configure it in settings.'
         };
       }
     } catch (err: any) {
@@ -200,7 +239,10 @@ export function registerObservabilityIpc() {
     try {
       const stats = fs.statSync(db.name);
       const sizeMb = stats.size / (1024 * 1024);
-      diskStatus = { status: 'healthy', message: `Database Workspace Size: ${sizeMb.toFixed(2)} MB` };
+      diskStatus = {
+        status: 'healthy',
+        message: `Database Workspace Size: ${sizeMb.toFixed(2)} MB`
+      };
     } catch (err: any) {
       diskStatus = { status: 'warning', message: `Disk access failed: ${err.message}` };
     }
@@ -208,12 +250,16 @@ export function registerObservabilityIpc() {
     // 8. Memory utilization
     const memUsage = process.memoryUsage();
     const rssMb = memUsage.rss / (1024 * 1024);
-    let memoryStatus: any = { status: 'healthy', message: `Memory Usage: ${rssMb.toFixed(1)} MB RSS` };
+    let memoryStatus: any = {
+      status: 'healthy',
+      message: `Memory Usage: ${rssMb.toFixed(1)} MB RSS`
+    };
     if (rssMb > 800) {
       memoryStatus = {
         status: 'warning',
         message: `High Memory: ${rssMb.toFixed(1)} MB RSS`,
-        guidance: 'Application memory footprint is high. Close unnecessary workspaces or trigger Garbage Collection.'
+        guidance:
+          'Application memory footprint is high. Close unnecessary workspaces or trigger Garbage Collection.'
       };
     }
 
@@ -236,18 +282,26 @@ export function registerObservabilityIpc() {
     const db = getDatabase(workspaceId);
 
     const getAvgDuration = (type: string) => {
-      const row = db.prepare(`
+      const row = db
+        .prepare(
+          `
         SELECT avg(durationMs) as avgVal FROM jobs 
         WHERE type = ? AND status = 'completed' AND durationMs IS NOT NULL
-      `).get() as any;
+      `
+        )
+        .get() as any;
       return Math.round(row?.avgVal || 0);
     };
 
     const getQueueWaitTime = () => {
-      const row = db.prepare(`
+      const row = db
+        .prepare(
+          `
         SELECT avg(strftime('%s', startedAt) - strftime('%s', createdAt)) as avgWait FROM jobs
         WHERE status = 'completed' AND startedAt IS NOT NULL
-      `).get() as any;
+      `
+        )
+        .get() as any;
       return Math.round((row?.avgWait || 0) * 1000);
     };
 
@@ -256,7 +310,11 @@ export function registerObservabilityIpc() {
       crawlerDurationAvg: getAvgDuration('crawler:website'),
       enrichmentDurationAvg: getAvgDuration('enrich:intelligence'),
       workflowDurationAvg: getAvgDuration('automation:workflow'),
-      workerUtilization: getDatabase(workspaceId).prepare("SELECT count(*) as cnt FROM jobs WHERE status = 'running'").get() as any ? 85 : 0, // mock percentage
+      workerUtilization: (getDatabase(workspaceId)
+        .prepare("SELECT count(*) as cnt FROM jobs WHERE status = 'running'")
+        .get() as any)
+        ? 85
+        : 0, // mock percentage
       queueWaitTimeAvg: getQueueWaitTime(),
       dbQueryTimeAvg: 12 // average query response speed in ms
     };
@@ -266,11 +324,15 @@ export function registerObservabilityIpc() {
   safeRegister('errors:get', async (_event, { workspaceId }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     const db = getDatabase(workspaceId);
-    return db.prepare(`
+    return db
+      .prepare(
+        `
       SELECT * FROM jobs 
       WHERE workspaceId = ? AND status IN ('failed', 'interrupted') 
       ORDER BY updatedAt DESC LIMIT 100
-    `).all(workspaceId);
+    `
+      )
+      .all(workspaceId);
   });
 
   // Observability SRE recovery executor (Phase 9)
@@ -278,32 +340,43 @@ export function registerObservabilityIpc() {
     if (!workspaceId) throw new Error('workspaceId is required.');
     const db = getDatabase(workspaceId);
 
-    AppLogger.info('SRE_Recovery', `Triggering recovery action "${action}" for workspace: ${workspaceId}`);
+    AppLogger.info(
+      'SRE_Recovery',
+      `Triggering recovery action "${action}" for workspace: ${workspaceId}`
+    );
 
     if (action === 'retry-job' && targetId) {
-      db.prepare("UPDATE jobs SET status = 'queued', retryCount = 0, error = NULL, updatedAt = datetime('now') WHERE id = ?").run(targetId);
+      db.prepare(
+        "UPDATE jobs SET status = 'queued', retryCount = 0, error = NULL, updatedAt = datetime('now') WHERE id = ?"
+      ).run(targetId);
       return { success: true, message: `Successfully queued job ${targetId} for retry.` };
     }
 
     if (action === 'resume-sequence' && targetId) {
-      db.prepare("UPDATE sequence_executions SET status = 'running', updatedAt = datetime('now') WHERE id = ?").run(targetId);
+      db.prepare(
+        "UPDATE sequence_executions SET status = 'running', updatedAt = datetime('now') WHERE id = ?"
+      ).run(targetId);
       return { success: true, message: `Successfully resumed sequence execution ${targetId}.` };
     }
 
     if (action === 'cancel-job' && targetId) {
-      db.prepare("UPDATE jobs SET status = 'cancelled', updatedAt = datetime('now') WHERE id = ?").run(targetId);
+      db.prepare(
+        "UPDATE jobs SET status = 'cancelled', updatedAt = datetime('now') WHERE id = ?"
+      ).run(targetId);
       return { success: true, message: `Job ${targetId} marks cancelled.` };
     }
 
     if (action === 'clear-queues') {
       db.prepare("DELETE FROM jobs WHERE status IN ('queued', 'waiting', 'retrying')").run();
-      db.prepare("DELETE FROM sync_queue").run();
+      db.prepare('DELETE FROM sync_queue').run();
       return { success: true, message: 'All pending task queues cleared.' };
     }
 
     if (action === 'clean-orphaned') {
       // Clear job executions whose workers are dead
-      db.prepare("UPDATE jobs SET status = 'failed', error = 'Cleaned SRE orphan' WHERE status = 'running'").run();
+      db.prepare(
+        "UPDATE jobs SET status = 'failed', error = 'Cleaned SRE orphan' WHERE status = 'running'"
+      ).run();
       return { success: true, message: 'Orphaned worker processes cleaned.' };
     }
 
@@ -348,11 +421,14 @@ export function registerObservabilityIpc() {
     if (workspaceId) {
       try {
         const db = getDatabase(workspaceId);
-        databaseVersion = (db.prepare("select sqlite_version() as ver").get() as any).ver;
+        databaseVersion = (db.prepare('select sqlite_version() as ver').get() as any).ver;
 
-        const tableExistsInDb = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_migrations'").get();
+        const tableExistsInDb = db
+          .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_migrations'")
+          .get();
         if (tableExistsInDb) {
-          const row = db.prepare('SELECT name FROM _migrations ORDER BY id DESC LIMIT 1').get() as { name: string } | undefined;
+          const row = db.prepare('SELECT name FROM _migrations ORDER BY id DESC LIMIT 1').get() as
+            { name: string } | undefined;
           if (row) {
             migrationVersion = row.name;
           }
@@ -365,15 +441,18 @@ export function registerObservabilityIpc() {
           syncEngineStatus = activeRuntime.syncEngine.isActive ? 'Active' : 'Stopped';
         }
 
-        const keyRow = db.prepare("SELECT value FROM settings WHERE key = 'openrouter_key' AND workspaceId = ?").get(workspaceId) as { value: string } | undefined;
-        const modeRow = db.prepare("SELECT value FROM settings WHERE key = 'ai_mode' AND workspaceId = ?").get(workspaceId) as { value: string } | undefined;
-        
+        const keyRow = db
+          .prepare("SELECT value FROM settings WHERE key = 'openrouter_key' AND workspaceId = ?")
+          .get(workspaceId) as { value: string } | undefined;
+        const modeRow = db
+          .prepare("SELECT value FROM settings WHERE key = 'ai_mode' AND workspaceId = ?")
+          .get(workspaceId) as { value: string } | undefined;
+
         aiProviderConfig = {
           mode: modeRow?.value || 'mock',
           hasKey: !!keyRow?.value,
           openRouterKey: keyRow?.value ? '[MASKED]' : 'Not Configured'
         };
-
       } catch (err) {
         // ignore
       }
@@ -424,7 +503,11 @@ export function registerObservabilityIpc() {
 
       // A. Write diagnostics info
       const systemInfo = await getSystemInfoLocal(workspaceId);
-      fs.writeFileSync(join(tempDir, 'diagnostics.json'), JSON.stringify(systemInfo, null, 2), 'utf8');
+      fs.writeFileSync(
+        join(tempDir, 'diagnostics.json'),
+        JSON.stringify(systemInfo, null, 2),
+        'utf8'
+      );
 
       // B. Write masked config.json
       const userDataPath = app.getPath('userData');
@@ -432,13 +515,19 @@ export function registerObservabilityIpc() {
       if (fs.existsSync(configPath)) {
         try {
           const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-          
+
           const maskSecrets = (obj: any): any => {
             if (!obj || typeof obj !== 'object') return obj;
             const masked = Array.isArray(obj) ? [] : {};
             for (const [k, v] of Object.entries(obj)) {
               const keyLower = k.toLowerCase();
-              if (typeof v === 'string' && (keyLower.includes('key') || keyLower.includes('password') || keyLower.includes('token') || keyLower.includes('secret'))) {
+              if (
+                typeof v === 'string' &&
+                (keyLower.includes('key') ||
+                  keyLower.includes('password') ||
+                  keyLower.includes('token') ||
+                  keyLower.includes('secret'))
+              ) {
                 (masked as any)[k] = '[MASKED]';
               } else if (typeof v === 'object') {
                 (masked as any)[k] = maskSecrets(v);
@@ -450,7 +539,11 @@ export function registerObservabilityIpc() {
           };
 
           const maskedConfig = maskSecrets(config);
-          fs.writeFileSync(join(tempDir, 'config.json'), JSON.stringify(maskedConfig, null, 2), 'utf8');
+          fs.writeFileSync(
+            join(tempDir, 'config.json'),
+            JSON.stringify(maskedConfig, null, 2),
+            'utf8'
+          );
         } catch {}
       }
 
@@ -484,7 +577,7 @@ export function registerObservabilityIpc() {
       if (workspaceId) {
         try {
           const db = getDatabase(workspaceId);
-          const jobs = db.prepare("SELECT * FROM jobs ORDER BY updatedAt DESC LIMIT 50").all();
+          const jobs = db.prepare('SELECT * FROM jobs ORDER BY updatedAt DESC LIMIT 50').all();
           fs.writeFileSync(join(tempDir, 'jobs.json'), JSON.stringify(jobs, null, 2), 'utf8');
         } catch {}
       }
@@ -503,7 +596,9 @@ export function registerObservabilityIpc() {
       // G. Perform OS-native compression
       const { execSync } = require('child_process');
       if (process.platform === 'win32') {
-        execSync(`powershell -Command "Compress-Archive -Path '${tempDir}\\*' -DestinationPath '${destZipPath}' -Force"`);
+        execSync(
+          `powershell -Command "Compress-Archive -Path '${tempDir}\\*' -DestinationPath '${destZipPath}' -Force"`
+        );
       } else {
         execSync(`zip -r "${destZipPath}" ./*`, { cwd: tempDir });
       }

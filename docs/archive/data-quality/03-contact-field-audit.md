@@ -10,6 +10,7 @@ Contacts are created by two distinct plugins:
 ---
 
 ## Field: id
+
 - **Source**: `randomUUID()` — scraper.ts:347, crawler.ts:314
 - **Persistence**: contacts.id PRIMARY KEY
 - **Completeness**: Always set. OK.
@@ -17,6 +18,7 @@ Contacts are created by two distinct plugins:
 ---
 
 ## Field: workspaceId
+
 - **Source**: `ctx.workspaceId`
 - **Persistence**: contacts.workspaceId NOT NULL
 - **Completeness**: Always set. OK.
@@ -24,6 +26,7 @@ Contacts are created by two distinct plugins:
 ---
 
 ## Field: companyId
+
 - **Source**: `companyId` passed from parent scraper job
 - **Persistence**: contacts.companyId TEXT (migration 006 + 011 index)
 - **Scraper sets it**: YES — scraper.ts:349 `INSERT INTO contacts (..., companyId, ...)`
@@ -35,6 +38,7 @@ Contacts are created by two distinct plugins:
 ---
 
 ## Field: firstName
+
 - **Source**: NOT EXTRACTED by any plugin
 - **Persistence**: contacts.firstName TEXT (migration 001)
 - **Renderer**: ContactsScreen.tsx:189 — `{item.firstName} {item.lastName || ''}`
@@ -44,6 +48,7 @@ Contacts are created by two distinct plugins:
 ---
 
 ## Field: lastName
+
 - **Source**: NOT EXTRACTED
 - **Persistence**: contacts.lastName TEXT (migration 001)
 - **Renderer**: ContactsScreen.tsx:189 — appended after firstName
@@ -52,6 +57,7 @@ Contacts are created by two distinct plugins:
 ---
 
 ## Field: email
+
 - **Source**: Cheerio regex + mailto extraction — crawler.ts:254-273
 - **Normalization**: `.toLowerCase()` applied
 - **Persistence**: contacts.email TEXT
@@ -63,6 +69,7 @@ Contacts are created by two distinct plugins:
 ---
 
 ## Field: phone
+
 - **Source (scraper contacts)**: `phone` from Maps `[data-item-id^="phone:tel:"]` — scraper.ts:304
 - **Source (crawler contacts)**: `pagePhones` from `tel:` links or regex — crawler.ts:276-296
 - **Normalization**: None. Raw international format from scraper. Raw regex match from crawler.
@@ -74,6 +81,7 @@ Contacts are created by two distinct plugins:
 ---
 
 ## Field: status
+
 - **Source**: NOT SET by scraper or crawler
 - **Persistence**: contacts.status TEXT
 - **Renderer**: ContactsScreen.tsx:194-208 — Badge shows `item.status` which is NULL
@@ -83,6 +91,7 @@ Contacts are created by two distinct plugins:
 ---
 
 ## Field: confidence
+
 - **Source**: `classifyEmail()` — crawler.ts:107
 - **Normalization**: Enum: high/medium/low
 - **Persistence**: contacts.confidence TEXT (migration 009)
@@ -92,6 +101,7 @@ Contacts are created by two distinct plugins:
 ---
 
 ## Field: type
+
 - **Source**: `classifyEmail()` — crawler.ts:107
 - **Normalization**: Enum: human/department/unknown
 - **Persistence**: contacts.type TEXT (migration 009)
@@ -101,6 +111,7 @@ Contacts are created by two distinct plugins:
 ---
 
 ## Field: verificationStatus
+
 - **Source**: Hardcoded 'unverified' — crawler.ts:317
 - **Normalization**: Enum: unverified/valid/invalid/catch_all
 - **Persistence**: contacts.verificationStatus TEXT (migration 009)
@@ -110,6 +121,7 @@ Contacts are created by two distinct plugins:
 ---
 
 ## Field: sourceUrl
+
 - **Source**: `item.url` (current crawled page) — crawler.ts:318
 - **Normalization**: None
 - **Persistence**: contacts.sourceUrl TEXT (migration 009)
@@ -119,6 +131,7 @@ Contacts are created by two distinct plugins:
 ---
 
 ## Field: sourcePlatform
+
 - **Source**: Hardcoded 'web' — crawler.ts:317
 - **Persistence**: contacts.sourcePlatform TEXT (migration 009)
 - **Renderer**: NOT displayed
@@ -127,6 +140,7 @@ Contacts are created by two distinct plugins:
 ---
 
 ## Field: title
+
 - **Source**: NOT EXTRACTED
 - **Persistence**: contacts.title TEXT (migration 006)
 - **Renderer**: ContactsScreen.tsx:193 — `item.title || 'N/A'`
@@ -135,6 +149,7 @@ Contacts are created by two distinct plugins:
 ---
 
 ## Field: linkedin / linkedinUrl
+
 - **Source**: NOT EXTRACTED by any plugin
 - **Persistence**: contacts.linkedin TEXT, contacts.linkedinUrl TEXT (migration 006)
 - **Renderer**: ContactsScreen.tsx:287-289 — shown in side panel
@@ -144,19 +159,19 @@ Contacts are created by two distinct plugins:
 
 ## Summary Table
 
-| Field | Scraper | Crawler | Normalized | Rendered | Issue |
-|-------|---------|---------|------------|----------|-------|
-| id | ✓ | ✓ | — | — | None |
-| workspaceId | ✓ | ✓ | — | — | None |
-| companyId | ✓ | ✓ | — | Side panel only | Missing from list |
-| firstName | ✗ | ✗ | — | ✓ (shows blank) | Never extracted |
-| lastName | ✗ | ✗ | — | ✓ (shows blank) | Never extracted |
-| email | ✗ | ✓ | lowercase | ✓ | None |
-| phone | ✓ | Partial | ✗ | ✓ | Not normalized |
-| status | ✗ | ✗ | — | ✓ (shows null) | Never set |
-| confidence | ✗ | ✓ | Enum | ✗ | Not rendered |
-| type | ✗ | ✓ | Enum | ✗ | Not rendered |
-| verificationStatus | ✗ | ✓ (unverified) | Enum | ✗ | Not rendered |
-| sourceUrl | ✗ | ✓ | — | ✗ | Not rendered |
-| title | ✗ | ✗ | — | ✓ (N/A) | Never extracted |
-| linkedin | ✗ | ✗ | — | ✓ (N/A) | Never extracted |
+| Field              | Scraper | Crawler        | Normalized | Rendered        | Issue             |
+| ------------------ | ------- | -------------- | ---------- | --------------- | ----------------- |
+| id                 | ✓       | ✓              | —          | —               | None              |
+| workspaceId        | ✓       | ✓              | —          | —               | None              |
+| companyId          | ✓       | ✓              | —          | Side panel only | Missing from list |
+| firstName          | ✗       | ✗              | —          | ✓ (shows blank) | Never extracted   |
+| lastName           | ✗       | ✗              | —          | ✓ (shows blank) | Never extracted   |
+| email              | ✗       | ✓              | lowercase  | ✓               | None              |
+| phone              | ✓       | Partial        | ✗          | ✓               | Not normalized    |
+| status             | ✗       | ✗              | —          | ✓ (shows null)  | Never set         |
+| confidence         | ✗       | ✓              | Enum       | ✗               | Not rendered      |
+| type               | ✗       | ✓              | Enum       | ✗               | Not rendered      |
+| verificationStatus | ✗       | ✓ (unverified) | Enum       | ✗               | Not rendered      |
+| sourceUrl          | ✗       | ✓              | —          | ✗               | Not rendered      |
+| title              | ✗       | ✗              | —          | ✓ (N/A)         | Never extracted   |
+| linkedin           | ✗       | ✗              | —          | ✓ (N/A)         | Never extracted   |

@@ -33,6 +33,7 @@ Step 6: Add new columns via ALTER TABLE ADD COLUMN
 ```
 
 **New columns**:
+
 ```
 scheduledAt    DATETIME        NULL    -- when job should next be dispatched (retries, delays)
 checkpointData TEXT            NULL    -- JSON blob for pause/resume state
@@ -42,18 +43,20 @@ durationMs     INTEGER         NULL    -- elapsed ms on completion (finishedAt -
 ```
 
 **Updated CHECK constraint** must include all values from `JobStatus`:
+
 ```
 'pending', 'queued', 'starting', 'running', 'waiting', 'paused',
 'retrying', 'completed', 'failed', 'cancelled', 'interrupted'
 ```
 
 **New indexes**:
+
 ```sql
-CREATE INDEX IF NOT EXISTS idx_jobs_scheduled 
+CREATE INDEX IF NOT EXISTS idx_jobs_scheduled
   ON jobs(workspaceId, status, scheduledAt);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_idempotency 
-  ON jobs(workspaceId, idempotencyKey) 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_idempotency
+  ON jobs(workspaceId, idempotencyKey)
   WHERE idempotencyKey IS NOT NULL;
 ```
 
@@ -61,10 +64,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_idempotency
 Migration 008 is NOT safely reversible due to the table recreation. If this migration causes issues, the rollback strategy is to restore the workspace database file from a backup taken at app startup before migrations run. A pre-migration backup step should be added to `runMigrations()` before migration 008 executes.
 
 **Affected Repositories**:
+
 - `LocalCRMRepository` — not affected (does not touch jobs table)
 - `JobScheduler` — must write to new columns `scheduledAt`, `checkpointData`
 
 **Affected Services**:
+
 - `JobScheduler.handleJobFailure()` — must write `scheduledAt` for retries
 - `JobScheduler.runJob()` — must write `status = 'starting'` on fork
 - `JobScheduler.tick()` — must filter `scheduledAt <= datetime('now')` for retrying jobs
@@ -82,6 +87,7 @@ The table recreation means existing `jobs` rows are preserved. However, any appl
 **Purpose**: Add company-level crawl tracking and contact-level quality scoring columns. Required by scraping_pipeline_spec §6.
 
 **New columns on `companies`**:
+
 ```
 crawlStatus        TEXT    DEFAULT 'pending'
                    CHECK(crawlStatus IN ('pending','in_progress','completed','failed','skipped'))
@@ -93,6 +99,7 @@ scoreUpdatedAt     DATETIME    NULL
 ```
 
 **New columns on `contacts`**:
+
 ```
 confidence         TEXT    DEFAULT 'low'
                    CHECK(confidence IN ('high','medium','low'))
@@ -108,11 +115,12 @@ priority           INTEGER DEFAULT 1
 **SQL approach**: `ALTER TABLE companies ADD COLUMN ...` × 6, `ALTER TABLE contacts ADD COLUMN ...` × 6. SQLite supports adding columns via ALTER TABLE ADD COLUMN without table recreation as long as new columns have defaults or are nullable.
 
 **New indexes**:
+
 ```sql
-CREATE INDEX IF NOT EXISTS idx_companies_crawl_status 
+CREATE INDEX IF NOT EXISTS idx_companies_crawl_status
   ON companies(workspaceId, crawlStatus);
 
-CREATE INDEX IF NOT EXISTS idx_contacts_confidence 
+CREATE INDEX IF NOT EXISTS idx_contacts_confidence
   ON contacts(workspaceId, confidence, priority);
 ```
 
@@ -120,10 +128,12 @@ CREATE INDEX IF NOT EXISTS idx_contacts_confidence
 SQLite does not support `ALTER TABLE DROP COLUMN` in versions prior to 3.35. If rollback is needed, a table-rename approach must be used. Recommended: run a pre-migration integrity check and backup before applying.
 
 **Affected Repositories**:
+
 - `LocalCRMRepository` — `findMany()` and `save()` automatically adapt via `pragma table_info()` — no changes needed
 - New `CrawlerPlugin` and `EnricherPlugin` will write to these columns directly
 
 **Affected Services**:
+
 - `SyncEngine` — `crawlStatus`, `confidence`, `verificationStatus` columns are not in `syncableTables` currently. Must verify whether these should sync or remain local-only.
 
 **UNKNOWN**: Should `crawlStatus`, `score`, `confidence`, `verificationStatus` sync to MongoDB? The specs do not explicitly address this.  
@@ -141,6 +151,7 @@ All new columns have defaults. Existing company and contact rows will read as `c
 **Purpose**: Add cancellation tracking and parent job linkage to `sequence_executions`. Required by job_lifecycle_spec §8.
 
 **New columns on `sequence_executions`**:
+
 ```
 cancelledAt     DATETIME    NULL
 cancelReason    TEXT        NULL
@@ -150,18 +161,21 @@ parentJobId     TEXT        NULL    -- FK reference to jobs.id
 **SQL approach**: `ALTER TABLE sequence_executions ADD COLUMN ...` × 3. All nullable, no defaults required.
 
 **New indexes**:
+
 ```sql
-CREATE INDEX IF NOT EXISTS idx_seq_exec_parent_job 
-  ON sequence_executions(parentJobId) 
+CREATE INDEX IF NOT EXISTS idx_seq_exec_parent_job
+  ON sequence_executions(parentJobId)
   WHERE parentJobId IS NOT NULL;
 ```
 
 **Rollback Strategy**: Same as Migration 009. Pre-migration backup recommended.
 
 **Affected Repositories**:
+
 - `LocalCRMRepository` — adapts automatically via `pragma table_info()`
 
 **Affected Services**:
+
 - `AutomationWorkflowPlugin` — must write `parentJobId = ctx.jobId` on execution creation
 - `JobScheduler.cancelJob()` — if cancelling an `automation:workflow` job, must also set `cancelledAt` and `cancelReason` on associated sequence_execution
 
@@ -172,17 +186,18 @@ All columns nullable. No data loss. Existing execution rows will have NULL value
 
 ## Migration Sequencing Summary
 
-| Migration | Number | Depends On | Tables Affected | Risk |
-|---|---|---|---|---|
-| Job Lifecycle Hardening | 008 | 001-007 | `jobs` (recreate) | HIGH — table recreation |
-| Scraping Pipeline Schema | 009 | 008 | `companies`, `contacts` (alter) | LOW — add columns only |
-| Sequence Execution Tracking | 010 | 008 | `sequence_executions` (alter) | LOW — add columns only |
+| Migration                   | Number | Depends On | Tables Affected                 | Risk                    |
+| --------------------------- | ------ | ---------- | ------------------------------- | ----------------------- |
+| Job Lifecycle Hardening     | 008    | 001-007    | `jobs` (recreate)               | HIGH — table recreation |
+| Scraping Pipeline Schema    | 009    | 008        | `companies`, `contacts` (alter) | LOW — add columns only  |
+| Sequence Execution Tracking | 010    | 008        | `sequence_executions` (alter)   | LOW — add columns only  |
 
 ---
 
 ## Pre-Migration Backup Requirement
 
 Before migration 008 runs (table recreation), `runMigrations()` must:
+
 1. Detect that migration 008 has not been applied
 2. Copy the workspace database file to `leadforge_${workspaceId}.db.pre008.bak`
 3. Proceed with migration

@@ -55,35 +55,35 @@
 
 ### 1.2 State Definitions
 
-| State | Description | Who Sets It |
-|---|---|---|
-| `pending` | Pre-queued, waiting for pre-conditions (future) | Application logic |
-| `queued` | In queue, waiting for scheduler to dispatch | `scheduler:jobs:submit` IPC, job completion chaining |
-| `starting` | Worker process forked, not yet executing | Scheduler (on fork) |
-| `running` | Worker actively executing plugin | Worker 'ready' + scheduler |
-| `waiting` | Paused on WAIT step, resuming at `nextExecutionAt` | Worker / sequence engine |
-| `paused` | User-paused, indefinite hold | User action via IPC |
-| `retrying` | Failed, scheduled for automatic retry | `handleJobFailure()` |
-| `completed` | Finished successfully | `handleJobSuccess()` |
-| `failed` | Failed, exhausted retries | `handleJobFailure()` |
-| `cancelled` | Explicitly cancelled by user or system | `cancelJob()` |
-| `interrupted` | Terminated by app shutdown mid-run | `scheduler.stop()` |
+| State         | Description                                        | Who Sets It                                          |
+| ------------- | -------------------------------------------------- | ---------------------------------------------------- |
+| `pending`     | Pre-queued, waiting for pre-conditions (future)    | Application logic                                    |
+| `queued`      | In queue, waiting for scheduler to dispatch        | `scheduler:jobs:submit` IPC, job completion chaining |
+| `starting`    | Worker process forked, not yet executing           | Scheduler (on fork)                                  |
+| `running`     | Worker actively executing plugin                   | Worker 'ready' + scheduler                           |
+| `waiting`     | Paused on WAIT step, resuming at `nextExecutionAt` | Worker / sequence engine                             |
+| `paused`      | User-paused, indefinite hold                       | User action via IPC                                  |
+| `retrying`    | Failed, scheduled for automatic retry              | `handleJobFailure()`                                 |
+| `completed`   | Finished successfully                              | `handleJobSuccess()`                                 |
+| `failed`      | Failed, exhausted retries                          | `handleJobFailure()`                                 |
+| `cancelled`   | Explicitly cancelled by user or system             | `cancelJob()`                                        |
+| `interrupted` | Terminated by app shutdown mid-run                 | `scheduler.stop()`                                   |
 
 ### 1.3 Valid State Transitions
 
 ```typescript
 const VALID_TRANSITIONS: Record<JobStatus, JobStatus[]> = {
-  pending:     ['queued', 'cancelled'],
-  queued:      ['starting', 'cancelled'],
-  starting:    ['running', 'failed', 'cancelled'],
-  running:     ['completed', 'failed', 'waiting', 'paused', 'cancelled'],
-  waiting:     ['running', 'cancelled'],   // running = resumed
-  paused:      ['running', 'cancelled'],   // running = resumed
-  retrying:    ['queued'],                 // queued = will be picked up next tick
-  completed:   [],                         // terminal
-  failed:      [],                         // terminal
-  cancelled:   [],                         // terminal
-  interrupted: ['queued'],                 // can be re-queued after restart
+  pending: ['queued', 'cancelled'],
+  queued: ['starting', 'cancelled'],
+  starting: ['running', 'failed', 'cancelled'],
+  running: ['completed', 'failed', 'waiting', 'paused', 'cancelled'],
+  waiting: ['running', 'cancelled'], // running = resumed
+  paused: ['running', 'cancelled'], // running = resumed
+  retrying: ['queued'], // queued = will be picked up next tick
+  completed: [], // terminal
+  failed: [], // terminal
+  cancelled: [], // terminal
+  interrupted: ['queued'] // can be re-queued after restart
 };
 
 function assertValidTransition(from: JobStatus, to: JobStatus): void {
@@ -104,7 +104,7 @@ private async tick(): Promise<void> {
     if (this.activeWorkers.size < this.maxConcurrency) {
       const job = this.db.prepare(`
         SELECT * FROM jobs
-        WHERE workspaceId = ? 
+        WHERE workspaceId = ?
           AND status IN ('queued', 'retrying')
           AND (scheduledAt IS NULL OR scheduledAt <= datetime('now'))
         ORDER BY priority DESC, createdAt ASC
@@ -120,8 +120,8 @@ private async tick(): Promise<void> {
     const dueExecutions = this.db.prepare(`
       SELECT id, sequenceId, currentStep, contactId, companyId
       FROM sequence_executions
-      WHERE workspaceId = ? 
-        AND status = 'waiting' 
+      WHERE workspaceId = ?
+        AND status = 'waiting'
         AND nextExecutionAt <= datetime('now')
       LIMIT 5
     `).all(this.workspaceId);
@@ -165,16 +165,41 @@ interface RetryConfig {
   backoffStrategy: 'linear' | 'exponential' | 'fixed';
   baseDelayMs: number;
   maxDelayMs: number;
-  retryableErrors?: string[];  // only retry on these error patterns
+  retryableErrors?: string[]; // only retry on these error patterns
 }
 
 const DEFAULT_RETRY_CONFIGS: Record<string, RetryConfig> = {
-  'scraper:maps':       { maxRetries: 2, backoffStrategy: 'exponential', baseDelayMs: 30000, maxDelayMs: 300000 },
-  'crawler:website':    { maxRetries: 3, backoffStrategy: 'exponential', baseDelayMs: 10000, maxDelayMs: 120000 },
-  'enrich:website':     { maxRetries: 3, backoffStrategy: 'linear',      baseDelayMs: 5000,  maxDelayMs: 30000  },
-  'outreach:campaign':  { maxRetries: 2, backoffStrategy: 'fixed',       baseDelayMs: 60000, maxDelayMs: 60000  },
-  'automation:workflow':{ maxRetries: 1, backoffStrategy: 'fixed',       baseDelayMs: 5000,  maxDelayMs: 5000   },
-  'mock:test':          { maxRetries: 3, backoffStrategy: 'linear',      baseDelayMs: 1000,  maxDelayMs: 5000   },
+  'scraper:maps': {
+    maxRetries: 2,
+    backoffStrategy: 'exponential',
+    baseDelayMs: 30000,
+    maxDelayMs: 300000
+  },
+  'crawler:website': {
+    maxRetries: 3,
+    backoffStrategy: 'exponential',
+    baseDelayMs: 10000,
+    maxDelayMs: 120000
+  },
+  'enrich:website': {
+    maxRetries: 3,
+    backoffStrategy: 'linear',
+    baseDelayMs: 5000,
+    maxDelayMs: 30000
+  },
+  'outreach:campaign': {
+    maxRetries: 2,
+    backoffStrategy: 'fixed',
+    baseDelayMs: 60000,
+    maxDelayMs: 60000
+  },
+  'automation:workflow': {
+    maxRetries: 1,
+    backoffStrategy: 'fixed',
+    baseDelayMs: 5000,
+    maxDelayMs: 5000
+  },
+  'mock:test': { maxRetries: 3, backoffStrategy: 'linear', baseDelayMs: 1000, maxDelayMs: 5000 }
 };
 ```
 
@@ -203,19 +228,19 @@ ALTER TABLE jobs ADD COLUMN scheduledAt DATETIME;
 ```typescript
 private handleJobFailure(jobId: string, retryCount: number, maxRetries: number, error: string): void {
   const nextRetry = retryCount + 1;
-  
+
   if (nextRetry <= maxRetries) {
     const config = DEFAULT_RETRY_CONFIGS[job.type] || DEFAULT_RETRY_CONFIGS['mock:test'];
     const delayMs = calculateRetryDelay(nextRetry, config);
     const scheduledAt = new Date(Date.now() + delayMs).toISOString();
-    
+
     this.db.prepare(`
       UPDATE jobs
-      SET status = 'retrying', retryCount = ?, error = ?, 
+      SET status = 'retrying', retryCount = ?, error = ?,
           scheduledAt = ?, updatedAt = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(nextRetry, error, scheduledAt, jobId);
-    
+
     // Note: status stays 'retrying' until scheduledAt passes, then scheduler tick
     // changes it to 'queued' when it's picked up
   } else {
@@ -284,7 +309,7 @@ User Action → IPC 'scheduler:jobs:resume' { workspaceId, jobId }
     │
     └─ UPDATE jobs SET status='queued' WHERE id = ? AND status='paused'
        (scheduler tick picks it up, forks worker, passes checkpointData in payload)
-       
+
 // In scheduler.ts runJob():
 const checkpoint = job.checkpointData ? JSON.parse(job.checkpointData) : null;
 worker.send({
@@ -309,7 +334,7 @@ let currentStep = resumeFrom;  // start from saved checkpoint
 ```
 IPC: 'scheduler:jobs:cancel' { workspaceId, jobId }
     │
-    ├─ If RUNNING: 
+    ├─ If RUNNING:
     │    Main sends { command: 'cancel' } via process.send (NOT kill signal)
     │    Worker: sets isCancelledState = true
     │    Worker: plugin checks ctx.isCancelled() at each iteration boundary
@@ -334,7 +359,10 @@ If the worker does not respond to soft cancel within `cancelTimeoutMs` (default:
 const softCancelTimeout = setTimeout(() => {
   AppLogger.warn('JobScheduler', `Force-killing unresponsive worker for job ${jobId}`);
   worker.kill('SIGKILL');
-  this.db.prepare(`UPDATE jobs SET status='cancelled', error='Force-killed: did not respond to cancel' WHERE id=?`)
+  this.db
+    .prepare(
+      `UPDATE jobs SET status='cancelled', error='Force-killed: did not respond to cancel' WHERE id=?`
+    )
     .run(jobId);
 }, this.config.cancelTimeoutMs);
 
@@ -353,7 +381,7 @@ worker.on('message', (msg) => {
 private async recoverInterruptedJobs(): Promise<void> {
   // 1. Mark all 'running' and 'starting' jobs as 'interrupted'
   this.sqliteDb.prepare(`
-    UPDATE jobs 
+    UPDATE jobs
     SET status = 'interrupted', error = 'App restarted during execution', updatedAt = CURRENT_TIMESTAMP
     WHERE workspaceId = ? AND status IN ('running', 'starting')
   `).run(this.workspaceId);
@@ -361,7 +389,7 @@ private async recoverInterruptedJobs(): Promise<void> {
   // 2. Re-queue interrupted jobs that are auto-recoverable
   const AUTO_RECOVERABLE = ['scraper:maps', 'crawler:website', 'enrich:website', 'automation:workflow'];
   this.sqliteDb.prepare(`
-    UPDATE jobs 
+    UPDATE jobs
     SET status = 'queued', error = NULL, updatedAt = CURRENT_TIMESTAMP
     WHERE workspaceId = ? AND status = 'interrupted' AND type IN (${AUTO_RECOVERABLE.map(() => '?').join(',')})
   `).run(this.workspaceId, ...AUTO_RECOVERABLE);
@@ -396,28 +424,42 @@ interface JobSubmissionParams {
   payload: any;
   priority?: number;
   maxRetries?: number;
-  scheduledAt?: string;      // ISO datetime — delay before first execution
-  cronExpression?: string;   // FUTURE: recurring jobs
-  idempotencyKey?: string;   // prevent duplicate submissions
+  scheduledAt?: string; // ISO datetime — delay before first execution
+  cronExpression?: string; // FUTURE: recurring jobs
+  idempotencyKey?: string; // prevent duplicate submissions
 }
 
 // IPC handler:
 safeRegister('scheduler:jobs:submit', async (_event, params) => {
   // Idempotency check
   if (params.idempotencyKey) {
-    const existing = db.prepare(`
+    const existing = db
+      .prepare(
+        `
       SELECT id FROM jobs WHERE workspaceId = ? 
       AND json_extract(payload, '$.idempotencyKey') = ?
       AND status NOT IN ('failed','cancelled','completed')
-    `).get(workspaceId, params.idempotencyKey);
+    `
+      )
+      .get(workspaceId, params.idempotencyKey);
     if (existing) return existing;
   }
 
   const jobId = params.id || uuid();
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO jobs (id, workspaceId, type, status, priority, payload, maxRetries, scheduledAt, createdAt, updatedAt)
     VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, datetime('now'), datetime('now'))
-  `).run(jobId, workspaceId, type, priority, JSON.stringify(payload), maxRetries, scheduledAt || null);
+  `
+  ).run(
+    jobId,
+    workspaceId,
+    type,
+    priority,
+    JSON.stringify(payload),
+    maxRetries,
+    scheduledAt || null
+  );
 
   return { id: jobId, status: 'queued' };
 });

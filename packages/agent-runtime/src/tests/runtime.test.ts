@@ -69,28 +69,34 @@ const mockCrawlTool: Tool = {
     statesEmitted.push(session.getState());
   });
 
-  runtime.execute(ResearchAgent, 'Austin software companies', {
-    workspaceId: 'ws-test',
-    executionId: 'exec-test',
-    traceId: 'trace-test',
-    actorId: 'user-test'
-  }).then((response) => {
-    assert.strictEqual(response.success, true, 'Execution should be successful');
-    assert.ok(response.message.length > 0, 'Should return a summary message');
+  runtime
+    .execute(ResearchAgent, 'Austin software companies', {
+      workspaceId: 'ws-test',
+      executionId: 'exec-test',
+      traceId: 'trace-test',
+      actorId: 'user-test'
+    })
+    .then((response) => {
+      assert.strictEqual(response.success, true, 'Execution should be successful');
+      assert.ok(response.message.length > 0, 'Should return a summary message');
 
-    // The runtime delegates to WorkflowRunner — session states now include
-    // PREPARING_CONTEXT, EXECUTING_TOOL (per step), RECEIVING_TOOL_RESULT (per step),
-    // CALLING_LLM (delegating to runner), GENERATING_RESPONSE, COMPLETED.
-    assert.ok(statesEmitted.includes('PREPARING_CONTEXT'), 'Should emit PREPARING_CONTEXT');
-    assert.ok(statesEmitted.includes('EXECUTING_TOOL'), 'Should emit EXECUTING_TOOL');
-    assert.ok(statesEmitted.includes('RECEIVING_TOOL_RESULT'), 'Should emit RECEIVING_TOOL_RESULT');
-    assert.ok(statesEmitted.includes('COMPLETED'), 'Should emit COMPLETED');
+      // The runtime delegates to WorkflowRunner — session states now include
+      // PREPARING_CONTEXT, EXECUTING_TOOL (per step), RECEIVING_TOOL_RESULT (per step),
+      // CALLING_LLM (delegating to runner), GENERATING_RESPONSE, COMPLETED.
+      assert.ok(statesEmitted.includes('PREPARING_CONTEXT'), 'Should emit PREPARING_CONTEXT');
+      assert.ok(statesEmitted.includes('EXECUTING_TOOL'), 'Should emit EXECUTING_TOOL');
+      assert.ok(
+        statesEmitted.includes('RECEIVING_TOOL_RESULT'),
+        'Should emit RECEIVING_TOOL_RESULT'
+      );
+      assert.ok(statesEmitted.includes('COMPLETED'), 'Should emit COMPLETED');
 
-    // toolsExecuted reflects steps with tool results
-    assert.ok(response.toolsExecuted.length >= 1, 'Should have executed at least 1 tool');
+      // toolsExecuted reflects steps with tool results
+      assert.ok(response.toolsExecuted.length >= 1, 'Should have executed at least 1 tool');
 
-    console.log('  ✅ AgentRuntime → WorkflowRunner delegation verified successfully.');
-  }).catch((err) => {
-    assert.fail(`AgentRuntime execute failed: ${err.message}`);
-  });
+      console.log('  ✅ AgentRuntime → WorkflowRunner delegation verified successfully.');
+    })
+    .catch((err) => {
+      assert.fail(`AgentRuntime execute failed: ${err.message}`);
+    });
 }

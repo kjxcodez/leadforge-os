@@ -80,4 +80,3 @@ export function registerDatabaseIpc(): void {
     return LocalQueueRepository.remove(workspaceId, id);
   });
 }
-

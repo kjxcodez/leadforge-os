@@ -125,7 +125,6 @@ leadforge-os/
 └── package.json
 ```
 
-
 ---
 
 ## 3. Request Lifecycle — Reads vs. Writes Are Handled Differently
@@ -168,7 +167,7 @@ This is the standard **stale-while-revalidate** pattern: cache makes it feel ins
    On repeated failure, it surfaces a "3 changes waiting to sync" indicator in the System Health panel.
 ```
 
-**The one rule that keeps this safe:** SQLite is never read as the answer to "did this write succeed" — only Atlas's response (now or eventually, via the sync worker) determines that. The cache is for *speed*, the queue is for *resilience*; neither is ever the arbiter of truth.
+**The one rule that keeps this safe:** SQLite is never read as the answer to "did this write succeed" — only Atlas's response (now or eventually, via the sync worker) determines that. The cache is for _speed_, the queue is for _resilience_; neither is ever the arbiter of truth.
 
 ---
 
@@ -184,19 +183,21 @@ import { CompanySchema, CompanyFiltersSchema } from '@leadforge/validation';
 export const IpcContract = {
   'companies:list': {
     input: CompanyFiltersSchema,
-    output: z.array(CompanySchema),
+    output: z.array(CompanySchema)
   },
   'system:start': {
     input: z.void(),
-    output: z.object({ started: z.array(z.string()) }),
+    output: z.object({ started: z.array(z.string()) })
   },
   'system:status': {
     input: z.void(),
-    output: z.array(z.object({
-      name: z.enum(['scraperWorker', 'jobWorker', 'emailWorker']),
-      status: z.enum(['stopped', 'starting', 'running', 'crashed']),
-    })),
-  },
+    output: z.array(
+      z.object({
+        name: z.enum(['scraperWorker', 'jobWorker', 'emailWorker']),
+        status: z.enum(['stopped', 'starting', 'running', 'crashed'])
+      })
+    )
+  }
   // ...one entry per channel
 } as const;
 ```
@@ -207,18 +208,17 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('api', {
   companies: {
-    list: (filters) => ipcRenderer.invoke('companies:list', filters),
+    list: (filters) => ipcRenderer.invoke('companies:list', filters)
   },
   system: {
     start: () => ipcRenderer.invoke('system:start'),
     stop: () => ipcRenderer.invoke('system:stop'),
     status: () => ipcRenderer.invoke('system:status'),
     onStatusChange: (cb) => ipcRenderer.on('system:status-changed', (_e, p) => cb(p)),
-    onScraperProgress: (cb) => ipcRenderer.on('scraper:progress', (_e, p) => cb(p)),
-  },
+    onScraperProgress: (cb) => ipcRenderer.on('scraper:progress', (_e, p) => cb(p))
+  }
 });
 ```
-
 
 ---
 
@@ -229,8 +229,8 @@ This is the part worth being precise about, since it's the one workflow with a l
 ### 5.1 The pieces involved
 
 - **`main/system/supervisor.ts`** — spawns and tracks the scraper as a child process, forwards its output.
-- **`main/integrations/scraper/`** — the actual Playwright code, run *inside* that child process, not the main process.
-- **IPC events** — the main process pushes live progress to the renderer; this is different from the request/response pattern in Section 3, because the renderer didn't ask a question and wait — it's being *told* things as they happen.
+- **`main/integrations/scraper/`** — the actual Playwright code, run _inside_ that child process, not the main process.
+- **IPC events** — the main process pushes live progress to the renderer; this is different from the request/response pattern in Section 3, because the renderer didn't ask a question and wait — it's being _told_ things as they happen.
 
 ### 5.2 Starting a scrape (user clicks "Run Discovery")
 
@@ -271,7 +271,7 @@ class SystemSupervisor {
 
   startScraper(input: DiscoveryInput) {
     this.scraperProcess = fork(this.workerEntryPath('scraperWorker'), [], {
-      stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+      stdio: ['ignore', 'pipe', 'pipe', 'ipc']
     });
 
     // The scraper worker sends structured progress messages, not just log lines
@@ -323,7 +323,7 @@ process.on('message', async (msg: { type: 'start'; input: DiscoveryInput }) => {
 });
 ```
 
-Notice the scraper worker calls `apiClient` directly, from inside its own process — it doesn't need to hand results back to `main` first. This keeps `main` from becoming a bottleneck relaying large payloads between processes; `main` only relays small progress *events*, not the actual scraped data.
+Notice the scraper worker calls `apiClient` directly, from inside its own process — it doesn't need to hand results back to `main` first. This keeps `main` from becoming a bottleneck relaying large payloads between processes; `main` only relays small progress _events_, not the actual scraped data.
 
 ### 5.5 Showing live status in the UI
 
@@ -337,8 +337,14 @@ export function useScraperStatus() {
 
   useEffect(() => {
     window.api.system.onScraperProgress((msg) => {
-      if (msg.type === 'progress') { setStatus('running'); setFound(msg.found); }
-      if (msg.type === 'complete') { setStatus('complete'); setFound(msg.found); }
+      if (msg.type === 'progress') {
+        setStatus('running');
+        setFound(msg.found);
+      }
+      if (msg.type === 'complete') {
+        setStatus('complete');
+        setFound(msg.found);
+      }
       if (msg.type === 'error') setStatus('error');
     });
   }, []);
@@ -364,12 +370,11 @@ return (
 
 This is the same pattern used for the design system's status badges (Section 8.4 of the design system doc) — a colored dot/badge driven directly by this `status` state, no polling required.
 
-
 ---
 
 ## 6. Running Other Workers (Email Polling, Job Queue)
 
-Same supervisor, same pattern, different child process per worker — this is why `main/system/supervisor.ts` manages a *map* of workers, not just the one scraper:
+Same supervisor, same pattern, different child process per worker — this is why `main/system/supervisor.ts` manages a _map_ of workers, not just the one scraper:
 
 ```ts
 type WorkerName = 'scraperWorker' | 'emailWorker' | 'jobWorker';
@@ -484,7 +489,7 @@ export function SystemHealthPanel() {
 1. **`apps/desktop` never imports Mongoose, ever.** If a file under `apps/desktop` imports `mongodb` or `mongoose`, that's a bug — no exceptions, not even "just for this one quick thing." All data access goes through `packages/api-client`.
 2. **`apps/api/repositories` is the only place that queries Mongo.** Services call repositories; routes call services; nothing skips a layer.
 3. **Every API response is a DTO, never a raw Mongo document.** Never return `_id`, internal-only fields, or anything Mongoose adds automatically — map explicitly in the route or a small mapper function.
-4. **One Zod schema per entity, shared.** Define `CompanySchema` once in `packages/validation`, and use the *same* schema to validate a form on desktop and a request body on the API. Two schemas for the same shape will eventually drift and disagree.
+4. **One Zod schema per entity, shared.** Define `CompanySchema` once in `packages/validation`, and use the _same_ schema to validate a form on desktop and a request body on the API. Two schemas for the same shape will eventually drift and disagree.
 5. **`main/ipc/*.ts` and `apps/api/routes/*.ts` stay thin.** If an IPC handler or a route has more than ~10 lines of actual logic, that logic belongs in a service, not in the handler.
 6. **The renderer never calls `fetch` directly.** All network activity happens in `main`, via `api-client`. This keeps JWTs out of the renderer entirely (see #7) and keeps request logic in one place.
 7. **JWT/refresh tokens live only in `main`, via `safeStorage`, never in the renderer.** The renderer doesn't know or care that a token exists — it just calls `window.api.companies.list()` and gets data back.
@@ -492,8 +497,8 @@ export function SystemHealthPanel() {
 9. **Long-running work sends progress via events (`webContents.send`), not via a hanging IPC `invoke`.** `invoke`/`handle` is request/response — it's the wrong tool for "tell me every 2 seconds how many companies you've found."
 10. **Structured logging (Pino) everywhere, with a `correlationId` per request/job**, so a bug report ("company import failed") can be traced from the button click through the IPC call, through the API request, down to the repository query.
 11. **Fail loud, fail visible — even when queued.** A write that gets queued into `pending_actions` (Section 3.2) must still show the user a clear "saved locally, will sync" indicator, not a silent success indistinguishable from a real save. A read falling back to cached data (Section 3.1) must show a small "offline / showing cached data" indicator too. The user should never be left guessing whether what they're looking at is current.
-13. **The cache is disposable; treat it that way in code, not just in docs.** Nothing should ever assume `main/cache` contains data — every read from it must have a "cache miss" path, and it should be safe to delete the local `.sqlite` file at any time (e.g., during a fresh install) with no permanent data loss, only a slower first load.
-12. **Environment config lives in one place per app** (`apps/desktop/.env`, `apps/api/.env`) and is validated at startup with Zod — fail immediately on a missing `MONGODB_URI` or `BETTER_AUTH_SECRET`, not three requests later with a cryptic error.
+12. **The cache is disposable; treat it that way in code, not just in docs.** Nothing should ever assume `main/cache` contains data — every read from it must have a "cache miss" path, and it should be safe to delete the local `.sqlite` file at any time (e.g., during a fresh install) with no permanent data loss, only a slower first load.
+13. **Environment config lives in one place per app** (`apps/desktop/.env`, `apps/api/.env`) and is validated at startup with Zod — fail immediately on a missing `MONGODB_URI` or `BETTER_AUTH_SECRET`, not three requests later with a cryptic error.
 
 ---
 

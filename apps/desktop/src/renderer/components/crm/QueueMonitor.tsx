@@ -32,7 +32,7 @@ export function QueueMonitor() {
       return window.ipc.invoke('scheduler:jobs:list', { workspaceId });
     },
     enabled: !!workspaceId,
-    refetchInterval: 5000, // Poll every 5 seconds for live monitor updates
+    refetchInterval: 5000 // Poll every 5 seconds for live monitor updates
   });
 
   // 2. Fetch campaign queues list
@@ -42,7 +42,7 @@ export function QueueMonitor() {
       return window.ipc.invoke('scheduler:queue:list', { workspaceId });
     },
     enabled: !!workspaceId,
-    refetchInterval: 5000,
+    refetchInterval: 5000
   });
 
   // Mutations
@@ -53,7 +53,7 @@ export function QueueMonitor() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scheduler_jobs', workspaceId] });
       queryClient.invalidateQueries({ queryKey: ['campaign_queues', workspaceId] });
-    },
+    }
   });
 
   const retryJobMutation = useMutation({
@@ -63,11 +63,14 @@ export function QueueMonitor() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scheduler_jobs', workspaceId] });
       queryClient.invalidateQueries({ queryKey: ['campaign_queues', workspaceId] });
-    },
+    }
   });
 
   const allJobs = (jobsQuery.data || []) as any[];
-  const queueData = (queueQuery.data || { jobs: [], waiting: [] }) as { jobs: any[]; waiting: any[] };
+  const queueData = (queueQuery.data || { jobs: [], waiting: [] }) as {
+    jobs: any[];
+    waiting: any[];
+  };
 
   // Filter out completed and cancelled jobs for the active list
   const activeJobs = allJobs.filter((job) =>
@@ -77,20 +80,48 @@ export function QueueMonitor() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'running':
-        return <Badge className="bg-blue-500/10 text-blue-400 border border-blue-500/20 animate-pulse text-[9px] px-1.5 py-0.5 font-bold">Running</Badge>;
+        return (
+          <Badge className="bg-blue-500/10 text-blue-400 border border-blue-500/20 animate-pulse text-[9px] px-1.5 py-0.5 font-bold">
+            Running
+          </Badge>
+        );
       case 'queued':
       case 'starting':
-        return <Badge className="bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-[9px] px-1.5 py-0.5 font-semibold">Queued</Badge>;
+        return (
+          <Badge className="bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-[9px] px-1.5 py-0.5 font-semibold">
+            Queued
+          </Badge>
+        );
       case 'waiting':
-        return <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[9px] px-1.5 py-0.5 font-semibold">Waiting</Badge>;
+        return (
+          <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[9px] px-1.5 py-0.5 font-semibold">
+            Waiting
+          </Badge>
+        );
       case 'paused':
-        return <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] px-1.5 py-0.5 font-semibold">Paused</Badge>;
+        return (
+          <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] px-1.5 py-0.5 font-semibold">
+            Paused
+          </Badge>
+        );
       case 'failed':
-        return <Badge className="bg-red-500/10 text-red-400 border border-red-500/20 text-[9px] px-1.5 py-0.5 font-bold">Failed</Badge>;
+        return (
+          <Badge className="bg-red-500/10 text-red-400 border border-red-500/20 text-[9px] px-1.5 py-0.5 font-bold">
+            Failed
+          </Badge>
+        );
       case 'cancelled':
-        return <Badge className="bg-muted/10 text-muted-foreground border border-muted/20 text-[9px] px-1.5 py-0.5 font-semibold">Cancelled</Badge>;
+        return (
+          <Badge className="bg-muted/10 text-muted-foreground border border-muted/20 text-[9px] px-1.5 py-0.5 font-semibold">
+            Cancelled
+          </Badge>
+        );
       default:
-        return <Badge className="bg-green-500/10 text-green-400 border border-green-500/20 text-[9px] px-1.5 py-0.5 font-bold">Completed</Badge>;
+        return (
+          <Badge className="bg-green-500/10 text-green-400 border border-green-500/20 text-[9px] px-1.5 py-0.5 font-bold">
+            Completed
+          </Badge>
+        );
     }
   };
 
@@ -173,18 +204,25 @@ export function QueueMonitor() {
                     <TableRow key={job.id} className="hover:bg-sunken/10">
                       <TableCell className="font-semibold text-foreground py-2.5">
                         {getJobName(job.type)}
-                        <span className="block text-[9px] text-muted-foreground font-mono mt-0.5">ID: {job.id}</span>
+                        <span className="block text-[9px] text-muted-foreground font-mono mt-0.5">
+                          ID: {job.id}
+                        </span>
                       </TableCell>
                       <TableCell className="py-2.5">{getStatusBadge(job.status)}</TableCell>
                       <TableCell className="py-2.5">
                         <div className="flex items-center gap-2">
                           <div className="w-24 bg-sunken rounded-full h-1.5 overflow-hidden border border-border-subtle">
-                            <div className="bg-accent h-1.5 rounded-full" style={{ width: `${job.progress || 0}%` }} />
+                            <div
+                              className="bg-accent h-1.5 rounded-full"
+                              style={{ width: `${job.progress || 0}%` }}
+                            />
                           </div>
                           <span className="font-mono text-[9px]">{job.progress || 0}%</span>
                         </div>
                       </TableCell>
-                      <TableCell className="py-2.5 text-muted-foreground font-mono">{runningTime} ago</TableCell>
+                      <TableCell className="py-2.5 text-muted-foreground font-mono">
+                        {runningTime} ago
+                      </TableCell>
                       <TableCell className="py-2.5 text-right">
                         {['running', 'queued', 'starting'].includes(job.status) && (
                           <Button
@@ -215,7 +253,6 @@ export function QueueMonitor() {
 
         {/* ── Outbound Email Queue Tab ────────────────────────────────────── */}
         <TabsContent value="queue" className="mt-3 space-y-4">
-          
           {/* Waiting/Scheduled Emails */}
           <div className="space-y-2">
             <h4 className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
@@ -242,10 +279,16 @@ export function QueueMonitor() {
                       <TableRow key={wait.id} className="hover:bg-sunken/10">
                         <TableCell className="py-2 font-medium">
                           {wait.firstName} {wait.lastName || ''}
-                          <span className="block text-[9px] text-muted-foreground font-mono mt-0.5">{wait.email}</span>
+                          <span className="block text-[9px] text-muted-foreground font-mono mt-0.5">
+                            {wait.email}
+                          </span>
                         </TableCell>
-                        <TableCell className="py-2 text-muted-foreground">{wait.campaignName || '—'}</TableCell>
-                        <TableCell className="py-2 text-foreground font-mono">in {nextSend}</TableCell>
+                        <TableCell className="py-2 text-muted-foreground">
+                          {wait.campaignName || '—'}
+                        </TableCell>
+                        <TableCell className="py-2 text-foreground font-mono">
+                          in {nextSend}
+                        </TableCell>
                         <TableCell className="py-2 font-mono">{wait.emailsSent || 0}</TableCell>
                         <TableCell className="py-2">{getStatusBadge(wait.status)}</TableCell>
                       </TableRow>
@@ -287,13 +330,21 @@ export function QueueMonitor() {
                     <TableRow key={job.jobId} className="hover:bg-sunken/10">
                       <TableCell className="py-2 font-medium">
                         {job.firstName} {job.lastName || ''}
-                        <span className="block text-[9px] text-muted-foreground font-mono mt-0.5">{job.email}</span>
+                        <span className="block text-[9px] text-muted-foreground font-mono mt-0.5">
+                          {job.email}
+                        </span>
                       </TableCell>
-                      <TableCell className="py-2 text-muted-foreground">{job.campaignName || '—'}</TableCell>
+                      <TableCell className="py-2 text-muted-foreground">
+                        {job.campaignName || '—'}
+                      </TableCell>
                       <TableCell className="py-2">{getStatusBadge(job.status)}</TableCell>
                       <TableCell className="py-2 font-mono">{job.retryCount || 0} / 3</TableCell>
                       <TableCell className="py-2 text-red-400 font-mono text-[9px] max-w-xs truncate">
-                        {job.status === 'failed' ? 'Max retries exhausted' : (job.status === 'cancelled' ? 'Job Cancelled' : '—')}
+                        {job.status === 'failed'
+                          ? 'Max retries exhausted'
+                          : job.status === 'cancelled'
+                            ? 'Job Cancelled'
+                            : '—'}
                       </TableCell>
                       <TableCell className="py-2 text-right">
                         {['failed', 'cancelled'].includes(job.status) && (

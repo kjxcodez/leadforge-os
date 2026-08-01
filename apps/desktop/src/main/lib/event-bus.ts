@@ -59,7 +59,7 @@ export class LocalEventBus {
       type,
       workspaceId: this.workspaceId,
       payload,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
     this.emitter.emit(type, event);
     this.emitter.emit('*', event);

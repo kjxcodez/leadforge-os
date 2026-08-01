@@ -16,22 +16,28 @@ This document covers the cloud REST API server (`apps/api`), which acts as the s
 ## 📡 API Routes Index
 
 ### 1. Health & Diagnostics
+
 - **`GET /health`**: Standard heartbeat check confirming database connectivity.
 
 ### 2. Authentication (`/auth/*`)
+
 Uses `better-auth` configurations:
+
 - **`POST /auth/login`**: Authenticates credentials and returns a session cookie.
 - **`POST /auth/register`**: Creates new user records.
 - **`GET /auth/session`**: Validates the current HTTP session.
 
 ### 3. Business & Sync Endpoints (`/business/*`)
+
 These endpoints are consumed by the desktop application's `SyncEngine` (`sync-engine.ts`) to upload local mutations:
+
 - **`POST /business/sync`**: Batch sync local changes from SQLite `sync_queue`. Resolves conflicts using Last-Write-Wins (LWW).
 - **`GET /business/companies`**: Fetch all synced companies.
 - **`POST /business/companies`**: Create or update companies.
 - **`GET /business/contacts`**: Fetch synced contacts.
 
 ### 4. Automation & Workspaces (`/automation/*`)
+
 - **`GET /automation/sequences`**: Retrieve synced email sequences.
 - **`POST /automation/sequences`**: Publish and save sequence modifications.
 
@@ -40,9 +46,12 @@ These endpoints are consumed by the desktop application's `SyncEngine` (`sync-en
 ## 📖 Accessing OpenAPI Reference
 
 To start the API server locally:
+
 ```bash
 pnpm dev --filter=api
 ```
+
 Once the server starts (default: `http://localhost:3000`), open your browser to:
+
 - **Interactive reference**: `http://localhost:3000/reference`
 - **Swagger JSON**: `http://localhost:3000/openapi.json`
