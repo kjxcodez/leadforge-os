@@ -4,6 +4,7 @@ import { useWorkspace } from '../hooks/useWorkspace';
 import { SyncCompanyRepository, SyncContactRepository } from '../repositories/sync';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Sheet, SheetContent } from '../components/ui/sheet';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
@@ -185,7 +186,7 @@ export default function DiscoveryScreen() {
   };
 
   return (
-    <div className="flex flex-col gap-5 text-xs font-sans h-full overflow-y-auto pr-1">
+    <div className="flex flex-col gap-5 text-xs font-sans">
       {/* Header */}
       <div className="flex flex-wrap justify-between items-end gap-3 border-b border-border-subtle pb-3">
         <div>
@@ -241,194 +242,190 @@ export default function DiscoveryScreen() {
         ))}
       </div>
 
-      {/* RESULTS PANEL — shown first so you don't have to scroll */}
-      {selectedJobId && (
-        <div className="bg-card border border-border-subtle rounded-xl overflow-hidden shadow-sm">
-          <div className="px-4 py-3 border-b border-border-subtle flex flex-wrap gap-2 justify-between items-center bg-accent/5">
-            <h3 className="font-bold text-foreground uppercase tracking-wider text-[10px] flex items-center gap-1.5">
-              <Compass className="w-3.5 h-3.5 text-accent" />
-              Results —{' '}
-              <span className="font-mono text-accent normal-case">
-                {selectedQuery || 'All companies'}
-              </span>
-              <Badge
-                variant="outline"
-                className="ml-1 text-[9px] h-4 px-1.5 border-accent/30 text-accent"
-              >
-                {results.length}
-              </Badge>
-            </h3>
-            <div className="flex items-center gap-2">
-              {selectedJob?.status === 'running' && (
-                <span className="text-[9px] text-blue-400 flex items-center gap-1 animate-pulse">
-                  <Activity className="w-3 h-3" /> Scraping live...
-                </span>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 text-[10px] text-muted-foreground"
-                onClick={() => setSelectedJobId(null)}
-              >
-                ✕ Dismiss
-              </Button>
-            </div>
-          </div>
+      {/* RESULTS PANEL — presented in a bottom-sliding sheet overlay */}
+      <Sheet open={!!selectedJobId} onOpenChange={(isOpen) => { if (!isOpen) setSelectedJobId(null); }}>
+        <SheetContent side="bottom" className="max-h-[70dvh] border-t border-border-subtle bg-card shadow-2xl p-0 flex flex-col">
+          {selectedJobId && (
+            <div className="flex flex-col h-full min-h-0 text-xs font-sans">
+              <div className="px-4 py-3 border-b border-border-subtle flex flex-wrap gap-2 justify-between items-center bg-accent/5 sticky top-0 z-10 backdrop-blur-md">
+                <h3 className="font-bold text-foreground uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                  <Compass className="w-3.5 h-3.5 text-accent" />
+                  Results —{' '}
+                  <span className="font-mono text-accent normal-case">
+                    {selectedQuery || 'All companies'}
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className="ml-1 text-[9px] h-4 px-1.5 border-accent/30 text-accent"
+                  >
+                    {results.length}
+                  </Badge>
+                </h3>
+                <div className="flex items-center gap-2 pr-8">
+                  {selectedJob?.status === 'running' && (
+                    <span className="text-[9px] text-blue-400 flex items-center gap-1 animate-pulse">
+                      <Activity className="w-3.5 h-3.5" /> Scraping live...
+                    </span>
+                  )}
+                </div>
+              </div>
 
-          {companiesQuery.isLoading ? (
-            <div className="p-8 text-center text-muted-foreground">Loading...</div>
-          ) : results.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">
-              {selectedJob?.status === 'running'
-                ? 'Scraper is running — results will appear here...'
-                : 'No leads found for this query.'}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[640px]">
-                <thead>
-                  <tr className="bg-sunken border-b border-border-subtle text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
-                    <th className="px-4 py-2.5">Company</th>
-                    <th className="px-4 py-2.5">Website</th>
-                    <th className="px-4 py-2.5">Phone</th>
-                    <th className="px-4 py-2.5">Location</th>
-                    <th className="px-4 py-2.5">Contacts / Emails</th>
-                    <th className="px-4 py-2.5 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-subtle/50">
-                  {results.map((res) => {
-                    const companyContacts = existingContacts.filter(
-                      (ct) => ct.companyId === res.id
-                    );
-                    const emailContacts = companyContacts.filter((ct) => ct.email);
-                    const primaryEmail = emailContacts[0]?.email;
+              <div className="flex-1 min-h-0 overflow-auto px-4 pb-4 pt-0">
+                {companiesQuery.isLoading ? (
+                  <div className="p-8 text-center text-muted-foreground">Loading...</div>
+                ) : results.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    {selectedJob?.status === 'running'
+                      ? 'Scraper is running — results will appear here...'
+                      : 'No leads found for this query.'}
+                  </div>
+                ) : (
+                  <table className="w-full text-left border-separate border-spacing-0 min-w-[640px]">
+                      <thead>
+                        <tr className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
+                          <th className="sticky top-0 z-10 px-4 py-2.5 bg-sunken border-b border-border-subtle">Company</th>
+                          <th className="sticky top-0 z-10 px-4 py-2.5 bg-sunken border-b border-border-subtle">Website</th>
+                          <th className="sticky top-0 z-10 px-4 py-2.5 bg-sunken border-b border-border-subtle">Phone</th>
+                          <th className="sticky top-0 z-10 px-4 py-2.5 bg-sunken border-b border-border-subtle">Location</th>
+                          <th className="sticky top-0 z-10 px-4 py-2.5 bg-sunken border-b border-border-subtle">Contacts / Emails</th>
+                          <th className="sticky top-0 z-10 px-4 py-2.5 text-right bg-sunken border-b border-border-subtle">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border-subtle/50">
+                        {results.map((res) => {
+                          const companyContacts = existingContacts.filter(
+                            (ct) => ct.companyId === res.id
+                          );
+                          const emailContacts = companyContacts.filter((ct) => ct.email);
+                          const primaryEmail = emailContacts[0]?.email;
 
-                    return (
-                      <tr key={res.id} className="hover:bg-sunken/10 transition-colors">
-                        <td className="px-4 py-3">
-                          <div className="font-semibold text-foreground leading-snug">
-                            {res.name}
-                          </div>
-                          {res.rating != null && (
-                            <span className="text-[9px] text-amber-400">★ {res.rating}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 max-w-[160px]">
-                          {res.website ? (
-                            <a
-                              href={res.website}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-mono text-accent hover:underline truncate block text-[10px]"
-                            >
-                              {res.domain || res.website}
-                            </a>
-                          ) : (
-                            <span className="opacity-40">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                          {res.phone || <span className="opacity-40">—</span>}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground max-w-[180px]">
-                          <span className="truncate block">
-                            {res.location || <span className="opacity-40">—</span>}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          {(() => {
-                            const execContacts = companyContacts.filter(
-                              (ct) => ct.type === 'executive' || ct.sourcePlatform === 'linkedin'
-                            );
-                            return (
-                              <div className="flex flex-col gap-1 items-start">
-                                {emailContacts.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="bg-blue-500/10 text-blue-400 border-blue-500/20 font-bold text-[9px]"
-                                  >
-                                    <Mail className="w-2.5 h-2.5 mr-1" />
-                                    {emailContacts.length} email
-                                    {emailContacts.length > 1 ? 's' : ''} · {primaryEmail}
-                                  </Badge>
+                          return (
+                            <tr key={res.id} className="hover:bg-sunken/10 transition-colors">
+                              <td className="px-4 py-3">
+                                <div className="font-semibold text-foreground leading-snug">
+                                  {res.name}
+                                </div>
+                                {res.rating != null && (
+                                  <span className="text-[9px] text-amber-400">★ {res.rating}</span>
                                 )}
-                                {execContacts.length > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="bg-violet-500/10 text-violet-400 border-violet-500/20 font-bold text-[9px]"
+                              </td>
+                              <td className="px-4 py-3 max-w-[160px]">
+                                {res.website ? (
+                                  <a
+                                    href={res.website}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-mono text-accent hover:underline truncate block text-[10px]"
                                   >
-                                    <UserCheck className="w-2.5 h-2.5 mr-1" />
-                                    {execContacts.length} Exec{execContacts.length > 1 ? 's' : ''} (
-                                    {execContacts[0].firstName} {execContacts[0].lastName || ''})
-                                  </Badge>
+                                    {res.domain || res.website}
+                                  </a>
+                                ) : (
+                                  <span className="opacity-40">—</span>
                                 )}
-                                {emailContacts.length === 0 &&
-                                  execContacts.length === 0 &&
-                                  companyContacts.length > 0 && (
-                                    <Badge
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                                {res.phone || <span className="opacity-40">—</span>}
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground max-w-[180px]">
+                                <span className="truncate block">
+                                  {res.location || <span className="opacity-40">—</span>}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                {(() => {
+                                  const execContacts = companyContacts.filter(
+                                    (ct) => ct.type === 'executive' || ct.sourcePlatform === 'linkedin'
+                                  );
+                                  return (
+                                    <div className="flex flex-col gap-1 items-start">
+                                      {emailContacts.length > 0 && (
+                                        <Badge
+                                          variant="outline"
+                                          className="bg-blue-500/10 text-blue-400 border-blue-500/20 font-bold text-[9px]"
+                                        >
+                                          <Mail className="w-2.5 h-2.5 mr-1" />
+                                          {emailContacts.length} email
+                                          {emailContacts.length > 1 ? 's' : ''} · {primaryEmail}
+                                        </Badge>
+                                      )}
+                                      {execContacts.length > 0 && (
+                                        <Badge
+                                          variant="outline"
+                                          className="bg-violet-500/10 text-violet-400 border-violet-500/20 font-bold text-[9px]"
+                                        >
+                                          <UserCheck className="w-2.5 h-2.5 mr-1" />
+                                          {execContacts.length} Exec{execContacts.length > 1 ? 's' : ''} (
+                                          {execContacts[0].firstName} {execContacts[0].lastName || ''})
+                                        </Badge>
+                                      )}
+                                      {emailContacts.length === 0 &&
+                                        execContacts.length === 0 &&
+                                        companyContacts.length > 0 && (
+                                          <Badge
+                                            variant="outline"
+                                            className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 font-bold text-[9px]"
+                                          >
+                                            <Phone className="w-2.5 h-2.5 mr-1" />
+                                            Phone saved
+                                          </Badge>
+                                        )}
+                                      {companyContacts.length === 0 && (
+                                        <span className="opacity-40">No contacts yet</span>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="flex justify-end gap-1.5">
+                                  {res.website && (
+                                    <Button
                                       variant="outline"
-                                      className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 font-bold text-[9px]"
+                                      size="sm"
+                                      onClick={() =>
+                                        enrichCompanyMutation.mutate({
+                                          companyId: res.id,
+                                          website: res.website
+                                        })
+                                      }
+                                      disabled={enrichCompanyMutation.isPending}
+                                      title="Crawl website for email addresses"
+                                      className="h-6 text-[10px] gap-1 font-semibold border-accent/30 text-accent hover:bg-accent/10"
                                     >
-                                      <Phone className="w-2.5 h-2.5 mr-1" />
-                                      Phone saved
-                                    </Badge>
+                                      <Sparkles className="w-3 h-3" />
+                                      Crawl
+                                    </Button>
                                   )}
-                                {companyContacts.length === 0 && (
-                                  <span className="opacity-40">No contacts yet</span>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex justify-end gap-1.5">
-                            {res.website && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  enrichCompanyMutation.mutate({
-                                    companyId: res.id,
-                                    website: res.website
-                                  })
-                                }
-                                disabled={enrichCompanyMutation.isPending}
-                                title="Crawl website for email addresses"
-                                className="h-6 text-[10px] gap-1 font-semibold border-accent/30 text-accent hover:bg-accent/10"
-                              >
-                                <Sparkles className="w-3 h-3" />
-                                Crawl
-                              </Button>
-                            )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                enrichLinkedInMutation.mutate({
-                                  companyId: res.id,
-                                  companyName: res.name,
-                                  domain: res.domain
-                                })
-                              }
-                              disabled={enrichLinkedInMutation.isPending}
-                              title="Scrape executive decision makers (CEOs, VPs, Directors)"
-                              className="h-6 text-[10px] gap-1 font-semibold border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
-                            >
-                              <Linkedin className="w-3 h-3" />
-                              Execs
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      enrichLinkedInMutation.mutate({
+                                        companyId: res.id,
+                                        companyName: res.name,
+                                        domain: res.domain
+                                      })
+                                    }
+                                    disabled={enrichLinkedInMutation.isPending}
+                                    title="Scrape executive decision makers (CEOs, VPs, Directors)"
+                                    className="h-6 text-[10px] gap-1 font-semibold border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                                  >
+                                    <Linkedin className="w-3 h-3" />
+                                    Execs
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            )}
+        </SheetContent>
+      </Sheet>
 
       {/* JOB QUEUE — collapsible, crawler:website collapsed into a count */}
       <div className="bg-card border border-border-subtle rounded-xl overflow-hidden shadow-sm">
