@@ -71,22 +71,6 @@ automationRouter.get('/executions/:id', async (c) => {
   return c.json(successResponse(exec));
 });
 
-automationRouter.post('/executions/start', async (c) => {
-  const wsId = getWorkspaceId(c);
-  const body = await c.req.json();
-  const service = new AutomationService(wsId);
-  const exec = await service.startExecution(body.sequenceId, body);
-  return c.json(successResponse(exec));
-});
-
-automationRouter.post('/executions/:id/stop', async (c) => {
-  const wsId = getWorkspaceId(c);
-  const id = c.req.param('id');
-  const service = new AutomationService(wsId);
-  const exec = await service.stopExecution(id);
-  return c.json(successResponse(exec));
-});
-
 automationRouter.get('/executions/:id/logs', async (c) => {
   const wsId = getWorkspaceId(c);
   const id = c.req.param('id');
