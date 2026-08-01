@@ -159,7 +159,10 @@ export function registerOnboardingIpc() {
     const sampleSequence = {
       id: 'sseq-01',
       name: 'Standard SaaS Sequence',
-      stepsJson: JSON.stringify([
+      description: 'A pre-configured outreach sequence for SaaS leads.',
+      status: 'active',
+      trigger: JSON.stringify({ type: 'MANUAL', config: {} }),
+      steps: JSON.stringify([
         {
           name: 'Initial Introduction',
           delayDays: 0,
@@ -259,10 +262,18 @@ export function registerOnboardingIpc() {
 
       db.prepare(
         `
-        INSERT INTO sequences (id, workspaceId, name, stepsJson, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+        INSERT INTO sequences (id, workspaceId, name, description, status, trigger, steps, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
       `
-      ).run(sampleSequence.id, workspaceId, sampleSequence.name, sampleSequence.stepsJson);
+      ).run(
+        sampleSequence.id,
+        workspaceId,
+        sampleSequence.name,
+        sampleSequence.description,
+        sampleSequence.status,
+        sampleSequence.trigger,
+        sampleSequence.steps
+      );
 
       db.prepare(
         `
