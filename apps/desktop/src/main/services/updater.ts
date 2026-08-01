@@ -27,7 +27,9 @@ export class GitHubUpdateProvider implements UpdateProvider {
   async checkForUpdate(currentVersion: string, _channel: string): Promise<UpdateCheckResult> {
     try {
       const url = `https://api.github.com/repos/${this.owner}/${this.repo}/releases`;
+      console.log(url)
       const res = await fetch(url, { headers: { 'User-Agent': 'LeadForge-OS' } });
+      console.log(res)
       if (res.status === 404) {
         AppLogger.info('Updater', 'No releases found on GitHub for this repository.', undefined);
         return { updateAvailable: false, version: app.getVersion() };
@@ -37,12 +39,14 @@ export class GitHubUpdateProvider implements UpdateProvider {
       }
 
       const releases = (await res.json()) as any[];
+      console.log(releases)
       if (!Array.isArray(releases) || releases.length === 0) {
         AppLogger.info('Updater', 'No releases published yet on GitHub for this repository.', undefined);
         return { updateAvailable: false, version: app.getVersion() };
       }
 
       const release = releases.find((r: any) => !r.draft);
+      console.log(release)
       if (!release) {
         AppLogger.info('Updater', 'No non-draft releases found.', undefined);
         return { updateAvailable: false, version: app.getVersion() };
