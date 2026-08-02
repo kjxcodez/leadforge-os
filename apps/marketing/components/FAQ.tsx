@@ -3,6 +3,7 @@
 import React, { useState } from "react"
 import { motion, AnimatePresence } from "motion/react"
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion"
+import { HelpCircle, ChevronRight, MessageSquare } from "lucide-react"
 
 interface FAQItemProps {
   question: string
@@ -14,21 +15,22 @@ function FAQItem({ question, answer, prefersReducedMotion }: FAQItemProps) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <div className="border-b border-[var(--border-subtle)] first:border-t">
+    <div className="border border-[var(--border-subtle)] rounded-lg bg-[rgba(10,10,12,0.4)] backdrop-blur mb-3 overflow-hidden text-left font-mono">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex w-full items-center justify-between py-6 text-left text-sm font-medium text-[var(--foreground)] hover:text-[var(--foreground)] select-none cursor-pointer"
+        className="flex w-full items-center justify-between p-4.5 text-xs font-semibold text-white select-none cursor-pointer hover:bg-[rgba(255,255,255,0.015)] transition-colors"
       >
-        <span>{question}</span>
+        <span className="pr-4">{question}</span>
         
-        {/* Precise Plus/Minus Morphing Icon */}
-        <span className="relative h-4 w-4 shrink-0 text-[var(--text-tertiary)] flex items-center justify-center">
-          <span className="absolute h-[1.5px] w-3 bg-currentColor" />
-          <motion.span 
-            className="absolute h-3 w-[1.5px] bg-currentColor"
-            animate={{ rotate: isOpen ? 90 : 0, scaleY: isOpen ? 0 : 1 }}
-            transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.15, ease: "easeOut" }}
-          />
+        {/* Animated Chevron Indicator */}
+        <span className="relative h-4.5 w-4.5 shrink-0 text-[var(--text-tertiary)] flex items-center justify-center border border-[var(--border-subtle)] rounded bg-[rgba(10,10,12,0.6)]">
+          <motion.span
+            animate={{ rotate: isOpen ? 90 : 0 }}
+            transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: "easeOut" }}
+            className="flex items-center justify-center"
+          >
+            <ChevronRight className="h-3 w-3" />
+          </motion.span>
         </span>
       </button>
 
@@ -38,10 +40,10 @@ function FAQItem({ question, answer, prefersReducedMotion }: FAQItemProps) {
             initial={prefersReducedMotion ? { height: "auto", opacity: 1 } : { height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={prefersReducedMotion ? { height: 0, opacity: 0 } : { height: 0, opacity: 0 }}
-            transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: "easeInOut" }}
+            transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.22, ease: "easeInOut" }}
             className="overflow-hidden"
           >
-            <p className="text-xs leading-relaxed text-[var(--muted-foreground)] pb-6 max-w-2xl">
+            <p className="text-[10px] sm:text-[11px] leading-relaxed text-[var(--text-secondary)] p-4.5 pt-0 border-t border-[var(--border-subtle)] bg-[rgba(5,5,6,0.2)] font-sans">
               {answer}
             </p>
           </motion.div>
@@ -56,44 +58,40 @@ export function FAQ() {
 
   const faqData = [
     {
-      question: "Where does my lead data actually live?",
-      answer: "In a SQLite database on your machine, isolated per workspace. The cloud only receives what the sync engine pushes in the background — it's a backup and collaboration layer, not the primary store.",
+      question: "Where is my campaign and prospect data stored?",
+      answer: "Every lead profile, scrap list, and campaign sequence resides inside a secure SQLite database stored locally in your operating system container. No cloud infrastructure parses your raw outbound sequences.",
     },
     {
-      question: "Does LeadForge OS work offline?",
-      answer: "Yes. Discovery, crawling, scoring, and campaign editing all run against your local database. Sending email and polling for replies need a connection; everything else keeps working without one.",
+      question: "Can I manage outbound tasks completely offline?",
+      answer: "Yes. Lead discovery, contact enrichment, and local sequence modeling operate natively on your system database without active internet. Network sockets are only opened when sending mail relays or syncing cloud backups.",
     },
     {
-      question: "How are my SMTP and LinkedIn credentials stored?",
-      answer: "Through your operating system's own keychain, using Electron's safeStorage encryption. Nothing is held in plaintext, and nothing is uploaded to a third-party server to run a campaign.",
+      question: "How are sensitive SMTP and service tokens protected?",
+      answer: "Tokens and SMTP credentials are encrypted directly through Electron's safeStorage bridge, locking them to your operating system's native keychain (such as Windows Credentials Manager or macOS Keychain).",
     },
     {
-      question: "Can I migrate away from Apollo, Instantly, or Lemlist?",
-      answer: "You can import existing contact lists directly into a workspace. There's no lock-in on our end — your data lives in a local SQLite file you can read, export, or move at any time.",
-    },
-    {
-      question: "How is LeadForge priced?",
-      answer: "You're paying for the software, not per-seat cloud infrastructure to run scraping and crawling — because that work happens on your own hardware instead of ours.",
+      question: "Is there a limit on seat licenses or active campaigns?",
+      answer: "No. Since scraping, crawling, and scheduling operations leverage your machine's physical hardware threads instead of our server units, we do not impose seat caps or paywalls on lead database size.",
     },
   ]
 
   return (
-    <section id="faq" className="py-24 border-t border-[var(--border-subtle)] bg-[var(--background)]">
+    <section id="faq" className="py-24 border-t border-[var(--border-subtle)] bg-[#09090B] relative overflow-hidden">
       <div className="container mx-auto px-6">
         
         {/* Section Header */}
-        <div className="max-w-2xl mb-12">
-          <div className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-[var(--muted-foreground)] mb-4">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)]"></span>
-            FAQ
+        <div className="max-w-2xl mb-12 text-left">
+          <div className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] mb-3">
+            <MessageSquare className="h-3.5 w-3.5 text-[var(--primary)]" />
+            General Q&amp;A
           </div>
-          <h2 className="text-3xl font-semibold tracking-tight text-[var(--foreground)] mb-4 md:text-4xl">
+          <h2 className="text-3xl font-bold tracking-tight text-white mb-4 md:text-4xl">
             Questions worth asking
           </h2>
         </div>
 
-        {/* FAQ List */}
-        <div className="max-w-2xl">
+        {/* FAQ Accordion List */}
+        <div className="max-w-2xl mx-auto">
           {faqData.map((item, idx) => (
             <FAQItem
               key={idx}

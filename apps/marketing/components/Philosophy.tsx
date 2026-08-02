@@ -3,27 +3,26 @@
 import React, { useRef, useState, useEffect } from "react"
 import { motion, useScroll, useTransform, Variants } from "motion/react"
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion"
+import { Shield, Sparkles, Send, Target, Compass, Network, HelpCircle } from "lucide-react"
 
 export function Philosophy() {
   const containerRef = useRef<HTMLDivElement>(null)
   const prefersReducedMotion = usePrefersReducedMotion()
 
-  // Scroll link for connection line
+  // Scroll linked path animation
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start center", "end center"],
   })
-
-  // Animate pathLength from 0 to 1 as the philosophy block is scrolled past
   const pathLength = useTransform(scrollYProgress, [0.1, 0.8], [0, 1])
 
-  // Option A Sandbox state
-  const [fit, setFit] = useState(80)
+  // Sandbox states
+  const [fit, setFit] = useState(85)
   const [sizeIndex, setSizeIndex] = useState(2) // 51-200
   const [intentIndex, setIntentIndex] = useState(2) // High
   const [urgencyIndex, setUrgencyIndex] = useState(1) // Medium
-  const [score, setScore] = useState(76)
-  const [displayedScore, setDisplayedScore] = useState(76)
+  const [score, setScore] = useState(82)
+  const [displayedScore, setDisplayedScore] = useState(82)
 
   const sizeOptions = [
     { label: "1-10", weight: 20 },
@@ -45,7 +44,7 @@ export function Philosophy() {
     { label: "High", weight: 100 },
   ]
 
-  // Calculate score in real time
+  // Calculate score
   useEffect(() => {
     const fitWeight = fit * 0.35
     const sizeWeight = sizeOptions[sizeIndex].weight * 0.20
@@ -56,7 +55,7 @@ export function Philosophy() {
     setScore(computed)
   }, [fit, sizeIndex, intentIndex, urgencyIndex])
 
-  // Count/Animate display of score unless reduced motion is on
+  // Count/Animate display of score
   useEffect(() => {
     if (prefersReducedMotion) {
       setDisplayedScore(score)
@@ -67,7 +66,7 @@ export function Philosophy() {
     const end = score
     if (start === end) return
 
-    const duration = 250 // ms
+    const duration = 250
     const startTime = performance.now()
 
     const step = (now: number) => {
@@ -85,14 +84,13 @@ export function Philosophy() {
   }, [score, prefersReducedMotion])
 
   const getStatus = (val: number) => {
-    if (val >= 75) return { label: "Hot", bg: "bg-primary/12 text-primary border border-primary/20" }
-    if (val >= 45) return { label: "Warm", bg: "bg-warning/12 text-warning border border-warning/20" }
-    return { label: "Cold", bg: "bg-[var(--secondary)] text-[var(--muted-foreground)] border border-[var(--border-subtle)]" }
+    if (val >= 75) return { label: "Priority: Hot", bg: "bg-primary/10 text-primary border-primary/20" }
+    if (val >= 45) return { label: "Priority: Warm", bg: "bg-amber-500/10 text-amber-400 border-amber-500/20" }
+    return { label: "Priority: Cold", bg: "bg-zinc-800 text-zinc-400 border-zinc-700" }
   }
 
   const status = getStatus(score)
 
-  // Card list hover micro-animations variants
   const iconVariants: Variants = {
     rest: { rotate: 0, scale: 1 },
     hover: { 
@@ -103,26 +101,29 @@ export function Philosophy() {
   }
 
   return (
-    <section id="philosophy" ref={containerRef} className="py-24 border-t border-[var(--border-subtle)] bg-[var(--background)]">
+    <section id="philosophy" ref={containerRef} className="py-24 border-t border-[var(--border-subtle)] bg-[#09090B] relative overflow-hidden">
+      {/* Subtle background details */}
+      <div className="absolute top-[10%] left-[20%] w-[250px] h-[250px] bg-primary/5 rounded-full blur-[80px] pointer-events-none" />
+
       <div className="container mx-auto px-6">
         
         {/* Section Header */}
-        <div className="max-w-2xl mb-16">
-          <div className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-[var(--muted-foreground)] mb-4">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)]"></span>
-            Philosophy
+        <div className="max-w-2xl mb-16 text-left">
+          <div className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] mb-3">
+            <Sparkles className="h-3.5 w-3.5 text-[var(--primary)]" />
+            Core Philosophy
           </div>
-          <h2 className="text-3xl font-semibold tracking-tight text-[var(--foreground)] mb-4 md:text-4xl">
-            Transform. Execute. Grow.
+          <h2 className="text-3xl font-bold tracking-tight text-white mb-4 md:text-4xl">
+            Clean pipelines, local execution.
           </h2>
-          <p className="text-[var(--muted-foreground)] leading-relaxed text-sm md:text-base">
-            Everything in LeadForge OS follows one loop. Raw information becomes structured intelligence, structured intelligence becomes executed outreach, and executed outreach becomes pipeline — without ever leaving your machine.
+          <p className="text-[var(--text-secondary)] leading-relaxed text-xs sm:text-sm">
+            We believe B2B outbound workflows should run locally inside your system container. Everything follows a zero-loss cycle: discover, qualify, verify, and dispatch.
           </p>
         </div>
 
         {/* Philosophy Columns */}
-        <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-          {/* Scroll-Linked Connection SVG Line (hidden on mobile, displayed on desktop) */}
+        <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 select-none">
+          {/* Scroll-Linked Connection SVG Line */}
           <div className="absolute top-1/2 left-0 right-0 -translate-y-1/2 -z-10 hidden md:block px-24">
             <svg className="w-full h-1" viewBox="0 0 1000 4" fill="none" preserveAspectRatio="none">
               <motion.path 
@@ -137,192 +138,153 @@ export function Philosophy() {
 
           {/* Column 1: Transform */}
           <motion.div 
-            initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+            initial={prefersReducedMotion ? {} : { opacity: 0, y: 15 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-100px" }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className="flex flex-col justify-between rounded-lg border border-[var(--border-subtle)] bg-[var(--card)] p-6"
+            viewport={{ once: true, margin: "-80px" }}
+            className="flex flex-col justify-between rounded-lg border border-[var(--border-subtle)] bg-[rgba(10,10,12,0.45)] backdrop-blur p-6 text-left hover:border-[var(--border-strong)] transition-all duration-200"
           >
             <div>
-              <div className="font-mono text-xs font-semibold text-[var(--primary)] mb-4">01 — Transform</div>
-              <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">Turn a search into structured companies and contacts</h3>
-              <p className="text-xs text-[var(--muted-foreground)] mb-6">Discovery runs entirely on your desktop hardware.</p>
+              <div className="font-mono text-[10px] font-bold text-[var(--primary)] mb-4">01 — Pipeline Discovery</div>
+              <h3 className="text-sm font-bold text-white mb-2">Turn local searches into verified profiles</h3>
+              <p className="text-[10px] text-[var(--text-tertiary)] mb-6">HEADLESS Google Maps scraping crawls listings directly.</p>
               
-              <ul className="flex flex-col gap-4 text-xs">
-                <motion.li whileHover="hover" initial="rest" className="flex gap-2.5 text-[var(--muted-foreground)] items-start cursor-default">
-                  <motion.svg variants={iconVariants} className="h-4 w-4 shrink-0 text-[var(--text-tertiary)] mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <circle cx="11" cy="11" r="7" />
-                    <path d="M21 21l-4.3-4.3" />
-                  </motion.svg>
+              <ul className="flex flex-col gap-4 text-[11px] text-[var(--text-secondary)] font-sans">
+                <li className="flex gap-2.5 items-start">
+                  <Compass className="h-4 w-4 shrink-0 text-[var(--primary)] mt-0.5" />
                   <span>
-                    <b className="text-[var(--foreground)] font-medium">Maps discovery</b> — headless search finds companies by industry and geography.
+                    <b className="text-white font-medium">Headless Scrapers</b> — local Chromium containers parse listing maps.
                   </span>
-                </motion.li>
-                <motion.li whileHover="hover" initial="rest" className="flex gap-2.5 text-[var(--muted-foreground)] items-start cursor-default">
-                  <motion.svg variants={iconVariants} className="h-4 w-4 shrink-0 text-[var(--text-tertiary)] mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M12 20l9-16H3z" />
-                  </motion.svg>
+                </li>
+                <li className="flex gap-2.5 items-start">
+                  <Network className="h-4 w-4 shrink-0 text-[var(--primary)] mt-0.5" />
                   <span>
-                    <b className="text-[var(--foreground)] font-medium">Website crawling</b> — a breadth-first crawler pulls verified emails and phone numbers from each domain.
+                    <b className="text-white font-medium">Domain Crawling</b> — asynchronous loops scan homepages for verified handles.
                   </span>
-                </motion.li>
-                <motion.li whileHover="hover" initial="rest" className="flex gap-2.5 text-[var(--muted-foreground)] items-start cursor-default">
-                  <motion.svg variants={iconVariants} className="h-4 w-4 shrink-0 text-[var(--text-tertiary)] mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <rect x="4" y="4" width="16" height="16" rx="3" />
-                  </motion.svg>
-                  <span>
-                    <b className="text-[var(--foreground)] font-medium">Decision-maker enrichment</b> — finds the CEO, founder, or VP behind each company, not just a generic inbox.
-                  </span>
-                </motion.li>
+                </li>
               </ul>
             </div>
           </motion.div>
 
           {/* Column 2: Execute */}
           <motion.div 
-            initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+            initial={prefersReducedMotion ? {} : { opacity: 0, y: 15 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-100px" }}
-            transition={{ duration: 0.3, delay: prefersReducedMotion ? 0 : 0.1, ease: "easeOut" }}
-            className="flex flex-col justify-between rounded-lg border border-[var(--border-subtle)] bg-[var(--card)] p-6"
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ delay: 0.1 }}
+            className="flex flex-col justify-between rounded-lg border border-[var(--border-subtle)] bg-[rgba(10,10,12,0.45)] backdrop-blur p-6 text-left hover:border-[var(--border-strong)] transition-all duration-200"
           >
             <div>
-              <div className="font-mono text-xs font-semibold text-[var(--primary)] mb-4">02 — Execute</div>
-              <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">Run the outreach without leaving the app</h3>
-              <p className="text-xs text-[var(--muted-foreground)] mb-6">Sequences, sending, and replies stay under one roof.</p>
+              <div className="font-mono text-[10px] font-bold text-[var(--primary)] mb-4">02 — SMTP Execution</div>
+              <h3 className="text-sm font-bold text-white mb-2">Run sequences without third-party middleware</h3>
+              <p className="text-[10px] text-[var(--text-tertiary)] mb-6">Maintains direct SMTP socket connections locally.</p>
               
-              <ul className="flex flex-col gap-4 text-xs">
-                <motion.li whileHover="hover" initial="rest" className="flex gap-2.5 text-[var(--muted-foreground)] items-start cursor-default">
-                  <motion.svg variants={iconVariants} className="h-4 w-4 shrink-0 text-[var(--text-tertiary)] mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M4 12h16M12 4v16" />
-                  </motion.svg>
+              <ul className="flex flex-col gap-4 text-[11px] text-[var(--text-secondary)] font-sans">
+                <li className="flex gap-2.5 items-start">
+                  <Send className="h-4 w-4 shrink-0 text-[var(--primary)] mt-0.5" />
                   <span>
-                    <b className="text-[var(--foreground)] font-medium">Sequence builder</b> — drag-and-drop steps for waits, conditions, and sends, run in a sandboxed worker.
+                    <b className="text-white font-medium">Direct Sockets</b> — connects straight to mail exchange hosts.
                   </span>
-                </motion.li>
-                <motion.li whileHover="hover" initial="rest" className="flex gap-2.5 text-[var(--muted-foreground)] items-start cursor-default">
-                  <motion.svg variants={iconVariants} className="h-4 w-4 shrink-0 text-[var(--text-tertiary)] mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M4 6h16v12H4z" />
-                    <path d="M4 6l8 7 8-7" />
-                  </motion.svg>
+                </li>
+                <li className="flex gap-2.5 items-start">
+                  <Shield className="h-4 w-4 shrink-0 text-[var(--primary)] mt-0.5" />
                   <span>
-                    <b className="text-[var(--foreground)] font-medium">Direct SMTP sending</b> — your own mail credentials, rate-limited and check-pointed, no shared sending pool.
+                    <b className="text-white font-medium">Encrypted Storage</b> — handles credentials in the OS secure vault.
                   </span>
-                </motion.li>
-                <motion.li whileHover="hover" initial="rest" className="flex gap-2.5 text-[var(--muted-foreground)] items-start cursor-default">
-                  <motion.svg variants={iconVariants} className="h-4 w-4 shrink-0 text-[var(--text-tertiary)] mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0z" />
-                    <path d="M9 12l2 2 4-4" />
-                  </motion.svg>
-                  <span>
-                    <b className="text-[var(--foreground)] font-medium">Reply detection</b> — an inbox poller stops a sequence the moment a contact replies, bounces, or unsubscribes.
-                  </span>
-                </motion.li>
+                </li>
               </ul>
             </div>
           </motion.div>
 
           {/* Column 3: Grow */}
           <motion.div 
-            initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+            initial={prefersReducedMotion ? {} : { opacity: 0, y: 15 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-100px" }}
-            transition={{ duration: 0.3, delay: prefersReducedMotion ? 0 : 0.2, ease: "easeOut" }}
-            className="flex flex-col justify-between rounded-lg border border-[var(--border-subtle)] bg-[var(--card)] p-6"
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ delay: 0.2 }}
+            className="flex flex-col justify-between rounded-lg border border-[var(--border-subtle)] bg-[rgba(10,10,12,0.45)] backdrop-blur p-6 text-left hover:border-[var(--border-strong)] transition-all duration-200"
           >
             <div>
-              <div className="font-mono text-xs font-semibold text-[var(--primary)] mb-4">03 — Grow</div>
-              <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">Know which leads are worth your next hour</h3>
-              <p className="text-xs text-[var(--muted-foreground)] mb-6">Every company is scored, not just stored.</p>
+              <div className="font-mono text-[10px] font-bold text-[var(--primary)] mb-4">03 — Local Intel</div>
+              <h3 className="text-sm font-bold text-white mb-2">Score and prioritize leads on hardware</h3>
+              <p className="text-[10px] text-[var(--text-tertiary)] mb-6">Runs qualification scoring using local vectors.</p>
               
-              <ul className="flex flex-col gap-4 text-xs">
-                <motion.li whileHover="hover" initial="rest" className="flex gap-2.5 text-[var(--muted-foreground)] items-start cursor-default">
-                  <motion.svg variants={iconVariants} className="h-4 w-4 shrink-0 text-[var(--text-tertiary)] mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M4 20V10M12 20V4M20 20v-7" />
-                  </motion.svg>
+              <ul className="flex flex-col gap-4 text-[11px] text-[var(--text-secondary)] font-sans">
+                <li className="flex gap-2.5 items-start">
+                  <Target className="h-4 w-4 shrink-0 text-[var(--primary)] mt-0.5" />
                   <span>
-                    <b className="text-[var(--foreground)] font-medium">Opportunity scoring</b> — fit, size, intent, and urgency combine into one 0–100 score, sorted into Hot, Warm, and Cold queues.
+                    <b className="text-white font-medium">Fit Analysis</b> — weights ICP rules instantly inside the sandbox.
                   </span>
-                </motion.li>
-                <motion.li whileHover="hover" initial="rest" className="flex gap-2.5 text-[var(--muted-foreground)] items-start cursor-default">
-                  <motion.svg variants={iconVariants} className="h-4 w-4 shrink-0 text-[var(--text-tertiary)] mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" />
-                  </motion.svg>
+                </li>
+                <li className="flex gap-2.5 items-start">
+                  <Sparkles className="h-4 w-4 shrink-0 text-[var(--primary)] mt-0.5" />
                   <span>
-                    <b className="text-[var(--foreground)] font-medium">Intent signals</b> — pricing pages, trial sign-ups, and case studies are read directly off a company's site.
+                    <b className="text-white font-medium">AI Copywriting</b> — drafts custom hooks based on domain scrapes.
                   </span>
-                </motion.li>
-                <motion.li whileHover="hover" initial="rest" className="flex gap-2.5 text-[var(--muted-foreground)] items-start cursor-default">
-                  <motion.svg variants={iconVariants} className="h-4 w-4 shrink-0 text-[var(--text-tertiary)] mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1" />
-                  </motion.svg>
-                  <span>
-                    <b className="text-[var(--foreground)] font-medium">AI-drafted opening lines</b> — grounded in the pain points found during discovery.
-                  </span>
-                </motion.li>
+                </li>
               </ul>
             </div>
           </motion.div>
         </div>
 
-        {/* Option A: Opportunity-Scoring Sandbox */}
+        {/* Scoring Sandbox */}
         <motion.div
-          initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+          initial={prefersReducedMotion ? {} : { opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
-          className="rounded-xl border border-[var(--border-default)] bg-[var(--card)] p-6 md:p-8"
+          className="rounded-xl border border-[var(--border-subtle)] bg-[rgba(10,10,12,0.55)] backdrop-blur p-6 md:p-8 text-left max-w-4xl mx-auto fresnel-highlight"
         >
           <div className="flex flex-col lg:flex-row gap-8">
             {/* Sliders Configuration */}
             <div className="flex-1">
               <div className="mb-6">
-                <span className="font-mono text-[9px] uppercase tracking-wider text-[var(--primary)] px-2 py-0.5 rounded bg-primary/10 border border-primary/20">
-                  Interactive Simulation
+                <span className="font-mono text-[9px] uppercase tracking-wider text-[var(--primary)] px-2.5 py-0.5 rounded bg-primary/10 border border-primary/20">
+                  Simulation Center
                 </span>
-                <h3 className="text-lg font-semibold text-[var(--foreground)] mt-2">
-                  Opportunity Scoring Sandbox
+                <h3 className="text-base font-bold text-white mt-2 font-mono">
+                  Opportunity Scoring Engine
                 </h3>
-                <p className="text-xs text-[var(--muted-foreground)]">
-                  Interact with variables to simulate how the LeadForge OS local analytics engine ranks inbound leads.
+                <p className="text-[11px] text-[var(--text-tertiary)]">
+                  Simulate local weighting coefficients mapping variables directly to priority tiers.
                 </p>
               </div>
 
-              <div className="space-y-5">
+              <div className="space-y-6">
                 {/* Fit Slider */}
                 <div>
-                  <div className="flex justify-between text-xs mb-1.5">
-                    <span className="font-medium text-[var(--foreground)]">Profile Fit (Fit score)</span>
-                    <span className="font-mono text-[var(--primary)]">{fit}%</span>
+                  <div className="flex justify-between text-[11px] mb-2 font-mono">
+                    <span className="text-[var(--text-secondary)]">Profile Match (Fit weight)</span>
+                    <span className="text-[var(--primary)] font-bold">{fit}%</span>
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={fit}
-                    onChange={(e) => setFit(Number(e.target.value))}
-                    className="w-full h-1 bg-[var(--background)] rounded-lg appearance-none cursor-pointer accent-[var(--primary)] border-none outline-none"
-                  />
-                  <div className="flex justify-between text-[9px] text-[var(--text-tertiary)] mt-1 select-none">
-                    <span>Weak Match (0)</span>
-                    <span>Exact ICP (100)</span>
+                  <div className="relative">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={fit}
+                      onChange={(e) => setFit(Number(e.target.value))}
+                      className="w-full h-1 bg-[var(--background)] rounded-lg appearance-none cursor-pointer accent-[var(--primary)] outline-none"
+                    />
+                  </div>
+                  <div className="flex justify-between text-[8.5px] text-[var(--text-tertiary)] font-mono mt-1.5 select-none">
+                    <span>Weak ICP Fit</span>
+                    <span>Exact Profile Match</span>
                   </div>
                 </div>
 
-                {/* Company Size Options Selector */}
+                {/* Company Size Selector */}
                 <div>
-                  <label className="block text-xs font-medium text-[var(--foreground)] mb-1.5">
-                    Company Size (Employees)
+                  <label className="block text-[11px] font-mono text-[var(--text-secondary)] mb-2">
+                    Company Scale (FTEs)
                   </label>
-                  <div className="grid grid-cols-5 gap-1.5">
+                  <div className="grid grid-cols-5 gap-1.5 font-mono">
                     {sizeOptions.map((opt, i) => (
                       <button
                         key={opt.label}
                         onClick={() => setSizeIndex(i)}
-                        className={`py-1.5 rounded text-[10px] font-mono border transition-all duration-150 ${
+                        className={`py-1.5 rounded text-[9.5px] border transition-all cursor-pointer ${
                           sizeIndex === i
-                            ? "bg-primary/10 text-primary border-primary/40"
-                            : "bg-[var(--background)] text-[var(--muted-foreground)] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
+                            ? "bg-primary/10 text-primary border-primary/30"
+                            : "bg-[var(--background)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
                         }`}
                       >
                         {opt.label}
@@ -333,18 +295,18 @@ export function Philosophy() {
 
                 {/* Intent Level Selector */}
                 <div>
-                  <label className="block text-xs font-medium text-[var(--foreground)] mb-1.5">
-                    Intent Signals (Activity / Tech Stack updates)
+                  <label className="block text-[11px] font-mono text-[var(--text-secondary)] mb-2">
+                    Tech Stack Intent Signals
                   </label>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-3 gap-1.5 font-mono">
                     {intentOptions.map((opt, i) => (
                       <button
                         key={opt.label}
                         onClick={() => setIntentIndex(i)}
-                        className={`py-1.5 rounded text-[10px] font-mono border transition-all duration-150 ${
+                        className={`py-1.5 rounded text-[9.5px] border transition-all cursor-pointer ${
                           intentIndex === i
-                            ? "bg-primary/10 text-primary border-primary/40"
-                            : "bg-[var(--background)] text-[var(--muted-foreground)] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
+                            ? "bg-primary/10 text-primary border-primary/30"
+                            : "bg-[var(--background)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
                         }`}
                       >
                         {opt.label}
@@ -355,18 +317,18 @@ export function Philosophy() {
 
                 {/* Urgency Selector */}
                 <div>
-                  <label className="block text-xs font-medium text-[var(--foreground)] mb-1.5">
-                    Urgency Indicators (Hiring spikes / Tech churn)
+                  <label className="block text-[11px] font-mono text-[var(--text-secondary)] mb-2">
+                    Hiring Activity &amp; Growth Spikes
                   </label>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-3 gap-1.5 font-mono">
                     {urgencyOptions.map((opt, i) => (
                       <button
                         key={opt.label}
                         onClick={() => setUrgencyIndex(i)}
-                        className={`py-1.5 rounded text-[10px] font-mono border transition-all duration-150 ${
+                        className={`py-1.5 rounded text-[9.5px] border transition-all cursor-pointer ${
                           urgencyIndex === i
-                            ? "bg-primary/10 text-primary border-primary/40"
-                            : "bg-[var(--background)] text-[var(--muted-foreground)] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
+                            ? "bg-primary/10 text-primary border-primary/30"
+                            : "bg-[var(--background)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
                         }`}
                       >
                         {opt.label}
@@ -377,70 +339,69 @@ export function Philosophy() {
               </div>
             </div>
 
-            {/* Calculated Output Card */}
-            <div className="w-full lg:w-[280px] rounded-lg border border-[var(--border-subtle)] bg-[var(--background)] p-5 flex flex-col justify-between">
+            {/* Simulated Record Card */}
+            <div className="w-full lg:w-[280px] rounded-lg border border-[var(--border-subtle)] bg-[rgba(9,9,10,0.85)] p-5 flex flex-col justify-between font-mono">
               <div>
                 <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-3 mb-4">
-                  <span className="font-mono text-[9px] uppercase tracking-wider text-[var(--muted-foreground)]">
-                    Local Record Preview
+                  <span className="text-[7.5px] uppercase text-[var(--text-tertiary)] font-bold">
+                    Database Record Preview
                   </span>
-                  <span className="text-[10px] font-mono text-[var(--text-tertiary)]">id: LF_829A</span>
+                  <span className="text-[8px] text-[var(--text-tertiary)]">ID: local_7a9f</span>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-3.5 text-[9.5px]">
                   <div>
-                    <div className="text-[10px] text-[var(--text-tertiary)]">Company Profile</div>
-                    <div className="text-xs font-semibold text-[var(--foreground)] leading-tight">Northline Analytics</div>
-                    <div className="text-[9px] text-[var(--muted-foreground)]">SaaS · Austin, TX</div>
+                    <div className="text-[7.5px] text-[var(--text-tertiary)] uppercase">Lead Domain</div>
+                    <div className="text-white font-bold leading-tight mt-0.5">vertex-solutions.io</div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-[var(--border-subtle)]">
+                  <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-[var(--border-subtle)]">
                     <div>
-                      <div className="text-[9px] text-[var(--text-tertiary)]">ICP Fit</div>
-                      <div className="text-[10px] font-mono text-[var(--foreground)] font-medium">{fit >= 70 ? "High Match" : fit >= 35 ? "Medium" : "Weak Match"}</div>
+                      <div className="text-[7.5px] text-[var(--text-tertiary)] uppercase">ICP Status</div>
+                      <div className="text-white mt-0.5 font-bold">{fit >= 70 ? "ICP Match" : fit >= 35 ? "Partial Match" : "Low Match"}</div>
                     </div>
                     <div>
-                      <div className="text-[9px] text-[var(--text-tertiary)]">Employees</div>
-                      <div className="text-[10px] font-mono text-[var(--foreground)] font-medium">{sizeOptions[sizeIndex].label}</div>
+                      <div className="text-[7.5px] text-[var(--text-tertiary)] uppercase">Scale Tier</div>
+                      <div className="text-white mt-0.5 font-bold">{sizeOptions[sizeIndex].label} FTEs</div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div className="grid grid-cols-2 gap-3 pt-2.5">
                     <div>
-                      <div className="text-[9px] text-[var(--text-tertiary)]">Web Intent</div>
-                      <div className="text-[10px] font-mono text-[var(--foreground)] font-medium">{intentOptions[intentIndex].label}</div>
+                      <div className="text-[7.5px] text-[var(--text-tertiary)] uppercase">Intent Level</div>
+                      <div className="text-white mt-0.5 font-bold">{intentOptions[intentIndex].label}</div>
                     </div>
                     <div>
-                      <div className="text-[9px] text-[var(--text-tertiary)]">Local Urgency</div>
-                      <div className="text-[10px] font-mono text-[var(--foreground)] font-medium">{urgencyOptions[urgencyIndex].label}</div>
+                      <div className="text-[7.5px] text-[var(--text-tertiary)] uppercase">Growth Urgency</div>
+                      <div className="text-white mt-0.5 font-bold">{urgencyOptions[urgencyIndex].label}</div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Dynamic Score Indicator Area */}
+              {/* Dynamic Score output */}
               <div className="mt-8 pt-4 border-t border-[var(--border-subtle)]">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-[9px] text-[var(--text-tertiary)]">Calculated Priority</div>
-                    <div className="flex items-baseline gap-1.5 mt-0.5">
-                      <span className="text-3xl font-semibold font-mono tracking-tight text-[var(--foreground)]">
+                    <div className="text-[7.5px] text-[var(--text-tertiary)] uppercase">Lead Score</div>
+                    <div className="flex items-baseline gap-1 mt-1">
+                      <span className="text-3xl font-semibold tracking-tight text-white">
                         {displayedScore}
                       </span>
-                      <span className="text-[10px] font-mono text-[var(--text-tertiary)]">/100</span>
+                      <span className="text-[9px] text-[var(--text-tertiary)]">/100</span>
                     </div>
                   </div>
 
                   <div className="flex flex-col items-end">
-                    <span className="text-[9px] text-[var(--text-tertiary)] mb-1">Queue Status</span>
-                    <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-[10px] font-semibold transition-all duration-300 ${status.bg}`}>
+                    <span className="text-[7.5px] text-[var(--text-tertiary)] uppercase mb-1">Queue status</span>
+                    <span className={`inline-flex items-center rounded px-2.5 py-0.5 text-[9px] font-bold tracking-wider uppercase transition-all duration-300 ${status.bg}`}>
                       {status.label}
                     </span>
                   </div>
                 </div>
 
-                {/* Score Progress Track Bar */}
-                <div className="mt-3.5 h-1.5 w-full bg-[var(--border-subtle)] rounded-full overflow-hidden">
+                {/* Progress bar */}
+                <div className="mt-4 h-1.5 w-full bg-[var(--border-subtle)] rounded-full overflow-hidden">
                   <motion.div 
                     className="h-full bg-[var(--primary)] rounded-full"
                     animate={{ width: `${score}%` }}
