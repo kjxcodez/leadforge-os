@@ -1,0 +1,209 @@
+[
+  {
+    "title": "ADR-001: AI Runtime Responsibilities",
+    "description": "Architectural Decision Record 1 mapping core software structure decisions.",
+    "category": "ADRs",
+    "slug": "adr/ADR-001-runtime-responsibilities",
+    "url": "/docs/adr/ADR-001-runtime-responsibilities",
+    "headings": [],
+    "text": "Status Proposed Context The leadforge ai package is currently a mix of providers prompt templates and output validation schemas As the application grows there is a risk of coupling this infrastructure to business workflows such as lead scoring or email campaigns We need a clear separation of concerns to support local-first models Ollama and cloud APIs OpenRouter interchangeably Decision We will restrict leadforge ai to low-level runtime concerns 1 Providers OpenRouter Ollama and mock configurations 2 Prompts Compilation rendering and loading from static YAML assets 3 Structured Validation Output validation using Zod schemas 4 Caching Policies In-memory prompt caching retry limits and routing 5 Observability Emitting latency logs token usage and validation checks All reasoning loops planners tool execution contexts and business workflows are excluded from this package Alternatives Considered - Monolithic AI Package Combine the runtime agents and workflows into one package - _Tradeoffs_ Hard to test violates separation of concerns and couples model provider code directly to business features - Direct Integration Call OpenRouter Ollama APIs directly in the desktop main process without a runtime wrapper - _Tradeoffs_ Duplicates prompt formatting caching and retry logic across multiple services Tradeoffs - Pros - Provider In"
+  },
+  {
+    "title": "ADR-002: Separation of Agent Core and Agent Framework",
+    "description": "Architectural Decision Record 2 mapping core software structure decisions.",
+    "category": "ADRs",
+    "slug": "adr/ADR-002-agent-sdk",
+    "url": "/docs/adr/ADR-002-agent-sdk",
+    "headings": [],
+    "text": "Status Proposed Context LeadForge OS requires a set of business agents Research Campaigns CRM navigation that need to be framework-agnostic Coupling the application to a specific framework such as Mastra or LangGraph introduces a risk of dependency lock-in if the framework is abandoned or changes its API However defining execution loop engines directly inside the contract SDK makes the SDK unstable whenever execution patterns change Decision We will separate the Agent platform into two distinct packages 1 leadforge agent-core A stable contract-only package It defines abstract schemas metadata memory interfaces and tool registries It contains no execution logic or runtime dependencies 2 leadforge agent-framework An execution-specific package It implements planners reflection loops executors and framework-specific adapters e g Mastra LangGraph External framework dependencies are imported only within leadforge agent-framework adapters Alternatives Considered - Single SDK Package Combine contracts and executors into a single leadforge agent-sdk - _Tradeoffs_ Simplifies directory structure but forces the SDK to be rebuilt whenever we change execution loop structures or upgrade third-party adapters - Direct Orchestration Let business agents import Mastra or LangGraph directly - _Tradeoffs_ Eliminates the adapter layer but couples agents to a single framework s APIs"
+  },
+  {
+    "title": "ADR-003: Worker Plugins as AI Tools",
+    "description": "Architectural Decision Record 3 mapping core software structure decisions.",
+    "category": "ADRs",
+    "slug": "adr/ADR-003-worker-plugins-as-tools",
+    "url": "/docs/adr/ADR-003-worker-plugins-as-tools",
+    "headings": [],
+    "text": "Status Proposed Context LeadForge OS has a robust background execution engine Spawning heavy Puppeteer or Cheerio tasks directly inside the agent s main thread would block the main process saturate the CPU and bypass scheduling constraints We need a way to expose these tasks to the AI agent as tools while keeping them isolated Decision We will wrap the existing worker plugins such as Maps Scraper Crawler LinkedIn Enricher and SMTP outreach as AI Tools 1 Asynchronous Dispatch The tool s execute method submits a job to the JobScheduler 2 Result Polling The tool polls the database or listens to the scheduler s completion events 3 Execution Isolation The actual work runs in a sandboxed child process keeping the agent process light No duplicate scheduling heartbeat retry or recovery code will be written Alternatives Considered - Direct Execution Run Playwright and Cheerio directly within the agent s thread - _Tradeoffs_ Simplifies execution flow but blocks the main Electron UI increases memory usage and bypasses concurrency limits - Duplicate AI Scheduler Create a separate scheduler specifically for AI agent tasks - _Tradeoffs_ Unnecessary complexity and increases the risk of database write locks Tradeoffs - Pros - Process Stability Sandboxing heavy tasks protects the main desktop shell - Feature Reuse Leverages heartbeats retries checkpointi"
+  },
+  {
+    "title": "ADR-004: Scoped Memory Model",
+    "description": "Architectural Decision Record 4 mapping core software structure decisions.",
+    "category": "ADRs",
+    "slug": "adr/ADR-004-memory-model",
+    "url": "/docs/adr/ADR-004-memory-model",
+    "headings": [],
+    "text": "Status Proposed Context LeadForge OS requires multiple types of memory conversation threads workspace configuration state long-term embeddings Mixing these scopes into a single memory store would create security risks data bloat and context window issues We need a scoped memory model that aligns with the local-first philosophy Decision We will establish a scoped memory model that separates memory into five distinct scopes 1 Conversation Tracks active chat sessions 2 Workspace Shared context across all agents in a workspace 3 Execution Short-lived context for a running scheduler job 4 Scratchpad Transient memory used during a single reasoning step 5 Semantic Stores embeddings of crawled text and successful outreach Memory scopes are governed by four dimensions Owner Lifetime Visibility and Persistence Memory Dimensions Matrix Alternatives Considered - Single JSON Memory File Store all memory scopes in a single JSON file per workspace - _Tradeoffs_ Hard to query lacks vector search and risks file corruption on concurrent writes - Cloud Vector Host Sync embeddings to a cloud service e g Pinecone - _Tradeoffs_ Violates the local-first philosophy and exposes customer lead data to third parties Tradeoffs - Pros - Privacy All prospect data templates and chats remain local - Efficiency Separating scopes prev"
+  },
+  {
+    "title": "ADR-005: Framework Adapter Strategy",
+    "description": "Architectural Decision Record 5 mapping core software structure decisions.",
+    "category": "ADRs",
+    "slug": "adr/ADR-005-framework-adapter-strategy",
+    "url": "/docs/adr/ADR-005-framework-adapter-strategy",
+    "headings": [],
+    "text": "Status Proposed Context The Javascript agent ecosystem is changing rapidly Frameworks like Mastra LangGraph and OpenAI Agents SDK are evolving fast Bypassing them entirely means we have to write planning and orchestration logic from scratch Coupling directly to one framework means we inherit its security issues performance limitations and potential deprecation Decision We will implement a Framework Adapter Layer in leadforge agent-sdk 1 Abstract Definitions Business agents and tools are defined using standard interfaces 2 Framework Translation The adapter wraps these definitions in the target framework s format e g converting Tool to Mastra s tool schema 3 Capability Mapping The adapter exposes a capabilities matrix supportsMCP supportsPlanning etc 4 Fallback Handling If a framework lacks native support for a capability such as offline checkpointing the adapter must implement a local fallback External frameworks are treated as replaceable implementation details Alternatives Considered - Single Framework Decision Build all agents directly on LangGraph - _Tradeoffs_ Hard to swap to lighter runtimes like Mastra or Hermes if execution requirements change - No Frameworks Write all planning state management and memory code from scratch - _Tradeoffs_ Eliminates external dependencies but increases development and maintenance cost Tradeoffs - Pros"
+  },
+  {
+    "title": "ADR-006: Safety Model & Human Approval Gates",
+    "description": "Architectural Decision Record 6 mapping core software structure decisions.",
+    "category": "ADRs",
+    "slug": "adr/ADR-006-safety-model",
+    "url": "/docs/adr/ADR-006-safety-model",
+    "headings": [],
+    "text": "Status Proposed Context Outbound campaigns involve high-risk actions sending emails scraping directories automating browser sessions Giving an AI agent full autonomy to execute these actions could lead to IP blacklisting cookie invalidation or spam compliance issues We need a safety model that enforces human approval gates and permission checks without degrading the user experience Decision We will implement a role-based tool permission model and manual approval gates 1 Risk Classification Tools are classified as Low Risk read-only Medium Risk CRM updates or High Risk email sending LinkedIn actions workflow changes 2 Approval Gates High-risk tools write an approval request to the local approvals database table and pause the running scheduler job 3 IPC Notifications The scheduler sends an IPC event agent approval required to the desktop renderer prompting the user to approve the action 4 Resumed Execution The scheduler resumes execution only after the user approves the action Safety gates are enforced at the platform level Alternatives Considered - Full Agent Autonomy Let the agent run with zero human gates - _Tradeoffs_ Maximizes execution speed but increases the risk of spam policy violations IP blocks or corrupted database states - Bespoke Agent Validation Let each agent implement its own safety checks - _Tradeoffs_ High risk of agents bypassing checks"
+  },
+  {
+    "title": "ADR-007: Dependency Rules & Import Restrictions",
+    "description": "Architectural Decision Record 7 mapping core software structure decisions.",
+    "category": "ADRs",
+    "slug": "adr/ADR-007-dependency-rules",
+    "url": "/docs/adr/ADR-007-dependency-rules",
+    "headings": [],
+    "text": "Status Proposed Context In a multi-package monorepo it is easy to introduce circular dependencies or violate architectural boundaries by importing modules across package limits For example a business agent importing OpenRouter clients directly bypasses the runtime abstraction We need a strict set of dependency rules enforced at the monorepo level Decision We will restrict import paths between monorepo packages using TypeScript project references and ESLint boundaries 1 Runtime packages ai Depends only on schema and core Must never import agent-sdk agents or Electron 2 SDK packages agent-sdk Depends on ai interfaces only and schema Must never import agents Electron or SQLite connections 3 Agents packages agents Depends on agent-sdk and schema Must never import provider-specific code or raw HTTP clients 4 Desktop App apps desktop Serves as the application shell can depend on all packages No package other than apps desktop may import Electron or SQLite Alternatives Considered - Trust-Based Enforcement Rely on developers to follow guidelines without compiler lint rules - _Tradeoffs_ High risk of architectural drift over time as the team grows - Bespoke Monorepo Linting Scripts Write custom bash scripts to check dependencies - _Tradeoffs_ Harder to maintain than standard ESLint or TypeScript configurations Tradeoffs - Pros"
+  },
+  {
+    "title": "ADR-008: LLM Infrastructure Separation",
+    "description": "Architectural Decision Record 8 mapping core software structure decisions.",
+    "category": "ADRs",
+    "slug": "adr/ADR-008-llm-infrastructure-separation",
+    "url": "/docs/adr/ADR-008-llm-infrastructure-separation",
+    "headings": [],
+    "text": "Status Proposed Context AI agents often need to perform actions on local systems such as reading files querying databases running scrapers or dispatching emails Allowing the LLM to call infrastructure APIs directly creates significant security vulnerabilities e g prompt injection resulting in arbitrary file deletion or unintended emails and makes the system difficult to test Decision We establish a fundamental architectural principle The LLM never talks directly to infrastructure All interactions must flow through a structured tool abstraction layer LLM Engine Agent Tool JobScheduler Worker Process Database Under no circumstances should the LLM bypass this chain - No Direct DB Access The LLM cannot execute SQL statements directly It must call tools such as query_leads or update_lead_stage that validate queries and parameters - No Direct Network Access The LLM cannot make HTTP requests directly It must call tools that enforce domain whitelists and mask sensitive headers - No Direct Process Spawning The LLM cannot spawn child worker processes directly All tasks must be submitted to the JobScheduler Alternatives Considered - Direct Function Calling Let the LLM trigger local helper functions directly - _Tradeoffs_ Hard to trace bypasses safety approvals and risks security exploits from prompt injection Tradeoffs - Pros - Security Sy"
+  },
+  {
+    "title": "ADR-009: Scheduler Gateway Abstraction",
+    "description": "Architectural Decision Record 9 mapping core software structure decisions.",
+    "category": "ADRs",
+    "slug": "adr/ADR-009-scheduler-gateway",
+    "url": "/docs/adr/ADR-009-scheduler-gateway",
+    "headings": [],
+    "text": "Status Proposed Context In the initial foundation design SchedulerToolAdapter wrote directly to the SQLite jobs table to submit tasks to the worker pipeline This introduces a tight coupling between individual tool implementations and the physical SQLite schema of the jobs queue If the database schema changes or if we change the scheduler execution backbone every tool adapter must be rewritten Decision We will replace direct tool database inserts with a new application service called the SchedulerGateway or JobSubmissionService Tools must call this service to submit background worker tasks The gateway handles parameter validation database writes and EventBus listener subscriptions Tools are strictly forbidden from writing SQL commands or querying the jobs table directly Alternatives Considered - Direct Database Inserts in Tools Simple to implement but creates massive technical debt and couples packages to a specific database technology Tradeoffs - Pros - Loose Coupling Decouples the Agent Platform from SQLite queue details - Unified Validation Validates payloads at the gateway boundary - Single Source of Truth Consolidates queue operations in a single class - Cons - Adds an additional abstraction layer between the tool execution call and the scheduler Consequences - We implement SchedulerGateway in the desktop main process - Tool classes receive th"
+  },
+  {
+    "title": "ADR-010: Distributed Data Model",
+    "description": "Architectural Decision Record 10 mapping core software structure decisions.",
+    "category": "ADRs",
+    "slug": "adr/ADR-010-distributed-data-model",
+    "url": "/docs/adr/ADR-010-distributed-data-model",
+    "headings": [],
+    "text": "Status Proposed Context LeadForge is Local-First but supports cloud synchronization Future application interfaces web mobile external APIs must share synchronized workspace states However the desktop app must operate 100 offline We need a clear architecture defining database roles tenancy conflict resolution and data ownership Decision We establish the following distributed data model 1 Primary execution DB SQLite Each desktop workspace writes to a separate local workspaceId db file 2 Sync hub DB MongoDB Atlas MongoDB aggregates workspace databases in the cloud 3 Flow Direction Desktop execution writes strictly to SQLite which the Sync Engine asynchronously replicates to MongoDB The desktop application NEVER queries MongoDB Atlas directly for local UI rendering or task execution 4 Repository Isolation The business logic interacts exclusively with abstract repositories e g LeadRepository Concrete repository implementations manage underlying SQLite statements Alternatives Considered - Direct Cloud Write Write to MongoDB Atlas directly from the desktop writing to SQLite as a cache fallback - _Tradeoffs_ Complex sync logic slow latency breaks full offline guarantees Tradeoffs - Pros - Offline Guarantee The desktop app runs identically with or without network - Collaborative Cloud MongoDB Atlas provides a scalable foundation for future web and"
+  },
+  {
+    "title": "ADR-011: Synchronization Architecture",
+    "description": "Architectural Decision Record 11 mapping core software structure decisions.",
+    "category": "ADRs",
+    "slug": "adr/ADR-011-sync-architecture",
+    "url": "/docs/adr/ADR-011-sync-architecture",
+    "headings": [],
+    "text": "Status Proposed Context Replicating state between local SQLite files and a cloud MongoDB Atlas cluster requires change tracking backoff retries and conflict resolution while ensuring that the synchronization operations do not interfere with local app performance or block user workflows Decision We define the following rules for the Sync Engine 1 Asynchronous Outbox Updates write to a local sync_outbox table in SQLite The Sync Engine polls this queue batching changes into compressed payloads 2 Conflict Resolution Resolves conflicts using Last-Write-Wins LWW based on timestamps and version counters 3 Delete Tombstones Deletions write a deletedAt tombstone instead of deleting database rows Tombstones sync to the cloud and propagate to other clients with garbage sweeps purging expired tombstones after 30 days 4 Strict Isolation The Sync Engine must NEVER execute AI prompts run planners call tools or execute business sequence logic Alternatives Considered - Real-time Dual Writes Write to SQLite and MongoDB synchronously in the same transaction - _Tradeoffs_ Network lag blocks local UI writes offline states result in application halts Tradeoffs - Pros - Zero UI Blocking Asynchronous outbox queues run in the background - Network Resilience Handles network drops gracefully using exponential backoffs - Cons - Final consistency is delayed by the dura"
+  },
+  {
+    "title": "ADR-012: Provider Capability Model",
+    "description": "Architectural Decision Record 12 mapping core software structure decisions.",
+    "category": "ADRs",
+    "slug": "adr/ADR-012-provider-capability-model",
+    "url": "/docs/adr/ADR-012-provider-capability-model",
+    "headings": [],
+    "text": "Status Proposed Context LeadForge routes requests across local models Ollama and cloud APIs OpenRouter OpenAI Anthropic Gemini Hardcoding assumptions about which provider supports vision streaming context caching tool calling or structured JSON outputs leads to messy conditionals and breaks when models are updated Decision We will implement a ProviderCapabilities model schema The AI Runtime resolves capabilities dynamically from the active provider configuration at startup All routing decisions prompt decorators fallback parameters and tool bindings evaluate these capability flags rather than checking hardcoded provider or model name strings Alternatives Considered - Model Name Switch Checks Checking string names e g model gpt-4o - _Tradeoffs_ Hard to maintain requires code updates when new models are released Tradeoffs - Pros - Scalable Fallbacks Graceful fallback routing to local models when cloud keys fail - Clean Core Business logic queries feature flags keeping provider wrappers decoupled - Cons - Requires maintaining a capability matrix for local models Consequences - We define the ProviderCapabilities schema in leadforge agent-core - AI Runtime resolves these capabilities at startup"
+  },
+  {
+    "title": "ADR-013: Tool Catalog Abstraction",
+    "description": "Architectural Decision Record 13 mapping core software structure decisions.",
+    "category": "ADRs",
+    "slug": "adr/ADR-013-tool-catalog",
+    "url": "/docs/adr/ADR-013-tool-catalog",
+    "headings": [],
+    "text": "Status Proposed Context Agents and planning loops need to reason about available tools identities capabilities risk levels and descriptions to construct execution plans However loading the concrete tool execution classes ToolRegistry requires initializing database connections scheduler bridges and other infrastructure which is expensive and often impossible in web or serverless contexts Decision We decouple tool discovery from tool execution 1 ToolCatalog Exposes static discovery metadata for all available capabilities Planners and agents query the catalog to build plans The catalog is a metadata-only manifest with zero dependencies 2 ToolRegistry Exposes concrete tool instances Resolves catalog identities to execution callbacks at runtime Planners interact exclusively with ToolCatalog metadata Alternatives Considered - Single Tool Registry Combining metadata and execution - _Tradeoffs_ Forces the import of local main process files or drivers into the planning environment breaking web and serverless planning boundaries Tradeoffs - Pros - Zero Dependency Planning Planning engines can run on web browsers or cloud functions - Lazy Resolution Concrete tools are initialized only when selected - Cons - Requires maintaining a catalog manifest matching runtime registry names Consequences - We define ToolCatalog interfaces in leadforge agen"
+  },
+  {
+    "title": "Hono Cloud API",
+    "description": "Cloud synchronization, database schemas, and REST endpoints for collaborative lead workspaces.",
+    "category": "API",
+    "slug": "api/hono-api",
+    "url": "/docs/api/hono-api",
+    "headings": [],
+    "text": "This document covers the cloud REST API server apps api which acts as the synchronization and central storage repository for LeadForge OS workspaces --- Technology Stack - Framework Hono https hono dev running on Node js via hono node-server - Database MongoDB https www mongodb com utilizing Mongoose https mongoosejs com schemas - Specification OpenAPI 3 0 https www openapis org structured definitions generated via hono zod-openapi - Interactive Documentation Embedded Scalar https scalar com interface exposed at the reference endpoint --- API Routes Index 1 Health Diagnostics - GET health Standard heartbeat check confirming database connectivity 2 Authentication auth Uses better-auth configurations - POST auth login Authenticates credentials and returns a session cookie - POST auth register Creates new user records - GET auth session Validates the current HTTP session 3 Business Sync Endpoints business These endpoints are consumed by the desktop application s SyncEngine sync-engine ts to upload local mutations - POST business sync Batch sync local changes from SQLite sync_queue Resolves conflicts using Last-Write-Wins LWW - GET business companies Fetch all synced companies - POST business companies Create or update companies - GET busin"
+  },
+  {
+    "title": "System Architecture",
+    "description": "Process boundaries, monorepo packages, and local-first topologies in LeadForge OS.",
+    "category": "Architecture",
+    "slug": "architecture/system-overview",
+    "url": "/docs/architecture/system-overview",
+    "headings": [],
+    "text": "This document details the software architecture process boundaries scheduling runtimes data synchronization models and package dependencies of LeadForge OS --- Overall Architecture LeadForge OS is built on a Local-First Architecture The client machine s desktop hardware serves as the primary engine for heavy operations running headless browser scrapes website crawling database queries and AI qualifications while external networks act as synchronization layers graph TD subgraph Client Machine Local-First Context Renderer React UI - Chromium Renderer Main Main Process - Electron Node Worker Worker Host - Forked Node Process SQLite SQLite DB - WAL Mode safeStorage safeStorage - OS Keychain end subgraph Cloud Context API Hono REST API Server Mongo MongoDB end Renderer -- ipcRenderer invoke Main Main -- safeStorage safeStorage Main -- better-sqlite3 SQLite Main -- fork child Worker Worker -- IPC messaging Main Worker -- better-sqlite3 SQLite Worker -- Playwright Cheerio Web Internet Crawl Scrape Main -- SyncEngine SdkClient API API -- Mongoose Mongo --- Monorepo Structure Package Boundaries The workspace is organized as a monorepo powered by pnpm workspaces and Turborepo apps api REST API Server built with Hono and MongoDB desktop Desktop"
+  },
+  {
+    "title": "Contributing Guidelines",
+    "description": "Code of conduct, developer checks, and pull request review expectations.",
+    "category": "Development",
+    "slug": "contributing/contributing",
+    "url": "/docs/contributing/contributing",
+    "headings": [],
+    "text": "For information on contributing to this repository please read the main CONTRIBUTING md CONTRIBUTING md file in the root of the project It covers - Development philosophies - Coding standards - Branching strategy - Commit conventions - Pull request workflow - Code reviews - Testing requirements"
+  },
+  {
+    "title": "Electron Desktop App",
+    "description": "Process security bridges, window managers, and local SQLite data connection configurations.",
+    "category": "Architecture",
+    "slug": "desktop/electron-desktop",
+    "url": "/docs/desktop/electron-desktop",
+    "headings": [],
+    "text": "This document covers the structure and implementation details of the LeadForge OS desktop application apps desktop --- Folder Structure apps desktop src main Electron Main Process Node js runtime database SQLite connections models and migrations ipc IPC handlers observability database jobs lib Event bus AppLogger telemetry services JobScheduler SyncEngine UpdateManager workers worker-host and scraper outreach plugins preload Electron Preload Script contextBridge renderer React UI Renderer Chromium runtime src components Reusable shadcn ui React components hooks React Query hooks calling window ipc pages Dashboard CRM lists Cockpit Settings App tsx React Router routes and provider context package json Desktop scripts dependencies build targets --- IPC contextBridge Security To comply with Electron security guidelines the Renderer process has no direct access to Node js APIs such as fs child_process or raw SQLite packages It communicates exclusively through the preload script context bridge Bridge API The preload script exposes the window ipc"
+  },
+  {
+    "title": "Developer Guides",
+    "description": "Extending scraper plugins, registering LLM agent tools, and adding migrations.",
+    "category": "Development",
+    "slug": "development/developer-guides",
+    "url": "/docs/development/developer-guides",
+    "headings": [],
+    "text": "This guide covers coding standards software patterns and step-by-step procedures for extending LeadForge OS --- Adding a Worker Plugin All long-running CPU-heavy tasks must run inside forked Node js child processes The scheduler routes tasks using the worker plugin registry To add a new worker plugin 1 Create the Plugin File Create a new file under apps desktop src main workers plugins e g slack-notifier ts 2 Implement the Plugin Interface typescript import Job from leadforge schema import BasePlugin from base-plugin export class SlackNotifierPlugin extends BasePlugin async run job Job Promise void const channel message JSON parse job payload Update progress periodically this updateProgress 30 Perform the operation await sendSlackMessage channel message this updateProgress 100 async cleanup Promise void Perform cleanup on cancellation e g close connections 3 Register the Plugin Register your plugin in apps desktop src main workers plugin-registry ts typescript import SlackNotifierPlugin from plugins slack-notifier pluginRegistry register notify slack new SlackNotifierPlugin --- Adding an LLM Tool Tools are executable actions exposed to agents To register a tool 1 Def"
+  },
+  {
+    "title": "Setup & Installation",
+    "description": "Configure your local workspace and build the Electron desktop application from source.",
+    "category": "Getting Started",
+    "slug": "getting-started/installation",
+    "url": "/docs/getting-started/installation",
+    "headings": [],
+    "text": "Welcome to the LeadForge OS getting started and development setup guide This document will walk you through setting up your environment installing dependencies launching the development server and packaging the desktop application --- Introduction LeadForge OS is a local-first lead generation and cold outreach platform built as an Electron desktop app By executing scraping crawling and AI enrichment tasks directly on your machine it avoids high cloud infrastructure costs and ensures your outbound prospecting data remains secure The codebase is organized as a monorepo utilizing pnpm workspaces and Turborepo for build caching and task pipelining --- Prerequisites Before you begin ensure you have the following software installed 1 Node js - Required v18 0 0 or higher recommended v20 x or v22 x LTS - Verify node -v 2 pnpm - Required v8 0 0 or higher - Verify pnpm -v 3 Git - Required Installed and configured - Verify git --version 4 Ollama Optional - Use Case For local offline lead qualification and prompt scoring - Setup Install Ollama https ollama com locally and run ollama run llama3 1 or your model of choice --- Setup Installation 1 Clone the Repository git clone https github com kjxcodez leadforge-os git cd leadforge-os 2 Install Dependencies Install all package d"
+  },
+  {
+    "title": "Release & Versioning",
+    "description": "Changeset increments, packaging pipelines, SmartScreen EV signing, and auto-updaters.",
+    "category": "Development",
+    "slug": "release/release-process",
+    "url": "/docs/release/release-process",
+    "headings": [],
+    "text": "This guide outlines our release process versioning strategies packaging and auto-updater roadmaps --- Versioning Strategy We use Changesets to coordinate version increments and generate changelogs across our packages and applications 1 Adding a Changeset Whenever you make a user-facing change that requires a version increment npx changeset 1 Select the packages that have changed e g leadforge desktop 2 Select the version bump type major minor or patch 3 Provide a summary of the changes This will be automatically added to CHANGELOG md files upon release 2 Versioning in CI On release integration runs Bumps version fields in package json and compiles changelogs npx changeset version --- Packaging and Compiling We package the desktop application using electron-vite for bundling and electron-builder for installer packaging Windows Installer exe To build the setup installer for Windows Compiles packages bundles React assets and creates the installer executable pnpm package This runs electron-builder --win under the hood The resulting installer will be located under apps desktop dist leadforge-setup- version exe --- Code Signing Roadmap Currently our beta releases are unsigned to minimize operational overhead In production releases we will enforce code signing Windows SmartScreen Code Signing - Target Evade"
+  },
+  {
+    "title": "Security & Privacy",
+    "description": "OS safeStorage keychains, logging credentials masking, and sandbox compliance structures.",
+    "category": "Security",
+    "slug": "security/security-privacy",
+    "url": "/docs/security/security-privacy",
+    "headings": [],
+    "text": "This document details the security principles credential storage mechanisms data masking rules and local privacy policies of LeadForge OS --- Security Principles LeadForge OS is built with the following security guidelines - Sandbox Isolation Headless browsers Playwright and crawlers Cheerio run in sandboxed child processes with restricted environment variables and standard IO pipes - Context Isolation React UI layers cannot access Node js modules or write to the file system directly All actions pass through a whitelisted IPC context bridge - OS Keychain Integration Credentials must be encrypted using OS-native encryption managers Windows Data Protection API or macOS Keychain --- Secrets Handling API Key Storage We use Electron s safeStorage API to encrypt sensitive keys and passwords before saving them to the database 1 Database Prefixing All encrypted settings in SQLite are stored with the prefix _enc_base64 - Example value _enc_base64 AQAAANCMnd8BFdERjHoAwE Cl sBAAAA 2 Encryption Flow Plaintext Input safeStorage encryptString Prefix Base64 Save to SQLite 3 CLI and Test Fallbacks Because child workers and test scripts e g smoke-test ts run outside the Electron main context safeStorage is unavailable in those processes - Main Process Decryption The Main process decrypts the credentials and passes them to the ch"
+  },
+  {
+    "title": "Troubleshooting",
+    "description": "Resolving SQLite DLL mismatch errors, database locks, and stalled crawler processes.",
+    "category": "Diagnostics",
+    "slug": "troubleshooting/troubleshooting",
+    "url": "/docs/troubleshooting/troubleshooting",
+    "headings": [],
+    "text": "This guide covers common errors recovery actions and diagnostic steps for resolving issues in LeadForge OS --- Application Won t Start SQLite Binary DLL Mismatch - Symptom Startup crashes with an error text better_sqlite3 node was compiled against a different Node js version - Cause The native SQLite binary was compiled for your global Node version instead of Electron s internal Node ABI - Solution Force rebuild native modules for Electron bash pnpm -F leadforge desktop exec electron-builder install-app-deps --- Database Migration Failures Stuck or Corrupt Migrations - Symptom Application displays database connection errors on startup or loops during migrations - Self-Healing Mechanism - The migration runner runner ts copies your SQLite database file to leadforge_ workspaceId db migration bak before applying migrations - If a migration statement fails the transaction is rolled back the connection is closed and the database is restored from the backup file - Manual Restoration - If you need to manually restore the database state go to the Operations Center diagnostics tab and select the Restore Backup recovery action - Alternatively in your workspaces directory copy the migration bak file over your main db file manually --- Scheduler Worker Crashes Worker Heartbeat Timeout - Symptom Lo"
+  },
+  {
+    "title": "Workflow Engine",
+    "description": "Sequential drip outreach execution loops, campaign enrollments, and concurrency locks.",
+    "category": "Architecture",
+    "slug": "workflows/workflow-engine",
+    "url": "/docs/workflows/workflow-engine",
+    "headings": [],
+    "text": "This document details the sequence execution model drip automation steps and lock controls of the LeadForge OS workflow engine leadforge workflow-engine --- Workflow Engine Model The workflow engine executes sequential marketing and outreach flows for contacts enrolled in campaigns Long-running sequence steps are routed to the sandboxed worker plugin automation workflow automation ts Contact Enrolled Check status NEW CONTACTED Check Automation Locks No Lock Execute Step - e g SEND_EMAIL Update Execution Context Save Progress Checkpoint --- Sequence Steps Reference A sequence is defined as an array of step objects The runner resolves and executes each step sequentially 1 WAIT - Purpose Pause execution for a set duration - Parameters durationSeconds or hours days - Execution The engine schedules the next step check and exits the current run 2 SEND_EMAIL - Purpose"
+  }
+]
