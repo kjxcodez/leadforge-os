@@ -57,16 +57,24 @@ export default function DownloadPage() {
         className="max-w-4xl mx-auto space-y-16"
       >
         {/* Header Block */}
-        <div className="space-y-4">
-          <motion.div variants={childVariants} className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] uppercase tracking-wider font-mono">
-            Release v1.4.2 · Stable
+        <div className="flex flex-col md:flex-row md:items-center gap-6">
+          <motion.div
+            variants={childVariants}
+            className="flex h-16 w-16 items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--card)] shadow-[0_4px_24px_rgba(0,0,0,0.3)] select-none shrink-0"
+          >
+            <img src="/app-icon.png" className="h-11 w-11 object-contain" alt="LeadForge OS" />
           </motion.div>
-          <motion.h1 variants={childVariants} className="text-4xl font-semibold tracking-tight text-[var(--foreground)] md:text-5xl">
-            Get LeadForge OS
-          </motion.h1>
-          <motion.p variants={childVariants} className="text-base text-[var(--text-secondary)] max-w-xl">
-            Runs locally on your desktop. Dispatches campaigns from your hardware. Secure by default.
-          </motion.p>
+          <div className="space-y-2">
+            <motion.div variants={childVariants} className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] uppercase tracking-wider font-mono">
+              Release v1.4.2 · Stable
+            </motion.div>
+            <motion.h1 variants={childVariants} className="text-4xl font-semibold tracking-tight text-[var(--foreground)] md:text-5xl">
+              Get LeadForge OS
+            </motion.h1>
+            <motion.p variants={childVariants} className="text-base text-[var(--text-secondary)] max-w-xl">
+              Runs locally on your desktop. Dispatches campaigns from your hardware. Secure by default.
+            </motion.p>
+          </div>
         </div>
 
         {/* Counter and Status */}

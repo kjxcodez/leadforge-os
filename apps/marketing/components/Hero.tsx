@@ -166,10 +166,13 @@ export function Hero() {
     interface Node {
       x: number
       y: number
+      z: number
       vx: number
       vy: number
+      vz: number
       scatterX: number
       scatterY: number
+      scatterZ: number
       targetX: number
       targetY: number
       isAccent: boolean
@@ -195,20 +198,24 @@ export function Hero() {
           const targetX = centerX + (c - (gridCols - 1) / 2) * colSpacing
           const targetY = centerY + (r - (gridRows - 1) / 2) * rowSpacing + 40
 
-          // Initial scattered position
-          const scatterX = Math.random() * canvas.width
-          const scatterY = Math.random() * canvas.height
+          // Initial scattered position in 3D box
+          const scatterX = (Math.random() - 0.5) * canvas.width * 1.5
+          const scatterY = (Math.random() - 0.5) * canvas.height * 1.5
+          const scatterZ = Math.random() * 800 + 200
 
-          // Orange accent for 20% of nodes, white/gray for the rest
+          // Orange accent for 20% of nodes
           const isAccent = Math.random() < 0.2
 
           nodes.push({
             x: prefersReducedMotion ? targetX : scatterX,
             y: prefersReducedMotion ? targetY : scatterY,
-            vx: (Math.random() - 0.5) * 0.8,
-            vy: (Math.random() - 0.5) * 0.8,
+            z: prefersReducedMotion ? 500 : scatterZ,
+            vx: (Math.random() - 0.5) * 1.2,
+            vy: (Math.random() - 0.5) * 1.2,
+            vz: (Math.random() - 0.5) * 2.0,
             scatterX,
             scatterY,
+            scatterZ,
             targetX,
             targetY,
             isAccent,
@@ -274,24 +281,35 @@ export function Hero() {
 
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
+      const centerX = canvas.width / 2
+      const centerY = canvas.height / 2
+      const fov = 400
 
-      // 1. Update positions
+      // 1. Update positions in 3D space
       nodes.forEach((node) => {
         if (converged) {
           // Linear interpolation to target coordinates
           node.x += (node.targetX - node.x) * 0.05
           node.y += (node.targetY - node.y) * 0.05
+          node.z += (500 - node.z) * 0.05
         } else {
-          // Drifting
+          // Drifting in 3D
           node.scatterX += node.vx
           node.scatterY += node.vy
+          node.scatterZ += node.vz
           
-          // Bounce off boundaries
-          if (node.scatterX < 0 || node.scatterX > canvas.width) node.vx *= -1
-          if (node.scatterY < 0 || node.scatterY > canvas.height) node.vy *= -1
+          // Boundaries box checking
+          const limitX = canvas.width * 0.8
+          const limitY = canvas.height * 0.8
+          if (Math.abs(node.scatterX) > limitX) node.vx *= -1
+          if (Math.abs(node.scatterY) > limitY) node.vy *= -1
+          if (node.scatterZ < 100 || node.scatterZ > 1000) node.vz *= -1
 
-          node.x = node.scatterX
-          node.y = node.scatterY
+          // Project 3D coordinates into 2D screen coordinates
+          const scale = fov / (fov + node.scatterZ)
+          node.x = centerX + node.scatterX * scale
+          node.y = centerY + node.scatterY * scale
+          node.z = node.scatterZ
         }
       })
 
@@ -327,15 +345,16 @@ export function Hero() {
           }
         }
       } else {
-        // Draw distance-based lines representing scattered market chaos
-        ctx.globalAlpha = 0.12
+        // Draw distance-based lines representing scattered market chaos in 3D
         ctx.lineWidth = 0.8
         for (let i = 0; i < numNodes; i++) {
           for (let j = i + 1; j < numNodes; j++) {
             const dx = nodes[i].x - nodes[j].x
             const dy = nodes[i].y - nodes[j].y
             const dist = Math.sqrt(dx * dx + dy * dy)
-            if (dist < 90) {
+            if (dist < 100) {
+              const avgZ = (nodes[i].z + nodes[j].z) / 2
+              ctx.globalAlpha = Math.max(0.02, 0.25 * (1 - avgZ / 1000))
               ctx.beginPath()
               ctx.moveTo(nodes[i].x, nodes[i].y)
               ctx.lineTo(nodes[j].x, nodes[j].y)
@@ -349,13 +368,15 @@ export function Hero() {
       // 3. Draw nodes
       nodes.forEach((node) => {
         ctx.beginPath()
-        ctx.arc(node.x, node.y, 2.5, 0, Math.PI * 2)
+        const radius = converged ? 2.5 : Math.max(1, 4.5 * (1 - node.z / 1000))
+        ctx.arc(node.x, node.y, radius, 0, Math.PI * 2)
         ctx.save()
         if (node.isAccent) {
           ctx.fillStyle = primaryColor
+          ctx.globalAlpha = converged ? 0.8 : Math.max(0.1, 1 - node.z / 1000)
         } else {
           ctx.fillStyle = foregroundColor
-          ctx.globalAlpha = 0.4
+          ctx.globalAlpha = converged ? 0.35 : Math.max(0.05, 0.45 * (1 - node.z / 1000))
         }
         ctx.fill()
         ctx.restore()
@@ -517,7 +538,7 @@ export function Hero() {
           }}
           className="mx-auto max-w-4xl"
         >
-          <div className="rounded-xl border border-[var(--border-default)] bg-[var(--card)] shadow-2xl overflow-hidden text-left transition-shadow duration-300 hover:shadow-[0_20px_50px_rgba(232,98,44,0.06)]">
+          <div style={{ transformStyle: "preserve-3d" }} className="rounded-xl border border-[var(--border-default)] bg-[var(--card)] shadow-2xl overflow-hidden text-left transition-shadow duration-300 hover:shadow-[0_20px_50px_rgba(232,98,44,0.06)]">
             {/* Window Top Bar */}
             <div className="flex h-10 items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--card)] px-4">
               <div className="flex gap-1.5">
@@ -525,17 +546,21 @@ export function Hero() {
                 <span className="h-2 w-2 rounded-full bg-[var(--border-strong)] opacity-60"></span>
                 <span className="h-2 w-2 rounded-full bg-[var(--border-strong)] opacity-60"></span>
               </div>
-              <div className="font-mono text-[10px] text-[var(--muted-foreground)]">
-                workspace / austin-saas-q1
+              <div className="flex items-center gap-2 font-mono text-[10px] text-[var(--muted-foreground)]">
+                <img src="/app-icon.png" className="h-4 w-4 object-contain" alt="" />
+                <span>workspace / austin-saas-q1</span>
               </div>
               <div className="w-12"></div>
             </div>
 
             {/* Panel Body */}
-            <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] lg:grid-cols-[180px_1fr_270px] min-h-[460px] bg-[var(--background)]">
+            <div style={{ transformStyle: "preserve-3d" }} className="grid grid-cols-1 md:grid-cols-[180px_1fr] lg:grid-cols-[180px_1fr_270px] min-h-[460px] bg-[var(--background)]">
               
               {/* Sidebar Column */}
-              <div className="hidden border-r border-[var(--border-subtle)] p-3 md:flex flex-col justify-between select-none">
+              <motion.div 
+                style={{ transform: prefersReducedMotion ? "none" : "translateZ(15px)" }}
+                className="hidden border-r border-[var(--border-subtle)] p-3 md:flex flex-col justify-between select-none"
+              >
                 <div className="flex flex-col gap-0.5">
                   <div className="flex items-center gap-2 rounded px-2.5 py-1.5 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
                     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -612,10 +637,13 @@ export function Hero() {
                     <div className="truncate text-[8px] text-[var(--muted-foreground)] font-mono">My Leads Workspace</div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
               {/* Center Workspace Column */}
-              <div className="flex flex-col p-5 border-r border-[var(--border-subtle)] min-w-0 justify-between">
+              <motion.div 
+                style={{ transform: prefersReducedMotion ? "none" : "translateZ(30px)", transformStyle: "preserve-3d" }}
+                className="flex flex-col p-5 border-r border-[var(--border-subtle)] min-w-0 justify-between"
+              >
                 <div>
                   {/* Companies Toolbar Title & Actions */}
                   <div className="flex items-center justify-between mb-3 select-none">
@@ -742,10 +770,13 @@ export function Hero() {
                     </AnimatePresence>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
               {/* Right Side Drawer Panel (Representing Screenshot 4) */}
-              <div className="hidden lg:flex flex-col p-4 select-none min-w-0 bg-[var(--card)] w-[270px] shrink-0">
+              <motion.div 
+                style={{ transform: prefersReducedMotion ? "none" : "translateZ(45px)", transformStyle: "preserve-3d" }}
+                className="hidden lg:flex flex-col p-4 select-none min-w-0 bg-[var(--card)] w-[270px] shrink-0"
+              >
                 {/* Header Information */}
                 <div className="flex items-start justify-between mb-4 border-b border-[var(--border-subtle)] pb-3">
                   <div className="min-w-0">
@@ -931,7 +962,7 @@ export function Hero() {
                     )}
                   </AnimatePresence>
                 </div>
-              </div>
+              </motion.div>
 
             </div>
           </div>

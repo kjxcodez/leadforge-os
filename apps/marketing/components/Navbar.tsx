@@ -13,11 +13,14 @@ export function Navbar() {
       transition={{ duration: 0.3, ease: "easeOut" }}
     >
       <div className="container mx-auto flex items-center justify-between px-6">
-        <Link href="/" className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[var(--foreground)]">
-          <svg className="h-[22px] w-[22px]" viewBox="0 0 24 24" fill="none">
-            <path d="M4 4H20V13.5L13.5 20H4V4Z" fill="#F4F4F5" />
-            <path d="M13.5 20V13.5H20L13.5 20Z" fill="#E8622C" />
-          </svg>
+        <Link href="/" className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-[var(--foreground)] group">
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            transition={{ type: "spring", stiffness: 400, damping: 10 }}
+            className="relative flex h-[26px] w-[26px] items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--card)] shadow-[0_1px_4px_rgba(0,0,0,0.2)]"
+          >
+            <img src="/app-icon-dark.png" className="h-[18px] w-[18px] object-contain transition-all duration-300 group-hover:drop-shadow-[0_0_6px_rgba(232,98,44,0.5)]" alt="Logo" />
+          </motion.div>
           LeadForge OS
         </Link>
         <div className="hidden gap-8 text-xs font-medium text-[var(--muted-foreground)] md:flex">

@@ -43,32 +43,50 @@ export default function BrandPage() {
         <motion.div variants={childVariants} className="border border-[var(--border)] rounded-lg p-6 bg-[var(--card)] space-y-6">
           <h3 className="text-sm font-semibold text-[var(--foreground)]">Logo Mark Configuration</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Primary Orange */}
-            <div className="flex flex-col items-center justify-center p-8 bg-[var(--background)] border border-[var(--border-subtle)] rounded-lg space-y-4">
-              <svg className="h-16 w-16" viewBox="0 0 24 24" fill="none">
-                <path d="M4 4H20V13.5L13.5 20H4V4Z" fill="#F4F4F5" />
-                <path d="M13.5 20V13.5H20L13.5 20Z" fill="#E8622C" />
-              </svg>
-              <div className="text-center font-mono text-[10px] text-[var(--text-secondary)]">Forge Orange / Slate</div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 select-none">
+            {/* Default Icon */}
+            <div className="flex flex-col items-center justify-center p-5 bg-[var(--background)] border border-[var(--border-subtle)] rounded-lg space-y-3">
+              <img src="/app-icon.png" className="h-10 w-10 object-contain" alt="" />
+              <div className="text-center">
+                <div className="text-[10px] font-semibold text-[var(--foreground)]">Default</div>
+                <div className="text-[8px] font-mono text-[var(--text-tertiary)] mt-0.5">app-icon.png</div>
+              </div>
             </div>
 
-            {/* Light Mode Alt */}
-            <div className="flex flex-col items-center justify-center p-8 bg-white border border-[var(--border-subtle)] rounded-lg space-y-4">
-              <svg className="h-16 w-16" viewBox="0 0 24 24" fill="none">
-                <path d="M4 4H20V13.5L13.5 20H4V4Z" fill="#151517" />
-                <path d="M13.5 20V13.5H20L13.5 20Z" fill="#D6551F" />
-              </svg>
-              <div className="text-center font-mono text-[10px] text-gray-500">Light Mode Alt</div>
+            {/* Dark Mode Icon */}
+            <div className="flex flex-col items-center justify-center p-5 bg-[var(--background)] border border-[var(--border-subtle)] rounded-lg space-y-3">
+              <img src="/app-icon-dark.png" className="h-10 w-10 object-contain" alt="" />
+              <div className="text-center">
+                <div className="text-[10px] font-semibold text-[var(--foreground)]">Dark Mode</div>
+                <div className="text-[8px] font-mono text-[var(--text-tertiary)] mt-0.5">app-icon-dark.png</div>
+              </div>
             </div>
 
-            {/* Monochrome */}
-            <div className="flex flex-col items-center justify-center p-8 bg-[var(--background)] border border-[var(--border-subtle)] rounded-lg space-y-4">
-              <svg className="h-16 w-16" viewBox="0 0 24 24" fill="none">
-                <path d="M4 4H20V13.5L13.5 20H4V4Z" fill="#F4F4F5" />
-                <path d="M13.5 20V13.5H20L13.5 20Z" fill="#6E6E76" />
-              </svg>
-              <div className="text-center font-mono text-[10px] text-[var(--text-secondary)]">Monochrome Grey</div>
+            {/* Light Mode Icon */}
+            <div className="flex flex-col items-center justify-center p-5 bg-white border border-[var(--border-subtle)] rounded-lg space-y-3">
+              <img src="/app-icon-light.png" className="h-10 w-10 object-contain" alt="" />
+              <div className="text-center">
+                <div className="text-[10px] font-semibold text-slate-800">Light Mode</div>
+                <div className="text-[8px] font-mono text-slate-400 mt-0.5">app-icon-light.png</div>
+              </div>
+            </div>
+
+            {/* Monochrome Icon */}
+            <div className="flex flex-col items-center justify-center p-5 bg-[var(--background)] border border-[var(--border-subtle)] rounded-lg space-y-3">
+              <img src="/app-icon-monochrome.png" className="h-10 w-10 object-contain opacity-70" alt="" />
+              <div className="text-center">
+                <div className="text-[10px] font-semibold text-[var(--foreground)]">Monochrome</div>
+                <div className="text-[8px] font-mono text-[var(--text-tertiary)] mt-0.5">app-icon-monochrome.png</div>
+              </div>
+            </div>
+
+            {/* Alternative Icon */}
+            <div className="flex flex-col items-center justify-center p-5 bg-[var(--background)] border border-[var(--border-subtle)] rounded-lg space-y-3 col-span-2 md:col-span-1">
+              <img src="/app-icon-alt.png" className="h-10 w-10 object-contain" alt="" />
+              <div className="text-center">
+                <div className="text-[10px] font-semibold text-[var(--foreground)]">Alternative</div>
+                <div className="text-[8px] font-mono text-[var(--text-tertiary)] mt-0.5">app-icon-alt.png</div>
+              </div>
             </div>
           </div>
         </motion.div>

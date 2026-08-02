@@ -2,30 +2,40 @@
 
 import React, { useState } from "react"
 import { motion } from "motion/react"
-import { Book, Terminal, Settings, Cpu, Compass, Search, ChevronRight, FileText } from "lucide-react"
+import { Book, Terminal, Settings, Cpu, Compass, Search, ChevronRight, FileText, ShieldAlert } from "lucide-react"
 
 export default function DocsPage() {
-  const [activeArticle, setActiveArticle] = useState<"intro" | "install" | "sqlite" | "smtp" | "cli">("intro")
+  const [activeArticle, setActiveArticle] = useState<
+    "intro" | "install" | "sqlite" | "job_scheduler" | "sync" | "secrets" | "masking" | "adr_overview"
+  >("intro")
 
   const categories = [
     {
       title: "Getting Started",
       items: [
         { id: "intro", title: "Introduction", icon: Book },
-        { id: "install", title: "Installation Guide", icon: Compass }
+        { id: "install", title: "Setup & Installation", icon: Compass }
       ]
     },
     {
       title: "Core Mechanics",
       items: [
-        { id: "sqlite", title: "Local SQLite WAL", icon: Cpu },
-        { id: "smtp", title: "SMTP Configuration", icon: Settings }
+        { id: "sqlite", title: "SQLite Concurrency & WAL", icon: Cpu },
+        { id: "job_scheduler", title: "Background Job Scheduler", icon: Settings },
+        { id: "sync", title: "SQLite-to-Mongo Sync", icon: Settings }
+      ]
+    },
+    {
+      title: "Security & Privacy",
+      items: [
+        { id: "secrets", title: "Secrets & safeStorage", icon: ShieldAlert },
+        { id: "masking", title: "Logs Credential Masking", icon: ShieldAlert }
       ]
     },
     {
       title: "Developer Reference",
       items: [
-        { id: "cli", title: "CLI Tooling", icon: Terminal }
+        { id: "adr_overview", title: "Architectural Decision Records", icon: FileText }
       ]
     }
   ]
@@ -53,37 +63,60 @@ export default function DocsPage() {
       )
     },
     install: {
-      title: "Installation & Setup",
+      title: "Setup & Installation",
       category: "Getting Started",
       content: (
         <div className="space-y-6">
           <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-            Deploy the LeadForge executable or set up the development environment from source.
+            Configure your local workspace and build the Electron desktop application from source.
           </p>
           
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">Precompiled Binary</h3>
-          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-            Download the installer from the <a href="/download" className="text-[var(--primary)] underline font-mono">Download page</a>.
-            Launch the `.exe` (Windows) and configure your primary workspace directory.
-          </p>
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">Prerequisites</h3>
+          <ul className="text-xs text-[var(--text-secondary)] space-y-1.5 list-disc list-inside">
+            <li><strong>Node.js:</strong> v18.0.0 or higher (recommended: v20.x or v22.x LTS)</li>
+            <li><strong>pnpm:</strong> v8.0.0 or higher</li>
+            <li><strong>Git:</strong> Installed and configured</li>
+            <li><strong>Ollama (Optional):</strong> For offline Lead Qualification and scoring (`ollama run llama3.1`)</li>
+          </ul>
 
-          <h3 className="text-sm font-semibold text-[var(--foreground)] font-mono">Dev Setup</h3>
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-md p-4 font-mono text-xs text-[var(--muted-foreground)] leading-relaxed select-all">
-            git clone https://github.com/leadforge-os/leadforge-os.git<br />
-            cd leadforge-os<br />
-            pnpm install<br />
-            pnpm --filter desktop start
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">Installation Steps</h3>
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-md p-4 font-mono text-xs text-[var(--muted-foreground)] space-y-2 leading-relaxed select-all">
+            <div># Clone repository</div>
+            <div>git clone https://github.com/kjxcodez/leadforge-os.git</div>
+            <div>cd leadforge-os</div>
+            <div className="pt-2"># Install workspace dependencies</div>
+            <div>pnpm install</div>
+            <div className="pt-2"># Build shared packages</div>
+            <div>pnpm build</div>
+            <div className="pt-2"># Run desktop app in development</div>
+            <div>pnpm dev --filter=@leadforge/desktop</div>
+          </div>
+
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">Packaging &amp; Distribution</h3>
+          <p className="text-xs text-[var(--text-secondary)]">
+            To build a target distribution installer executable for Windows:
+          </p>
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-md p-4 font-mono text-xs text-[var(--muted-foreground)] select-all">
+            pnpm package
+          </div>
+          
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">Troubleshooting</h3>
+          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+            <strong>SQLite DLL Binary Mismatch:</strong> If you receive a binary loading mismatch error for `better_sqlite3`, compile the native driver against the Electron target Node ABI:
+          </p>
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-md p-4 font-mono text-xs text-[var(--muted-foreground)] select-all">
+            pnpm -F @leadforge/desktop exec electron-builder install-app-deps
           </div>
         </div>
       )
     },
     sqlite: {
-      title: "SQLite Write-Ahead Logging (WAL)",
+      title: "SQLite Concurrency & WAL",
       category: "Core Mechanics",
       content: (
         <div className="space-y-6">
           <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-            LeadForge OS leverages SQLite in WAL mode to coordinate scrapers running in multiple subprocesses.
+            LeadForge OS leverages SQLite in Write-Ahead Log (WAL) mode to coordinate scrapers running in multiple subprocesses.
             This ensures that background scraping tasks never lock the main UI thread during lead enrichment.
           </p>
 
@@ -94,47 +127,122 @@ export default function DocsPage() {
               Transactions are written to a separate `.wal` file, which is periodically checkpointed back to the database.
             </p>
           </div>
+
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">Multi-Workspace Isolation</h3>
+          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+            LeadForge OS isolates different projects by storing them in separate physical SQLite database files: <code>leadforge_&lt;workspaceId&gt;.db</code>. These reside in the OS Roaming data directory.
+          </p>
         </div>
       )
     },
-    smtp: {
-      title: "Direct SMTP Configurations",
+    job_scheduler: {
+      title: "Background Job Scheduler",
       category: "Core Mechanics",
       content: (
         <div className="space-y-6">
           <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-            Unlike traditional cloud CRM platforms, LeadForge connects directly to your own SMTP configurations.
-            Your API keys and credentials are encrypted on-disk using AES-256-GCM.
+            The `JobScheduler` in the Electron main process manages headless crawler processes and Playwright instances.
+            It ensures parallel tasks run efficiently without causing CPU spikes.
           </p>
 
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">Adding a SMTP Sender</h3>
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">Heartbeat Watchdog</h3>
+          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+            Every 10 seconds, the main process pings child scraper workers. Scrapers must reply with a `pong` message.
+            If a worker stalls or fails to respond within 30 seconds, it is terminated with `SIGKILL` and flagged for retry.
+          </p>
+
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">State Checkpointing</h3>
+          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+            Long-running scraping jobs regularly save progress offsets to the database. If a job is paused or interrupted,
+            it resumes from the last known checkpoint offset rather than restarting from scratch.
+          </p>
+        </div>
+      )
+    },
+    sync: {
+      title: "SQLite-to-Mongo Sync Engine",
+      category: "Core Mechanics",
+      content: (
+        <div className="space-y-6">
+          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+            The sync engine keeps the local desktop database backed up to the cloud api database whenever internet is active.
+          </p>
+
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">Sync Protocol</h3>
           <ul className="text-xs text-[var(--text-secondary)] space-y-2 list-decimal list-inside leading-relaxed">
-            <li>Navigate to settings in the desktop application.</li>
-            <li>Input the host address, port, and credentials.</li>
-            <li>Confirm SMTP TLS version handshake.</li>
+            <li>Any local database insert/update adds a sync request event to the local `sync_queue` table in the same transaction block.</li>
+            <li>The `SyncEngine` reads the queue and sends modifications sequentially to the Hono API server using the SDK transport client.</li>
+            <li>The Hono server updates the cloud MongoDB instance.</li>
+            <li><strong>Conflict Resolution:</strong> Resolves write overlaps using Last-Write-Wins (LWW) based on standard `updatedAt` headers.</li>
           </ul>
         </div>
       )
     },
-    cli: {
-      title: "CLI Reference Tooling",
+    secrets: {
+      title: "Secrets & safeStorage",
+      category: "Security & Privacy",
+      content: (
+        <div className="space-y-6">
+          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+            Sensitive user credentials (SMTP password, OpenRouter API keys) are encrypted before storage.
+          </p>
+
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">Keychain Encryption</h3>
+          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+            We use Electron's native `safeStorage` API, which leverages Windows Data Protection API (DPAPI) or macOS Keychain.
+            Secrets are saved to SQLite prefixed with `_enc_base64:`.
+          </p>
+
+          <h3 className="text-sm font-semibold text-[var(--foreground)] font-mono">Test &amp; Headless CLI Fallbacks</h3>
+          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+            Because tests and background CLI commands run outside the main Electron window context, `safeStorage` is unavailable in those scopes.
+            If `isEncryptionAvailable()` is false, the system alerts the developer and falls back to plain-text settings configurations.
+          </p>
+        </div>
+      )
+    },
+    masking: {
+      title: "Logs Credential Masking",
+      category: "Security & Privacy",
+      content: (
+        <div className="space-y-6">
+          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+            LeadForge OS scans all logs to prevent the leakage of credentials in troubleshooting files.
+          </p>
+
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">Regex Filtering</h3>
+          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+            Daily logs written via `@leadforge/logger` filter properties matching secrets keys (e.g. `smtpPassword`, `openRouterKey`).
+            Matches are replaced with the `[MASKED]` string representation before being saved to the file system.
+          </p>
+        </div>
+      )
+    },
+    adr_overview: {
+      title: "Architectural Decision Records (ADRs)",
       category: "Developer Reference",
       content: (
         <div className="space-y-6">
           <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-            LeadForge OS features an embedded CLI tool `leadforge-cli` for triggering background scrapers,
-            database backups, or synchronizing with cloud configurations from terminal environments.
+            Overview registry of design architecture decisions made during LeadForge OS development.
           </p>
-          
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">CLI Commands</h3>
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-md p-4 font-mono text-xs text-[var(--muted-foreground)] space-y-2 leading-relaxed">
-            <div>
-              <span className="text-[var(--primary)]">$ leadforge-cli scrape --query "HVAC in Brooklyn"</span>
-              <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">Triggers Google Maps &amp; WHOIS scrapers locally.</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="border border-[var(--border-subtle)] rounded p-3 bg-[var(--card)]">
+              <h4 className="text-xs font-semibold text-[var(--foreground)]">ADR-001: Runtime Responsibilities</h4>
+              <p className="text-[10px] text-[var(--text-secondary)] mt-1">Isolates scraper worker subprocesses from the Electron UI thread to protect rendering loops.</p>
             </div>
-            <div>
-              <span className="text-[var(--primary)]">$ leadforge-cli db sync</span>
-              <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">Checkpoints the WAL file and syncs leads database with your remote backup server.</p>
+            <div className="border border-[var(--border-subtle)] rounded p-3 bg-[var(--card)]">
+              <h4 className="text-xs font-semibold text-[var(--foreground)]">ADR-004: Memory Model</h4>
+              <p className="text-[10px] text-[var(--text-secondary)] mt-1">Configures a maximum 800MB RSS memory ceiling for workers, terminating bloated Playwright instances.</p>
+            </div>
+            <div className="border border-[var(--border-subtle)] rounded p-3 bg-[var(--card)]">
+              <h4 className="text-xs font-semibold text-[var(--foreground)]">ADR-007: Dependency Rules</h4>
+              <p className="text-[10px] text-[var(--text-secondary)] mt-1">Maintains package layout isolation, ensuring `schema` and `core` remain decoupled from API/desktop shells.</p>
+            </div>
+            <div className="border border-[var(--border-subtle)] rounded p-3 bg-[var(--card)]">
+              <h4 className="text-xs font-semibold text-[var(--foreground)]">ADR-011: Sync Architecture</h4>
+              <p className="text-[10px] text-[var(--text-secondary)] mt-1">Defines SQLite mutation event capturing using local queues to support offline capabilities.</p>
             </div>
           </div>
         </div>
@@ -190,7 +298,7 @@ export default function DocsPage() {
         </div>
 
         {/* Content Panel */}
-        <div className="space-y-8">
+        <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
           <div className="border-b border-[var(--border-subtle)] pb-6 space-y-2">
             <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--primary)]">
               {articles[activeArticle].category}
