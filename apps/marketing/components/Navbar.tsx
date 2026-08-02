@@ -2,6 +2,7 @@
 
 import React from "react"
 import { motion } from "motion/react"
+import Link from "next/link"
 
 export function Navbar() {
   return (
@@ -12,30 +13,31 @@ export function Navbar() {
       transition={{ duration: 0.3, ease: "easeOut" }}
     >
       <div className="container mx-auto flex items-center justify-between px-6">
-        <a href="#" className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[var(--foreground)]">
+        <Link href="/" className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[var(--foreground)]">
           <svg className="h-[22px] w-[22px]" viewBox="0 0 24 24" fill="none">
             <path d="M4 4H20V13.5L13.5 20H4V4Z" fill="#F4F4F5" />
             <path d="M13.5 20V13.5H20L13.5 20Z" fill="#E8622C" />
           </svg>
           LeadForge OS
-        </a>
+        </Link>
         <div className="hidden gap-8 text-xs font-medium text-[var(--muted-foreground)] md:flex">
-          <a href="#philosophy" className="hover:text-[var(--foreground)] transition-colors duration-150">Product</a>
-          <a href="#architecture" className="hover:text-[var(--foreground)] transition-colors duration-150">Architecture</a>
-          <a href="#roadmap" className="hover:text-[var(--foreground)] transition-colors duration-150">Roadmap</a>
-          <a href="#faq" className="hover:text-[var(--foreground)] transition-colors duration-150">FAQ</a>
-          <a href="#" className="hover:text-[var(--foreground)] transition-colors duration-150">Docs</a>
+          <Link href="/features" className="hover:text-[var(--foreground)] transition-colors duration-150">Features</Link>
+          <Link href="/architecture" className="hover:text-[var(--foreground)] transition-colors duration-150">Architecture</Link>
+          <Link href="/pricing" className="hover:text-[var(--foreground)] transition-colors duration-150">Pricing</Link>
+          <Link href="/roadmap" className="hover:text-[var(--foreground)] transition-colors duration-150">Roadmap</Link>
+          <Link href="/faq" className="hover:text-[var(--foreground)] transition-colors duration-150">FAQ</Link>
+          <Link href="/docs" className="hover:text-[var(--foreground)] transition-colors duration-150">Docs</Link>
         </div>
         <div className="flex items-center gap-4">
-          <a href="#" className="inline-flex h-9 items-center justify-center px-4 text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
-            Sign in
-          </a>
-          <a 
-            href="#downloads" 
+          <Link href="/beta" className="inline-flex h-9 items-center justify-center px-4 text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+            Beta
+          </Link>
+          <Link 
+            href="/download" 
             className="inline-flex h-9 items-center justify-center rounded-md bg-[var(--primary)] px-4 text-xs font-medium text-[var(--primary-foreground)] hover:bg-[oklch(0.698_0.167_41.6)] transition-colors duration-150"
           >
             Download
-          </a>
+          </Link>
         </div>
       </div>
     </motion.nav>
