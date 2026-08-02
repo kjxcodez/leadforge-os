@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useRef, useState } from "react"
-import { motion, AnimatePresence } from "motion/react"
+import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from "motion/react"
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion"
 import { Button } from "@/components/ui/button"
 
@@ -23,12 +23,110 @@ const SIMULATED_LOGS = [
   { time: "22:45:15", type: "system", message: "Local-first SQLite database in sync with Cloud API." },
 ]
 
+const MOCK_COMPANIES = [
+  {
+    name: "Top HVAC NYC",
+    domain: "hvacairconditionersnyc.com",
+    status: "LEAD",
+    type: "Warm Lead",
+    typeStyle: "bg-warning/12 text-warning border border-warning/20",
+    overall: 49,
+    fit: "60%",
+    size: "65%",
+    intent: "40%",
+    urgency: "30%",
+    summary: "Top HVAC NYC is a B2B company operating in the general NYC service sector.",
+    angle: "“Saw that you guys are building out your digital infrastructure...”",
+    phone: "+1 646-493-4904",
+    location: "New York, NY",
+    emails: "support@hvacairconditionersnyc.com"
+  },
+  {
+    name: "American HVAC Corp",
+    domain: "americanhvac.nyc",
+    status: "LEAD",
+    type: "Hot Lead",
+    typeStyle: "bg-primary/12 text-primary border border-primary/20",
+    overall: 83,
+    fit: "90%",
+    size: "85%",
+    intent: "80%",
+    urgency: "75%",
+    summary: "American HVAC Corp is a large-scale contractor specializing in commercial ventilation systems.",
+    angle: "“Given your focus on commercial HVAC retrofits in NYC, our local pipeline automation...”",
+    phone: "+1 347-382-9030",
+    location: "368 9th Ave 6th floor, New York, NY",
+    emails: "info@americanhvaccorp.com"
+  },
+  {
+    name: "212 HVAC Brooklyn",
+    domain: "212hvac.com",
+    status: "LEAD",
+    type: "Hot Lead",
+    typeStyle: "bg-primary/12 text-primary border border-primary/20",
+    overall: 76,
+    fit: "80%",
+    size: "70%",
+    intent: "75%",
+    urgency: "80%",
+    summary: "212 HVAC Brooklyn provides residential and light commercial installations across Kings County.",
+    angle: "“Noticed your team is scaling dispatch operations in Brooklyn. We verify decision makers...”",
+    phone: "+1 917-633-5959",
+    location: "300 Morgan Ave Ste P, Brooklyn, NY",
+    emails: "info@212hvac.com"
+  },
+  {
+    name: "Airnizer HVAC",
+    domain: "airnizer.co",
+    status: "LEAD",
+    type: "Cold Lead",
+    typeStyle: "bg-[var(--secondary)] text-[var(--muted-foreground)] border border-[var(--border-subtle)]",
+    overall: 38,
+    fit: "45%",
+    size: "50%",
+    intent: "30%",
+    urgency: "25%",
+    summary: "Airnizer HVAC is a boutique heating and cooling provider focusing on residential smart-home integrations.",
+    angle: "“Since you are focusing on residential smart home installs, a targeted local sequence...”",
+    phone: "+1 347-745-7768",
+    location: "175 Pearl St Fl 1, Brooklyn, NY",
+    emails: "airnizer@yahoo.com"
+  }
+]
+
 export function Hero() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [converged, setConverged] = useState(false)
   const prefersReducedMotion = usePrefersReducedMotion()
   const [activeLogs, setActiveLogs] = useState<typeof SIMULATED_LOGS>([])
   const [logIndex, setLogIndex] = useState(0)
+  const [selectedCompanyIdx, setSelectedCompanyIdx] = useState(0)
+  const [activeTab, setActiveTab] = useState<"CRM" | "Intelligence">("Intelligence")
+
+  // Cursor-reactive tilt variables
+  const panelRef = useRef<HTMLDivElement>(null)
+  const mouseX = useMotionValue(0.5)
+  const mouseY = useMotionValue(0.5)
+
+  const mouseXSpring = useSpring(mouseX, { damping: 35, stiffness: 180 })
+  const mouseYSpring = useSpring(mouseY, { damping: 35, stiffness: 180 })
+
+  const rotateX = useTransform(mouseYSpring, [0, 1], [2.5, -2.5])
+  const rotateY = useTransform(mouseXSpring, [0, 1], [-2.5, 2.5])
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!panelRef.current || prefersReducedMotion) return
+    const rect = panelRef.current.getBoundingClientRect()
+    const xVal = (e.clientX - rect.left) / rect.width
+    const yVal = (e.clientY - rect.top) / rect.height
+    mouseX.set(xVal)
+    mouseY.set(yVal)
+  }
+
+  const handleMouseLeave = () => {
+    mouseX.set(0.5)
+    mouseY.set(0.5)
+  }
 
   // Trigger convergence after a delay
   useEffect(() => {
@@ -405,12 +503,21 @@ export function Hero() {
 
         {/* CRM Panel (Option B Log Terminal integrated) */}
         <motion.div
+          ref={panelRef}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
           initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.6, ease: "easeOut" }}
+          style={{
+            rotateX: prefersReducedMotion ? 0 : rotateX,
+            rotateY: prefersReducedMotion ? 0 : rotateY,
+            transformStyle: "preserve-3d" as const,
+            perspective: 1000,
+          }}
           className="mx-auto max-w-4xl"
         >
-          <div className="rounded-xl border border-[var(--border-default)] bg-[var(--card)] shadow-2xl overflow-hidden text-left">
+          <div className="rounded-xl border border-[var(--border-default)] bg-[var(--card)] shadow-2xl overflow-hidden text-left transition-shadow duration-300 hover:shadow-[0_20px_50px_rgba(232,98,44,0.06)]">
             {/* Window Top Bar */}
             <div className="flex h-10 items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--card)] px-4">
               <div className="flex gap-1.5">
@@ -425,11 +532,12 @@ export function Hero() {
             </div>
 
             {/* Panel Body */}
-            <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] min-h-[340px]">
-              {/* Sidebar */}
-              <div className="hidden border-r border-[var(--border-subtle)] bg-[var(--background)] p-4 md:flex flex-col justify-between select-none">
+            <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] lg:grid-cols-[180px_1fr_270px] min-h-[460px] bg-[var(--background)]">
+              
+              {/* Sidebar Column */}
+              <div className="hidden border-r border-[var(--border-subtle)] p-3 md:flex flex-col justify-between select-none">
                 <div className="flex flex-col gap-0.5">
-                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+                  <div className="flex items-center gap-2 rounded px-2.5 py-1.5 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
                     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                       <rect x="3" y="3" width="7" height="9" rx="1" />
                       <rect x="14" y="3" width="7" height="5" rx="1" />
@@ -438,15 +546,15 @@ export function Hero() {
                     </svg>
                     Dashboard
                   </div>
-                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--foreground)] bg-[var(--accent)] bg-opacity-[0.12] border-l-2 border-[var(--primary)] pl-[6px]">
+                  <div className="flex items-center gap-2 rounded px-2.5 py-1.5 text-[11px] font-medium text-[var(--foreground)] bg-[var(--accent)] bg-opacity-[0.12] border-l-2 border-[var(--primary)] pl-[8px]">
                     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                       <rect x="3" y="4" width="18" height="16" rx="2" />
                       <path d="M3 9h18" />
                     </svg>
                     Companies
                   </div>
-                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <div className="flex items-center gap-2 rounded px-2.5 py-1.5 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
                       <circle cx="9" cy="7" r="4" />
                       <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
@@ -454,41 +562,41 @@ export function Hero() {
                     </svg>
                     Contacts
                   </div>
-                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <div className="flex items-center gap-2 rounded px-2.5 py-1.5 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                       <path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z" />
                     </svg>
                     Campaigns
                   </div>
-                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <div className="flex items-center gap-2 rounded px-2.5 py-1.5 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                       <circle cx="11" cy="11" r="7" />
                       <path d="M21 21l-4.3-4.3" />
                     </svg>
                     Discovery
                   </div>
-                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <div className="flex items-center gap-2 rounded px-2.5 py-1.5 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                       <path d="m12 3-1.912 5.886H3.888L8.93 12.518 7.018 18.4l5-3.63 4.98 3.63-1.91-5.88 5.04-3.63h-6.2Z" />
                     </svg>
                     Automation
                   </div>
-                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <div className="flex items-center gap-2 rounded px-2.5 py-1.5 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                       <path d="M3 3v18h18" />
                       <path d="m19 9-5 5-4-4-3 3" />
                     </svg>
                     Reports
                   </div>
-                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <div className="flex items-center gap-2 rounded px-2.5 py-1.5 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                       <circle cx="12" cy="12" r="3" />
-                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                     </svg>
                     Settings
                   </div>
-                  <div className="flex items-center gap-2 rounded px-2 py-1 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <div className="flex items-center gap-2 rounded px-2.5 py-1.5 text-[11px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                       <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                     </svg>
                     Operations Center
@@ -497,84 +605,110 @@ export function Hero() {
 
                 <div className="mt-8 border-t border-[var(--border-subtle)] pt-3 flex items-center gap-2">
                   <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[var(--primary)] text-[10px] font-bold text-[var(--primary-foreground)] select-none">
-                    AD
+                    G
                   </div>
                   <div className="min-w-0">
-                    <div className="truncate text-[10px] font-medium text-[var(--foreground)] leading-tight">admin@leadfo...</div>
-                    <div className="truncate text-[8px] text-[var(--muted-foreground)]">My Leads Workspace</div>
+                    <div className="truncate text-[10px] font-medium text-[var(--foreground)] leading-tight">greentechmodelers@...</div>
+                    <div className="truncate text-[8px] text-[var(--muted-foreground)] font-mono">My Leads Workspace</div>
                   </div>
                 </div>
               </div>
 
-              {/* Main Panel Content */}
-              <div className="flex flex-col p-6">
-                <div className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-                  Companies — Austin, TX · SaaS
-                </div>
-                
-                {/* Lead Table */}
-                <div className="overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--card)] flex-grow">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-[var(--muted)] text-[10px] uppercase tracking-wider text-[var(--muted-foreground)] font-mono border-b border-[var(--border-subtle)]">
-                        <th className="px-4 py-2.5 font-normal">Company</th>
-                        <th className="px-4 py-2.5 font-normal">Contact</th>
-                        <th className="px-4 py-2.5 font-normal">Score</th>
-                        <th className="px-4 py-2.5 font-normal text-right">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[var(--border-subtle)] text-xs">
-                      <tr>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-[var(--foreground)]">Northline Analytics</div>
-                          <div className="text-[10px] text-[var(--muted-foreground)]">northline.io</div>
-                        </td>
-                        <td className="px-4 py-3 text-[var(--muted-foreground)]">VP Sales</td>
-                        <td className="px-4 py-3 font-mono text-[var(--muted-foreground)]">82</td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium bg-primary/12 text-primary">Hot</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-[var(--foreground)]">Fieldstack</div>
-                          <div className="text-[10px] text-[var(--muted-foreground)]">fieldstack.com</div>
-                        </td>
-                        <td className="px-4 py-3 text-[var(--muted-foreground)]">Founder</td>
-                        <td className="px-4 py-3 font-mono text-[var(--muted-foreground)]">76</td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium bg-primary/12 text-primary">Hot</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-[var(--foreground)]">Loomcast</div>
-                          <div className="text-[10px] text-[var(--muted-foreground)]">loomcast.dev</div>
-                        </td>
-                        <td className="px-4 py-3 text-[var(--muted-foreground)]">Director, Ops</td>
-                        <td className="px-4 py-3 font-mono text-[var(--muted-foreground)]">58</td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium bg-warning/12 text-warning">Warm</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-[var(--foreground)]">Grayline Studio</div>
-                          <div className="text-[10px] text-[var(--muted-foreground)]">grayline.co</div>
-                        </td>
-                        <td className="px-4 py-3 text-[var(--muted-foreground)]">Manager</td>
-                        <td className="px-4 py-3 font-mono text-[var(--muted-foreground)]">33</td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium bg-[var(--secondary)] text-[var(--muted-foreground)]">Cold</span>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+              {/* Center Workspace Column */}
+              <div className="flex flex-col p-5 border-r border-[var(--border-subtle)] min-w-0 justify-between">
+                <div>
+                  {/* Companies Toolbar Title & Actions */}
+                  <div className="flex items-center justify-between mb-3 select-none">
+                    <div>
+                      <h3 className="text-sm font-semibold text-[var(--foreground)]">Companies</h3>
+                      <p className="text-[9px] text-[var(--muted-foreground)]">Manage accounts, details, notes, and activity pipelines.</p>
+                    </div>
+                    <button className="h-6 px-2.5 rounded bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-opacity-90 text-[10px] font-semibold flex items-center gap-1.5 transition-colors duration-150 cursor-pointer">
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                      Add Company
+                    </button>
+                  </div>
+
+                  {/* Search / Filters Bar */}
+                  <div className="flex gap-2 mb-4 select-none">
+                    <div className="relative flex-grow">
+                      <input 
+                        type="text" 
+                        placeholder="Search by keyword..." 
+                        disabled
+                        className="w-full h-7 pl-6.5 pr-2 rounded bg-[var(--background)] border border-[var(--border-subtle)] text-[10px] text-[var(--muted-foreground)] select-none pointer-events-none"
+                      />
+                      <svg className="absolute left-2.5 top-[7.5px] h-3 w-3 text-[var(--text-tertiary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <circle cx="11" cy="11" r="8" />
+                        <path d="m21 21-4.3-4.3" />
+                      </svg>
+                    </div>
+                    <div className="h-7 px-2.5 rounded bg-[var(--background)] border border-[var(--border-subtle)] text-[10px] text-[var(--muted-foreground)] flex items-center gap-1 pointer-events-none">
+                      All Statuses
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </div>
+                  </div>
+                  
+                  {/* Lead Table */}
+                  <div className="overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--card)]">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-[var(--muted)] text-[9px] uppercase tracking-wider text-[var(--muted-foreground)] font-mono border-b border-[var(--border-subtle)] select-none">
+                          <th className="px-3 py-2 w-7 font-normal">
+                            <input type="checkbox" disabled checked className="pointer-events-none rounded border-[var(--border-subtle)] bg-[var(--background)]" />
+                          </th>
+                          <th className="px-3 py-2 font-normal">Company Name</th>
+                          <th className="px-3 py-2 font-normal">Domain</th>
+                          <th className="px-3 py-2 font-normal">Status</th>
+                          <th className="px-3 py-2 font-normal text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border-subtle)] text-[10px] select-none cursor-pointer">
+                        {MOCK_COMPANIES.map((company, index) => {
+                          const isSelected = selectedCompanyIdx === index
+                          return (
+                            <tr 
+                              key={company.name}
+                              onClick={() => setSelectedCompanyIdx(index)}
+                              className={`transition-colors duration-150 ${
+                                isSelected 
+                                  ? "bg-[var(--accent)] bg-opacity-25 border-l-2 border-[var(--primary)] pl-[6px]" 
+                                  : "hover:bg-[var(--accent)] hover:bg-opacity-10"
+                              }`}
+                            >
+                              <td className="px-3 py-2.5">
+                                <input 
+                                  type="checkbox" 
+                                  readOnly 
+                                  checked={isSelected} 
+                                  className="rounded border-[var(--border-subtle)] bg-[var(--background)] pointer-events-none" 
+                                />
+                              </td>
+                              <td className="px-3 py-2.5 font-medium text-[var(--foreground)]">{company.name}</td>
+                              <td className={`px-3 py-2.5 truncate font-mono ${isSelected ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]"}`}>
+                                {company.domain}
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <span className="inline-flex items-center rounded-md px-1.5 py-0.2 text-[8px] font-mono font-medium border border-[var(--border-subtle)] bg-[var(--muted)] text-[var(--muted-foreground)]">
+                                  {company.status}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2.5 text-right font-mono text-[9px] text-[var(--muted-foreground)]">Edit</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
                 {/* Option B: Embedded Scraper Operations Log Console */}
                 <div className="mt-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--background)] p-3">
-                  <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-2 mb-2">
+                  <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-2 mb-2 select-none">
                     <div className="flex items-center gap-2">
                       <span className="relative flex h-1.5 w-1.5">
                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--success)] opacity-75"></span>
@@ -608,10 +742,198 @@ export function Hero() {
                     </AnimatePresence>
                   </div>
                 </div>
-
               </div>
-            </div>
 
+              {/* Right Side Drawer Panel (Representing Screenshot 4) */}
+              <div className="hidden lg:flex flex-col p-4 select-none min-w-0 bg-[var(--card)] w-[270px] shrink-0">
+                {/* Header Information */}
+                <div className="flex items-start justify-between mb-4 border-b border-[var(--border-subtle)] pb-3">
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-semibold text-[var(--foreground)] truncate leading-tight">
+                      {MOCK_COMPANIES[selectedCompanyIdx].name}
+                    </h4>
+                    <span className="text-[9px] font-mono text-[var(--primary)] truncate block mt-0.5">
+                      {MOCK_COMPANIES[selectedCompanyIdx].domain}
+                    </span>
+                  </div>
+                  <span className="h-4.5 w-4.5 rounded border border-[var(--border-subtle)] text-[10px] text-[var(--muted-foreground)] flex items-center justify-center font-mono">
+                    ×
+                  </span>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex border-b border-[var(--border-subtle)] mb-4 text-[10px] font-medium text-[var(--muted-foreground)]">
+                  <button 
+                    onClick={() => setActiveTab("CRM")}
+                    className={`px-3 py-1.5 border-b-2 cursor-pointer transition-all duration-150 ${
+                      activeTab === "CRM" 
+                        ? "text-[var(--foreground)] border-[var(--primary)]" 
+                        : "border-transparent hover:text-[var(--foreground)]"
+                    }`}
+                  >
+                    CRM
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab("Intelligence")}
+                    className={`px-3 py-1.5 border-b-2 cursor-pointer transition-all duration-150 ${
+                      activeTab === "Intelligence" 
+                        ? "text-[var(--foreground)] border-[var(--primary)]" 
+                        : "border-transparent hover:text-[var(--foreground)]"
+                    }`}
+                  >
+                    Intelligence
+                  </button>
+                </div>
+
+                <div className="flex-grow overflow-hidden relative">
+                  <AnimatePresence mode="wait">
+                    {activeTab === "Intelligence" ? (
+                      <motion.div
+                        key="intelligence"
+                        initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, x: 4 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -4 }}
+                        transition={{ duration: 0.15 }}
+                        className="space-y-4 h-full overflow-y-auto pr-1 text-left"
+                      >
+                        {/* Lead Priority Score */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-medium ${MOCK_COMPANIES[selectedCompanyIdx].typeStyle}`}>
+                              {MOCK_COMPANIES[selectedCompanyIdx].type}
+                            </span>
+                            <svg className="h-3.5 w-3.5 text-[var(--muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                            </svg>
+                          </div>
+                          <div className="text-xl font-bold font-mono text-[var(--foreground)] leading-tight">
+                            {MOCK_COMPANIES[selectedCompanyIdx].overall}% <span className="text-[10px] font-normal text-[var(--muted-foreground)]">Overall Score</span>
+                          </div>
+                        </div>
+
+                        {/* Subscores Grid */}
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <div className="bg-[var(--background)] border border-[var(--border-subtle)] rounded p-1.5">
+                            <div className="text-[8px] text-[var(--text-tertiary)] uppercase font-mono">Fit</div>
+                            <div className="text-[11px] font-bold font-mono text-[var(--foreground)]">
+                              {MOCK_COMPANIES[selectedCompanyIdx].fit}
+                            </div>
+                          </div>
+                          <div className="bg-[var(--background)] border border-[var(--border-subtle)] rounded p-1.5">
+                            <div className="text-[8px] text-[var(--text-tertiary)] uppercase font-mono">Size</div>
+                            <div className="text-[11px] font-bold font-mono text-[var(--foreground)]">
+                              {MOCK_COMPANIES[selectedCompanyIdx].size}
+                            </div>
+                          </div>
+                          <div className="bg-[var(--background)] border border-[var(--border-subtle)] rounded p-1.5">
+                            <div className="text-[8px] text-[var(--text-tertiary)] uppercase font-mono">Intent</div>
+                            <div className="text-[11px] font-bold font-mono text-[var(--foreground)]">
+                              {MOCK_COMPANIES[selectedCompanyIdx].intent}
+                            </div>
+                          </div>
+                          <div className="bg-[var(--background)] border border-[var(--border-subtle)] rounded p-1.5">
+                            <div className="text-[8px] text-[var(--text-tertiary)] uppercase font-mono">Urgency</div>
+                            <div className="text-[11px] font-bold font-mono text-[var(--foreground)]">
+                              {MOCK_COMPANIES[selectedCompanyIdx].urgency}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Score Explanations */}
+                        <div className="bg-[var(--background)] border border-[var(--border-subtle)] rounded p-2 text-[9px]">
+                          <div className="text-[8px] text-[var(--text-tertiary)] uppercase font-mono mb-1">Score Explanations</div>
+                          <div className="text-[var(--success)] font-medium">
+                            {MOCK_COMPANIES[selectedCompanyIdx].overall >= 70 ? "+25: Multiple decision makers verified." : "+15: At least one decision-maker found."}
+                          </div>
+                        </div>
+
+                        {/* AI Lead Intelligence */}
+                        <div className="space-y-2 border-t border-[var(--border-subtle)] pt-3">
+                          <div className="flex items-center gap-1 text-[9px] uppercase font-mono text-[var(--muted-foreground)]">
+                            <svg className="h-3 w-3 text-[var(--primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M12 2L2 22h20L12 2z" />
+                            </svg>
+                            AI Lead Intelligence
+                          </div>
+
+                          <div>
+                            <div className="text-[8px] text-[var(--text-tertiary)] uppercase font-mono">Company Summary</div>
+                            <p className="text-[9px] leading-relaxed text-[var(--muted-foreground)] mt-0.5">
+                              {MOCK_COMPANIES[selectedCompanyIdx].summary}
+                            </p>
+                          </div>
+
+                          <div>
+                            <div className="text-[8px] text-[var(--text-tertiary)] uppercase font-mono">Outreach Angle</div>
+                            <p className="text-[9px] italic leading-relaxed text-[var(--foreground)] bg-[var(--background)] border border-[var(--border-subtle)] rounded p-2 mt-0.5">
+                              {MOCK_COMPANIES[selectedCompanyIdx].angle}
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="crm"
+                        initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, x: 4 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -4 }}
+                        transition={{ duration: 0.15 }}
+                        className="space-y-4 h-full overflow-y-auto pr-1 text-left"
+                      >
+                        {/* CRM details */}
+                        <div>
+                          <div className="text-[8px] text-[var(--text-tertiary)] uppercase font-mono">Company Name</div>
+                          <div className="text-xs font-semibold text-[var(--foreground)] mt-0.5">
+                            {MOCK_COMPANIES[selectedCompanyIdx].name}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-[8px] text-[var(--text-tertiary)] uppercase font-mono">Phone Number</div>
+                          <div className="text-xs text-[var(--foreground)] mt-0.5 font-mono">
+                            {MOCK_COMPANIES[selectedCompanyIdx].phone}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-[8px] text-[var(--text-tertiary)] uppercase font-mono">Office Location</div>
+                          <div className="text-xs text-[var(--foreground)] mt-0.5">
+                            {MOCK_COMPANIES[selectedCompanyIdx].location}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-[8px] text-[var(--text-tertiary)] uppercase font-mono">Verified Contacts</div>
+                          <div className="text-xs text-[var(--foreground)] mt-0.5 flex items-center gap-1.5 font-mono">
+                            <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]"></span>
+                            {MOCK_COMPANIES[selectedCompanyIdx].emails}
+                          </div>
+                        </div>
+
+                        <div className="border-t border-[var(--border-subtle)] pt-3 space-y-2 select-none">
+                          <div className="text-[8px] text-[var(--text-tertiary)] uppercase font-mono">CRM Actions</div>
+                          <div className="grid grid-cols-2 gap-1.5 text-[9px] font-semibold text-[var(--muted-foreground)]">
+                            <button className="h-7 rounded border border-[var(--border-subtle)] bg-[var(--background)] hover:text-[var(--foreground)] hover:border-[var(--border-strong)] transition-all duration-150 cursor-pointer">
+                              Edit Details
+                            </button>
+                            <button className="h-7 rounded border border-[var(--border-subtle)] bg-[var(--background)] hover:text-[var(--foreground)] hover:border-[var(--border-strong)] transition-all duration-150 cursor-pointer">
+                              Add Note
+                            </button>
+                            <button className="h-7 rounded border border-[var(--border-subtle)] bg-[var(--background)] hover:text-[var(--foreground)] hover:border-[var(--border-strong)] transition-all duration-150 cursor-pointer">
+                              Log Activity
+                            </button>
+                            <button className="h-7 rounded border border-[var(--border-subtle)] bg-[var(--background)] hover:text-[var(--foreground)] hover:border-[var(--border-strong)] transition-all duration-150 cursor-pointer">
+                              Send Email
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+
+            </div>
           </div>
         </motion.div>
 

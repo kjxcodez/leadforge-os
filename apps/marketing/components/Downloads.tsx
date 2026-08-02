@@ -104,7 +104,7 @@ export function Downloads() {
             </div>
 
             <div>
-              <svg className="h-8 w-8 mx-auto mb-6 text-[var(--muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <svg className="h-8 w-8 mx-auto mb-6 text-[var(--muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <rect x="4" y="4" width="16" height="16" rx="3" />
                 <path d="M4 9h16" />
               </svg>
