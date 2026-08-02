@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react"
 import { motion, useInView } from "motion/react"
 import { ArrowDownToLine, Monitor, Apple, Terminal, ShieldAlert, Cpu, HardDrive, RefreshCw } from "lucide-react"
+import { GENERATED_RELEASES } from "../../lib/generated-releases"
 
 function AnimatedCounter({ value, duration = 1.5 }: { value: number; duration?: number }) {
   const [count, setCount] = useState(0)
@@ -48,6 +49,19 @@ export default function DownloadPage() {
     visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" as const } }
   }
 
+  // Find latest stable vs. latest pre-release
+  const latestRelease = GENERATED_RELEASES.find(r => !r.prerelease) || GENERATED_RELEASES[0]
+  
+  // Find assets
+  const winAsset = latestRelease.assets.find(a => a.name.endsWith('.exe'))
+  const macAsset = latestRelease.assets.find(a => a.name.endsWith('.dmg'))
+  const linuxAsset = latestRelease.assets.find(a => a.name.endsWith('.AppImage'))
+
+  const formatSize = (bytes?: number) => {
+    if (!bytes) return "Unknown size"
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
   return (
     <div className="container mx-auto px-6 py-20 min-h-[80vh] text-left">
       <motion.div
@@ -66,7 +80,7 @@ export default function DownloadPage() {
           </motion.div>
           <div className="space-y-2">
             <motion.div variants={childVariants} className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] uppercase tracking-wider font-mono">
-              Release v1.4.2 · Stable
+              Release {latestRelease.version} · {latestRelease.prerelease ? "Beta" : "Stable"}
             </motion.div>
             <motion.h1 variants={childVariants} className="text-4xl font-semibold tracking-tight text-[var(--foreground)] md:text-5xl">
               Get LeadForge OS
@@ -94,7 +108,7 @@ export default function DownloadPage() {
           </div>
           <div className="col-span-2 md:col-span-1 space-y-1">
             <span className="text-[10px] uppercase font-mono text-[var(--text-tertiary)]">Current Version</span>
-            <div className="text-lg font-bold font-mono text-[var(--foreground)]">v1.4.2-stable</div>
+            <div className="text-lg font-bold font-mono text-[var(--foreground)]">{latestRelease.version}</div>
           </div>
         </motion.div>
 
@@ -103,71 +117,103 @@ export default function DownloadPage() {
           {/* Windows Card */}
           <div 
             onClick={() => setSelectedPlatform("win")}
-            className={`border rounded-lg p-5 cursor-pointer bg-[var(--card)] transition-all duration-200 text-left ${
+            className={`border rounded-lg p-5 cursor-pointer bg-[var(--card)] transition-all duration-200 text-left flex flex-col justify-between min-h-[200px] ${
               selectedPlatform === "win" ? "border-[var(--primary)] ring-1 ring-[var(--primary)]" : "border-[var(--border)] hover:border-[var(--border-strong)]"
             }`}
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-2 rounded bg-[var(--background)] border border-[var(--border)]">
-                <Monitor className="h-5 w-5 text-[var(--primary)]" />
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-2 rounded bg-[var(--background)] border border-[var(--border)]">
+                  <Monitor className="h-5 w-5 text-[var(--primary)]" />
+                </div>
+                <span className="text-[10px] font-mono text-[var(--text-tertiary)]">{winAsset ? formatSize(winAsset.sizeBytes) : "x64 / ARM64"}</span>
               </div>
-              <span className="text-[10px] font-mono text-[var(--text-tertiary)]">x64 / ARM64</span>
+              <h3 className="font-semibold text-sm text-[var(--foreground)]">Windows</h3>
+              <p className="text-[11px] text-[var(--text-secondary)] mt-1 mb-4 leading-normal">
+                Installer (.exe) supporting Win 10, 11+ with SQLite WAL support.
+              </p>
             </div>
-            <h3 className="font-semibold text-sm text-[var(--foreground)]">Windows</h3>
-            <p className="text-[11px] text-[var(--text-secondary)] mt-1 mb-4 leading-normal">
-              Installer (.exe) supporting Win 10, 11+ with SQLite WAL support.
-            </p>
-            <a 
-              href="https://github.com/leadforge-os/releases/download/v1.4.2/LeadForge-Setup-1.4.2.exe" 
-              className="inline-flex w-full items-center justify-center gap-2 h-9 rounded bg-[var(--primary)] text-xs font-medium text-[var(--primary-foreground)] hover:opacity-90 transition-all"
-            >
-              <ArrowDownToLine className="h-3.5 w-3.5" />
-              Download for Windows
-            </a>
+            {winAsset ? (
+              <a 
+                href={winAsset.downloadUrl}
+                className="inline-flex w-full items-center justify-center gap-2 h-9 rounded bg-[var(--primary)] text-xs font-medium text-[var(--primary-foreground)] hover:opacity-90 transition-all"
+              >
+                <ArrowDownToLine className="h-3.5 w-3.5" />
+                Download Installer
+              </a>
+            ) : (
+              <button className="w-full h-9 rounded border border-[var(--border)] bg-[var(--background)] text-xs font-medium text-[var(--text-secondary)] cursor-not-allowed">
+                Not Available
+              </button>
+            )}
           </div>
 
           {/* macOS Card */}
           <div 
             onClick={() => setSelectedPlatform("mac")}
-            className={`border rounded-lg p-5 cursor-pointer bg-[var(--card)] transition-all duration-200 text-left ${
+            className={`border rounded-lg p-5 cursor-pointer bg-[var(--card)] transition-all duration-200 text-left flex flex-col justify-between min-h-[200px] ${
               selectedPlatform === "mac" ? "border-[var(--primary)] ring-1 ring-[var(--primary)]" : "border-[var(--border)] hover:border-[var(--border-strong)]"
             }`}
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-2 rounded bg-[var(--background)] border border-[var(--border)]">
-                <Apple className="h-5 w-5 text-[var(--foreground)]" />
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-2 rounded bg-[var(--background)] border border-[var(--border)]">
+                  <Apple className="h-5 w-5 text-[var(--foreground)]" />
+                </div>
+                <span className="text-[10px] font-mono text-[var(--text-tertiary)]">{macAsset ? formatSize(macAsset.sizeBytes) : "Apple / Intel"}</span>
               </div>
-              <span className="text-[10px] font-mono text-[var(--text-tertiary)]">Apple / Intel</span>
+              <h3 className="font-semibold text-sm text-[var(--foreground)]">macOS</h3>
+              <p className="text-[11px] text-[var(--text-secondary)] mt-1 mb-4 leading-normal">
+                Disk Image (.dmg) code-signed for M1/M2/M3 &amp; Intel processors.
+              </p>
             </div>
-            <h3 className="font-semibold text-sm text-[var(--foreground)]">macOS</h3>
-            <p className="text-[11px] text-[var(--text-secondary)] mt-1 mb-4 leading-normal">
-              Disk Image (.dmg) code-signed for M1/M2/M3 &amp; Intel processors.
-            </p>
-            <button className="w-full h-9 rounded border border-[var(--border)] bg-[var(--background)] text-xs font-medium text-[var(--text-secondary)] cursor-not-allowed">
-              Notify on Release (Beta)
-            </button>
+            {macAsset ? (
+              <a 
+                href={macAsset.downloadUrl}
+                className="inline-flex w-full items-center justify-center gap-2 h-9 rounded bg-[var(--primary)] text-xs font-medium text-[var(--primary-foreground)] hover:opacity-90 transition-all"
+              >
+                <ArrowDownToLine className="h-3.5 w-3.5" />
+                Download DMG
+              </a>
+            ) : (
+              <button className="w-full h-9 rounded border border-[var(--border)] bg-[var(--background)] text-xs font-medium text-[var(--text-secondary)] cursor-not-allowed">
+                Notify on Release (Beta)
+              </button>
+            )}
           </div>
 
           {/* Linux Card */}
           <div 
             onClick={() => setSelectedPlatform("linux")}
-            className={`border rounded-lg p-5 cursor-pointer bg-[var(--card)] transition-all duration-200 text-left ${
+            className={`border rounded-lg p-5 cursor-pointer bg-[var(--card)] transition-all duration-200 text-left flex flex-col justify-between min-h-[200px] ${
               selectedPlatform === "linux" ? "border-[var(--primary)] ring-1 ring-[var(--primary)]" : "border-[var(--border)] hover:border-[var(--border-strong)]"
             }`}
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-2 rounded bg-[var(--background)] border border-[var(--border)]">
-                <Terminal className="h-5 w-5 text-[var(--text-secondary)]" />
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-2 rounded bg-[var(--background)] border border-[var(--border)]">
+                  <Terminal className="h-5 w-5 text-[var(--text-secondary)]" />
+                </div>
+                <span className="text-[10px] font-mono text-[var(--text-tertiary)]">{linuxAsset ? formatSize(linuxAsset.sizeBytes) : "AppImage / deb"}</span>
               </div>
-              <span className="text-[10px] font-mono text-[var(--text-tertiary)]">AppImage / deb</span>
+              <h3 className="font-semibold text-sm text-[var(--foreground)]">Linux</h3>
+              <p className="text-[11px] text-[var(--text-secondary)] mt-1 mb-4 leading-normal">
+                AppImage bundle for Debian, Ubuntu, and Fedora systems.
+              </p>
             </div>
-            <h3 className="font-semibold text-sm text-[var(--foreground)]">Linux</h3>
-            <p className="text-[11px] text-[var(--text-secondary)] mt-1 mb-4 leading-normal">
-              AppImage bundle for Debian, Ubuntu, and Fedora systems.
-            </p>
-            <button className="w-full h-9 rounded border border-[var(--border)] bg-[var(--background)] text-xs font-medium text-[var(--text-secondary)] cursor-not-allowed">
-              Notify on Release (Beta)
-            </button>
+            {linuxAsset ? (
+              <a 
+                href={linuxAsset.downloadUrl}
+                className="inline-flex w-full items-center justify-center gap-2 h-9 rounded bg-[var(--primary)] text-xs font-medium text-[var(--primary-foreground)] hover:opacity-90 transition-all"
+              >
+                <ArrowDownToLine className="h-3.5 w-3.5" />
+                Download AppImage
+              </a>
+            ) : (
+              <button className="w-full h-9 rounded border border-[var(--border)] bg-[var(--background)] text-xs font-medium text-[var(--text-secondary)] cursor-not-allowed">
+                Notify on Release (Beta)
+              </button>
+            )}
           </div>
         </motion.div>
 
@@ -175,18 +221,30 @@ export default function DownloadPage() {
         <motion.div variants={childVariants} className="space-y-4">
           <h3 className="text-base font-semibold text-[var(--foreground)]">Verify Checksums</h3>
           <div className="border border-[var(--border)] rounded-lg p-4 bg-[var(--card)] font-mono text-[10px] text-[var(--text-secondary)] space-y-2 overflow-x-auto leading-relaxed">
-            <div>
-              <span className="text-[var(--primary)] font-semibold">SHA-256 (Windows x64):</span>
-              <div className="bg-[var(--background)] p-2 rounded border border-[var(--border-subtle)] mt-1 select-all">
-                f12e87900bba82c9e782a201c10d3f829f04eeea9804bc53ab2018a381de124a
+            {winAsset && (
+              <div>
+                <span className="text-[var(--primary)] font-semibold">SHA-256 (Windows x64):</span>
+                <div className="bg-[var(--background)] p-2 rounded border border-[var(--border-subtle)] mt-1 select-all">
+                  {winAsset.checksum}
+                </div>
               </div>
-            </div>
-            <div>
-              <span className="text-[var(--foreground)] font-semibold">SHA-256 (macOS dmg):</span>
-              <div className="bg-[var(--background)] p-2 rounded border border-[var(--border-subtle)] mt-1 select-all">
-                a136bfb1049280efc93bc104938a901844b20a0b22a901b089ac121efd9c1221
+            )}
+            {macAsset && (
+              <div>
+                <span className="text-[var(--foreground)] font-semibold">SHA-256 (macOS dmg):</span>
+                <div className="bg-[var(--background)] p-2 rounded border border-[var(--border-subtle)] mt-1 select-all">
+                  {macAsset.checksum}
+                </div>
               </div>
-            </div>
+            )}
+            {linuxAsset && (
+              <div>
+                <span className="text-[var(--foreground)] font-semibold">SHA-256 (Linux AppImage):</span>
+                <div className="bg-[var(--background)] p-2 rounded border border-[var(--border-subtle)] mt-1 select-all">
+                  {linuxAsset.checksum}
+                </div>
+              </div>
+            )}
           </div>
         </motion.div>
 

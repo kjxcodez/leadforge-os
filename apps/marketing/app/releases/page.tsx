@@ -2,7 +2,8 @@
 
 import React from "react"
 import { motion } from "motion/react"
-import { ArrowDownToLine, Monitor, Apple, Terminal, Database, Check } from "lucide-react"
+import { ArrowDownToLine, Monitor, Apple, Terminal, ShieldCheck, ChevronRight } from "lucide-react"
+import { GENERATED_RELEASES } from "../../lib/generated-releases"
 
 export default function ReleasesPage() {
   const containerVariants = {
@@ -18,28 +19,17 @@ export default function ReleasesPage() {
     visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" as const } }
   }
 
-  const releases = [
-    {
-      version: "v1.4.2",
-      date: "August 2, 2026",
-      status: "Stable",
-      commit: "a8e932b",
-      assets: [
-        { name: "LeadForge-Setup-1.4.2.exe", size: "82.4 MB", type: "win", link: "https://github.com/leadforge-os/releases/download/v1.4.2/LeadForge-Setup-1.4.2.exe" },
-        { name: "LeadForge-Mac-1.4.2.dmg", size: "78.1 MB", type: "mac", disabled: true },
-        { name: "LeadForge-Linux-1.4.2.AppImage", size: "91.3 MB", type: "linux", disabled: true }
-      ]
-    },
-    {
-      version: "v1.4.0",
-      date: "July 24, 2026",
-      status: "Deprecated",
-      commit: "542ebc9",
-      assets: [
-        { name: "LeadForge-Setup-1.4.0.exe", size: "81.9 MB", type: "win", link: "https://github.com/leadforge-os/releases/download/v1.4.0/LeadForge-Setup-1.4.0.exe" }
-      ]
-    }
-  ]
+  const formatSize = (bytes: number) => {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    })
+  }
 
   return (
     <div className="container mx-auto px-6 py-20 min-h-[85vh] text-left">
@@ -58,66 +48,98 @@ export default function ReleasesPage() {
             Releases Repository
           </motion.h1>
           <motion.p variants={childVariants} className="text-base text-[var(--text-secondary)] leading-relaxed">
-            Archive of stable and previous builds of LeadForge OS. Verify assets using commit signatures.
+            Archive of stable and previous builds of LeadForge OS. Verify assets using checksum digests.
           </motion.p>
         </div>
 
         {/* Releases Timeline */}
         <motion.div variants={childVariants} className="space-y-8">
-          {releases.map((rel) => (
-            <div key={rel.version} className="border border-[var(--border)] rounded-lg p-5 bg-[var(--card)] space-y-4">
+          {GENERATED_RELEASES.map((rel) => (
+            <div key={rel.version} className="border border-[var(--border)] rounded-lg p-5 bg-[var(--card)] space-y-6">
+              {/* Release Header */}
               <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border-subtle)] pb-4">
                 <div className="flex items-center gap-3">
                   <h3 className="text-base font-semibold text-[var(--foreground)] font-mono">{rel.version}</h3>
                   <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border ${
-                    rel.status === "Stable" 
+                    !rel.prerelease 
                       ? "bg-[rgba(63,178,127,0.12)] text-[#3FB27F] border-[rgba(63,178,127,0.2)]" 
-                      : "bg-[var(--secondary)] text-[var(--muted-foreground)] border-[var(--border-subtle)]"
+                      : "bg-amber-500/10 text-amber-500 border-amber-500/20"
                   }`}>
-                    {rel.status}
+                    {rel.prerelease ? "Pre-release" : "Stable"}
                   </span>
                 </div>
                 <div className="flex items-center gap-4 text-[10px] font-mono text-[var(--text-tertiary)]">
-                  <span>Commit {rel.commit}</span>
-                  <span>Released {rel.date}</span>
+                  <span>Released {formatDate(rel.releaseDate)}</span>
                 </div>
               </div>
 
+              {/* Release Notes */}
+              {rel.releaseNotes && (
+                <div className="space-y-2">
+                  <div className="text-[10px] uppercase font-mono tracking-wider text-[var(--text-tertiary)] font-semibold">Changelog</div>
+                  <div className="text-xs text-[var(--text-secondary)] leading-relaxed space-y-2 prose max-w-none">
+                    <pre className="whitespace-pre-wrap font-sans text-xs bg-[rgba(10,10,11,0.2)] border border-[var(--border-subtle)] p-3 rounded-md text-[var(--text-secondary)] leading-relaxed">
+                      {rel.releaseNotes}
+                    </pre>
+                  </div>
+                </div>
+              )}
+
               {/* Assets list */}
               <div className="space-y-2">
-                <div className="text-[10px] uppercase font-mono tracking-wider text-[var(--text-tertiary)] mb-2 font-semibold">Assets</div>
+                <div className="text-[10px] uppercase font-mono tracking-wider text-[var(--text-tertiary)] font-semibold">Downloadable Artifacts</div>
                 <div className="space-y-2">
-                  {rel.assets.map((asset) => {
-                    const IconComp = asset.type === "win" ? Monitor : asset.type === "mac" ? Apple : Terminal
-                    return (
-                      <div key={asset.name} className="flex items-center justify-between text-xs bg-[var(--background)] border border-[var(--border-subtle)] rounded p-2.5">
-                        <div className="flex items-center gap-2">
-                          <IconComp className="h-4 w-4 text-[var(--text-secondary)]" />
-                          <span className="font-mono text-[11px] text-[var(--foreground)] truncate max-w-[240px] md:max-w-md">
-                            {asset.name}
-                          </span>
-                          <span className="text-[10px] text-[var(--text-tertiary)] font-mono">({asset.size})</span>
+                  {rel.assets.length > 0 ? (
+                    rel.assets.map((asset) => {
+                      const IconComp = asset.platform.includes("Windows") 
+                        ? Monitor 
+                        : asset.platform.includes("macOS") 
+                        ? Apple 
+                        : Terminal
+                      
+                      return (
+                        <div key={asset.name} className="flex flex-col sm:flex-row sm:items-center justify-between text-xs bg-[var(--background)] border border-[var(--border-subtle)] rounded p-2.5 gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <IconComp className="h-4 w-4 text-[var(--text-secondary)] shrink-0" />
+                            <div className="min-w-0">
+                              <span className="font-mono text-[11px] text-[var(--foreground)] truncate block">
+                                {asset.name}
+                              </span>
+                              <div className="flex items-center gap-2 text-[9px] text-[var(--text-tertiary)] font-mono mt-0.5">
+                                <span>{formatSize(asset.sizeBytes)}</span>
+                                <span>•</span>
+                                <span>{asset.platform}</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span 
+                              title={`SHA-256: ${asset.checksum}`} 
+                              className="inline-flex items-center gap-1 text-[9px] font-mono text-[var(--text-tertiary)] bg-[var(--card)] px-1.5 py-0.5 rounded border border-[var(--border-subtle)]"
+                            >
+                              <ShieldCheck className="h-3 w-3 text-[var(--success)]" />
+                              {asset.checksum.slice(0, 8)}...
+                            </span>
+                            <a 
+                              href={asset.downloadUrl}
+                              className="inline-flex h-7 items-center justify-center rounded bg-[var(--primary)] px-3 text-[10px] font-medium text-[var(--primary-foreground)] hover:opacity-90 transition-all gap-1 cursor-pointer"
+                            >
+                              <ArrowDownToLine className="h-3 w-3" />
+                              Download
+                            </a>
+                          </div>
                         </div>
-                        {asset.disabled ? (
-                          <span className="text-[9px] font-mono text-[var(--text-tertiary)] uppercase tracking-wider mr-2">Beta In Progress</span>
-                        ) : (
-                          <a 
-                            href={asset.link}
-                            className="inline-flex h-7 items-center justify-center rounded bg-[var(--primary)] px-3 text-[10px] font-medium text-[var(--primary-foreground)] hover:opacity-90 transition-all gap-1 cursor-pointer"
-                          >
-                            <ArrowDownToLine className="h-3 w-3" />
-                            Download
-                          </a>
-                        )}
-                      </div>
-                    )
-                  })}
+                      )
+                    })
+                  ) : (
+                    <div className="text-xs text-[var(--text-tertiary)] italic">No assets available for this release.</div>
+                  )}
                 </div>
               </div>
             </div>
           ))}
         </motion.div>
-
       </motion.div>
     </div>
   )

@@ -1,293 +1,201 @@
 "use client"
 
-import React, { useState } from "react"
-import { motion } from "motion/react"
-import { Book, Terminal, Settings, Cpu, Compass, Search, ChevronRight, FileText, ShieldAlert } from "lucide-react"
+import React, { useState, useEffect, useRef, useMemo } from "react"
+import { motion, AnimatePresence } from "motion/react"
+import { Book, Terminal, Settings, Cpu, Compass, Search, ChevronRight, FileText, ShieldAlert, AlertTriangle, Info, Check, Copy, ExternalLink, ArrowLeft, ArrowRight, CornerDownLeft, Eye, Clock, Edit3 } from "lucide-react"
+import { GENERATED_DOCS, DocArticle } from "../../lib/generated-docs"
+import Link from "next/link"
 
 export default function DocsPage() {
-  const [activeArticle, setActiveArticle] = useState<
-    "intro" | "install" | "sqlite" | "job_scheduler" | "sync" | "secrets" | "masking" | "adr_overview"
-  >("intro")
+  const [activeArticleId, setActiveArticleId] = useState<string>("installation")
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [activeHeadingId, setActiveHeadingId] = useState<string>("")
+  const [copiedCodeIndex, setCopiedCodeIndex] = useState<number | null>(null)
+  
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
 
-  const categories = [
-    {
-      title: "Getting Started",
-      items: [
-        { id: "intro", title: "Introduction", icon: Book },
-        { id: "install", title: "Setup & Installation", icon: Compass }
-      ]
-    },
-    {
-      title: "Core Mechanics",
-      items: [
-        { id: "sqlite", title: "SQLite Concurrency & WAL", icon: Cpu },
-        { id: "job_scheduler", title: "Background Job Scheduler", icon: Settings },
-        { id: "sync", title: "SQLite-to-Mongo Sync", icon: Settings }
-      ]
-    },
-    {
-      title: "Security & Privacy",
-      items: [
-        { id: "secrets", title: "Secrets & safeStorage", icon: ShieldAlert },
-        { id: "masking", title: "Logs Credential Masking", icon: ShieldAlert }
-      ]
-    },
-    {
-      title: "Developer Reference",
-      items: [
-        { id: "adr_overview", title: "Architectural Decision Records", icon: FileText }
-      ]
+  // Groups and categories structure
+  const categories = useMemo(() => {
+    const groups: Record<string, DocArticle[]> = {
+      "Getting Started": [],
+      "Architecture": [],
+      "Core Mechanics": [],
+      "Security": [],
+      "Development": [],
+      "Diagnostics": [],
+      "ADRs": []
     }
-  ]
 
-  const articles = {
-    intro: {
-      title: "LeadForge OS Documentation",
-      category: "Getting Started",
-      content: (
-        <div className="space-y-6">
-          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-            Welcome to the official developer and operator documentation for LeadForge OS. 
-            LeadForge OS is a local-first system designed to build, run, and scale outbound lead pipelines 
-            directly from your hardware.
-          </p>
-          <div className="border border-[var(--border-subtle)] bg-[var(--card)] p-4 rounded-lg space-y-3">
-            <h4 className="text-xs font-semibold uppercase font-mono tracking-wider text-[var(--primary)]">Key Architectural Concepts</h4>
-            <ul className="text-xs text-[var(--text-secondary)] space-y-2 list-disc list-inside leading-relaxed">
-              <li><strong className="text-[var(--foreground)]">Local-First:</strong> All scrapers, parsers, and dispatch engines operate on your processor cores. Your keys and leads never leave your disk.</li>
-              <li><strong className="text-[var(--foreground)]">SQLite Storage:</strong> A standard local SQLite database in Write-Ahead Log (WAL) mode handles concurrent scraping writes and campaign reads with sub-millisecond locks.</li>
-              <li><strong className="text-[var(--foreground)]">SMTP Relays:</strong> Direct connection to your SMTP configurations (SMTP, Google, Office365) without middleman cloud servers.</li>
-            </ul>
-          </div>
-        </div>
+    // Sort ADRs numerically, others by natural index
+    const sortedDocs = [...GENERATED_DOCS].sort((a, b) => {
+      if (a.category === "ADRs" && b.category === "ADRs") {
+        const numA = parseInt(a.id.replace("adr-", "")) || 0
+        const numB = parseInt(b.id.replace("adr-", "")) || 0
+        return numA - numB
+      }
+      return 0
+    })
+
+    sortedDocs.forEach(doc => {
+      const cat = doc.category
+      if (groups[cat]) {
+        groups[cat].push(doc)
+      } else {
+        groups[cat] = [doc]
+      }
+    })
+
+    return Object.entries(groups).filter(([_, items]) => items.length > 0)
+  }, [])
+
+  // Current active article
+  const activeArticle = useMemo(() => {
+    return GENERATED_DOCS.find(doc => doc.id === activeArticleId) || GENERATED_DOCS[0]
+  }, [activeArticleId])
+
+  // Flat list of all articles for next/prev navigation
+  const flatArticlesList = useMemo(() => {
+    return categories.flatMap(([_, items]) => items)
+  }, [categories])
+
+  const currentIndex = flatArticlesList.findIndex(doc => doc.id === activeArticleId)
+  const prevArticle = currentIndex > 0 ? flatArticlesList[currentIndex - 1] : null
+  const nextArticle = currentIndex < flatArticlesList.length - 1 ? flatArticlesList[currentIndex + 1] : null
+
+  // Hotkeys handling
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || e.key === "/") {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+      if (e.key === "Escape") {
+        setSearchOpen(false)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
+
+  // Auto-focus search input when opened
+  useEffect(() => {
+    if (searchOpen) {
+      setTimeout(() => searchInputRef.current?.focus(), 80)
+    } else {
+      setSearchQuery("")
+    }
+  }, [searchOpen])
+
+  // Scroll spy to highlight active TOC header
+  useEffect(() => {
+    const headingElements = activeArticle.headings.map(h => document.getElementById(h.id)).filter(Boolean) as HTMLElement[]
+    
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY + 120
+      
+      // Find the heading currently in view
+      let currentActive: string = ""
+      for (let i = 0; i < headingElements.length; i++) {
+        const el = headingElements[i]
+        if (el.offsetTop <= scrollPosition) {
+          currentActive = el.id
+        } else {
+          break
+        }
+      }
+      setActiveHeadingId(currentActive || (activeArticle.headings[0]?.id || ""))
+    }
+
+    window.addEventListener("scroll", handleScroll)
+    // Run once on load/change
+    handleScroll()
+    return () => window.removeEventListener("scroll", handleScroll)
+  }, [activeArticle])
+
+  // Filter search results
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return []
+    const q = searchQuery.toLowerCase()
+    
+    return GENERATED_DOCS.filter(doc => {
+      return (
+        doc.title.toLowerCase().includes(q) ||
+        doc.category.toLowerCase().includes(q) ||
+        doc.htmlContent.toLowerCase().includes(q) ||
+        doc.headings.some(h => h.text.toLowerCase().includes(q))
       )
-    },
-    install: {
-      title: "Setup & Installation",
-      category: "Getting Started",
-      content: (
-        <div className="space-y-6">
-          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-            Configure your local workspace and build the Electron desktop application from source.
-          </p>
-          
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">Prerequisites</h3>
-          <ul className="text-xs text-[var(--text-secondary)] space-y-1.5 list-disc list-inside">
-            <li><strong>Node.js:</strong> v18.0.0 or higher (recommended: v20.x or v22.x LTS)</li>
-            <li><strong>pnpm:</strong> v8.0.0 or higher</li>
-            <li><strong>Git:</strong> Installed and configured</li>
-            <li><strong>Ollama (Optional):</strong> For offline Lead Qualification and scoring (`ollama run llama3.1`)</li>
-          </ul>
+    })
+  }, [searchQuery])
 
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">Installation Steps</h3>
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-md p-4 font-mono text-xs text-[var(--muted-foreground)] space-y-2 leading-relaxed select-all">
-            <div># Clone repository</div>
-            <div>git clone https://github.com/kjxcodez/leadforge-os.git</div>
-            <div>cd leadforge-os</div>
-            <div className="pt-2"># Install workspace dependencies</div>
-            <div>pnpm install</div>
-            <div className="pt-2"># Build shared packages</div>
-            <div>pnpm build</div>
-            <div className="pt-2"># Run desktop app in development</div>
-            <div>pnpm dev --filter=@leadforge/desktop</div>
-          </div>
+  // Trigger scroll-to-view for headings
+  const scrollToHeading = (id: string) => {
+    const element = document.getElementById(id)
+    if (element) {
+      const offset = 90
+      const bodyRect = document.body.getBoundingClientRect().top
+      const elementRect = element.getBoundingClientRect().top
+      const elementPosition = elementRect - bodyRect
+      const offsetPosition = elementPosition - offset
 
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">Packaging &amp; Distribution</h3>
-          <p className="text-xs text-[var(--text-secondary)]">
-            To build a target distribution installer executable for Windows:
-          </p>
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-md p-4 font-mono text-xs text-[var(--muted-foreground)] select-all">
-            pnpm package
-          </div>
-          
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">Troubleshooting</h3>
-          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-            <strong>SQLite DLL Binary Mismatch:</strong> If you receive a binary loading mismatch error for `better_sqlite3`, compile the native driver against the Electron target Node ABI:
-          </p>
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-md p-4 font-mono text-xs text-[var(--muted-foreground)] select-all">
-            pnpm -F @leadforge/desktop exec electron-builder install-app-deps
-          </div>
-        </div>
-      )
-    },
-    sqlite: {
-      title: "SQLite Concurrency & WAL",
-      category: "Core Mechanics",
-      content: (
-        <div className="space-y-6">
-          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-            LeadForge OS leverages SQLite in Write-Ahead Log (WAL) mode to coordinate scrapers running in multiple subprocesses.
-            This ensures that background scraping tasks never lock the main UI thread during lead enrichment.
-          </p>
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: "smooth"
+      })
+      setActiveHeadingId(id)
+    }
+  }
 
-          <div className="border border-[var(--border-subtle)] bg-[var(--card)] p-4 rounded-lg space-y-3 font-mono text-[11px] text-[var(--text-secondary)]">
-            <span className="text-[var(--primary)] font-semibold">PRAGMA journal_mode = WAL;</span>
-            <p className="leading-relaxed">
-              WAL allows multiple readers to read the database at the same time a writer is active.
-              Transactions are written to a separate `.wal` file, which is periodically checkpointed back to the database.
-            </p>
-          </div>
-
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">Multi-Workspace Isolation</h3>
-          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-            LeadForge OS isolates different projects by storing them in separate physical SQLite database files: <code>leadforge_&lt;workspaceId&gt;.db</code>. These reside in the OS Roaming data directory.
-          </p>
-        </div>
-      )
-    },
-    job_scheduler: {
-      title: "Background Job Scheduler",
-      category: "Core Mechanics",
-      content: (
-        <div className="space-y-6">
-          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-            The `JobScheduler` in the Electron main process manages headless crawler processes and Playwright instances.
-            It ensures parallel tasks run efficiently without causing CPU spikes.
-          </p>
-
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">Heartbeat Watchdog</h3>
-          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-            Every 10 seconds, the main process pings child scraper workers. Scrapers must reply with a `pong` message.
-            If a worker stalls or fails to respond within 30 seconds, it is terminated with `SIGKILL` and flagged for retry.
-          </p>
-
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">State Checkpointing</h3>
-          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-            Long-running scraping jobs regularly save progress offsets to the database. If a job is paused or interrupted,
-            it resumes from the last known checkpoint offset rather than restarting from scratch.
-          </p>
-        </div>
-      )
-    },
-    sync: {
-      title: "SQLite-to-Mongo Sync Engine",
-      category: "Core Mechanics",
-      content: (
-        <div className="space-y-6">
-          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-            The sync engine keeps the local desktop database backed up to the cloud api database whenever internet is active.
-          </p>
-
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">Sync Protocol</h3>
-          <ul className="text-xs text-[var(--text-secondary)] space-y-2 list-decimal list-inside leading-relaxed">
-            <li>Any local database insert/update adds a sync request event to the local `sync_queue` table in the same transaction block.</li>
-            <li>The `SyncEngine` reads the queue and sends modifications sequentially to the Hono API server using the SDK transport client.</li>
-            <li>The Hono server updates the cloud MongoDB instance.</li>
-            <li><strong>Conflict Resolution:</strong> Resolves write overlaps using Last-Write-Wins (LWW) based on standard `updatedAt` headers.</li>
-          </ul>
-        </div>
-      )
-    },
-    secrets: {
-      title: "Secrets & safeStorage",
-      category: "Security & Privacy",
-      content: (
-        <div className="space-y-6">
-          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-            Sensitive user credentials (SMTP password, OpenRouter API keys) are encrypted before storage.
-          </p>
-
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">Keychain Encryption</h3>
-          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-            We use Electron's native `safeStorage` API, which leverages Windows Data Protection API (DPAPI) or macOS Keychain.
-            Secrets are saved to SQLite prefixed with `_enc_base64:`.
-          </p>
-
-          <h3 className="text-sm font-semibold text-[var(--foreground)] font-mono">Test &amp; Headless CLI Fallbacks</h3>
-          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-            Because tests and background CLI commands run outside the main Electron window context, `safeStorage` is unavailable in those scopes.
-            If `isEncryptionAvailable()` is false, the system alerts the developer and falls back to plain-text settings configurations.
-          </p>
-        </div>
-      )
-    },
-    masking: {
-      title: "Logs Credential Masking",
-      category: "Security & Privacy",
-      content: (
-        <div className="space-y-6">
-          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-            LeadForge OS scans all logs to prevent the leakage of credentials in troubleshooting files.
-          </p>
-
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">Regex Filtering</h3>
-          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-            Daily logs written via `@leadforge/logger` filter properties matching secrets keys (e.g. `smtpPassword`, `openRouterKey`).
-            Matches are replaced with the `[MASKED]` string representation before being saved to the file system.
-          </p>
-        </div>
-      )
-    },
-    adr_overview: {
-      title: "Architectural Decision Records (ADRs)",
-      category: "Developer Reference",
-      content: (
-        <div className="space-y-6">
-          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-            Overview registry of design architecture decisions made during LeadForge OS development.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="border border-[var(--border-subtle)] rounded p-3 bg-[var(--card)]">
-              <h4 className="text-xs font-semibold text-[var(--foreground)]">ADR-001: Runtime Responsibilities</h4>
-              <p className="text-[10px] text-[var(--text-secondary)] mt-1">Isolates scraper worker subprocesses from the Electron UI thread to protect rendering loops.</p>
-            </div>
-            <div className="border border-[var(--border-subtle)] rounded p-3 bg-[var(--card)]">
-              <h4 className="text-xs font-semibold text-[var(--foreground)]">ADR-004: Memory Model</h4>
-              <p className="text-[10px] text-[var(--text-secondary)] mt-1">Configures a maximum 800MB RSS memory ceiling for workers, terminating bloated Playwright instances.</p>
-            </div>
-            <div className="border border-[var(--border-subtle)] rounded p-3 bg-[var(--card)]">
-              <h4 className="text-xs font-semibold text-[var(--foreground)]">ADR-007: Dependency Rules</h4>
-              <p className="text-[10px] text-[var(--text-secondary)] mt-1">Maintains package layout isolation, ensuring `schema` and `core` remain decoupled from API/desktop shells.</p>
-            </div>
-            <div className="border border-[var(--border-subtle)] rounded p-3 bg-[var(--card)]">
-              <h4 className="text-xs font-semibold text-[var(--foreground)]">ADR-011: Sync Architecture</h4>
-              <p className="text-[10px] text-[var(--text-secondary)] mt-1">Defines SQLite mutation event capturing using local queues to support offline capabilities.</p>
-            </div>
-          </div>
-        </div>
-      )
+  // Handle article transition
+  const handleArticleSelect = (id: string, headingId?: string) => {
+    setActiveArticleId(id)
+    setSearchOpen(false)
+    window.scrollTo({ top: 0 })
+    
+    if (headingId) {
+      setTimeout(() => scrollToHeading(headingId), 200)
     }
   }
 
   return (
-    <div className="container mx-auto px-6 py-20 min-h-[85vh] text-left">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-[240px_1fr] gap-10">
+    <div className="container mx-auto px-6 py-12 min-h-[85vh] text-left">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-[220px_1fr_200px] gap-8">
         
         {/* Sidebar Nav */}
-        <div className="space-y-8 select-none">
-          <div className="relative">
-            <input 
-              type="text" 
-              placeholder="Search documentation..." 
-              disabled
-              className="w-full h-8 pl-8 pr-2 rounded bg-[var(--card)] border border-[var(--border)] text-xs text-[var(--muted-foreground)] pointer-events-none"
-            />
-            <Search className="absolute left-2.5 top-[9px] h-3.5 w-3.5 text-[var(--text-tertiary)]" />
+        <div className="hidden md:block space-y-6 select-none border-r border-[var(--border-subtle)] pr-6">
+          <div className="relative group cursor-pointer" onClick={() => setSearchOpen(true)}>
+            <div className="w-full h-8 pl-8 pr-2 rounded bg-[var(--card)] border border-[var(--border)] text-[11px] text-[var(--muted-foreground)] flex items-center justify-between hover:border-[var(--border-strong)] transition-all">
+              <span className="truncate">Search docs...</span>
+              <kbd className="hidden sm:inline-flex h-4 select-none items-center gap-0.5 rounded border border-[var(--border-subtle)] bg-[var(--background)] px-1 font-mono text-[8px] font-medium opacity-60">
+                ⌘/
+              </kbd>
+            </div>
+            <Search className="absolute left-2.5 top-[8px] h-3.5 w-3.5 text-[var(--text-tertiary)]" />
           </div>
 
-          <div className="space-y-6">
-            {categories.map((cat) => (
-              <div key={cat.title} className="space-y-2">
-                <h4 className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] font-semibold">
-                  {cat.title}
+          <div className="space-y-5 overflow-y-auto max-h-[70vh] custom-scrollbar">
+            {categories.map(([catName, items]) => (
+              <div key={catName} className="space-y-1.5">
+                <h4 className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] font-semibold">
+                  {catName}
                 </h4>
-                <div className="space-y-1">
-                  {cat.items.map((item) => {
-                    const isActive = activeArticle === item.id
-                    const IconComp = item.icon
+                <div className="space-y-0.5">
+                  {items.map((item) => {
+                    const isActive = activeArticleId === item.id
+                    const IconComp = item.category === "Security" ? ShieldAlert : item.category === "ADRs" ? FileText : Book
                     return (
                       <button
                         key={item.id}
-                        onClick={() => setActiveArticle(item.id as any)}
-                        className={`flex w-full items-center gap-2 px-2.5 py-1.5 rounded text-xs transition-colors duration-150 cursor-pointer ${
+                        onClick={() => handleArticleSelect(item.id)}
+                        className={`flex w-full items-center gap-2 px-2.5 py-1.5 rounded text-[11.5px] font-medium transition-colors duration-150 cursor-pointer ${
                           isActive 
-                            ? "bg-[var(--card)] text-[var(--foreground)] border-l-2 border-[var(--primary)] pl-[8px]" 
+                            ? "bg-[rgba(232,98,44,0.06)] text-[var(--primary)] border-l-2 border-[var(--primary)] pl-[8px]" 
                             : "text-[var(--text-secondary)] hover:bg-[var(--card)] hover:text-[var(--foreground)]"
                         }`}
                       >
-                        <IconComp className="h-3.5 w-3.5" />
-                        {item.title}
+                        <IconComp className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{item.title}</span>
                       </button>
                     )
                   })}
@@ -298,22 +206,177 @@ export default function DocsPage() {
         </div>
 
         {/* Content Panel */}
-        <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
-          <div className="border-b border-[var(--border-subtle)] pb-6 space-y-2">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--primary)]">
-              {articles[activeArticle].category}
-            </span>
-            <h1 className="text-3xl font-semibold text-[var(--foreground)]">
-              {articles[activeArticle].title}
-            </h1>
+        <div className="space-y-8 min-w-0 pr-0 md:pr-4">
+          {/* Breadcrumbs */}
+          <div className="flex items-center gap-1.5 text-[10px] font-mono text-[var(--text-tertiary)]">
+            <span className="hover:text-[var(--foreground)]">Docs</span>
+            <ChevronRight className="h-2.5 w-2.5" />
+            <span className="hover:text-[var(--foreground)]">{activeArticle.category}</span>
+            <ChevronRight className="h-2.5 w-2.5" />
+            <span className="text-[var(--foreground)] truncate">{activeArticle.title}</span>
           </div>
 
-          <div className="min-h-[300px]">
-            {articles[activeArticle].content}
+          {/* Article Header */}
+          <div className="border-b border-[var(--border-subtle)] pb-5 space-y-3">
+            <h1 className="text-3xl font-semibold tracking-tight text-[var(--foreground)]">
+              {activeArticle.title}
+            </h1>
+            <div className="flex items-center gap-4 text-[10px] font-mono text-[var(--text-tertiary)] select-none">
+              <span className="flex items-center gap-1">
+                <Clock className="h-3.5 w-3.5" />
+                {activeArticle.readingTime} min read
+              </span>
+              <span>•</span>
+              <a 
+                href={`https://github.com/kjxcodez/leadforge-os/edit/main/docs/`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 hover:text-[var(--foreground)]"
+              >
+                <Edit3 className="h-3.5 w-3.5" />
+                Edit on GitHub
+              </a>
+            </div>
+          </div>
+
+          {/* Compiled HTML Content */}
+          <div 
+            ref={contentRef}
+            className="doc-content prose prose-invert max-w-none"
+            dangerouslySetInnerHTML={{ __html: activeArticle.htmlContent }}
+          />
+
+          {/* Previous/Next Navigation */}
+          <div className="grid grid-cols-2 gap-4 border-t border-[var(--border-subtle)] pt-6 mt-12 select-none">
+            {prevArticle ? (
+              <button 
+                onClick={() => handleArticleSelect(prevArticle.id)}
+                className="flex flex-col items-start gap-1 p-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--card)] hover:border-[var(--border-strong)] text-left cursor-pointer transition-all"
+              >
+                <span className="text-[9px] font-mono text-[var(--text-tertiary)] flex items-center gap-1">
+                  <ArrowLeft className="h-3 w-3" /> PREVIOUS
+                </span>
+                <span className="text-[11.5px] font-semibold text-[var(--foreground)] truncate w-full">
+                  {prevArticle.title}
+                </span>
+              </button>
+            ) : <div />}
+
+            {nextArticle ? (
+              <button 
+                onClick={() => handleArticleSelect(nextArticle.id)}
+                className="flex flex-col items-end gap-1 p-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--card)] hover:border-[var(--border-strong)] text-right cursor-pointer transition-all"
+              >
+                <span className="text-[9px] font-mono text-[var(--text-tertiary)] flex items-center gap-1">
+                  NEXT <ArrowRight className="h-3 w-3" />
+                </span>
+                <span className="text-[11.5px] font-semibold text-[var(--foreground)] truncate w-full">
+                  {nextArticle.title}
+                </span>
+              </button>
+            ) : <div />}
           </div>
         </div>
 
+        {/* Right Table of Contents (Outline) */}
+        <div className="hidden lg:block space-y-4 select-none border-l border-[var(--border-subtle)] pl-4">
+          {activeArticle.headings.length > 0 && (
+            <>
+              <h4 className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] font-semibold">
+                On this page
+              </h4>
+              <div className="space-y-1.5 text-[11px] leading-normal font-medium">
+                {activeArticle.headings.map((heading) => {
+                  const isActive = activeHeadingId === heading.id
+                  const indentClass = heading.level === 3 ? "pl-3 text-[10.5px] opacity-80" : ""
+                  
+                  return (
+                    <button
+                      key={heading.id}
+                      onClick={() => scrollToHeading(heading.id)}
+                      className={`block w-full text-left truncate transition-colors duration-150 cursor-pointer ${indentClass} ${
+                        isActive 
+                          ? "text-[var(--primary)] font-semibold" 
+                          : "text-[var(--text-secondary)] hover:text-[var(--foreground)]"
+                      }`}
+                    >
+                      {heading.text}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
       </div>
+
+      {/* Global Search Cockpit Modal */}
+      <AnimatePresence>
+        {searchOpen && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-black/70 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              transition={{ duration: 0.12 }}
+              className="relative w-full max-w-lg border border-[var(--border)] rounded-lg bg-[var(--card)] shadow-2xl overflow-hidden"
+            >
+              {/* Search input bar */}
+              <div className="flex h-12 items-center border-b border-[var(--border-subtle)] px-4">
+                <Search className="h-4 w-4 text-[var(--text-tertiary)] shrink-0" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Type to search documentation..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full h-full border-0 bg-transparent px-3 text-xs text-[var(--foreground)] focus:ring-0 outline-none placeholder:text-[var(--text-tertiary)]"
+                />
+                <button 
+                  onClick={() => setSearchOpen(false)}
+                  className="rounded border border-[var(--border-subtle)] bg-[var(--background)] px-1.5 py-0.5 text-[8px] font-mono text-[var(--text-tertiary)]"
+                >
+                  ESC
+                </button>
+              </div>
+
+              {/* Search results ledger */}
+              <div className="max-h-[300px] overflow-y-auto p-2 space-y-1">
+                {searchQuery.trim() === "" ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center text-[10.5px] text-[var(--text-tertiary)]">
+                    <Book className="h-6 w-6 opacity-30 mb-2" />
+                    <span>Search by document title, code snippets, or parameters.</span>
+                  </div>
+                ) : searchResults.length > 0 ? (
+                  searchResults.map((result) => (
+                    <button
+                      key={result.id}
+                      onClick={() => handleArticleSelect(result.id)}
+                      className="w-full flex items-center justify-between p-3 rounded bg-[rgba(10,10,11,0.2)] border border-[var(--border-subtle)] hover:border-[var(--primary)] hover:bg-[rgba(232,98,44,0.02)] transition-all text-left cursor-pointer"
+                    >
+                      <div className="min-w-0 pr-4">
+                        <span className="text-[8px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] block">
+                          {result.category}
+                        </span>
+                        <span className="text-[11.5px] font-semibold text-[var(--foreground)] truncate block mt-0.5">
+                          {result.title}
+                        </span>
+                      </div>
+                      <CornerDownLeft className="h-3 w-3 text-[var(--text-tertiary)] shrink-0" />
+                    </button>
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 text-center text-[10.5px] text-[var(--text-tertiary)]">
+                    <AlertTriangle className="h-6 w-6 opacity-30 mb-2 text-amber-500" />
+                    <span>No results found matching "{searchQuery}"</span>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
