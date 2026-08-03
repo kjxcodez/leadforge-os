@@ -1,12 +1,10 @@
 "use client"
 
-import React, { useState } from "react"
+import React from "react"
 import { motion } from "motion/react"
 import { Check, ShieldAlert, Zap, Globe, Cpu } from "lucide-react"
 
 export default function PricingPage() {
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("yearly")
-
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -20,45 +18,25 @@ export default function PricingPage() {
     visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" as const } }
   }
 
-  const tiers = [
+  const features = [
+    "Unlimited Google Maps Scraper",
+    "Multi-process Headless Worker Host",
+    "LinkedIn Voyager API Integration",
+    "TLS Handshake Direct SMTP Relay",
+    "Local SQLite WAL Storage (Workspace isolated)",
+    "Diagnostics telemetry dashboard"
+  ]
+
+  const roadmapPlans = [
     {
-      name: "Free (Local-Only)",
-      price: 0,
-      description: "Run the full LeadForge OS suite on your desktop, with data stored strictly inside your local files.",
-      features: [
-        "Google Maps scraper",
-        "Email enrichment workers",
-        "Direct SMTP campaigns",
-        "Local SQLite WAL storage",
-        "Community support"
-      ]
+      name: "Hybrid Cloud Backups",
+      description: "Encrypted delta updates syncing local databases to remote relays for team collaboration.",
+      stage: "Planned"
     },
     {
-      name: "Pro (Hybrid Cloud)",
-      price: billingCycle === "yearly" ? 49 : 59,
-      description: "Keep your local-first client synced with cloud backup backups and remote SMTP relays.",
-      features: [
-        "Everything in Free",
-        "Encrypted Cloud Backups",
-        "Remote dispatch sync engine",
-        "Lead scoring formulas",
-        "AI outreach suggestions",
-        "Email/Discord support"
-      ],
-      popular: true
-    },
-    {
-      name: "Enterprise",
-      price: "Custom",
-      description: "Deploy LeadForge relayer nodes across custom dedicated servers with security logs.",
-      features: [
-        "Everything in Pro",
-        "Self-hosted sync engine",
-        "Custom API configurations",
-        "Team workspace collaboration",
-        "Priority 24/7 support SLAs",
-        "Compliance documentation"
-      ]
+      name: "Third-Party Verification",
+      description: "Direct plugin integrations for email checking services like Hunter, ZeroBounce, etc.",
+      stage: "Planned"
     }
   ]
 
@@ -71,106 +49,114 @@ export default function PricingPage() {
         className="max-w-5xl mx-auto space-y-16"
       >
         {/* Header Block */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="space-y-4 max-w-2xl">
-            <motion.div variants={childVariants} className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] uppercase tracking-wider font-mono">
-              Pricing Options
-            </motion.div>
-            <h1 className="text-4xl font-semibold tracking-tight text-[var(--foreground)] md:text-5xl">
-              Pay for the system, not seats.
-            </h1>
-            <p className="text-base text-[var(--text-secondary)]">
-              LeadForge OS runs on your hardware, which means we do not charge bloated cloud hosting markups.
-            </p>
-          </div>
-
-          {/* Toggle Button */}
-          <motion.div variants={childVariants} className="flex p-0.5 rounded bg-[var(--card)] border border-[var(--border)] shrink-0 select-none">
-            <button 
-              onClick={() => setBillingCycle("monthly")}
-              className={`h-7 px-3 text-[10px] font-semibold rounded transition-all cursor-pointer ${
-                billingCycle === "monthly" ? "bg-[var(--primary)] text-[var(--primary-foreground)]" : "text-[var(--text-secondary)] hover:text-[var(--foreground)]"
-              }`}
-            >
-              Monthly
-            </button>
-            <button 
-              onClick={() => setBillingCycle("yearly")}
-              className={`h-7 px-3 text-[10px] font-semibold rounded transition-all cursor-pointer ${
-                billingCycle === "yearly" ? "bg-[var(--primary)] text-[var(--primary-foreground)]" : "text-[var(--text-secondary)] hover:text-[var(--foreground)]"
-              }`}
-            >
-              Yearly (Save 20%)
-            </button>
+        <div className="space-y-4 max-w-2xl">
+          <motion.div variants={childVariants} className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-[rgba(63,178,127,0.12)] text-[#3FB27F] border border-[rgba(63,178,127,0.2)] text-[10px] uppercase tracking-wider font-mono">
+            Free Open Beta
           </motion.div>
+          <h1 className="text-4xl font-semibold tracking-tight text-[var(--foreground)] md:text-5xl">
+            Free while in beta.
+          </h1>
+          <p className="text-base text-[var(--text-secondary)]">
+            LeadForge OS runs on your hardware. We do not charge bloated cloud hosting markups because you run the system yourself.
+          </p>
         </div>
 
-        {/* Pricing Cards Grid */}
-        <motion.div variants={childVariants} className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {tiers.map((tier) => (
-            <div 
-              key={tier.name}
-              className={`border rounded-lg p-6 bg-[var(--card)] space-y-6 flex flex-col justify-between ${
-                tier.popular ? "border-[var(--primary)] ring-1 ring-[var(--primary)]" : "border-[var(--border)]"
-              }`}
-            >
-              <div className="space-y-4">
-                <div className="flex items-start justify-between">
-                  <h3 className="text-sm font-semibold text-[var(--foreground)]">{tier.name}</h3>
-                  {tier.popular && (
-                    <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--primary)] px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20">
-                      Popular
-                    </span>
-                  )}
+        {/* Pricing Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* Main Beta Tier Card */}
+          <motion.div 
+            variants={childVariants}
+            className="lg:col-span-2 border border-[var(--primary)] ring-1 ring-[var(--primary)] rounded-lg p-6 bg-[var(--card)] space-y-6 flex flex-col justify-between"
+          >
+            <div className="space-y-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-[var(--foreground)]">LeadForge OS Open Beta</h3>
+                  <p className="text-[11px] text-[var(--text-secondary)] mt-1">
+                    Complete local-first pipeline environment running locally inside your system container.
+                  </p>
                 </div>
-                <div className="text-3xl font-bold font-mono text-[var(--foreground)]">
-                  {typeof tier.price === "number" ? (
-                    <>
-                      ${tier.price}
-                      <span className="text-xs font-normal text-[var(--text-tertiary)]">/mo</span>
-                    </>
-                  ) : (
-                    tier.price
-                  )}
-                </div>
-                <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
-                  {tier.description}
-                </p>
+                <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--primary)] px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20">
+                  Active
+                </span>
+              </div>
+              <div className="text-4xl font-bold font-mono text-[var(--foreground)]">
+                $0
+                <span className="text-xs font-normal text-[var(--text-tertiary)]"> / free forever during beta</span>
               </div>
 
-              <div className="space-y-4">
-                <ul className="space-y-2 border-t border-[var(--border-subtle)] pt-4 text-[11px] text-[var(--text-secondary)]">
-                  {tier.features.map((feat) => (
-                    <li key={feat} className="flex items-center gap-2">
-                      <Check className="h-3.5 w-3.5 text-[var(--primary)] shrink-0" />
-                      <span>{feat}</span>
-                    </li>
-                  ))}
-                </ul>
+              <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-[var(--border-subtle)] pt-6 text-[11.5px] text-[var(--text-secondary)]">
+                {features.map((feat) => (
+                  <li key={feat} className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-[var(--primary)] shrink-0" />
+                    <span>{feat}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
-                <button 
-                  className={`w-full h-9 rounded text-xs font-semibold transition-all cursor-pointer ${
-                    tier.popular 
-                      ? "bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90" 
-                      : "border border-[var(--border)] bg-[var(--background)] text-[var(--text-secondary)] hover:text-[var(--foreground)] hover:border-[var(--border-strong)]"
-                  }`}
-                >
-                  {tier.price === 0 ? "Get Started" : tier.price === "Custom" ? "Contact Sales" : "Subscribe"}
-                </button>
+            <div className="pt-4">
+              <a 
+                href="/download"
+                className="inline-flex w-full h-10 items-center justify-center rounded bg-[var(--primary)] text-xs font-semibold text-[var(--primary-foreground)] hover:opacity-90 transition-all cursor-pointer"
+              >
+                Download Windows Installer (v1.0.0-beta.1)
+              </a>
+            </div>
+          </motion.div>
+
+          {/* Roadmap Info Card */}
+          <motion.div 
+            variants={childVariants}
+            className="border border-[var(--border)] rounded-lg p-6 bg-[var(--card)] flex flex-col justify-between"
+          >
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-[var(--foreground)] flex items-center gap-2">
+                <Globe className="h-4 w-4 text-[var(--text-tertiary)]" /> Future Extensions
+              </h3>
+              <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+                As we build team collaboration modules, we will introduce optional paid cloud hosting services. The core desktop app remains local and free.
+              </p>
+
+              <div className="border-t border-[var(--border-subtle)] pt-4 space-y-4">
+                {roadmapPlans.map((plan) => (
+                  <div key={plan.name} className="space-y-1 text-left">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-[var(--foreground)]">{plan.name}</span>
+                      <span className="text-[8px] font-mono uppercase tracking-wider px-1.5 py-0.2 rounded border bg-[var(--secondary)] text-[var(--muted-foreground)] border-[var(--border-subtle)]">
+                        {plan.stage}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-[var(--text-tertiary)] leading-normal">
+                      {plan.description}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
-        </motion.div>
+
+            <div className="pt-6">
+              <a
+                href="/roadmap"
+                className="inline-flex w-full h-9 items-center justify-center rounded border border-[var(--border)] bg-[var(--background)] text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--foreground)] hover:border-[var(--border-strong)] transition-all"
+              >
+                Review Development Roadmap
+              </a>
+            </div>
+          </motion.div>
+
+        </div>
 
         {/* Local Security block */}
         <motion.div variants={childVariants} className="border border-[var(--border)] rounded-xl bg-[var(--card)] p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="space-y-2">
             <h3 className="text-sm font-semibold text-[var(--foreground)] flex items-center gap-2">
               <ShieldAlert className="h-4.5 w-4.5 text-[var(--primary)]" />
-              Cancel or Switch Anytime
+              100% Offline Portability
             </h3>
             <p className="text-xs text-[var(--text-secondary)] max-w-xl leading-relaxed">
-              Subscribing supports LeadForge development. If you decide to cancel, your database remains 100% readable locally on your machine forever.
+              Your SQLite database tables sit safely on your machine. Even if you choose not to subscribe to future cloud layers, your campaigns, indexes, and logs are 100% accessible forever.
             </p>
           </div>
         </motion.div>

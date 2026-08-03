@@ -20,22 +20,16 @@ export default function ChangelogPage() {
 
   const logs = [
     {
-      date: "August 2, 2026",
-      version: "v1.4.2",
+      date: "August 1, 2026",
+      version: "v1.0.0-beta.1",
       badgeStyle: "bg-[rgba(63,178,127,0.12)] text-[#3FB27F] border-[rgba(63,178,127,0.2)]",
       changes: [
-        { type: "Added", text: "Interactive CRM & Intelligence tab switching inside details drawer.", icon: Sparkles, iconColor: "text-[var(--primary)]" },
-        { type: "Fixed", text: "Optimized border custom variables in dark mode to soften visual contrast.", icon: CheckCircle2, iconColor: "text-[var(--success)]" },
-        { type: "Changed", text: "Swapped near-white Add Company buttons for primary colored elements.", icon: Sparkles, iconColor: "text-[var(--primary)]" }
-      ]
-    },
-    {
-      date: "July 24, 2026",
-      version: "v1.4.0",
-      badgeStyle: "bg-[var(--secondary)] text-[var(--muted-foreground)] border-[var(--border-subtle)]",
-      changes: [
-        { type: "Added", text: "Local operation scraper logs strip streaming directly into SQLite databases.", icon: Sparkles, iconColor: "text-[var(--primary)]" },
-        { type: "Fixed", text: "Corrected prefers-reduced-motion triggers on particle canvas node grid interpolations.", icon: CheckCircle2, iconColor: "text-[var(--success)]" }
+        { type: "Added", text: "Quality & Release Gates: Introduced a strict 10-gate release verification check to ensure maximum platform stability prior to any distribution.", icon: ShieldCheck, iconColor: "text-green-400" },
+        { type: "Added", text: "Dynamic AI Model Discovery: The desktop application dynamically detects active free LLM options at runtime to prevent broken key or service-dependent starts.", icon: Sparkles, iconColor: "text-[var(--primary)]" },
+        { type: "Added", text: "Diagnostics Dashboard: Embedded local telemetry capturing startup latencies, SQLite migration status, and memory footprints.", icon: Sparkles, iconColor: "text-[var(--primary)]" },
+        { type: "Added", text: "Robust Local Logging: Implemented local daily rotating logs with circular database buffers to prevent file growth from consuming disk space.", icon: Sparkles, iconColor: "text-[var(--primary)]" },
+        { type: "Added", text: "Developer Test Suites: Dynamic AI test suite, headless desktop subsystems smoke tests, and master release gate runner.", icon: Sparkles, iconColor: "text-[var(--primary)]" },
+        { type: "Changed", text: "Sync Logging Redirect: Moved raw console.log in sync-engine and connection routines to structured AppLogger info streams.", icon: Sparkles, iconColor: "text-[var(--primary)]" }
       ]
     }
   ]

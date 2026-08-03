@@ -102,7 +102,7 @@ export function DocsLayoutShell({
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-[220px_1fr] lg:grid-cols-[220px_1fr_200px] gap-8">
         
         {/* Left Sidebar - Desktop */}
-        <div className="hidden md:block space-y-6 select-none border-r border-[var(--border-subtle)] pr-6">
+        <div className="hidden md:block space-y-6 select-none border-r border-[var(--border-subtle)] pr-6 sticky top-20 self-start">
           <div className="w-full">
             <DocsSearch />
           </div>
@@ -262,7 +262,7 @@ export function DocsLayoutShell({
         </div>
 
         {/* Right Table of Contents Sidebar Outline */}
-        <div className="hidden lg:block space-y-4 select-none border-l border-[var(--border-subtle)] pl-4">
+        <div className="hidden lg:block space-y-4 select-none border-l border-[var(--border-subtle)] pl-4 sticky top-20 self-start">
           {headings.length > 0 && (
             <>
               <h4 className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] font-semibold font-sans">

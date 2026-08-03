@@ -448,7 +448,7 @@ export function Hero() {
           >
             <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border ${activeTheme.badgeBg} ${activeTheme.badgeText} text-[10px] font-mono uppercase tracking-wider font-semibold`}>
               <Zap className="h-3 w-3 animate-pulse" />
-              LeadForge OS v1.4.2 · SQLite WAL Sync
+              LeadForge OS v1.0.0-beta.1 · Windows Early Beta
             </div>
           </motion.div>
 

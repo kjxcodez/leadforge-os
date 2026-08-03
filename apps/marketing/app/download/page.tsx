@@ -94,21 +94,21 @@ export default function DownloadPage() {
         {/* Counter and Status */}
         <motion.div variants={childVariants} className="grid grid-cols-2 md:grid-cols-3 gap-4 border border-[var(--border)] rounded-lg p-4 bg-[var(--card)]">
           <div className="space-y-1">
-            <span className="text-[10px] uppercase font-mono text-[var(--text-tertiary)]">Total Dispatches</span>
-            <div className="text-lg font-bold font-mono text-[var(--foreground)]">
-              <AnimatedCounter value={14842} />+
+            <span className="text-[10px] uppercase font-mono text-[var(--text-tertiary)]">Platform Support</span>
+            <div className="text-sm font-bold font-mono text-[var(--foreground)]">
+              Windows (x64)
             </div>
           </div>
           <div className="space-y-1">
-            <span className="text-[10px] uppercase font-mono text-[var(--text-tertiary)]">Core Relays</span>
-            <div className="text-lg font-bold font-mono text-[var(--success)] flex items-center gap-1.5">
+            <span className="text-[10px] uppercase font-mono text-[var(--text-tertiary)]">Build Status</span>
+            <div className="text-sm font-bold font-mono text-[var(--success)] flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)] animate-pulse"></span>
-              99.98%
+              Active Beta
             </div>
           </div>
           <div className="col-span-2 md:col-span-1 space-y-1">
-            <span className="text-[10px] uppercase font-mono text-[var(--text-tertiary)]">Current Version</span>
-            <div className="text-lg font-bold font-mono text-[var(--foreground)]">{latestRelease.version}</div>
+            <span className="text-[10px] uppercase font-mono text-[var(--text-tertiary)]">License</span>
+            <div className="text-sm font-bold font-mono text-[var(--foreground)]">Open Source (MIT)</div>
           </div>
         </motion.div>
 

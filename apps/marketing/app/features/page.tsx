@@ -2,7 +2,7 @@
 
 import React from "react"
 import { motion } from "motion/react"
-import { Search, Globe, Users, Table, Mail, Database, ShieldAlert, Cpu } from "lucide-react"
+import { Search, Globe, Users, Table, Mail, Database, ShieldAlert, Cpu, Heart, Activity } from "lucide-react"
 
 export default function FeaturesPage() {
   const containerVariants = {
@@ -38,6 +38,12 @@ export default function FeaturesPage() {
       color: "text-[var(--success)]"
     },
     {
+      title: "LinkedIn Voyager API",
+      icon: ShieldAlert,
+      description: "Direct executive contacts extraction matching targets with company personnel leveraging native session cookies.",
+      color: "text-[var(--primary)]"
+    },
+    {
       title: "Local CRM Workspace",
       icon: Table,
       description: "A fast, SQLite-backed grid for managing lead accounts, tracking notes, logging activity, and monitoring outreach pipelines.",
@@ -54,6 +60,18 @@ export default function FeaturesPage() {
       icon: Database,
       description: "Leverages SQLite WAL modes to run heavy background scrapers in parallel without locking the user interface.",
       color: "text-[var(--text-secondary)]"
+    },
+    {
+      title: "Sandboxed Worker Host",
+      icon: Cpu,
+      description: "Runs intensive Playwright scraping operations inside multi-process worker nodes without locking React's UI thread.",
+      color: "text-[#5B8DEF]"
+    },
+    {
+      title: "Diagnostics Cockpit",
+      icon: Activity,
+      description: "Monitors scheduler heartbeat logs, system resource averages, startup latency metrics, and circular log caches.",
+      color: "text-[var(--success)]"
     }
   ]
 

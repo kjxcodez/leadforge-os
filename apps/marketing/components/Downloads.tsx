@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react"
 import { motion } from "motion/react"
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion"
 import { Monitor, Apple, Terminal, Clipboard, Check, HelpCircle, ArrowDown } from "lucide-react"
+import { GENERATED_RELEASES } from "../lib/generated-releases"
 
 export function Downloads() {
   const prefersReducedMotion = usePrefersReducedMotion()
@@ -22,10 +23,10 @@ export function Downloads() {
       setActiveVerifyTab("win")
     } else if (platform.includes("mac") || userAgent.includes("macintosh")) {
       setDetectedPlatform("mac")
-      setActiveVerifyTab("mac")
+      setActiveVerifyTab("win") // default verify tab to win since it's the only one available
     } else if (platform.includes("linux") || platform.includes("x11")) {
       setDetectedPlatform("linux")
-      setActiveVerifyTab("linux")
+      setActiveVerifyTab("win") // default verify tab to win
     }
   }, [])
 
@@ -35,21 +36,30 @@ export function Downloads() {
     setTimeout(() => setCopiedText(false), 2000)
   }
 
+  // Find latest stable vs. latest pre-release
+  const latestRelease = GENERATED_RELEASES.find(r => !r.prerelease) || GENERATED_RELEASES[0]
+  const winAsset = latestRelease?.assets.find(a => a.name.endsWith('.exe'))
+  
+  const winName = winAsset?.name || "LeadForge.OS-0.1.2-beta.1-win-x64.exe"
+  const winHash = winAsset?.checksum || "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  const winUrl = winAsset?.downloadUrl || "https://github.com/kjxcodez/leadforge-os/releases/download/v1.0.0-beta.1/LeadForge.OS-0.1.2-beta.1-win-x64.exe"
+  const winVersion = latestRelease?.version || "v1.0.0-beta.1"
+
   const checksumData = {
     win: {
-      filename: "LeadForge-OS-1.4.2.exe",
-      hash: "8f5c9e2b10a4f32c923de4b9c1d0e5f67a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d",
-      cmd: "certutil -hashfile LeadForge-OS-1.4.2.exe SHA256"
+      filename: winName,
+      hash: winHash,
+      cmd: `certutil -hashfile ${winName} SHA256`
     },
     mac: {
-      filename: "LeadForge-OS-1.4.2.dmg",
-      hash: "7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f",
-      cmd: "shasum -a 256 LeadForge-OS-1.4.2.dmg"
+      filename: "LeadForge-OS-macOS (Coming Soon)",
+      hash: "Not Available Yet",
+      cmd: "echo 'macOS release is planned'"
     },
     linux: {
-      filename: "LeadForge-OS-1.4.2.AppImage",
-      hash: "6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b",
-      cmd: "sha256sum LeadForge-OS-1.4.2.AppImage"
+      filename: "LeadForge-OS-Linux (Coming Soon)",
+      hash: "Not Available Yet",
+      cmd: "echo 'Linux release is planned'"
     }
   }
 
@@ -85,20 +95,18 @@ export function Downloads() {
                 : "border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
             }`}
           >
-            {detectedPlatform === "win" && (
-              <span className="absolute top-3 right-3 px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-[8.5px] font-mono text-primary font-bold uppercase tracking-wider">
-                Recommended
-              </span>
-            )}
+            <span className="absolute top-3 right-3 px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-[8.5px] font-mono text-primary font-bold uppercase tracking-wider">
+              Recommended
+            </span>
             <div>
               <Monitor className="h-8 w-8 mx-auto mb-5 text-white" />
               <h4 className="text-sm font-bold text-white mb-1">Windows OS</h4>
-              <div className="font-mono text-[10px] text-[var(--text-tertiary)] mb-6">v1.4.2 · x64 Installer</div>
+              <div className="font-mono text-[10px] text-[var(--text-tertiary)] mb-6">{winVersion} · x64 Installer</div>
             </div>
             
             <div>
               <a 
-                href="#" 
+                href={winUrl} 
                 className="inline-flex w-full h-9 items-center justify-center rounded-md bg-[var(--primary)] px-4 text-xs font-semibold text-[var(--primary-foreground)] hover:bg-opacity-90 transition-all duration-150"
               >
                 Download (.exe)
@@ -107,63 +115,51 @@ export function Downloads() {
             </div>
           </div>
 
-          {/* macOS OS */}
+          {/* macOS OS (Coming Soon) */}
           <div
-            className={`flex flex-col justify-between rounded-lg border bg-[rgba(10,10,12,0.5)] p-6 text-center transition-all duration-200 relative overflow-hidden ${
-              detectedPlatform === "mac" 
-                ? "border-primary/50 shadow-[0_0_20px_rgba(232,98,44,0.06)] scale-[1.01]" 
-                : "border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
-            }`}
+            className="flex flex-col justify-between rounded-lg border bg-[rgba(10,10,12,0.3)] p-6 text-center border-[var(--border-subtle)] opacity-70 relative overflow-hidden"
           >
-            {detectedPlatform === "mac" && (
-              <span className="absolute top-3 right-3 px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-[8.5px] font-mono text-primary font-bold uppercase tracking-wider">
-                Recommended
-              </span>
-            )}
+            <span className="absolute top-3 right-3 px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-[8.5px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
+              Coming Soon
+            </span>
             <div>
-              <Apple className="h-8 w-8 mx-auto mb-5 text-white" />
-              <h4 className="text-sm font-bold text-white mb-1">macOS OS</h4>
-              <div className="font-mono text-[10px] text-[var(--text-tertiary)] mb-6">v1.4.2 · Apple Silicon &amp; Intel</div>
+              <Apple className="h-8 w-8 mx-auto mb-5 text-zinc-500" />
+              <h4 className="text-sm font-bold text-zinc-400 mb-1">macOS OS</h4>
+              <div className="font-mono text-[10px] text-[var(--text-tertiary)] mb-6">Planned · Apple Silicon &amp; Intel</div>
             </div>
 
             <div>
-              <a 
-                href="#" 
-                className="inline-flex w-full h-9 items-center justify-center rounded-md bg-[var(--primary)] px-4 text-xs font-semibold text-[var(--primary-foreground)] hover:bg-opacity-90 transition-all duration-150"
+              <button 
+                disabled
+                className="inline-flex w-full h-9 items-center justify-center rounded-md bg-zinc-800 px-4 text-xs font-semibold text-zinc-500 cursor-not-allowed transition-all duration-150"
               >
-                Download (.dmg)
-              </a>
-              <p className="text-[9px] text-[var(--text-tertiary)] mt-3 font-mono">Universal Target</p>
+                Coming Soon
+              </button>
+              <p className="text-[9px] text-[var(--text-tertiary)] mt-3 font-mono">Planned Release</p>
             </div>
           </div>
 
-          {/* Linux OS */}
+          {/* Linux OS (Coming Soon) */}
           <div
-            className={`flex flex-col justify-between rounded-lg border bg-[rgba(10,10,12,0.5)] p-6 text-center transition-all duration-200 relative overflow-hidden ${
-              detectedPlatform === "linux" 
-                ? "border-primary/50 shadow-[0_0_20px_rgba(232,98,44,0.06)] scale-[1.01]" 
-                : "border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
-            }`}
+            className="flex flex-col justify-between rounded-lg border bg-[rgba(10,10,12,0.3)] p-6 text-center border-[var(--border-subtle)] opacity-70 relative overflow-hidden"
           >
-            {detectedPlatform === "linux" && (
-              <span className="absolute top-3 right-3 px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-[8.5px] font-mono text-primary font-bold uppercase tracking-wider">
-                Recommended
-              </span>
-            )}
+            <span className="absolute top-3 right-3 px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-[8.5px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
+              Coming Soon
+            </span>
             <div>
-              <Terminal className="h-8 w-8 mx-auto mb-5 text-white" />
-              <h4 className="text-sm font-bold text-white mb-1">Linux OS</h4>
-              <div className="font-mono text-[10px] text-[var(--text-tertiary)] mb-6">v1.4.2 · x64 AppImage</div>
+              <Terminal className="h-8 w-8 mx-auto mb-5 text-zinc-500" />
+              <h4 className="text-sm font-bold text-zinc-400 mb-1">Linux OS</h4>
+              <div className="font-mono text-[10px] text-[var(--text-tertiary)] mb-6">Planned · x64 AppImage</div>
             </div>
 
             <div>
-              <a 
-                href="#" 
-                className="inline-flex w-full h-9 items-center justify-center rounded-md bg-[var(--primary)] px-4 text-xs font-semibold text-[var(--primary-foreground)] hover:bg-opacity-90 transition-all duration-150"
+              <button 
+                disabled
+                className="inline-flex w-full h-9 items-center justify-center rounded-md bg-zinc-800 px-4 text-xs font-semibold text-zinc-500 cursor-not-allowed transition-all duration-150"
               >
-                Download (.AppImage)
-              </a>
-              <p className="text-[9px] text-[var(--text-tertiary)] mt-3 font-mono">AppImage Sandbox</p>
+                Coming Soon
+              </button>
+              <p className="text-[9px] text-[var(--text-tertiary)] mt-3 font-mono">Planned Release</p>
             </div>
           </div>
 

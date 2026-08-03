@@ -29,36 +29,38 @@ export default function RoadmapPage() {
 
   const milestones = [
     {
-      quarter: "Q1 2026",
+      quarter: "Completed (v1.0.0-beta.1)",
       status: "completed",
-      title: "SQLite Core & WAL support",
-      description: "Implemented asynchronous writer pools using Write-Ahead Logging to prevent table locks.",
+      title: "Local-First Core & Discovery",
+      description: "Desktop environment with sandboxed worker host, local SQLite datastores, Playwright scraper, LinkedIn Voyager integrations, local CRM, and diagnostics telemetry.",
       items: [
-        "Concurrent reader-writer access loops",
-        "Encrypted SMTP configurations stored locally",
-        "SQLite-backed search lists indexing"
+        "Workspace-isolated SQLite with WAL mode writer pools",
+        "Playwright Google Maps Scraper and Cheerio crawler",
+        "LinkedIn Voyager API profile integrations",
+        "SRE telemetry metrics dashboard and local rotating log buffer"
       ]
     },
     {
-      quarter: "Q2 2026",
+      quarter: "Current (In Progress)",
       status: "in-progress",
-      title: "Email Dispatch Engine",
-      description: "Direct TLS certificate handshake and SMTP queue dispatch scheduling inside Electron background cores.",
+      title: "Hardening & Integration Guides",
+      description: "Refactoring developer manuals, documenting ADR design logs, securing imports, and key fallback storage handlers.",
       items: [
-        "SMTP handshake validation alerts",
-        "Interactive dispatch scheduler logs console",
-        "WHOIS domain contact enrichment"
+        "SafeStorage fallback optimization on Unix keyrings",
+        "Preventing dependency-cruiser boundary cycles",
+        "Comprehensive user documentation portal"
       ]
     },
     {
-      quarter: "Q3 2026",
+      quarter: "Planned (Upcoming)",
       status: "planned",
-      title: "Self-Hosted Relayers",
-      description: "Open-source syncing relay servers allowing teams to collaborate across distinct workspaces.",
+      title: "Cloud Backup & Multi-Platform Installer",
+      description: "Expanding the system to run on macOS/Linux while introducing optional delta-based cloud syncing relayers.",
       items: [
-        "End-to-End encrypted relay tunnels",
-        "Visual network topology graph diagnostics",
-        "Multi-mailbox SMTP fallback queues"
+        "Multi-platform installer builds (macOS dmg, Linux AppImage)",
+        "Local RAG and vector embeddings via sqlite-vec",
+        "Workspace synchronizer sync engine optimization",
+        "Third-party email verification adapters"
       ]
     }
   ]

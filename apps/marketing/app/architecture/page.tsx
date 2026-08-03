@@ -125,7 +125,10 @@ export default function ArchitecturePage() {
               </div>
 
               {/* Cloud Backup API */}
-              <div className="flex flex-col items-center space-y-3 z-10 w-28 bg-[var(--card)] p-3 border border-[var(--border-subtle)] rounded-lg">
+              <div className="flex flex-col items-center space-y-3 z-10 w-28 bg-[var(--card)] p-3 border border-[var(--border-subtle)] rounded-lg relative">
+                <span className="absolute -top-2 right-2 px-1.5 py-0.2 rounded bg-zinc-800 border border-zinc-700 text-[7px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
+                  Planned
+                </span>
                 <div className="p-3 bg-[var(--background)] rounded-full border border-[var(--border)]">
                   <Layers className="h-6 w-6 text-[var(--text-secondary)]" />
                 </div>

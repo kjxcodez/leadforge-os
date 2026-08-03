@@ -28,9 +28,9 @@ export default function StatusPage() {
   }
 
   const systems = [
-    { name: "Sync Engine Backup Tunnels", status: "Operational", desc: "Coordinates SQLite WAL database sync with backup relays." },
-    { name: "Outbound Relayer handshakes", status: "Operational", desc: "Validates SMTP mailserver handshakes and TLS layers." },
-    { name: "Documentation Site", status: "Operational", desc: "Serves static guidelines and developer guides." }
+    { name: "Marketing Website CDN", status: "Operational", desc: "Serves the main product landing pages and visual UI walkthrough components." },
+    { name: "Documentation Site", status: "Operational", desc: "Hosts interactive MDX guides, API references, and ADR documentation logs." },
+    { name: "GitHub Releases Endpoint", status: "Operational", desc: "Distributes cryptographic package releases and signed desktop binaries." }
   ]
 
   return (
@@ -50,16 +50,16 @@ export default function StatusPage() {
             LeadForge Service Status
           </motion.h1>
           <motion.p variants={childVariants} className="text-base text-[var(--text-secondary)] leading-relaxed">
-            Real-time status updates of LeadForge relayers, sync engine backups, and developer servers.
+            Real-time status updates of LeadForge website delivery networks, static assets documentation portals, and release endpoints.
           </motion.p>
         </div>
 
-        {/* Sync Engine Pulse Monitor */}
+        {/* CDN Pulse Monitor */}
         <motion.div variants={childVariants} className="border border-[var(--border)] rounded-lg p-5 bg-[var(--card)] space-y-4">
           <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-4">
             <div className="flex items-center gap-2">
               <Activity className="h-4.5 w-4.5 text-[var(--primary)]" />
-              <h3 className="text-sm font-semibold text-[var(--foreground)]">Sync Engine Heartbeat</h3>
+              <h3 className="text-sm font-semibold text-[var(--foreground)]">Asset Delivery network (CDN) Latency</h3>
             </div>
             <span className="font-mono text-[10px] text-[var(--muted-foreground)]">Ping: 12ms</span>
           </div>

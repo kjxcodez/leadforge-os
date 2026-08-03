@@ -216,10 +216,13 @@ export function Architecture() {
             <motion.div 
               animate={cloudFlash ? { scale: 1.02 } : { scale: 1 }}
               transition={{ duration: 0.15 }}
-              className={`rounded-lg border bg-[rgba(9,9,10,0.8)] p-4 flex flex-col justify-between transition-colors ${
+              className={`rounded-lg border bg-[rgba(9,9,10,0.8)] p-4 flex flex-col justify-between transition-colors relative ${
                 cloudFlash ? "border-green-500/50" : "border-[var(--border-subtle)]"
               }`}
             >
+              <span className="absolute top-2 right-2 px-1.5 py-0.2 rounded bg-zinc-800 border border-zinc-700 text-[7px] font-mono text-zinc-400 font-bold uppercase tracking-wider">
+                Planned
+              </span>
               <div>
                 <div className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-[var(--text-tertiary)] font-bold mb-3">
                   <Server className="h-3.5 w-3.5 text-[var(--primary)]" />
