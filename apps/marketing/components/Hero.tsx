@@ -637,7 +637,7 @@ export function Hero() {
                     LF
                   </span>
                   <div className="min-w-0">
-                    <div className="truncate font-semibold text-white leading-tight">greentech@leads</div>
+                    <div className="truncate font-semibold text-white leading-tight">get@leads.io</div>
                     <div className="truncate text-[8px] text-[var(--text-tertiary)]">Local Workspace</div>
                   </div>
                 </div>
