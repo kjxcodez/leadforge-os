@@ -17,6 +17,7 @@ import { PasswordToggle } from './password-toggle';
 interface LoginFormProps {
   onSubmit: (data: LoginDto) => void;
   onNavigateToRegister: () => void;
+  onNavigateToResetPassword: () => void;
   isLoading?: boolean;
   error?: string | null;
 }
@@ -29,6 +30,7 @@ interface LoginFormProps {
 export function LoginForm({
   onSubmit,
   onNavigateToRegister,
+  onNavigateToResetPassword,
   isLoading = false,
   error = null
 }: LoginFormProps) {
@@ -116,13 +118,18 @@ export function LoginForm({
           )}
         </div>
 
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => onNavigateToResetPassword()}
+            className="font-medium text-foreground hover:text-primary transition-colors duration-[--duration-instant] focus:outline-none focus-visible:underline cursor-pointer text-xs"
+          >
+            forgot password?
+          </button>
+        </div>
+
         {/* Primary submit button — Forge Orange */}
-        <Button
-          type="submit"
-          disabled={isLoading}
-          className="w-full"
-          size="default"
-        >
+        <Button type="submit" disabled={isLoading} className="w-full" size="default">
           {isLoading ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>

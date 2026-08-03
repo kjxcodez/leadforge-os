@@ -33,6 +33,7 @@ export function LoginScreen() {
       <LoginForm
         onSubmit={handleSubmit}
         onNavigateToRegister={() => navigate('/auth/register')}
+        onNavigateToResetPassword={() => navigate('/auth/forgot-password')}
         isLoading={isLoading}
         error={errorMsg}
       />
