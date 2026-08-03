@@ -2,7 +2,7 @@
 
 import React from "react"
 import { motion } from "motion/react"
-import { Search, Globe, Users, Table, Mail, Database, ShieldAlert, Cpu, Heart, Activity } from "lucide-react"
+import { Search, Globe, Users, Table, Mail, Database, ShieldAlert, Cpu, Activity, ShieldCheck } from "lucide-react"
 
 export default function FeaturesPage() {
   const containerVariants = {
@@ -75,6 +75,14 @@ export default function FeaturesPage() {
     }
   ]
 
+  const comparisonRows = [
+    { metric: "Hosting & Control", local: "100% Local (Your Hardware)", saas: "Cloud Server (Vendor Lock)" },
+    { metric: "Outreach Limits", local: "None (Set by your mailboxes)", saas: "Usage packages / seat throttles" },
+    { metric: "Lead Data Privacy", local: "Encrypted SQLite on your disk", saas: "Uploaded to third-party datastores" },
+    { metric: "Scraper Overhead", local: "Runs on your Chromium worker thread", saas: "High pricing markups for hosting" },
+    { metric: "Monthly Cost", local: "Free ($0 Open Beta)", saas: "$90 to $350 per seat / month" }
+  ]
+
   return (
     <div className="container mx-auto px-6 py-20 min-h-[85vh] text-left">
       <motion.div
@@ -115,6 +123,37 @@ export default function FeaturesPage() {
               </div>
             )
           })}
+        </motion.div>
+
+        {/* Extended Comparison Section */}
+        <motion.div variants={childVariants} className="space-y-6 pt-6 text-left">
+          <div className="space-y-2 max-w-xl">
+            <h2 className="text-xl font-bold text-white font-mono">LeadForge OS vs. Cloud Outbound Platforms</h2>
+            <p className="text-[11px] text-[var(--text-secondary)]">
+              Understand the core architectural advantages of running Outbound pipelines locally instead of renting SaaS seats.
+            </p>
+          </div>
+
+          <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--card)]">
+            <table className="w-full border-collapse text-xs text-left">
+              <thead>
+                <tr className="bg-[var(--muted)] text-[10px] uppercase font-mono text-[var(--text-tertiary)] border-b border-[var(--border)] select-none">
+                  <th className="px-4 py-2 font-normal">Architecture Capability</th>
+                  <th className="px-4 py-2 font-semibold text-[var(--primary)]">LeadForge OS</th>
+                  <th className="px-4 py-2 font-normal">Traditional Outbound SaaS</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border-subtle)] text-[var(--text-secondary)]">
+                {comparisonRows.map((row) => (
+                  <tr key={row.metric} className="hover:bg-[rgba(255,255,255,0.01)] transition-colors">
+                    <td className="px-4 py-3.5 font-medium text-[var(--foreground)]">{row.metric}</td>
+                    <td className="px-4 py-3.5 font-mono text-[11px] text-white font-semibold">{row.local}</td>
+                    <td className="px-4 py-3.5">{row.saas}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </motion.div>
 
         {/* Local Security block */}

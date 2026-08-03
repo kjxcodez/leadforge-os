@@ -88,7 +88,7 @@ export function Footer() {
             <Link href="/open-source" className="hover:text-[var(--foreground)] transition-colors duration-150">Open Source</Link>
             <Link href="/contributors" className="hover:text-[var(--foreground)] transition-colors duration-150">Contributors</Link>
             <Link href="/api-docs" className="hover:text-[var(--foreground)] transition-colors duration-150">API Reference</Link>
-            <a href="https://github.com/leadforge-os" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--foreground)] transition-colors duration-150 font-mono">
+            <a href="https://github.com/kjxcodez/leadforge-os" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--foreground)] transition-colors duration-150 font-mono">
               GitHub
             </a>
           </div>

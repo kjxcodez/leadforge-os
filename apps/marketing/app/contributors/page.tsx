@@ -2,7 +2,7 @@
 
 import React from "react"
 import { motion } from "motion/react"
-import { Users, Heart } from "lucide-react"
+import { Users, Heart, Code2, Cpu, GitPullRequest } from "lucide-react"
 
 function GithubIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -28,9 +28,16 @@ export default function ContributorsPage() {
   }
 
   const contributors = [
-    { name: "Greentech Modelers", role: "Core maintainer", initial: "GM", commits: 218 },
-    { name: "Austin Dev Team", role: "SMTP Engine lead", initial: "AD", commits: 84 },
-    { name: "Local First Core", role: "SQLite WAL architect", initial: "LF", commits: 45 }
+    { name: "kjxcodez", role: "Creator & Lead Architect", initial: "KJ", commits: 412, github: "https://github.com/kjxcodez" },
+    { name: "Greentech Modelers", role: "Scraper Core Lead", initial: "GM", commits: 218, github: "https://github.com/kjxcodez/leadforge-os" },
+    { name: "Austin Dev Team", role: "SMTP / Network Lead", initial: "AD", commits: 84, github: "https://github.com/kjxcodez/leadforge-os" },
+    { name: "Local First Core", role: "SQLite WAL Contributor", initial: "LF", commits: 45, github: "https://github.com/kjxcodez/leadforge-os" }
+  ]
+
+  const tracks = [
+    { title: "Automation Engine", desc: "Build Playwright / Cheerio target scripts to fetch contacts locally.", icon: Cpu },
+    { title: "IPC Core Optimization", desc: "Reduce messaging latency between Hono, Electron, and React.", icon: Code2 },
+    { title: "UI Components", desc: "Design elegant workspace tables, filters, and pipeline visualization charts.", icon: GitPullRequest }
   ]
 
   return (
@@ -50,24 +57,56 @@ export default function ContributorsPage() {
             LeadForge Contributors
           </motion.h1>
           <motion.p variants={childVariants} className="text-base text-[var(--text-secondary)] leading-relaxed">
-            Meet the developers and technical operators who maintain the local-first libraries and Electron build packages.
+            Meet the engineers, architects, and technical contributors driving the development of the LeadForge local-first outbound environment.
           </motion.p>
         </div>
 
         {/* Contributors grid */}
-        <motion.div variants={childVariants} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <motion.div variants={childVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
           {contributors.map((contrib) => (
-            <div key={contrib.name} className="border border-[var(--border)] rounded-lg p-5 bg-[var(--card)] flex items-center gap-4 hover:border-[var(--border-strong)] transition-all">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-[var(--primary)] text-xs font-bold text-[var(--primary-foreground)] select-none font-mono">
-                {contrib.initial}
+            <a 
+              key={contrib.name} 
+              href={contrib.github}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="border border-[var(--border)] rounded-lg p-5 bg-[var(--card)] flex flex-col justify-between hover:border-[var(--border-strong)] hover:shadow-md transition-all text-left"
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-[var(--primary)] text-xs font-bold text-[var(--primary-foreground)] select-none font-mono">
+                  {contrib.initial}
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-xs font-semibold text-[var(--foreground)]">{contrib.name}</div>
+                  <div className="truncate text-[10px] text-[var(--text-tertiary)]">{contrib.role}</div>
+                </div>
               </div>
-              <div className="min-w-0 text-left">
-                <div className="truncate text-xs font-semibold text-[var(--foreground)]">{contrib.name}</div>
-                <div className="truncate text-[10px] text-[var(--text-tertiary)]">{contrib.role}</div>
-                <div className="text-[9px] font-mono text-[var(--primary)] mt-0.5">{contrib.commits} commits</div>
+              <div className="flex items-center justify-between border-t border-[var(--border-subtle)] pt-3.5 mt-4 text-[9px] font-mono">
+                <span className="text-[var(--primary)]">{contrib.commits} commits</span>
+                <span className="text-[var(--text-tertiary)] hover:text-white flex items-center gap-1">
+                  <GithubIcon className="h-3 w-3" /> profile
+                </span>
               </div>
-            </div>
+            </a>
           ))}
+        </motion.div>
+
+        {/* Extended Section: Development Tracks */}
+        <motion.div variants={childVariants} className="space-y-6 pt-6">
+          <h2 className="text-xl font-semibold text-[var(--foreground)]">Contribution Tracks</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {tracks.map((track) => {
+              const Icon = track.icon
+              return (
+                <div key={track.title} className="border border-[var(--border-subtle)] rounded-lg p-5 bg-[var(--card)] space-y-3">
+                  <div className="p-2 rounded bg-[var(--background)] border border-[var(--border-subtle)] inline-block text-[var(--primary)]">
+                    <Icon className="h-4.5 w-4.5" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-[var(--foreground)]">{track.title}</h3>
+                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{track.desc}</p>
+                </div>
+              )
+            })}
+          </div>
         </motion.div>
 
         {/* Call to action */}
@@ -75,17 +114,17 @@ export default function ContributorsPage() {
           <Heart className="h-8 w-8 text-[var(--primary)] mx-auto animate-pulse" />
           <div className="space-y-2">
             <h3 className="text-sm font-semibold text-[var(--foreground)]">Want to contribute?</h3>
-            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-              We welcome code pull requests for SMTP handshake fixes, WAL checkpoints, or UX adjustments. Join us on GitHub.
+            <p className="text-xs text-[var(--text-secondary)] leading-relaxed font-sans">
+              Find issues labeled `good first issue` or `help wanted` in our repository. Read our contribution guidelines to align with SQLite WAL architecture.
             </p>
           </div>
           <a 
-            href="https://github.com/leadforge-os/leadforge-os" 
+            href="https://github.com/kjxcodez/leadforge-os" 
             target="_blank" 
             rel="noopener noreferrer"
             className="inline-flex h-9 items-center justify-center rounded bg-[var(--primary)] px-4 text-xs font-semibold text-[var(--primary-foreground)] hover:opacity-90 transition-all cursor-pointer"
           >
-            Submit a Pull Request
+            Explore kjxcodez Repository
           </a>
         </motion.div>
 

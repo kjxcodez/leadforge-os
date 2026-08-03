@@ -64,7 +64,7 @@ export function Downloads() {
   }
 
   return (
-    <section id="downloads" className="py-24 border-t border-[var(--border-subtle)] bg-[#09090B] relative overflow-hidden">
+    <section id="downloads" className="py-24 border-t border-[var(--border-subtle)] bg-[#09090B] relative overflow-hidden lg:px-32 md:px-20 px-4">
       {/* Background radial glow */}
       <div className="absolute bottom-[5%] left-[10%] w-[300px] h-[300px] bg-primary/5 rounded-full blur-[90px] pointer-events-none" />
 

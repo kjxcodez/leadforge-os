@@ -77,6 +77,22 @@ export default function FAQPage() {
     {
       question: "Can I migrate my database to another machine?",
       answer: "Yes. You can copy your `.db` SQLite files from the workspace directory and open them on any computer running the LeadForge OS client. There are no vendor locks."
+    },
+    {
+      question: "How does the Chromium Discovery Scraper operate locally?",
+      answer: "The scraper launches a headless Chromium instance via Playwright inside a separate task process. It crawls yellow pages and maps, parses domain anchors, handles redirects, and stream-writes the qualified domains into SQLite write pools."
+    },
+    {
+      question: "What local AI models are supported for enrichment qualification?",
+      answer: "We support offline LLM inference via local Ollama wrappers (such as llama3.1, mistral, or phi3). This allows your client to automatically analyze domain content and determine ICP status entirely on your own GPU/CPU without leaking data to API aggregators."
+    },
+    {
+      question: "Is there an auto-updater in the desktop environment?",
+      answer: "Yes. The Update Manager checks public tags on our official GitHub release channel, cryptographically verifies archive packages using SHA-256 hash checks, and schedules background updates during app idle times."
+    },
+    {
+      question: "How does the multi-process task watchdog ensure worker stability?",
+      answer: "All intense scraping routines are executed inside subprocesses. A heartbeat watchdog monitors their health using periodic ping/pong messages. If a subprocess crashes, the app logs the exception code and triggers an automatic state recovery."
     }
   ]
 

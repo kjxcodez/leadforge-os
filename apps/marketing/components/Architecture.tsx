@@ -80,7 +80,7 @@ export function Architecture() {
   }
 
   return (
-    <section id="architecture" className="py-24 border-t border-[var(--border-subtle)] bg-[#070708] relative overflow-hidden">
+    <section id="architecture" className="py-24 border-t border-[var(--border-subtle)] bg-[#070708] relative overflow-hidden lg:px-32 md:px-20 px-4">
       <div className="container mx-auto px-6">
         
         {/* Section Header */}

@@ -76,7 +76,7 @@ export function FAQ() {
   ]
 
   return (
-    <section id="faq" className="py-24 border-t border-[var(--border-subtle)] bg-[#09090B] relative overflow-hidden">
+    <section id="faq" className="py-24 border-t border-[var(--border-subtle)] bg-[#09090B] relative overflow-hidden lg:px-32 md:px-20 px-4">
       <div className="container mx-auto px-6">
         
         {/* Section Header */}

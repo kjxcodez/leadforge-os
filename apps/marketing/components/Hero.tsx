@@ -280,52 +280,59 @@ export function Hero() {
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      // Draw faint background constellations
-      ctx.save()
-      ctx.strokeStyle = "rgba(40, 40, 48, 0.15)"
-      ctx.lineWidth = 0.5
+      // Mouse interactive coordinates
+      const mx = mouseX.get() + window.innerWidth / 2
+      const my = mouseY.get() + window.innerHeight / 2
+
+      // Draw glowing background constellations themed dynamically
       for (let i = 0; i < points.length; i++) {
         for (let j = i + 1; j < points.length; j++) {
           const dx = points[i].x - points[j].x
           const dy = points[i].y - points[j].y
           const dist = Math.sqrt(dx * dx + dy * dy)
-          if (dist < 150) {
+          if (dist < 170) {
+            ctx.save()
             ctx.beginPath()
             ctx.moveTo(points[i].x, points[i].y)
             ctx.lineTo(points[j].x, points[j].y)
+            ctx.strokeStyle = activeTheme.accentColor
+            ctx.globalAlpha = (1 - dist / 170) * 0.28
+            ctx.lineWidth = 0.8
             ctx.stroke()
+            ctx.restore()
           }
         }
       }
-      ctx.restore()
-
-      // Mouse interactive repelling force
-      const mx = mouseX.get() + window.innerWidth / 2
-      const my = mouseY.get() + window.innerHeight / 2
 
       points.forEach((p) => {
         p.x += p.vx
         p.y += p.vy
 
-        // Repel from mouse
+        // Repel from mouse smoothly
         const dx = p.x - mx
         const dy = p.y - my
         const dist = Math.sqrt(dx * dx + dy * dy)
-        if (dist < 200) {
-          const force = (200 - dist) / 200
-          p.x += (dx / dist) * force * 3
-          p.y += (dy / dist) * force * 3
+        if (dist < 220) {
+          const force = (220 - dist) / 220
+          p.x += (dx / dist) * force * 4.5
+          p.y += (dy / dist) * force * 4.5
         }
 
         // Return slowly to window bounds
         if (p.x < 0 || p.x > canvas.width) p.vx *= -1
         if (p.y < 0 || p.y > canvas.height) p.vy *= -1
 
+        // Draw glowing core node
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.size * 2.5, 0, Math.PI * 2)
+        ctx.fillStyle = activeTheme.accentColor
+        ctx.globalAlpha = 0.12
+        ctx.fill()
+
         ctx.beginPath()
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-        ctx.fillStyle = activeTheme.accentColor
-        ctx.save()
-        ctx.globalAlpha = 0.25
+        ctx.globalAlpha = 0.8
         ctx.fill()
         ctx.restore()
       })

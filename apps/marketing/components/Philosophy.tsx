@@ -50,7 +50,7 @@ export function Philosophy() {
     const sizeWeight = sizeOptions[sizeIndex].weight * 0.20
     const intentWeight = intentOptions[intentIndex].weight * 0.25
     const urgencyWeight = urgencyOptions[urgencyIndex].weight * 0.20
-    
+
     const computed = Math.round(fitWeight + sizeWeight + intentWeight + urgencyWeight)
     setScore(computed)
   }, [fit, sizeIndex, intentIndex, urgencyIndex])
@@ -93,20 +93,20 @@ export function Philosophy() {
 
   const iconVariants: Variants = {
     rest: { rotate: 0, scale: 1 },
-    hover: { 
+    hover: {
       rotate: [0, -10, 10, 0],
       scale: 1.1,
-      transition: { duration: 0.3, ease: "easeInOut" } 
+      transition: { duration: 0.3, ease: "easeInOut" }
     }
   }
 
   return (
-    <section id="philosophy" ref={containerRef} className="py-24 border-t border-[var(--border-subtle)] bg-[#09090B] relative overflow-hidden">
+    <section id="philosophy" ref={containerRef} className="py-24 border-t border-[var(--border-subtle)] bg-[#09090B] relative overflow-hidden lg:px-32 md:px-20 px-4">
       {/* Subtle background details */}
       <div className="absolute top-[10%] left-[20%] w-[250px] h-[250px] bg-primary/5 rounded-full blur-[80px] pointer-events-none" />
 
       <div className="container mx-auto px-6">
-        
+
         {/* Section Header */}
         <div className="max-w-2xl mb-16 text-left">
           <div className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] mb-3">
@@ -126,10 +126,10 @@ export function Philosophy() {
           {/* Scroll-Linked Connection SVG Line */}
           <div className="absolute top-1/2 left-0 right-0 -translate-y-1/2 -z-10 hidden md:block px-24">
             <svg className="w-full h-1" viewBox="0 0 1000 4" fill="none" preserveAspectRatio="none">
-              <motion.path 
-                d="M0 2 H1000" 
-                stroke="var(--primary)" 
-                strokeWidth="1.5" 
+              <motion.path
+                d="M0 2 H1000"
+                stroke="var(--primary)"
+                strokeWidth="1.5"
                 strokeDasharray="4 4"
                 style={{ pathLength: prefersReducedMotion ? 1 : pathLength }}
               />
@@ -137,7 +137,7 @@ export function Philosophy() {
           </div>
 
           {/* Column 1: Transform */}
-          <motion.div 
+          <motion.div
             initial={prefersReducedMotion ? {} : { opacity: 0, y: 15 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
@@ -147,7 +147,7 @@ export function Philosophy() {
               <div className="font-mono text-[10px] font-bold text-[var(--primary)] mb-4">01 — Pipeline Discovery</div>
               <h3 className="text-sm font-bold text-white mb-2">Turn local searches into verified profiles</h3>
               <p className="text-[10px] text-[var(--text-tertiary)] mb-6">HEADLESS Google Maps scraping crawls listings directly.</p>
-              
+
               <ul className="flex flex-col gap-4 text-[11px] text-[var(--text-secondary)] font-sans">
                 <li className="flex gap-2.5 items-start">
                   <Compass className="h-4 w-4 shrink-0 text-[var(--primary)] mt-0.5" />
@@ -166,7 +166,7 @@ export function Philosophy() {
           </motion.div>
 
           {/* Column 2: Execute */}
-          <motion.div 
+          <motion.div
             initial={prefersReducedMotion ? {} : { opacity: 0, y: 15 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
@@ -177,7 +177,7 @@ export function Philosophy() {
               <div className="font-mono text-[10px] font-bold text-[var(--primary)] mb-4">02 — SMTP Execution</div>
               <h3 className="text-sm font-bold text-white mb-2">Run sequences without third-party middleware</h3>
               <p className="text-[10px] text-[var(--text-tertiary)] mb-6">Maintains direct SMTP socket connections locally.</p>
-              
+
               <ul className="flex flex-col gap-4 text-[11px] text-[var(--text-secondary)] font-sans">
                 <li className="flex gap-2.5 items-start">
                   <Send className="h-4 w-4 shrink-0 text-[var(--primary)] mt-0.5" />
@@ -196,7 +196,7 @@ export function Philosophy() {
           </motion.div>
 
           {/* Column 3: Grow */}
-          <motion.div 
+          <motion.div
             initial={prefersReducedMotion ? {} : { opacity: 0, y: 15 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
@@ -207,7 +207,7 @@ export function Philosophy() {
               <div className="font-mono text-[10px] font-bold text-[var(--primary)] mb-4">03 — Local Intel</div>
               <h3 className="text-sm font-bold text-white mb-2">Score and prioritize leads on hardware</h3>
               <p className="text-[10px] text-[var(--text-tertiary)] mb-6">Runs qualification scoring using local vectors.</p>
-              
+
               <ul className="flex flex-col gap-4 text-[11px] text-[var(--text-secondary)] font-sans">
                 <li className="flex gap-2.5 items-start">
                   <Target className="h-4 w-4 shrink-0 text-[var(--primary)] mt-0.5" />
@@ -233,9 +233,9 @@ export function Philosophy() {
           viewport={{ once: true, margin: "-100px" }}
           className="rounded-xl border border-[var(--border-subtle)] bg-[rgba(10,10,12,0.55)] backdrop-blur p-6 md:p-8 text-left max-w-4xl mx-auto fresnel-highlight"
         >
-          <div className="flex flex-col lg:flex-row gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Sliders Configuration */}
-            <div className="flex-1">
+            <div className="lg:col-span-2">
               <div className="mb-6">
                 <span className="font-mono text-[9px] uppercase tracking-wider text-[var(--primary)] px-2.5 py-0.5 rounded bg-primary/10 border border-primary/20">
                   Simulation Center
@@ -278,17 +278,18 @@ export function Philosophy() {
                   </label>
                   <div className="grid grid-cols-5 gap-1.5 font-mono">
                     {sizeOptions.map((opt, i) => (
-                      <button
+                      <motion.button
                         key={opt.label}
                         onClick={() => setSizeIndex(i)}
-                        className={`py-1.5 rounded text-[9.5px] border transition-all cursor-pointer ${
-                          sizeIndex === i
-                            ? "bg-primary/10 text-primary border-primary/30"
+                        whileHover={{ scale: 1.03, y: -0.5 }}
+                        whileTap={{ scale: 0.98 }}
+                        className={`py-1.5 rounded text-[9.5px] border transition-all cursor-pointer ${sizeIndex === i
+                            ? "bg-primary/10 text-primary border-primary/30 font-semibold"
                             : "bg-[var(--background)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
-                        }`}
+                          }`}
                       >
                         {opt.label}
-                      </button>
+                      </motion.button>
                     ))}
                   </div>
                 </div>
@@ -300,17 +301,18 @@ export function Philosophy() {
                   </label>
                   <div className="grid grid-cols-3 gap-1.5 font-mono">
                     {intentOptions.map((opt, i) => (
-                      <button
+                      <motion.button
                         key={opt.label}
                         onClick={() => setIntentIndex(i)}
-                        className={`py-1.5 rounded text-[9.5px] border transition-all cursor-pointer ${
-                          intentIndex === i
-                            ? "bg-primary/10 text-primary border-primary/30"
+                        whileHover={{ scale: 1.03, y: -0.5 }}
+                        whileTap={{ scale: 0.98 }}
+                        className={`py-1.5 rounded text-[9.5px] border transition-all cursor-pointer ${intentIndex === i
+                            ? "bg-primary/10 text-primary border-primary/30 font-semibold"
                             : "bg-[var(--background)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
-                        }`}
+                          }`}
                       >
                         {opt.label}
-                      </button>
+                      </motion.button>
                     ))}
                   </div>
                 </div>
@@ -322,17 +324,18 @@ export function Philosophy() {
                   </label>
                   <div className="grid grid-cols-3 gap-1.5 font-mono">
                     {urgencyOptions.map((opt, i) => (
-                      <button
+                      <motion.button
                         key={opt.label}
                         onClick={() => setUrgencyIndex(i)}
-                        className={`py-1.5 rounded text-[9.5px] border transition-all cursor-pointer ${
-                          urgencyIndex === i
-                            ? "bg-primary/10 text-primary border-primary/30"
+                        whileHover={{ scale: 1.03, y: -0.5 }}
+                        whileTap={{ scale: 0.98 }}
+                        className={`py-1.5 rounded text-[9.5px] border transition-all cursor-pointer ${urgencyIndex === i
+                            ? "bg-primary/10 text-primary border-primary/30 font-semibold"
                             : "bg-[var(--background)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
-                        }`}
+                          }`}
                       >
                         {opt.label}
-                      </button>
+                      </motion.button>
                     ))}
                   </div>
                 </div>
@@ -340,7 +343,7 @@ export function Philosophy() {
             </div>
 
             {/* Simulated Record Card */}
-            <div className="w-full lg:w-[280px] rounded-lg border border-[var(--border-subtle)] bg-[rgba(9,9,10,0.85)] p-5 flex flex-col justify-between font-mono">
+            <div className="lg:col-span-1 rounded-lg border border-[var(--border-subtle)] bg-[rgba(9,9,10,0.85)] p-5 flex flex-col justify-between font-mono">
               <div>
                 <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-3 mb-4">
                   <span className="text-[7.5px] uppercase text-[var(--text-tertiary)] font-bold">
@@ -402,7 +405,7 @@ export function Philosophy() {
 
                 {/* Progress bar */}
                 <div className="mt-4 h-1.5 w-full bg-[var(--border-subtle)] rounded-full overflow-hidden">
-                  <motion.div 
+                  <motion.div
                     className="h-full bg-[var(--primary)] rounded-full"
                     animate={{ width: `${score}%` }}
                     transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 100, damping: 15 }}

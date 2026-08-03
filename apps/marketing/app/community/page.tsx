@@ -51,7 +51,7 @@ export default function CommunityPage() {
               Ask architectural questions, propose feature changes, or share custom parsing scripts.
             </p>
             <a 
-              href="https://github.com/leadforge-os/discussions" 
+              href="https://github.com/kjxcodez/leadforge-os/discussions" 
               target="_blank" 
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs text-[var(--primary)] font-semibold hover:underline"

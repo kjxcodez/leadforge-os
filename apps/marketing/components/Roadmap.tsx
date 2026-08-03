@@ -61,7 +61,7 @@ export function Roadmap() {
   } as const
 
   return (
-    <section id="roadmap" className="py-24 border-t border-[var(--border-subtle)] bg-[#070708] relative overflow-hidden">
+    <section id="roadmap" className="py-24 border-t border-[var(--border-subtle)] bg-[#070708] relative overflow-hidden lg:px-32 md:px-20 px-4">
       <div className="container mx-auto px-6">
         
         {/* Section Header */}
@@ -87,7 +87,7 @@ export function Roadmap() {
           {!prefersReducedMotion && (
             <motion.div 
               style={{ scaleY, transformOrigin: "top" }}
-              className="absolute left-[5px] top-1.5 bottom-1.5 w-[1px] bg-[var(--primary)]"
+              className="absolute left-[9px] top-1.5 bottom-1.5 w-[1px] bg-[var(--primary)]"
             />
           )}
 

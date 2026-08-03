@@ -52,7 +52,7 @@ export default function SupportPage() {
               Report code bugs, scraper failures, or suggest new SMTP parameters directly in our repo.
             </p>
             <a 
-              href="https://github.com/leadforge-os/issues" 
+              href="https://github.com/kjxcodez/leadforge-os/issues" 
               target="_blank" 
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs text-[var(--primary)] font-semibold hover:underline"
