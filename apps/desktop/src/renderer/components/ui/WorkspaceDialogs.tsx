@@ -13,6 +13,9 @@ import {
   DialogFooter
 } from './dialog';
 import { Button } from './button';
+import { Input } from './input';
+import { Label } from './label';
+import { CreateWorkspaceForm } from '../workspace/CreateWorkspaceForm';
 
 const schema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters')
@@ -34,29 +37,9 @@ export function CreateWorkspaceDialog({
   onOpenChange,
   onSuccess
 }: CreateWorkspaceDialogProps) {
-  const { createWorkspace } = useWorkspace();
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting }
-  } = useForm<WorkspaceFormValues>({ resolver: zodResolver(schema) });
-
-  const onSubmit = async (values: WorkspaceFormValues) => {
-    try {
-      await createWorkspace(values.name);
-      toast.success('Workspace created successfully.');
-      reset();
-      onOpenChange(false);
-      onSuccess?.();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create workspace.');
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-sm rounded-none bg-background">
         <DialogHeader>
           <DialogTitle>Create Workspace</DialogTitle>
           <DialogDescription>
@@ -64,30 +47,15 @@ export function CreateWorkspaceDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <label htmlFor="ws-create-name" className="text-xs font-medium text-foreground">
-              Workspace name
-            </label>
-            <input
-              id="ws-create-name"
-              type="text"
-              placeholder="e.g. Acme Sales Team"
-              {...register('name')}
-              className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-            {errors.name && <p className="text-[10px] text-danger-text">{errors.name.message}</p>}
-          </div>
-
-          <DialogFooter className="bg-transparent">
-            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" size="sm" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating...' : 'Create workspace'}
-            </Button>
-          </DialogFooter>
-        </form>
+        <div className="py-2">
+          <CreateWorkspaceForm
+            onSuccess={() => {
+              onOpenChange(false);
+              onSuccess?.();
+            }}
+            onCancel={() => onOpenChange(false)}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -135,7 +103,7 @@ export function RenameWorkspaceDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-sm rounded-none bg-background">
         <DialogHeader>
           <DialogTitle>Rename Workspace</DialogTitle>
           <DialogDescription>
@@ -143,23 +111,35 @@ export function RenameWorkspaceDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2" noValidate>
           <div className="space-y-1.5">
-            <label htmlFor="ws-rename-name" className="text-xs font-medium text-foreground">
+            <Label
+              htmlFor="ws-rename-name"
+              className="text-[12px] font-medium tracking-[0.04em] uppercase text-muted-foreground"
+            >
               Workspace name
-            </label>
-            <input
+            </Label>
+            <Input
               id="ws-rename-name"
               type="text"
               placeholder="e.g. Acme Sales Team"
+              aria-invalid={!!errors.name}
               {...register('name')}
-              className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-ring"
             />
-            {errors.name && <p className="text-[10px] text-danger-text">{errors.name.message}</p>}
+            {errors.name && (
+              <p className="text-[11px] text-danger leading-none" role="alert">
+                {errors.name.message}
+              </p>
+            )}
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={isSubmitting}>
@@ -214,30 +194,35 @@ export function DeleteWorkspaceDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-sm rounded-none bg-background">
         <DialogHeader>
-          <DialogTitle className="text-danger-text">Delete Workspace</DialogTitle>
+          <DialogTitle className="text-danger">Delete Workspace</DialogTitle>
           <DialogDescription>
             This action is irreversible. All contacts, campaigns, and settings will be permanently
             lost.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleDelete} className="space-y-4 py-2">
+        <form onSubmit={handleDelete} className="space-y-4 py-2" noValidate>
           <div className="space-y-1.5">
             <p className="text-xs text-muted-foreground leading-relaxed">
               Type <strong className="text-foreground">{workspaceName}</strong> below to confirm.
             </p>
-            <input
+            <Input
               type="text"
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
-              className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              placeholder={workspaceName}
             />
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
             </Button>
             <Button
