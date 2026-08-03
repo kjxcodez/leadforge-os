@@ -8,6 +8,7 @@ import { Architecture } from "@/components/Architecture"
 import { Downloads } from "@/components/Downloads"
 import { Roadmap } from "@/components/Roadmap"
 import { FAQ } from "@/components/FAQ"
+import { KonamiTerminal } from "@/components/KonamiTerminal"
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -58,6 +59,7 @@ export default function Page() {
       <motion.div variants={sectionVariants}>
         <FAQ />
       </motion.div>
+      <KonamiTerminal />
     </motion.div>
   )
 }
