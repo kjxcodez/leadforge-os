@@ -121,16 +121,24 @@ export function getDocBySlug(slug: string[]): {
     order?: number;
   };
 } | null {
-  const targetRelativePath = slug.length === 0 
-    ? 'getting-started/installation.mdx' 
-    : slug.join('/') + '.mdx';
-
-  let filePath = path.join(docsDir, targetRelativePath);
+  const slugPath = slug.join('/');
   
-  if (!fs.existsSync(filePath)) {
-    filePath = path.join(docsDir, slug.join('/'));
-    if (!fs.existsSync(filePath)) return null;
+  const possiblePaths = [
+    slug.length === 0 ? 'getting-started/installation.mdx' : `${slugPath}.mdx`,
+    slug.length === 0 ? 'getting-started/installation.mdx' : `${slugPath}/index.mdx`,
+    slugPath
+  ];
+
+  let filePath = '';
+  for (const p of possiblePaths) {
+    const fullPath = path.join(docsDir, p);
+    if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+      filePath = fullPath;
+      break;
+    }
   }
+
+  if (!filePath) return null;
 
   const raw = fs.readFileSync(filePath, 'utf8');
   const { frontmatter, content } = parseFrontmatter(raw);

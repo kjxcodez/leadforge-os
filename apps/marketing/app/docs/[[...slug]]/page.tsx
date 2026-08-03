@@ -9,6 +9,7 @@ import { getDocsNavigation, getDocBySlug, NavGroup } from "../../../lib/mdx-util
 import { DocsLayoutShell } from "../../../components/DocsLayoutShell"
 import { Callout, Note, Warning, Tip, Tabs, Tab, Steps, Step, Badge, VersionBadge, CardGrid, Card, TerminalWindow } from "../../../components/DocsComponents"
 import { Mermaid } from "../../../components/Mermaid"
+import { Pre } from "../../../components/Pre"
 
 interface PageProps {
   params: Promise<{
@@ -128,7 +129,8 @@ export default async function Page({ params }: PageProps) {
       CardGrid,
       Card,
       Terminal: TerminalWindow,
-      Mermaid
+      Mermaid,
+      pre: Pre
     }
   })
 
