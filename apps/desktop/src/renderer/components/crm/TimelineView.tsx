@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Calendar, MessageSquare, PlusCircle, CheckCircle, Info, Trash } from 'lucide-react';
 
 export interface TimelineEvent {
@@ -29,10 +29,10 @@ const EVENT_ICONS: Record<string, any> = {
 const EVENT_COLORS: Record<string, string> = {
   company_created: 'bg-green-500/10 text-green-500 border-green-500/20',
   company_updated: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-  company_deleted: 'bg-red-500/10 text-red-500 border-red-500/20',
+  company_deleted: 'bg-danger/10 text-danger border-danger/20',
   contact_created: 'bg-green-500/10 text-green-500 border-green-500/20',
   contact_updated: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-  contact_deleted: 'bg-red-500/10 text-red-500 border-red-500/20',
+  contact_deleted: 'bg-danger/10 text-danger border-danger/20',
   campaign_created: 'bg-green-500/10 text-green-500 border-green-500/20',
   campaign_updated: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
   note_added: 'bg-accent/10 text-accent border-accent/20',
@@ -49,7 +49,7 @@ export function TimelineView({ events, isLoading = false }: TimelineViewProps) {
 
   if (events.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 border border-dashed border-border-subtle rounded-xl text-center bg-sunken/10">
+      <div className="flex flex-col items-center justify-center p-8 border border-dashed border-border-subtle rounded-xl text-center bg-surface-3/10">
         <Calendar className="w-6 h-6 text-muted-foreground opacity-60 mb-2" />
         <p className="text-[10px] text-muted-foreground">No recent activity logs available.</p>
       </div>
@@ -61,7 +61,7 @@ export function TimelineView({ events, isLoading = false }: TimelineViewProps) {
       {events.map((event) => {
         const Icon = EVENT_ICONS[event.type] || Info;
         const colorClass =
-          EVENT_COLORS[event.type] || 'bg-sunken text-muted-foreground border-border-subtle';
+          EVENT_COLORS[event.type] || 'bg-surface-3 text-muted-foreground border-border-subtle';
 
         return (
           <div key={event.id} className="relative group">
