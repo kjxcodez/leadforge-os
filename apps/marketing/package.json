@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node ../../scripts/generate-releases.mjs && node ../../scripts/generate-contributors.mjs && node ../../scripts/generate-search-index.mjs && next dev",
     "build": "node ../../scripts/generate-releases.mjs && node ../../scripts/generate-contributors.mjs && node ../../scripts/generate-search-index.mjs && next build",
+    "vercel-build": "cd ../.. && npx turbo run build --filter=marketing",
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
