@@ -6,20 +6,30 @@ import { Label } from '../components/ui/label';
 import {
   Sparkles,
   Cpu,
-  Layers,
   CheckCircle2,
   AlertTriangle,
   RefreshCw,
   Mail,
   FolderOpen,
   ArrowRight,
-  TrendingUp,
-  Workflow,
-  Check,
-  Shield,
-  HeartPulse
+  HeartPulse,
+  Server,
+  Info
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
+import logoLight from '../assets/app-icon-light.png';
 
+/**
+ * OnboardingScreen — Step-by-step workspace onboarding for LeadForge OS.
+ *
+ * Updates:
+ *   - Combined Workspace setup Name configuration directly into Step 1.
+ *   - Removed Workspace directory selector and non-functional Browse actions.
+ *   - Used actual app logo icon (logoLight) in the header.
+ *   - All styles match design guidelines with strict rounded-none configurations.
+ *   - Smooth aggressive framer-motion step transition animations.
+ */
 export default function OnboardingScreen() {
   const navigate = useNavigate();
   const { createWorkspace } = useWorkspace();
@@ -33,11 +43,9 @@ export default function OnboardingScreen() {
 
   // Form States
   const [wsName, setWsName] = useState<string>('My Leads Workspace');
-  const [wsPath, setWsPath] = useState<string>('Default Location');
   const [aiMode, setAiMode] = useState<'local' | 'cloud' | 'skip'>('skip');
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [openRouterKey, setOpenRouterKey] = useState<string>('');
-  const [emailProvider, setEmailProvider] = useState<'gmail' | 'office365' | 'custom'>('gmail');
   const [emailAddress, setEmailAddress] = useState<string>('');
   const [appPassword, setAppPassword] = useState<string>('');
   const [useSampleData, setUseSampleData] = useState<boolean>(true);
@@ -63,6 +71,12 @@ export default function OnboardingScreen() {
   const handleCreateWorkspace = async () => {
     setLoading(true);
     try {
+      if (!wsName.trim()) {
+        toast.error('Workspace name is required.');
+        setLoading(false);
+        return;
+      }
+
       // Create local workspace via hook
       const ws = await createWorkspace(wsName);
 
@@ -89,12 +103,13 @@ export default function OnboardingScreen() {
       }
 
       localStorage.setItem('onboarding_completed', 'true');
-      localStorage.setItem('product_tour_active', 'true'); // trigger product tour on dashboard first visit!
+      localStorage.setItem('product_tour_active', 'true'); // trigger product tour on dashboard first visit
 
+      toast.success('Workspace initialized successfully!');
       // Navigate to dashboard
       navigate('/');
     } catch (err: any) {
-      alert(`Workspace creation failed: ${err.message || err}`);
+      toast.error(`Workspace creation failed: ${err.message || err}`);
     } finally {
       setLoading(false);
     }
@@ -104,20 +119,19 @@ export default function OnboardingScreen() {
     setTestingConnection(true);
     try {
       if (!openRouterKey) {
-        alert('Please enter an API Key first.');
+        toast.error('Please enter an API Key first.');
         return;
       }
-      // Simple mock fetch verify for responsive validation
       const res = await fetch('https://openrouter.ai/api/v1/models', {
         headers: { Authorization: `Bearer ${openRouterKey}` }
       });
       if (res.ok) {
-        alert('OpenRouter API connection validated successfully!');
+        toast.success('OpenRouter API connection validated successfully!');
       } else {
-        alert('Validation failed: Invalid OpenRouter API Key.');
+        toast.error('Validation failed: Invalid OpenRouter API Key.');
       }
     } catch {
-      alert('Validation failed: Network timeout or connectivity issue.');
+      toast.error('Validation failed: Network timeout or connectivity issue.');
     } finally {
       setTestingConnection(false);
     }
@@ -127,7 +141,7 @@ export default function OnboardingScreen() {
     setTestingConnection(true);
     try {
       if (!emailAddress || !appPassword) {
-        alert('Please fill in both email and app password.');
+        toast.error('Please fill in both email and app password.');
         return;
       }
 
@@ -140,428 +154,515 @@ export default function OnboardingScreen() {
       // Test connection using its created ID
       const res = await window.ipc.invoke('email-accounts:test', account.id);
       if (res.verified) {
-        alert('SMTP Connection established and verified successfully!');
+        toast.success('SMTP Connection established and verified successfully!');
       } else {
-        alert('SMTP Connection failed.');
+        toast.error('SMTP Connection failed.');
       }
     } catch (err: any) {
-      alert(`Connection failed: ${err.message || err}`);
+      toast.error(`Connection failed: ${err.message || err}`);
     } finally {
       setTestingConnection(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-[#07090e] text-foreground font-sans flex items-center justify-center p-6 relative overflow-hidden select-none">
-      {/* Dynamic ambient backgrounds */}
-      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-accent/10 rounded-full filter blur-[150px] animate-pulse"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full filter blur-[120px]"></div>
+  // Stagger entry configurations
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.05
+      }
+    }
+  };
 
-      <div className="w-full max-w-xl bg-card/65 backdrop-blur-xl border border-border-subtle/60 rounded-2xl p-8 shadow-2xl relative overflow-hidden flex flex-col space-y-6">
+  const itemVariants = {
+    hidden: { opacity: 0, y: 8 },
+    show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 500, damping: 35 } }
+  };
+
+  const getBadgeClass = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'running':
+      case 'active':
+      case 'healthy':
+      case 'operating':
+        return 'bg-success-muted text-success border border-success/20 rounded-none';
+      case 'queued':
+      case 'starting':
+      case 'waiting':
+      case 'warning':
+      case 'medium':
+        return 'bg-warning-muted text-warning border border-warning/20 rounded-none';
+      case 'failed':
+      case 'critical':
+      case 'high':
+        return 'bg-danger-muted text-danger border border-danger/20 rounded-none';
+      default:
+        return 'bg-muted-muted text-muted-foreground border-border-subtle rounded-none';
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#06080c] text-foreground font-sans flex items-center justify-center p-6 relative overflow-hidden select-none">
+      {/* Aggressive ambient glow elements in the background */}
+      <motion.div
+        animate={{
+          scale: [1, 1.15, 1],
+          opacity: [0.15, 0.22, 0.15]
+        }}
+        transition={{
+          duration: 8,
+          repeat: Infinity,
+          ease: 'easeInOut'
+        }}
+        className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-primary/20 rounded-none filter blur-[140px] pointer-events-none"
+      />
+      <motion.div
+        animate={{
+          scale: [1, 1.2, 1],
+          opacity: [0.08, 0.15, 0.08]
+        }}
+        transition={{
+          duration: 10,
+          repeat: Infinity,
+          ease: 'easeInOut',
+          delay: 2
+        }}
+        className="absolute bottom-[-15%] right-[-10%] w-[50%] h-[50%] bg-info/10 rounded-none filter blur-[120px] pointer-events-none"
+      />
+
+      <div className="w-full max-w-xl bg-card border border-border-subtle rounded-none p-8 shadow-elevation-2 relative overflow-hidden flex flex-col space-y-6">
         {/* Onboarding Header */}
         <div className="flex items-center justify-between border-b border-border-subtle pb-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center text-accent">
-              <Sparkles className="w-4.5 h-4.5" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-none bg-primary/10 flex items-center justify-center p-1.5 shrink-0 overflow-hidden">
+              <img src={logoLight} className="h-full w-full object-contain" alt="LeadForge Logo" />
             </div>
             <div>
               <h1 className="text-sm font-extrabold tracking-tight text-foreground uppercase">
                 LeadForge OS
               </h1>
-              <span className="text-[10px] text-muted-foreground block font-medium mt-0.5">
-                Welcome Onboarding
+              <span className="text-[10px] text-muted-foreground block font-bold uppercase mt-0.5">
+                Workspace Initialization
               </span>
             </div>
           </div>
-          <span className="text-[10px] font-bold px-2.5 py-1 bg-sunken rounded border border-border-subtle/50 text-muted-foreground">
-            Step {step} of 5
+          <span className="text-[10px] font-bold px-2.5 py-1 bg-surface-3 rounded-none border border-border-subtle text-muted-foreground font-mono">
+            Step {step} of 4
           </span>
         </div>
 
-        {/* ── Step 1: Welcome & Diagnostics ────────────────────────────────── */}
-        {step === 1 && (
-          <div className="space-y-5 animate-in fade-in duration-200">
-            <div className="space-y-1">
-              <h2 className="text-base font-bold text-foreground">
-                Prepare your sales outbound platform
-              </h2>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Before configuring, we verified that LeadForge OS workspace runtime environment is
-                initialized correctly on your computer.
-              </p>
-            </div>
+        {/* Step-by-step progress indicator line */}
+        <div className="w-full bg-surface-3 h-[2px] relative overflow-hidden">
+          <motion.div
+            className="absolute left-0 top-0 bottom-0 bg-primary"
+            initial={{ width: '0%' }}
+            animate={{ width: `${(step / 4) * 100}%` }}
+            transition={{ type: 'spring', stiffness: 260, damping: 28 }}
+          />
+        </div>
 
-            {/* Health Checklist */}
-            <div className="bg-sunken/45 border border-border/40 rounded-xl p-4 space-y-3">
-              <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <HeartPulse className="w-3.5 h-3.5 text-accent" />
-                <span>System Health Verification</span>
-              </h3>
-
-              {diagnostics ? (
-                <div className="grid grid-cols-2 gap-3 text-[10px]">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="text-muted-foreground">
-                      OS:{' '}
-                      <span className="text-foreground font-semibold">
-                        {diagnostics.os.substring(0, 18)}...
-                      </span>
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {diagnostics.writePermissions ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    ) : (
-                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                    )}
-                    <span className="text-muted-foreground">
-                      Write Access:{' '}
-                      <span className="text-foreground font-semibold">
-                        {diagnostics.writePermissions ? 'Yes' : 'No'}
-                      </span>
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="text-muted-foreground">
-                      SQLite 3: <span className="text-foreground font-semibold">Available</span>
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {diagnostics.internetConnected ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    ) : (
-                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                    )}
-                    <span className="text-muted-foreground">
-                      Internet:{' '}
-                      <span className="text-foreground font-semibold">
-                        {diagnostics.internetConnected ? 'Connected' : 'Offline'}
-                      </span>
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {diagnostics.ollamaInstalled ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    ) : (
-                      <div className="w-4 h-4 bg-muted rounded-full shrink-0 flex items-center justify-center text-[8px] font-bold">
-                        !
-                      </div>
-                    )}
-                    <span className="text-muted-foreground">
-                      Local AI (Ollama):{' '}
-                      <span className="text-foreground font-semibold">
-                        {diagnostics.ollamaInstalled ? 'Installed' : 'Not Detected'}
-                      </span>
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="text-muted-foreground">
-                      Workers Host: <span className="text-foreground font-semibold">Ready</span>
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-[10px] text-muted-foreground animate-pulse">
-                  Running health check queries...
+        <AnimatePresence mode="wait">
+          {/* ── Step 1: Workspace Name & Diagnostics ────────────────────────── */}
+          {step === 1 && (
+            <motion.div
+              key="step-1"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2, ease: 'easeInOut' }}
+              className="space-y-5"
+            >
+              <div className="space-y-1">
+                <h2 className="text-base font-bold text-foreground">
+                  Prepare your sales outbound platform
+                </h2>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Name your workspace. We will configure an isolated SQLite database file to securely store your leads.
                 </p>
-              )}
-            </div>
+              </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <Button size="sm" variant="ghost" onClick={runDiagnostics}>
-                <RefreshCw className="w-3.5 h-3.5 mr-1" /> Re-Check
-              </Button>
-              <Button size="sm" onClick={() => setStep(2)}>
-                Create Workspace <ArrowRight className="w-3.5 h-3.5 ml-1" />
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 2: Workspace Setup ──────────────────────────────────────── */}
-        {step === 2 && (
-          <div className="space-y-5 animate-in fade-in duration-200">
-            <div className="space-y-1">
-              <h2 className="text-base font-bold text-foreground">Create your CRM Workspace</h2>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                LeadForge OS is completely local-first. We will initialize an isolated SQLite
-                database file to securely store your leads.
-              </p>
-            </div>
-
-            <div className="space-y-4 bg-sunken/45 border border-border/40 rounded-xl p-5">
-              <div className="space-y-1.5">
-                <Label htmlFor="wsNameInput">Workspace Name</Label>
+              {/* Workspace Name Input */}
+              <div className="space-y-1.5 bg-surface-3 border border-border-subtle rounded-none p-4 shadow-inner">
+                <Label htmlFor="wsNameInput" className="font-semibold text-muted-foreground">Workspace Name</Label>
                 <input
                   id="wsNameInput"
                   value={wsName}
                   onChange={(e) => setWsName(e.target.value)}
-                  className="w-full h-9 px-3 bg-background border border-input rounded-lg text-xs font-semibold focus-visible:outline-none focus:border-accent"
+                  placeholder="e.g. My Leads Workspace"
+                  className="w-full h-9 px-3 bg-card border border-border-subtle rounded-none text-xs font-semibold focus-visible:outline-none focus:border-primary text-foreground"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="wsPathInput">Workspace Directory</Label>
-                <div className="flex gap-2">
-                  <input
-                    id="wsPathInput"
-                    value={wsPath}
-                    disabled
-                    className="flex-1 h-9 px-3 bg-background/50 border border-input rounded-lg text-xs font-mono select-none"
-                  />
-                  <Button size="sm" variant="outline" className="h-9">
-                    <FolderOpen className="w-3.5 h-3.5 mr-1.5" /> Browse
-                  </Button>
-                </div>
-              </div>
-            </div>
+              {/* Health Checklist */}
+              <div className="bg-surface-3 border border-border-subtle rounded-none p-4 space-y-3 shadow-inner">
+                <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 border-b border-border-subtle/50 pb-1.5">
+                  <HeartPulse className="w-3.5 h-3.5 text-primary" />
+                  <span>System Health Verification</span>
+                </h3>
 
-            <div className="flex justify-between pt-2">
-              <Button size="sm" variant="ghost" onClick={() => setStep(1)}>
-                Back
-              </Button>
-              <Button size="sm" onClick={() => setStep(3)}>
-                Continue
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 3: AI Configuration ─────────────────────────────────────── */}
-        {step === 3 && (
-          <div className="space-y-5 animate-in fade-in duration-200">
-            <div className="space-y-1">
-              <h2 className="text-base font-bold text-foreground">
-                Configure Lead Intelligence AI
-              </h2>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Unlock automated cold email opening lines, pain point hypotheses, and lead score
-                analytics.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setAiMode('local')}
-                  disabled={!diagnostics?.ollamaInstalled}
-                  className={`flex-1 border p-3.5 rounded-xl text-left space-y-1.5 transition-all ${
-                    aiMode === 'local'
-                      ? 'border-accent bg-accent/5'
-                      : 'border-border-subtle/70 bg-sunken/15 opacity-55'
-                  }`}
-                >
-                  <Cpu className="w-4 h-4 text-accent" />
-                  <div>
-                    <h4 className="text-[11px] font-bold text-foreground">Local AI (Ollama)</h4>
-                    <span className="text-[9px] text-muted-foreground block mt-0.5">
-                      Secure, offline, 100% free.
-                    </span>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAiMode('cloud')}
-                  className={`flex-1 border p-3.5 rounded-xl text-left space-y-1.5 transition-all ${
-                    aiMode === 'cloud'
-                      ? 'border-accent bg-accent/5'
-                      : 'border-border-subtle/70 bg-sunken/15'
-                  }`}
-                >
-                  <Sparkles className="w-4 h-4 text-blue-400" />
-                  <div>
-                    <h4 className="text-[11px] font-bold text-foreground">Cloud AI (OpenRouter)</h4>
-                    <span className="text-[9px] text-muted-foreground block mt-0.5">
-                      High-quality remote LLMs.
-                    </span>
-                  </div>
-                </button>
-              </div>
-
-              {aiMode === 'local' && diagnostics?.ollamaModels && (
-                <div className="bg-sunken/45 border border-border/40 rounded-xl p-4 space-y-2">
-                  <Label htmlFor="modelSelect">Available Local Models</Label>
-                  <select
-                    id="modelSelect"
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    className="w-full h-8 px-2 bg-background border border-input rounded text-xs focus-visible:outline-none"
+                {diagnostics ? (
+                  <motion.div
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="show"
+                    className="grid grid-cols-2 gap-3 text-[10px]"
                   >
-                    {diagnostics.ollamaModels.map((m: string) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+                    <motion.div variants={itemVariants} className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                      <span className="text-muted-foreground">
+                        OS:{' '}
+                        <span className="text-foreground font-semibold font-mono">
+                          {diagnostics.os.substring(0, 18)}...
+                        </span>
+                      </span>
+                    </motion.div>
+                    <motion.div variants={itemVariants} className="flex items-center gap-2">
+                      {diagnostics.writePermissions ? (
+                        <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 text-danger shrink-0" />
+                      )}
+                      <span className="text-muted-foreground">
+                        Write Access:{' '}
+                        <span className="text-foreground font-semibold">
+                          {diagnostics.writePermissions ? 'Yes' : 'No'}
+                        </span>
+                      </span>
+                    </motion.div>
+                    <motion.div variants={itemVariants} className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                      <span className="text-muted-foreground">
+                        SQLite 3: <span className="text-foreground font-semibold">Available</span>
+                      </span>
+                    </motion.div>
+                    <motion.div variants={itemVariants} className="flex items-center gap-2">
+                      {diagnostics.internetConnected ? (
+                        <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
+                      )}
+                      <span className="text-muted-foreground">
+                        Internet:{' '}
+                        <span className="text-foreground font-semibold">
+                          {diagnostics.internetConnected ? 'Connected' : 'Offline'}
+                        </span>
+                      </span>
+                    </motion.div>
+                    <motion.div variants={itemVariants} className="flex items-center gap-2">
+                      {diagnostics.ollamaInstalled ? (
+                        <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                      ) : (
+                        <div className="w-4 h-4 bg-muted border border-border-subtle rounded-none shrink-0 flex items-center justify-center text-[8px] font-bold text-muted-foreground font-mono">
+                          !
+                        </div>
+                      )}
+                      <span className="text-muted-foreground">
+                        Local AI (Ollama):{' '}
+                        <span className="text-foreground font-semibold">
+                          {diagnostics.ollamaInstalled ? 'Installed' : 'Not Detected'}
+                        </span>
+                      </span>
+                    </motion.div>
+                    <motion.div variants={itemVariants} className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                      <span className="text-muted-foreground">
+                        Workers Host: <span className="text-foreground font-semibold">Ready</span>
+                      </span>
+                    </motion.div>
+                  </motion.div>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground animate-pulse">
+                    Running health check queries...
+                  </p>
+                )}
+              </div>
 
-              {aiMode === 'cloud' && (
-                <div className="bg-sunken/45 border border-border/40 rounded-xl p-4 space-y-3">
-                  <div className="space-y-1">
-                    <Label htmlFor="orKeyInput">OpenRouter API Key</Label>
-                    <div className="flex gap-2">
-                      <input
-                        id="orKeyInput"
-                        type="password"
-                        placeholder="sk-or-v1-..."
-                        value={openRouterKey}
-                        onChange={(e) => setOpenRouterKey(e.target.value)}
-                        className="flex-1 h-8 px-2 bg-background border border-input rounded text-xs focus-visible:outline-none"
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8"
-                        onClick={testOpenRouter}
-                        disabled={testingConnection}
-                      >
-                        {testingConnection ? 'Testing...' : 'Test Key'}
-                      </Button>
+              <div className="flex justify-end gap-2 pt-2 border-t border-border-subtle/50">
+                <Button type="button" size="sm" variant="ghost" className="rounded-none text-[10px]" onClick={runDiagnostics}>
+                  <RefreshCw className="w-3.5 h-3.5 mr-1" /> Re-Check
+                </Button>
+                <Button type="button" size="sm" className="rounded-none text-[10px]" onClick={() => setStep(2)}>
+                  Continue <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── Step 2: AI Configuration ─────────────────────────────────────── */}
+          {step === 2 && (
+            <motion.div
+              key="step-2"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2, ease: 'easeInOut' }}
+              className="space-y-5"
+            >
+              <div className="space-y-1">
+                <h2 className="text-base font-bold text-foreground">
+                  Configure Lead Intelligence AI
+                </h2>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Unlock automated cold email opening lines, pain point hypotheses, and lead score
+                  analytics.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setAiMode('local')}
+                    disabled={!diagnostics?.ollamaInstalled}
+                    className={`flex-1 border p-3.5 rounded-none text-left space-y-1.5 transition-all outline-none ${
+                      aiMode === 'local'
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border-subtle bg-card opacity-50 cursor-not-allowed'
+                    }`}
+                  >
+                    <Cpu className="w-4 h-4 text-primary" />
+                    <div>
+                      <h4 className="text-[11px] font-bold text-foreground">Local AI (Ollama)</h4>
+                      <span className="text-[9px] text-muted-foreground block mt-0.5 font-medium">
+                        Secure, offline, 100% free.
+                      </span>
                     </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAiMode('cloud')}
+                    className={`flex-1 border p-3.5 rounded-none text-left space-y-1.5 transition-all outline-none ${
+                      aiMode === 'cloud'
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border-subtle bg-card'
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4 text-info" />
+                    <div>
+                      <h4 className="text-[11px] font-bold text-foreground">Cloud AI (OpenRouter)</h4>
+                      <span className="text-[9px] text-muted-foreground block mt-0.5 font-medium">
+                        High-quality remote LLMs.
+                      </span>
+                    </div>
+                  </button>
+                </div>
+
+                <AnimatePresence mode="wait">
+                  {aiMode === 'local' && diagnostics?.ollamaModels && (
+                    <motion.div
+                      key="local-ai-details"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="bg-surface-3 border border-border-subtle rounded-none p-4 space-y-2 overflow-hidden shadow-inner"
+                    >
+                      <Label htmlFor="modelSelect">Available Local Models</Label>
+                      <select
+                        id="modelSelect"
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value)}
+                        className="w-full h-8 px-2 bg-card border border-border-subtle rounded-none text-xs focus-visible:outline-none font-semibold text-foreground"
+                      >
+                        {diagnostics.ollamaModels.map((m: string) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </select>
+                    </motion.div>
+                  )}
+
+                  {aiMode === 'cloud' && (
+                    <motion.div
+                      key="cloud-ai-details"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="bg-surface-3 border border-border-subtle rounded-none p-4 space-y-3 overflow-hidden shadow-inner"
+                    >
+                      <div className="space-y-1">
+                        <Label htmlFor="orKeyInput">OpenRouter API Key</Label>
+                        <div className="flex gap-2">
+                          <input
+                            id="orKeyInput"
+                            type="password"
+                            placeholder="sk-or-v1-..."
+                            value={openRouterKey}
+                            onChange={(e) => setOpenRouterKey(e.target.value)}
+                            className="flex-1 h-8 px-2 bg-card border border-border-subtle rounded-none text-xs focus-visible:outline-none font-mono"
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 rounded-none text-[10px]"
+                            onClick={testOpenRouter}
+                            disabled={testingConnection}
+                          >
+                            {testingConnection ? 'Testing...' : 'Test Key'}
+                          </Button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <div className="flex justify-between pt-2 border-t border-border-subtle/50">
+                <Button type="button" size="sm" variant="ghost" className="rounded-none text-[10px]" onClick={() => setStep(1)}>
+                  Back
+                </Button>
+                <Button type="button" size="sm" className="rounded-none text-[10px]" onClick={() => setStep(3)}>
+                  Continue
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── Step 3: Email Connector Setup ────────────────────────────────── */}
+          {step === 3 && (
+            <motion.div
+              key="step-3"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2, ease: 'easeInOut' }}
+              className="space-y-5"
+            >
+              <div className="space-y-1">
+                <h2 className="text-base font-bold text-foreground">Connect Outbound Email</h2>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Set up SMTP parameters to run your campaigns. LeadForge supports Google App
+                  Passwords for secured Gmail integrations.
+                </p>
+              </div>
+
+              <div className="bg-surface-3 border border-border-subtle rounded-none p-4 space-y-4 shadow-inner">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="emailInput">Outbound Email Address</Label>
+                    <input
+                      id="emailInput"
+                      placeholder="you@gmail.com"
+                      value={emailAddress}
+                      onChange={(e) => setEmailAddress(e.target.value)}
+                      className="w-full h-8 px-2.5 bg-card border border-border-subtle rounded-none text-xs focus-visible:outline-none font-semibold text-foreground"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="appPassInput">Google App Password</Label>
+                    <input
+                      id="appPassInput"
+                      type="password"
+                      placeholder="xxxx xxxx xxxx xxxx"
+                      value={appPassword}
+                      onChange={(e) => setAppPassword(e.target.value)}
+                      className="w-full h-8 px-2.5 bg-card border border-border-subtle rounded-none text-xs focus-visible:outline-none font-mono"
+                    />
                   </div>
                 </div>
-              )}
-            </div>
 
-            <div className="flex justify-between pt-2">
-              <Button size="sm" variant="ghost" onClick={() => setStep(2)}>
-                Back
-              </Button>
-              <Button size="sm" onClick={() => setStep(4)}>
-                Continue
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 4: Email Connector Setup ────────────────────────────────── */}
-        {step === 4 && (
-          <div className="space-y-5 animate-in fade-in duration-200">
-            <div className="space-y-1">
-              <h2 className="text-base font-bold text-foreground">Connect Outbound Email</h2>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Set up SMTP parameters to run your campaigns. LeadForge supports Google App
-                Passwords for secured Gmail integrations.
-              </p>
-            </div>
-
-            <div className="bg-sunken/45 border border-border/40 rounded-xl p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="emailInput">Outbound Email Address</Label>
-                  <input
-                    id="emailInput"
-                    placeholder="you@gmail.com"
-                    value={emailAddress}
-                    onChange={(e) => setEmailAddress(e.target.value)}
-                    className="w-full h-8 px-2.5 bg-background border border-input rounded-lg text-xs focus-visible:outline-none"
-                  />
+                <div className="bg-info-muted border border-info/20 rounded-none p-3 text-[10px] leading-relaxed text-info font-medium flex gap-2">
+                  <Info className="w-3.5 h-3.5 text-info shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-info">Gmail Setup Tip:</span> Visit your
+                    Google Account Settings, turn on 2-Step Verification, and search for "App Passwords"
+                    to generate a secure 16-character code specifically for LeadForge.
+                  </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="appPassInput">Google App Password</Label>
-                  <input
-                    id="appPassInput"
-                    type="password"
-                    placeholder="xxxx xxxx xxxx xxxx"
-                    value={appPassword}
-                    onChange={(e) => setAppPassword(e.target.value)}
-                    className="w-full h-8 px-2.5 bg-background border border-input rounded-lg text-xs focus-visible:outline-none"
-                  />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="w-full rounded-none text-[10px]"
+                  onClick={testSmtp}
+                  disabled={testingConnection}
+                >
+                  {testingConnection ? 'Verifying connection...' : 'Test SMTP Connection'}
+                </Button>
+              </div>
+
+              <div className="flex justify-between pt-2 border-t border-border-subtle/50">
+                <Button type="button" size="sm" variant="ghost" className="rounded-none text-[10px]" onClick={() => setStep(2)}>
+                  Back
+                </Button>
+                <Button type="button" size="sm" className="rounded-none text-[10px]" onClick={() => setStep(4)}>
+                  Continue
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── Step 4: Sample Workspace & Launch ────────────────────────────── */}
+          {step === 4 && (
+            <motion.div
+              key="step-4"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2, ease: 'easeInOut' }}
+              className="space-y-5"
+            >
+              <div className="space-y-1">
+                <h2 className="text-base font-bold text-foreground">You are ready to launch!</h2>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Confirm your parameters below to finish initializing your local sales intelligence
+                  operating system.
+                </p>
+              </div>
+
+              <div className="bg-surface-3 border border-border-subtle rounded-none p-4 space-y-3 shadow-inner">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-muted-foreground">Workspace Name:</span>
+                  <span className="font-bold text-foreground">{wsName}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-border-subtle/50">
+                  <span className="text-muted-foreground">AI Configuration:</span>
+                  <span className="font-bold text-foreground uppercase">{aiMode}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-border-subtle/50">
+                  <span className="text-muted-foreground">Email Configured:</span>
+                  <span className="font-bold text-foreground">
+                    {emailAddress ? 'Yes' : 'No (Skipped)'}
+                  </span>
                 </div>
               </div>
 
-              <div className="bg-blue-500/[0.03] border border-blue-500/10 rounded-lg p-3 text-[10px] leading-relaxed text-blue-400/90 font-medium">
-                💡 <span className="font-bold text-blue-400">Gmail Setup Tip:</span> Visit your
-                Google Account Settings, turn on 2-Step Verification, and search for "App Passwords"
-                to generate a secure 16-character code specifically for LeadForge.
+              {/* Sample data check */}
+              <label className="flex items-center gap-3 cursor-pointer p-3.5 border border-primary/20 bg-primary/[0.02] rounded-none select-none">
+                <input
+                  type="checkbox"
+                  checked={useSampleData}
+                  onChange={() => setUseSampleData(!useSampleData)}
+                  className="rounded-none border-border-subtle text-primary focus:ring-0 w-4 h-4 cursor-pointer"
+                />
+                <div>
+                  <span className="text-xs font-bold text-foreground block">
+                    Start with Sample Workspace Data
+                  </span>
+                  <span className="text-[9px] text-muted-foreground block mt-0.5 font-medium leading-normal">
+                    Pre-populate companies, campaigns, sequences, and opportunity scores to test
+                    features instantly.
+                  </span>
+                </div>
+              </label>
+
+              <div className="flex justify-between pt-2 border-t border-border-subtle/50">
+                <Button type="button" size="sm" variant="ghost" className="rounded-none text-[10px]" onClick={() => setStep(3)} disabled={loading}>
+                  Back
+                </Button>
+                <Button type="button" size="sm" onClick={handleCreateWorkspace} disabled={loading} className="px-6 rounded-none text-[10px]">
+                  {loading ? 'Initializing Workspace...' : 'Launch LeadForge OS'}
+                </Button>
               </div>
-
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full"
-                onClick={testSmtp}
-                disabled={testingConnection}
-              >
-                {testingConnection ? 'Verifying connection...' : 'Test SMTP Connection'}
-              </Button>
-            </div>
-
-            <div className="flex justify-between pt-2">
-              <Button size="sm" variant="ghost" onClick={() => setStep(3)}>
-                Back
-              </Button>
-              <Button size="sm" onClick={() => setStep(5)}>
-                Continue
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 5: Sample Workspace & Launch ────────────────────────────── */}
-        {step === 5 && (
-          <div className="space-y-5 animate-in fade-in duration-200">
-            <div className="space-y-1">
-              <h2 className="text-base font-bold text-foreground">You are ready to launch!</h2>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Confirm your parameters below to finish initializing your local sales intelligence
-                operating system.
-              </p>
-            </div>
-
-            <div className="bg-sunken/45 border border-border/40 rounded-xl p-4 space-y-3">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-muted-foreground">Workspace Name:</span>
-                <span className="font-bold text-foreground">{wsName}</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-border/40">
-                <span className="text-muted-foreground">AI Configuration:</span>
-                <span className="font-bold text-foreground uppercase">{aiMode}</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-border/40">
-                <span className="text-muted-foreground">Email Configured:</span>
-                <span className="font-bold text-foreground">
-                  {emailAddress ? 'Yes' : 'No (Skipped)'}
-                </span>
-              </div>
-            </div>
-
-            {/* Mock sample data checkbox */}
-            <label className="flex items-center gap-2 cursor-pointer p-3 border border-accent/15 bg-accent/[0.02] rounded-xl">
-              <input
-                type="checkbox"
-                checked={useSampleData}
-                onChange={() => setUseSampleData(!useSampleData)}
-                className="rounded border-border-subtle text-accent focus:ring-accent w-4 h-4"
-              />
-              <div>
-                <span className="text-xs font-bold text-foreground block">
-                  Start with Sample Workspace Data
-                </span>
-                <span className="text-[9px] text-muted-foreground block mt-0.5">
-                  Pre-populate companies, campaigns, sequences, and opportunity scores to test
-                  features instantly.
-                </span>
-              </div>
-            </label>
-
-            <div className="flex justify-between pt-2">
-              <Button size="sm" variant="ghost" onClick={() => setStep(4)} disabled={loading}>
-                Back
-              </Button>
-              <Button size="sm" onClick={handleCreateWorkspace} disabled={loading} className="px-6">
-                {loading ? 'Initializing Workspace...' : 'Launch LeadForge OS'}
-              </Button>
-            </div>
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
