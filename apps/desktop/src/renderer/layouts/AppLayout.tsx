@@ -1,76 +1,31 @@
 import { useEffect, Suspense } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { toast } from 'sonner';
-import ProductTour from '../components/onboarding/ProductTour';
 
 import { useWorkspace } from '../hooks/useWorkspace';
-import { Button } from '../components/ui/button';
-
+import { Skeleton } from '../components/ui/skeleton';
 import { SidebarInset, SidebarProvider } from '../components/ui/sidebar';
 import AppHeader from './AppHeader';
 import { AppSidebar } from '../components/sidebar/AppSidebar';
-
-const schema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters')
-});
-type FormValues = z.infer<typeof schema>;
-
-function CreateWorkspaceInlineForm() {
-  const { createWorkspace } = useWorkspace();
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting }
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: { name: '' }
-  });
-
-  const onSubmit = async (values: FormValues) => {
-    try {
-      await createWorkspace(values.name);
-      toast.success('Workspace created successfully.');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create workspace.');
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 text-left">
-      <div className="space-y-1.5">
-        <label htmlFor="name" className="text-xs font-semibold text-muted-foreground">
-          Workspace Name
-        </label>
-        <input
-          id="name"
-          type="text"
-          placeholder="e.g. Acme Corp"
-          {...register('name')}
-          className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-        />
-        {errors.name && <p className="text-[10px] text-danger-text">{errors.name.message}</p>}
-      </div>
-      <Button type="submit" className="w-full text-xs py-2" disabled={isSubmitting}>
-        {isSubmitting ? 'Creating...' : 'Create workspace'}
-      </Button>
-    </form>
-  );
-}
+import { CreateWorkspaceForm } from '../components/workspace/CreateWorkspaceForm';
+import ProductTour from '../components/onboarding/ProductTour';
 
 /**
- * AppLayout is the authenticated application shell.
- * It renders the sidebar, header, and the page content area via <Outlet />.
- * All auth and workspace state is read from their respective stores.
+ * AppLayout — the authenticated application shell.
+ *
+ * Renders: AppSidebar → AppHeader → page content via <Outlet />.
+ * Auth and workspace state are read from their respective stores — no prop drilling.
+ *
+ * Emits `electron:ready-to-show` when there is no active workspace (so the
+ * window frame appears even before a workspace is selected).
  */
 export function AppLayout() {
   const { activeWorkspace } = useWorkspace();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
+  // Redirect to onboarding if not completed
   useEffect(() => {
     const isCompleted = localStorage.getItem('onboarding_completed') === 'true';
     if (!isCompleted) {
@@ -78,19 +33,20 @@ export function AppLayout() {
     }
   }, [navigate]);
 
+  // Show window frame even when no workspace exists
   useEffect(() => {
     if (!activeWorkspace) {
       window.ipc.invoke('electron:ready-to-show' as any, null).catch(() => {});
     }
   }, [activeWorkspace]);
 
+  // Invalidate all queries when a sync completes
   useEffect(() => {
     const workspaceId = activeWorkspace?.id;
     if (!workspaceId) return;
 
-    // Listen to sync:completed events from Main process and refresh UI queries
     const unsubscribe = window.ipc.on('sync:completed', () => {
-      console.log('[Renderer] Sync completed event received, invalidating queries.');
+      console.log('[Renderer] Sync completed — invalidating queries.');
       queryClient.invalidateQueries();
     });
 
@@ -99,17 +55,20 @@ export function AppLayout() {
     };
   }, [activeWorkspace?.id, queryClient]);
 
+  // ── No workspace: prompt to create one ───────────────────────────────────
   if (!activeWorkspace) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8 font-sans">
-        <div className="w-full max-w-sm space-y-6 text-center border border-border-subtle p-8 rounded-xl bg-card">
-          <div>
-            <h2 className="text-xl font-bold tracking-tight text-foreground">Create a workspace</h2>
-            <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+      <div className="flex h-screen w-full items-center justify-center bg-background px-4">
+        <div className="w-full max-w-sm space-y-6 text-center border border-border-subtle p-8 rounded-[--radius-lg] bg-card">
+          <div className="space-y-1.5">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Create a workspace
+            </h2>
+            <p className="text-[13px] text-muted-foreground leading-relaxed">
               You need a workspace to start using LeadForge OS.
             </p>
           </div>
-          <CreateWorkspaceInlineForm />
+          <CreateWorkspaceForm />
         </div>
       </div>
     );
@@ -120,32 +79,32 @@ export function AppLayout() {
       <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
         <AppSidebar activeWorkspace={activeWorkspace} />
 
-        <SidebarInset>
+        <SidebarInset className="flex flex-col min-w-0">
           <AppHeader />
-          <div className="flex flex-col flex-1 min-w-0">
-            {/* Page content */}
-            <main className="flex-1 overflow-y-auto p-4 max-h-[calc(100vh-64px)]">
-              <Suspense
-                fallback={
-                  <div className="space-y-4 p-2">
-                    <div className="h-6 bg-muted animate-pulse rounded w-1/3" />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="h-20 bg-muted animate-pulse rounded-xl" />
-                      <div className="h-20 bg-muted animate-pulse rounded-xl" />
-                      <div className="h-20 bg-muted animate-pulse rounded-xl" />
-                      <div className="h-20 bg-muted animate-pulse rounded-xl" />
-                    </div>
-                    <div className="h-64 bg-muted animate-pulse rounded-xl" />
-                  </div>
-                }
-              >
-                <Outlet />
-              </Suspense>
-            </main>
-          </div>
+          <main className="flex-1 overflow-y-auto p-4 max-h-[calc(100vh-44px)]">
+            <Suspense fallback={<AppContentSkeleton />}>
+              <Outlet />
+            </Suspense>
+          </main>
         </SidebarInset>
       </div>
       <ProductTour />
     </SidebarProvider>
+  );
+}
+
+/** Skeleton shown while lazy-loaded screen chunks are loading. */
+function AppContentSkeleton() {
+  return (
+    <div className="space-y-4 p-2">
+      <Skeleton className="h-6 w-1/3" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Skeleton className="h-20 rounded-[--radius-lg]" />
+        <Skeleton className="h-20 rounded-[--radius-lg]" />
+        <Skeleton className="h-20 rounded-[--radius-lg]" />
+        <Skeleton className="h-20 rounded-[--radius-lg]" />
+      </div>
+      <Skeleton className="h-64 rounded-[--radius-lg]" />
+    </div>
   );
 }
