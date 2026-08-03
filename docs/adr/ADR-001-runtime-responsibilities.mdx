@@ -1,0 +1,65 @@
+---
+title: "ADR-001: AI Runtime Responsibilities"
+description: "Architectural Decision Record 1 mapping core software structure decisions."
+category: "ADRs"
+order: 1
+---
+
+## Status
+
+Proposed
+
+## Context
+
+The `@leadforge/ai` package is currently a mix of providers, prompt templates, and output validation schemas. As the application grows, there is a risk of coupling this infrastructure to business workflows (such as lead scoring or email campaigns). We need a clear separation of concerns to support local-first models (Ollama) and cloud APIs (OpenRouter) interchangeably.
+
+## Decision
+
+We will restrict `@leadforge/ai` to low-level runtime concerns:
+
+1. **Providers**: OpenRouter, Ollama, and mock configurations.
+2. **Prompts**: Compilation, rendering, and loading from static YAML assets.
+3. **Structured Validation**: Output validation using Zod schemas.
+4. **Caching & Policies**: In-memory prompt caching, retry limits, and routing.
+5. **Observability**: Emitting latency logs, token usage, and validation checks.
+
+All reasoning loops, planners, tool execution contexts, and business workflows are excluded from this package.
+
+## Alternatives Considered
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#1a1a1a',
+  'primaryTextColor': '#f5f5f5',
+  'primaryBorderColor': '#E8622C',
+  'lineColor': '#E8622C',
+  'background': '#0d0d0d',
+  'fontFamily': 'Inter'
+}}}%%
+flowchart TD
+  Opt0["Monolithic AI Package"] -->|Rejected| Decision{Decision: AI Runtime Responsibilities}
+  Opt1["Direct Integration"] -->|Rejected| Decision{Decision: AI Runtime Responsibilities}
+  Opt2["Pros"] -->|Rejected| Decision{Decision: AI Runtime Responsibilities}
+  Opt3["Cons"] -->|Rejected| Decision{Decision: AI Runtime Responsibilities}
+  Chosen["AI Runtime Responsibilities"] -->|Chosen| Decision
+```
+
+
+- **Monolithic AI Package**: Combine the runtime, agents, and workflows into one package.
+  - _Tradeoffs_: Hard to test, violates separation of concerns, and couples model provider code directly to business features.
+- **Direct Integration**: Call OpenRouter/Ollama APIs directly in the desktop main process without a runtime wrapper.
+  - _Tradeoffs_: Duplicates prompt formatting, caching, and retry logic across multiple services.
+
+## Tradeoffs
+
+- **Pros**:
+  - **Provider Independence**: Model switches require no changes to agents or workflows.
+  - **Local-First Flexibility**: Offline routing and local inference can be handled centrally.
+  - **Testability**: Model responses and prompt compilation can be tested in isolation.
+- **Cons**:
+  - Requires a separate contract package (`agent-sdk`) for agents to communicate with the runtime.
+
+## Consequences
+
+- High-level agent classes cannot import concrete provider classes from `@leadforge/ai`. Instead, they interact via abstract runtime interfaces defined in `@leadforge/agent-sdk`.
+- Adding a new LLM provider (such as Anthropic or OpenAI) requires changes only within `@leadforge/ai`.

@@ -1,0 +1,59 @@
+---
+title: "Hono Cloud API"
+description: "Cloud synchronization, database schemas, and REST endpoints for collaborative lead workspaces."
+category: "API"
+order: 1
+---
+
+The Hono Cloud API serves as the centralized synchronization backend and collaborative workspace storage for LeadForge OS.
+
+## API Endpoint Reference
+
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/health` | `GET` | Heartbeat health status and MongoDB connection verification. |
+| `/auth/login` | `POST` | Authenticates credentials and issues session cookie. |
+| `/auth/register` | `POST` | Registers new user profiles. |
+| `/auth/session` | `GET` | Resolves and verifies the active session. |
+| `/business/sync` | `POST` | Syncs local SQLite mutations in batch mode using Last-Write-Wins (LWW). |
+| `/business/companies` | `GET` | Fetches all synced company entities. |
+| `/business/companies` | `POST` | Creates or updates company entities. |
+| `/business/contacts` | `GET` | Fetches synced contact lists. |
+| `/automation/sequences` | `GET` | Fetches email outreach sequences. |
+| `/automation/sequences` | `POST` | Deploys or modifies outreach sequences. |
+
+## Sync Request Example
+
+The following `POST` payload syncs a mutation from the client's local SQLite database:
+
+```bash
+curl -X POST http://localhost:3000/business/sync \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer session_token_here" \
+  -d '{
+    "workspaceId": "ws_abc123",
+    "mutations": [
+      {
+        "table": "companies",
+        "action": "INSERT",
+        "id": "comp_99",
+        "data": {
+          "name": "Acme Corp",
+          "domain": "acme.com",
+          "updatedAt": "2026-08-03T12:00:00Z"
+        }
+      }
+    ]
+  }'
+```
+
+To run the API server locally and access the interactive Scalar UI, execute:
+```bash
+pnpm dev --filter=api
+```
+Navigate to `http://localhost:3000/reference` for complete OpenAPI parameter schemas.
+
+## Related
+
+- [System Architecture](../architecture/system-overview.mdx)
+- [Setup & Installation](../getting-started/installation.mdx)

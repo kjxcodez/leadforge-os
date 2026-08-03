@@ -1,0 +1,61 @@
+---
+title: "ADR-002: Separation of Agent Core and Agent Framework"
+description: "Architectural Decision Record 2 mapping core software structure decisions."
+category: "ADRs"
+order: 2
+---
+
+## Status
+
+Proposed
+
+## Context
+
+LeadForge OS requires a set of business agents (Research, Campaigns, CRM navigation) that need to be framework-agnostic. Coupling the application to a specific framework (such as Mastra or LangGraph) introduces a risk of dependency lock-in if the framework is abandoned or changes its API. However, defining execution loop engines directly inside the contract SDK makes the SDK unstable whenever execution patterns change.
+
+## Decision
+
+We will separate the Agent platform into two distinct packages:
+
+1. **`@leadforge/agent-core`**: A stable, contract-only package. It defines abstract schemas, metadata, memory interfaces, and tool registries. It contains no execution logic or runtime dependencies.
+2. **`@leadforge/agent-framework`**: An execution-specific package. It implements planners, reflection loops, executors, and framework-specific adapters (e.g. Mastra, LangGraph).
+
+External framework dependencies are imported only within `@leadforge/agent-framework` adapters.
+
+## Alternatives Considered
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#1a1a1a',
+  'primaryTextColor': '#f5f5f5',
+  'primaryBorderColor': '#E8622C',
+  'lineColor': '#E8622C',
+  'background': '#0d0d0d',
+  'fontFamily': 'Inter'
+}}}%%
+flowchart TD
+  Opt0["Single SDK Package"] -->|Rejected| Decision{Decision: Separation of Agent Core and Agent Framework}
+  Opt1["Direct Orchestration"] -->|Rejected| Decision{Decision: Separation of Agent Core and Agent Framework}
+  Opt2["Pros"] -->|Rejected| Decision{Decision: Separation of Agent Core and Agent Framework}
+  Opt3["Cons"] -->|Rejected| Decision{Decision: Separation of Agent Core and Agent Framework}
+  Chosen["Separation of Agent Core and Agent Framework"] -->|Chosen| Decision
+```
+
+
+- **Single SDK Package**: Combine contracts and executors into a single `@leadforge/agent-sdk`.
+  - _Tradeoffs_: Simplifies directory structure, but forces the SDK to be rebuilt whenever we change execution loop structures or upgrade third-party adapters.
+- **Direct Orchestration**: Let business agents import Mastra or LangGraph directly.
+  - _Tradeoffs_: Eliminates the adapter layer, but couples agents to a single framework's APIs.
+
+## Tradeoffs
+
+- **Pros**:
+  - **Core Stability**: The core contracts package changes only when the fundamental definitions of Agents or Tools change.
+  - **Replaceable Frameworks**: We can swap execution engines or frameworks without changing business agent definitions.
+- **Cons**:
+  - Adds an extra package boundary to maintain in the pnpm workspace.
+
+## Consequences
+
+- Business agents import abstractions (such as `BaseAgent` and `Tool`) exclusively from `@leadforge/agent-core`.
+- The desktop shell loads adapters from `@leadforge/agent-framework` at boot, mapping agents to the active framework's loop.

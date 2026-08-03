@@ -1,0 +1,99 @@
+---
+title: "Testing & Quality Assurance"
+description: "Testing philosophy, available test suites, and validation utilities designed to maintain codebase health."
+category: "Development"
+order: 2
+---
+
+LeadForge OS employs automated unit, integration, and headless smoke tests, supplemented by runtime diagnostics and pre-release gates to guarantee codebase health.
+
+## Testing Philosophy
+
+1. **Isolation by Design**: Unit tests must never invoke real network requests, write to production database files, or spawn active headless browsers.
+2. **Deterministic Outputs**: Test scripts must yield predictable results using deterministic clock tickers, database transaction rollbacks, and mock LLM configurations.
+3. **Double Verification**: Automated test suites are complemented by SRE runtime diagnostics (`doctor`) and release gate checks.
+
+## Available Test Suites
+
+| Test Suite | Execution Command | Focus Area | Source / Helper |
+| :--- | :--- | :--- | :--- |
+| **Unit & Integration** | `pnpm -r test` | Validates package-level utilities, validator libraries, CRM repositories, and schema parsers. | Packages `tests/` folders |
+| **AI Integration** | `pnpm test:ai` | Validates model provider connections, timeouts, Zod output schema parsing, and fallback mock completions. | [scripts/test-ai.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/scripts/test-ai.ts) |
+| **Headless Smoke** | `pnpm test` | Runs a simulated Electron process headlessly to verify migrations, EventBuses, and logging loops. | [scripts/smoke-test.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/scripts/smoke-test.ts) |
+
+### Headless Smoke Test Checklist
+
+The smoke test automatically executes the following sequences on boot:
+1. Connects to an in-memory SQLite instance.
+2. Applies all 23 database migrations.
+3. Triggers EventBus publishers and verifies subscribers.
+4. Boots a test `JobScheduler` instance.
+
+## SRE Diagnostic & Release Checks
+
+### Doctor Diagnostics (`pnpm doctor`)
+
+The doctor diagnostics script tests environment versions, repository health, compilation status, lint rules, and test success:
+
+```bash
+pnpm doctor
+```
+
+It performs these validation checks:
+- Node version compliance ($\ge v18.0.0$) and pnpm version validity.
+- Repository health check [verify-repo-health.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/scripts/verify-repo-health.ts).
+- ESLint, TypeScript type checking, and `dependency-cruiser` boundary validation.
+- Recursive package test suites (`pnpm -r test`).
+- Writes a Markdown diagnostics report to `report/doctor-report.md`.
+
+### Release Gate Verification (`pnpm release:check`)
+
+A strict 10-gate check that must pass before any version distribution is allowed:
+
+```bash
+pnpm release:check
+```
+
+The checklist consists of:
+1. **Gate 1**: Repository Health check.
+2. **Gate 2**: TypeScript typecheck.
+3. **Gate 3**: ESLint validation.
+4. **Gate 4**: Unit & Integration tests.
+5. **Gate 5**: AI Integration tests.
+6. **Gate 6**: Headless Desktop Subsystem smoke test.
+7. **Gate 7**: Desktop Bundling Dry-Run.
+8. **Gate 8**: Changeset and release notes checking.
+9. **Gate 9**: Git status cleanliness checking.
+10. **Gate 10**: Tag & Version synchronization verification.
+
+## Mocking Strategies
+
+### Mocking LLM Providers
+
+In unit tests, use the `'mock'` provider to bypass OpenRouter connections and return deterministic mock data instantly:
+
+```typescript
+import { PromptRunner } from '@leadforge/ai';
+
+const runner = new PromptRunner({
+  provider: 'mock',
+  model: 'stub-model'
+});
+
+const summary = await runner.generateSummary({ domain: 'google.com' });
+```
+
+### Mocking Electron
+
+For running desktop main process tests outside Electron (where `safeStorage` or `ipcMain` are unavailable), we provide a mock wrapper at [scripts/mock-electron.ts](file:///c:/Users/91637/Desktop/Business%20Project/leadforge-os/scripts/mock-electron.ts). Import this script at the absolute top of your test entry points:
+
+```typescript
+import { mockElectron } from './mock-electron';
+// ... other imports
+```
+
+## Related
+
+- [Setup & Installation](../getting-started/installation.mdx)
+- [Developer Guides](../development/developer-guides.mdx)
+- [Troubleshooting](../troubleshooting/troubleshooting.mdx)

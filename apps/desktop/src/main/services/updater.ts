@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, createWriteStream, unlinkSync } from 'fs';
 import { spawn } from 'child_process';
 import crypto from 'crypto';
 import { AppLogger } from '../lib/logger';
+import { loadConfig } from '../lib/config';
 
 export interface UpdateCheckResult {
   updateAvailable: boolean;
@@ -11,10 +12,41 @@ export interface UpdateCheckResult {
   releaseNotes?: string;
   downloadUrl?: string;
   checksum?: string | undefined;
+  checksumType?: 'sha256' | 'sha512' | undefined;
 }
 
 export interface UpdateProvider {
   checkForUpdate(currentVersion: string, channel: string): Promise<UpdateCheckResult>;
+}
+
+export function compareVersions(v1: string, v2: string): number {
+  const parse = (v: string) => {
+    const clean = v.replace(/^v/, '');
+    const [main = '', prerelease = ''] = clean.split('-');
+    const parts = main.split('.').map(Number);
+    return { parts, prerelease };
+  };
+
+  const p1 = parse(v1);
+  const p2 = parse(v2);
+
+  for (let i = 0; i < Math.max(p1.parts.length, p2.parts.length); i++) {
+    const nv1 = p1.parts[i] || 0;
+    const nv2 = p2.parts[i] || 0;
+    if (nv1 > nv2) return 1;
+    if (nv1 < nv2) return -1;
+  }
+
+  if (p1.prerelease && !p2.prerelease) return -1;
+  if (!p1.prerelease && p2.prerelease) return 1;
+  if (p1.prerelease && p2.prerelease) {
+    return p1.prerelease.localeCompare(p2.prerelease, undefined, {
+      numeric: true,
+      sensitivity: 'base'
+    });
+  }
+
+  return 0;
 }
 
 // Initial GitHub Release Provider implementation
@@ -24,86 +56,128 @@ export class GitHubUpdateProvider implements UpdateProvider {
     private repo: string
   ) {}
 
-  async checkForUpdate(currentVersion: string, _channel: string): Promise<UpdateCheckResult> {
+  async checkForUpdate(currentVersion: string, channel: string): Promise<UpdateCheckResult> {
     try {
       const url = `https://api.github.com/repos/${this.owner}/${this.repo}/releases`;
-      console.log(url)
+      AppLogger.info('Updater', `Querying GitHub API: ${url}`, undefined);
+
       const res = await fetch(url, { headers: { 'User-Agent': 'LeadForge-OS' } });
-      console.log(res)
       if (res.status === 404) {
         AppLogger.info('Updater', 'No releases found on GitHub for this repository.', undefined);
-        return { updateAvailable: false, version: app.getVersion() };
+        return { updateAvailable: false, version: currentVersion };
       }
       if (!res.ok) {
         throw new Error(`GitHub releases API returned HTTP ${res.status}`);
       }
 
       const releases = (await res.json()) as any[];
-      console.log(releases)
       if (!Array.isArray(releases) || releases.length === 0) {
-        AppLogger.info('Updater', 'No releases published yet on GitHub for this repository.', undefined);
-        return { updateAvailable: false, version: app.getVersion() };
+        AppLogger.info(
+          'Updater',
+          'No releases published yet on GitHub for this repository.',
+          undefined
+        );
+        return { updateAvailable: false, version: currentVersion };
       }
 
-      const release = releases.find((r: any) => !r.draft);
-      console.log(release)
-      if (!release) {
-        AppLogger.info('Updater', 'No non-draft releases found.', undefined);
-        return { updateAvailable: false, version: app.getVersion() };
+      // Filter releases based on active channel
+      const filteredReleases = releases.filter((r: any) => {
+        if (r.draft) return false;
+
+        // Check if version or flag indicates a pre-release
+        const isPre = r.prerelease || r.tag_name.includes('-');
+        if (channel === 'stable' && isPre) {
+          return false; // stable channel ignores prereleases
+        }
+        return true;
+      });
+
+      if (filteredReleases.length === 0) {
+        AppLogger.info('Updater', `No releases matching channel "${channel}".`, undefined);
+        return { updateAvailable: false, version: currentVersion };
       }
 
-      const tag = release.tag_name || '';
+      // Sort descending (latest version first)
+      filteredReleases.sort((a: any, b: any) => compareVersions(b.tag_name, a.tag_name));
+
+      const latestRelease = filteredReleases[0];
+      const tag = latestRelease.tag_name || '';
       const version = tag.replace(/^v/, '');
 
-      if (this.isNewerVersion(version, app.getVersion())) {
+      if (compareVersions(version, currentVersion) > 0) {
         const platform = process.platform;
         let ext = '.exe';
         if (platform === 'darwin') ext = '.dmg';
         if (platform === 'linux') ext = '.AppImage';
 
-        const asset = release.assets?.find((a: any) => a.name.endsWith(ext));
-        const checksumAsset = release.assets?.find((a: any) => a.name.endsWith(`${ext}.sha256`));
+        const asset = latestRelease.assets?.find((a: any) => a.name.endsWith(ext));
+        if (!asset) {
+          AppLogger.warn(
+            'Updater',
+            `New version ${version} found, but no asset matching extension "${ext}" is available.`,
+            undefined
+          );
+          return { updateAvailable: false, version: currentVersion };
+        }
+
+        let checksum: string | undefined = undefined;
+        let checksumType: 'sha256' | 'sha512' | undefined = undefined;
+
+        // Try to find direct checksum asset (*.sha256)
+        const checksumAsset = latestRelease.assets?.find((a: any) =>
+          a.name.endsWith(`${ext}.sha256`)
+        );
+        if (checksumAsset) {
+          checksum = await this.fetchChecksum(checksumAsset.browser_download_url);
+          checksumType = 'sha256';
+        } else {
+          // Fall back to latest.yml / latest-mac.yml
+          const latestYmlName = platform === 'darwin' ? 'latest-mac.yml' : 'latest.yml';
+          const latestYmlAsset = latestRelease.assets?.find((a: any) => a.name === latestYmlName);
+          if (latestYmlAsset) {
+            const ymlText = await this.fetchText(latestYmlAsset.browser_download_url);
+            if (ymlText) {
+              const match = ymlText.match(/^sha512:\s*([^\r\n]+)/m);
+              if (match && match[1]) {
+                checksum = match[1].trim();
+                checksumType = 'sha512';
+              }
+            }
+          }
+        }
+
+        if (!checksum) {
+          throw new Error(
+            `Security Exception: Verification checksum not found for version ${version}. Aborting update.`
+          );
+        }
+
+        AppLogger.info(
+          'Updater',
+          `Found update candidate: version ${version} on channel ${channel}`,
+          undefined
+        );
 
         return {
           updateAvailable: true,
           version,
-          releaseNotes: release.body || '',
-          downloadUrl: asset?.browser_download_url,
-          checksum: checksumAsset
-            ? await this.fetchChecksum(checksumAsset.browser_download_url)
-            : undefined
+          releaseNotes: latestRelease.body || '',
+          downloadUrl: asset.browser_download_url,
+          checksum,
+          checksumType
         };
+      } else {
+        AppLogger.info(
+          'Updater',
+          `App is up-to-date. Current: ${currentVersion}, Latest: ${version} (${channel})`,
+          undefined
+        );
       }
     } catch (err: any) {
       AppLogger.error('Updater', `Update check failed: ${err.message}`, undefined);
+      throw err;
     }
-    return { updateAvailable: false, version: app.getVersion() };
-  }
-
-  private isNewerVersion(newer: string, current: string): boolean {
-    const parse = (v: string) => {
-      const [main = '', prerelease = ''] = v.split('-');
-      const parts = main.split('.').map(Number);
-      return { parts, prerelease };
-    };
-
-    const n = parse(newer);
-    const c = parse(current);
-
-    for (let i = 0; i < Math.max(n.parts.length, c.parts.length); i++) {
-      const nv = n.parts[i] || 0;
-      const cv = c.parts[i] || 0;
-      if (nv > cv) return true;
-      if (nv < cv) return false;
-    }
-
-    if (n.prerelease && !c.prerelease) return false;
-    if (!n.prerelease && c.prerelease) return true;
-    if (n.prerelease && c.prerelease) {
-      return n.prerelease.localeCompare(c.prerelease, undefined, { numeric: true, sensitivity: 'base' }) > 0;
-    }
-
-    return false;
+    return { updateAvailable: false, version: currentVersion };
   }
 
   private async fetchChecksum(url: string): Promise<string | undefined> {
@@ -113,8 +187,20 @@ export class GitHubUpdateProvider implements UpdateProvider {
         const text = await res.text();
         return text.trim().split(/\s+/)[0];
       }
-    } catch {
-      // ignore
+    } catch (err: any) {
+      AppLogger.warn('Updater', `Failed to fetch checksum file: ${err.message}`, undefined);
+    }
+    return undefined;
+  }
+
+  private async fetchText(url: string): Promise<string | undefined> {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        return await res.text();
+      }
+    } catch (err: any) {
+      AppLogger.warn('Updater', `Failed to fetch file text: ${err.message}`, undefined);
     }
     return undefined;
   }
@@ -131,6 +217,7 @@ export class UpdateManager {
   private releaseNotes = '';
   private downloadUrl = '';
   private expectedChecksum = '';
+  private expectedChecksumType: 'sha256' | 'sha512' = 'sha256';
   private downloadedFilePath = '';
   private activeSchedulers: any[] = []; // List of active JobSchedulers to verify idle state
 
@@ -180,6 +267,20 @@ export class UpdateManager {
     this.notifyRenderer();
 
     try {
+      // Synchronize channel config dynamically on every check
+      try {
+        const config = loadConfig();
+        if (config?.settings?.updateChannel) {
+          this.channel = config.settings.updateChannel;
+        }
+      } catch (configErr: any) {
+        AppLogger.warn(
+          'Updater',
+          `Could not synchronize channel configuration: ${configErr.message}`,
+          undefined
+        );
+      }
+
       const res = await this.provider.checkForUpdate(app.getVersion(), this.channel);
       if (res.updateAvailable) {
         this.status = 'available';
@@ -187,6 +288,7 @@ export class UpdateManager {
         this.releaseNotes = res.releaseNotes || '';
         this.downloadUrl = res.downloadUrl || '';
         this.expectedChecksum = res.checksum || '';
+        this.expectedChecksumType = res.checksumType || 'sha256';
         AppLogger.info(
           'Updater',
           `New version ${res.version} is available for download.`,
@@ -205,6 +307,10 @@ export class UpdateManager {
   }
 
   public async download(): Promise<void> {
+    if (this.status === 'downloading') {
+      AppLogger.warn('Updater', 'Download already in progress.', undefined);
+      return;
+    }
     if (this.status !== 'available' || !this.downloadUrl) return;
 
     this.status = 'downloading';
@@ -243,10 +349,33 @@ export class UpdateManager {
       }
       fileStream.end();
 
+      // Wait for the file stream to completely write and close
+      await new Promise<void>((resolve, reject) => {
+        fileStream.on('finish', () => resolve());
+        fileStream.on('error', (err) => reject(err));
+      });
+
       // Verify checksum
       if (this.expectedChecksum) {
-        const fileHash = await this.calculateFileHash(targetPath);
-        if (fileHash.toLowerCase() !== this.expectedChecksum.toLowerCase()) {
+        const hashType = this.expectedChecksumType;
+        const fileHash = await this.calculateFileHash(targetPath, hashType);
+
+        let verified = false;
+        if (hashType === 'sha512') {
+          // In latest.yml, sha512 checksum is in base64. Let's compare case-insensitively or directly.
+          if (
+            fileHash === this.expectedChecksum ||
+            fileHash.toLowerCase() === this.expectedChecksum.toLowerCase()
+          ) {
+            verified = true;
+          }
+        } else {
+          if (fileHash.toLowerCase() === this.expectedChecksum.toLowerCase()) {
+            verified = true;
+          }
+        }
+
+        if (!verified) {
           unlinkSync(targetPath);
           throw new Error(
             `Checksum mismatch. Expected: ${this.expectedChecksum}, Got: ${fileHash}`
@@ -319,12 +448,21 @@ export class UpdateManager {
     }
   }
 
-  private calculateFileHash(filePath: string): Promise<string> {
+  private calculateFileHash(
+    filePath: string,
+    algo: 'sha256' | 'sha512' = 'sha256'
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
-      const hash = crypto.createHash('sha256');
+      const hash = crypto.createHash(algo);
       const stream = require('fs').createReadStream(filePath);
       stream.on('data', (data: any) => hash.update(data));
-      stream.on('end', () => resolve(hash.digest('hex')));
+      stream.on('end', () => {
+        if (algo === 'sha512') {
+          resolve(hash.digest('base64'));
+        } else {
+          resolve(hash.digest('hex'));
+        }
+      });
       stream.on('error', (err: any) => reject(err));
     });
   }

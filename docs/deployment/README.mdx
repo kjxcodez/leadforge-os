@@ -1,0 +1,91 @@
+---
+title: "Deployment & Production Hosting"
+description: "Deployment models, environment configurations, and production hosting for both the cloud Hono API server and desktop installers."
+category: "Getting Started"
+order: 3
+---
+
+By the end of this guide, you will have the Hono API server running in a production environment and understand how to build local desktop installers.
+
+## Prerequisites
+
+- **MongoDB Instance**: A running cluster (local or MongoDB Atlas).
+- **Environment Access**: Ability to define host environment variables.
+- **Node.js & pnpm**: Required for building and packaging code.
+
+## Hono Cloud API Server Configuration
+
+Configure the API server (`apps/api`) using the following environment variables:
+
+| Variable | Description | Example Value |
+| :--- | :--- | :--- |
+| `NODE_ENV` | Target execution environment | `production` |
+| `PORT` | Local runtime port | `3000` |
+| `MONGODB_URI` | MongoDB connection connection string | `mongodb+srv://user:pass@cluster.mongodb.net/leadforge` |
+| `BETTER_AUTH_SECRET` | 32+ character auth security secret | `random_secret_string_here` |
+| `BETTER_AUTH_URL` | Callback URL matching the API domain | `https://api.leadforge.dev/api/v1/auth` |
+
+## Deployment Options
+
+### Vercel Serverless (Recommended)
+
+1. Push the code repository to GitHub.
+2. In your Vercel Dashboard, import the repository.
+3. Configure the build parameters:
+   - **Root Directory**: `apps/api`
+   - **Framework Preset**: `Other`
+4. Set the production environment variables.
+5. Trigger the deploy.
+
+*Note: The background `SequenceWorker` will not run under serverless environments. All HTTP synchronizations, CRUD, and auth endpoints function fully.*
+
+### PM2 Process Manager
+
+To run persistent server daemons on virtual servers (e.g. AWS, DigitalOcean):
+
+```bash
+pnpm -F api build
+pm2 start dist/index.js --name "leadforge-api" --update-env
+```
+
+### Docker Container
+
+Build and launch using the provided Dockerfile:
+
+```dockerfile
+FROM node:20-alpine AS base
+WORKDIR /app
+COPY . .
+RUN npm install -g pnpm && pnpm install
+RUN pnpm -F api build
+EXPOSE 3000
+CMD ["pnpm", "-F", "api", "start"]
+```
+
+## Desktop Installer Packaging
+
+The desktop application resolves configuration variables using this precedence:
+1. **Environment Variables**: Reads `API_URL` or `OPENROUTER_API_KEY` from the shell.
+2. **Local JSON**: Reads `apiUrl` or `openRouterKey` from `config.json` inside the `userData` directory.
+3. **Build Defaults**: Falls back to `https://api.leadforge.kapiljangid.pro/api/v1`.
+
+### Build Windows Installer
+
+To build the setup installer executable:
+
+```bash
+pnpm package
+```
+
+This compiles main and renderer processes using `electron-builder`, outputting `LeadForge OS-Setup-<version>.exe` in the `apps/desktop/dist/` directory.
+
+## Verification
+
+To verify the API deployment:
+1. Perform a `GET` query to `/health`.
+2. Confirm the response returns database status connectivity confirmation.
+
+## Related
+
+- [Setup & Installation](../getting-started/installation.mdx)
+- [REST API Reference](../api/hono-api.mdx)

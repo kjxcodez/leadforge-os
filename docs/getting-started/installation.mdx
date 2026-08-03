@@ -1,0 +1,71 @@
+---
+title: "Setup & Installation"
+description: "Configure your local workspace and build the Electron desktop application from source."
+category: "Getting Started"
+order: 1
+---
+
+By the end of this guide, you will have a fully configured local workspace running LeadForge OS in development mode.
+
+## Prerequisites
+
+- **Node.js**: Version 18.0.0 or higher (v20.x or v22.x LTS recommended). Verify with `node -v`.
+- **pnpm**: Version 8.0.0 or higher. Verify with `pnpm -v`.
+- **Git**: Installed and configured. Verify with `git --version`.
+- **Ollama** (optional): Installed locally for offline, private lead qualification. Verify with `ollama --version`.
+
+## Setup Steps
+
+1. Clone the repository and navigate to the project root:
+   ```bash
+   git clone https://github.com/kjxcodez/leadforge-os.git
+   cd leadforge-os
+   ```
+
+2. Install all dependencies across the monorepo workspace:
+   ```bash
+   pnpm install
+   ```
+
+3. Build all workspace packages and schema dependencies:
+   ```bash
+   pnpm build
+   ```
+
+4. Launch the local development environment:
+   ```bash
+   pnpm dev
+   ```
+
+   This launches the REST API server and the Electron application concurrently. You can start specific applications selectively using Turborepo filters:
+   ```bash
+   # Start Hono REST API server only
+   pnpm dev --filter=api
+
+   # Start Electron Desktop UI only
+   pnpm dev --filter=@leadforge/desktop
+   ```
+
+## Verification
+
+Upon first launch, the desktop application should open a React-based Chromium window and automatically:
+1. Initialize the workspace database in the local directory (`userData/workspaces` under AppData/Roaming/leadforge on Windows).
+2. Execute SQL migrations to initialize the CRM database schemas.
+3. Seed mock data representing company, contact, and email outreach records.
+
+Confirm that the application starts successfully and visualizes the dashboard.
+
+## Troubleshooting
+
+If you encounter native binary compilation errors (e.g. `better-sqlite3.node was compiled against a different Node.js version`), run:
+```bash
+pnpm -F @leadforge/desktop exec electron-builder install-app-deps
+```
+
+For other issues, see the [Troubleshooting Guide](../troubleshooting/troubleshooting.mdx).
+
+## Related
+
+- [System Architecture](../architecture/system-overview.mdx)
+- [Developer Guides](../development/developer-guides.mdx)
+- [Troubleshooting](../troubleshooting/troubleshooting.mdx)

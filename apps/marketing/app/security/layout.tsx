@@ -1,0 +1,15 @@
+import { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "Security & Data Ownership",
+  description: "How LeadForge OS ensures 100% data ownership with localized SMTP keys, sandboxed tasks, and zero telemetry logs.",
+  openGraph: {
+    title: "Security & Data Ownership | LeadForge OS",
+    description: "How LeadForge OS ensures 100% data ownership with localized SMTP keys, sandboxed tasks, and zero telemetry logs.",
+    url: "https://github.com/kjxcodez/leadforge-os/security"
+  }
+}
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return <>{children}</>
+}

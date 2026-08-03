@@ -1,0 +1,15 @@
+import { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "Beta Pricing Plans",
+  description: "LeadForge OS is currently free during public beta. View licensing plans and local hardware requirements.",
+  openGraph: {
+    title: "Beta Pricing Plans | LeadForge OS",
+    description: "LeadForge OS is currently free during public beta. View licensing plans and local hardware requirements.",
+    url: "https://github.com/kjxcodez/leadforge-os/pricing"
+  }
+}
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return <>{children}</>
+}
