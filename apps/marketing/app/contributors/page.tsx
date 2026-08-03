@@ -3,6 +3,7 @@
 import React from "react"
 import { motion } from "motion/react"
 import { Users, Heart, Code2, Cpu, GitPullRequest } from "lucide-react"
+import { GENERATED_CONTRIBUTORS } from "../../lib/generated-contributors"
 
 function GithubIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -27,12 +28,13 @@ export default function ContributorsPage() {
     visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" as const } }
   }
 
-  const contributors = [
-    { name: "kjxcodez", role: "Creator & Lead Architect", initial: "KJ", commits: 412, github: "https://github.com/kjxcodez" },
-    { name: "Greentech Modelers", role: "Scraper Core Lead", initial: "GM", commits: 218, github: "https://github.com/kjxcodez/leadforge-os" },
-    { name: "Austin Dev Team", role: "SMTP / Network Lead", initial: "AD", commits: 84, github: "https://github.com/kjxcodez/leadforge-os" },
-    { name: "Local First Core", role: "SQLite WAL Contributor", initial: "LF", commits: 45, github: "https://github.com/kjxcodez/leadforge-os" }
-  ]
+  const contributors = GENERATED_CONTRIBUTORS.map(c => ({
+    name: c.login,
+    role: c.login === "kjxcodez" ? "Creator & Lead Architect" : "Contributor",
+    avatar: c.avatar_url,
+    commits: c.contributions,
+    github: c.html_url
+  }))
 
   const tracks = [
     { title: "Automation Engine", desc: "Build Playwright / Cheerio target scripts to fetch contacts locally.", icon: Cpu },
@@ -62,7 +64,7 @@ export default function ContributorsPage() {
         </div>
 
         {/* Contributors grid */}
-        <motion.div variants={childVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+        <motion.div variants={childVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
           {contributors.map((contrib) => (
             <a 
               key={contrib.name} 
@@ -72,8 +74,8 @@ export default function ContributorsPage() {
               className="border border-[var(--border)] rounded-lg p-5 bg-[var(--card)] flex flex-col justify-between hover:border-[var(--border-strong)] hover:shadow-md transition-all text-left"
             >
               <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-[var(--primary)] text-xs font-bold text-[var(--primary-foreground)] select-none font-mono">
-                  {contrib.initial}
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded overflow-hidden bg-[var(--primary)] select-none border border-[var(--border-subtle)]">
+                  <img src={contrib.avatar} alt={contrib.name} className="h-full w-full object-cover" />
                 </div>
                 <div className="min-w-0">
                   <div className="truncate text-xs font-semibold text-[var(--foreground)]">{contrib.name}</div>

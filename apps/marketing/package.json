@@ -4,8 +4,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "node ../../scripts/generate-releases.mjs && node ../../scripts/generate-search-index.mjs && next dev",
-    "build": "node ../../scripts/generate-releases.mjs && node ../../scripts/generate-search-index.mjs && next build",
+    "dev": "node ../../scripts/generate-releases.mjs && node ../../scripts/generate-contributors.mjs && node ../../scripts/generate-search-index.mjs && next dev",
+    "build": "node ../../scripts/generate-releases.mjs && node ../../scripts/generate-contributors.mjs && node ../../scripts/generate-search-index.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
