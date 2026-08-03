@@ -9,7 +9,7 @@ import { registerAllIpc } from './ipc/register';
 import { loadSession, clearSession } from './lib/session';
 import { AppLogger } from './lib/logger';
 import { loadWindowState, trackWindowState } from './lib/window-state';
-import { createSplashWindow } from './lib/splash-window';
+import { createSplashWindow, updateSplashProgress } from './lib/splash-window';
 import { telemetry } from './lib/telemetry';
 import { UpdateManager } from './services/updater';
 import { LocalCrashReporter } from './lib/crash-reporter';
@@ -154,6 +154,7 @@ app.whenReady().then(() => {
 
   // Restore session from disk
   const sessionStart = Date.now();
+  updateSplashProgress('session', 'Restoring user session...');
   try {
     const session = loadSession();
     if (session) {

@@ -12,6 +12,7 @@ import type { SdkClient } from '@leadforge/sdk';
 
 import { telemetry } from './telemetry';
 import { UpdateManager } from '../services/updater';
+import { updateSplashProgress } from './splash-window';
 
 /**
  * WorkspaceRuntime manages a single workspace isolated connection, local event bus,
@@ -90,6 +91,7 @@ export class WorkspaceRuntime {
     // Broadcast progress helper
     const sendBootProgress = (step: string, label: string) => {
       try {
+        updateSplashProgress(step, label);
         BrowserWindow.getAllWindows().forEach((win) => {
           if (!win.isDestroyed()) {
             win.webContents.send('workspace:boot-progress', { step, label });

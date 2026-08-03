@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, app } from 'electron';
 import { join } from 'path';
 import fs from 'fs';
 
@@ -18,9 +18,12 @@ export function createSplashWindow(): void {
     // fallback
   }
 
+  // Obtain version from package.json or app version
+  const appVersion = app.getVersion() || '1.0.0';
+
   splashWindow = new BrowserWindow({
-    width: 400,
-    height: 320,
+    width: 440,
+    height: 360,
     frame: false,
     transparent: true,
     show: true,
@@ -31,7 +34,7 @@ export function createSplashWindow(): void {
       contextIsolation: true,
       nodeIntegration: false
     },
-    backgroundColor: '#09090b'
+    backgroundColor: '#05070a'
   });
 
   const splashHtml = `
@@ -43,85 +46,200 @@ export function createSplashWindow(): void {
           body {
             margin: 0;
             padding: 0;
-            background-color: #09090b;
-            color: #f4f4f5;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #05070a;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100vh;
             overflow: hidden;
             -webkit-app-region: drag;
-          }
-          .logo-container {
             position: relative;
-            margin-bottom: 24px;
           }
-          .logo {
-            width: 64px;
-            height: 64px;
-            border-radius: 16px;
+          /* Ambient glow elements */
+          .glow-1 {
+            position: absolute;
+            top: -30%;
+            left: -20%;
+            width: 75%;
+            height: 75%;
+            background: rgba(255, 140, 0, 0.14); /* Forge Orange */
+            filter: blur(90px);
+            pointer-events: none;
+          }
+          .glow-2 {
+            position: absolute;
+            bottom: -20%;
+            right: -20%;
+            width: 65%;
+            height: 65%;
+            background: rgba(0, 191, 255, 0.08); /* Info Cyan */
+            filter: blur(80px);
+            pointer-events: none;
+          }
+          .card {
+            width: 360px;
+            background: rgba(10, 12, 16, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 36px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+            position: relative;
+          }
+          /* corner dot grids */
+          .dots {
+            position: absolute;
+            width: 36px;
+            height: 36px;
+            opacity: 0.2;
+          }
+          .dots-tl {
+            top: 14px;
+            left: 14px;
+          }
+          .dots-br {
+            bottom: 14px;
+            right: 14px;
+          }
+          .logo-frame {
+            width: 56px;
+            height: 56px;
+            background: rgba(255, 140, 0, 0.06);
+            border: 1px solid rgba(255, 140, 0, 0.2);
             display: flex;
             align-items: center;
             justify-content: center;
+            margin-bottom: 20px;
+            position: relative;
           }
-          .logo img {
-            width: 100%;
-            height: 100%;
+          .logo-frame img {
+            width: 36px;
+            height: 36px;
             object-fit: contain;
-            border-radius: 16px;
+            position: relative;
+            z-index: 2;
           }
-          .logo svg {
-            width: 32px;
-            height: 32px;
-            color: white;
+          .logo-frame svg {
+            width: 28px;
+            height: 28px;
+            color: #ff8c00;
+            position: relative;
+            z-index: 2;
           }
           .title {
-            font-size: 20px;
-            font-weight: 700;
-            letter-spacing: -0.025em;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
             margin: 0;
+            color: #ffffff;
           }
           .subtitle {
-            font-size: 11px;
-            color: #a1a1aa;
-            margin-top: 6px;
+            font-size: 9px;
+            color: #71717a;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-top: 4px;
           }
-          .spinner {
+          .version {
+            font-size: 10px;
+            font-family: monospace;
+            color: #52525b;
+            margin-top: 14px;
+          }
+          .segments {
+            display: flex;
+            justify-content: space-between;
+            gap: 6px;
+            width: 220px;
             margin-top: 24px;
-            width: 24px;
-            height: 24px;
-            border: 2px solid #27272a;
-            border-top: 2px solid #3b82f6;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
           }
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+          .status {
+            font-size: 9px;
+            color: #a1a1aa;
+            margin-top: 14px;
+            font-family: monospace;
+            height: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 260px;
           }
         </style>
       </head>
       <body>
-        <div class="logo-container">
-          <div class="logo">
+        <div class="glow-1"></div>
+        <div class="glow-2"></div>
+
+        <div class="card">
+          <!-- top-left dots -->
+          <svg class="dots dots-tl" viewBox="0 0 100 100" fill="currentColor" style="color: #ff8c00;">
+            <circle cx="10" cy="10" r="7"/><circle cx="50" cy="10" r="7"/><circle cx="90" cy="10" r="7"/>
+            <circle cx="10" cy="50" r="7"/><circle cx="50" cy="50" r="7"/><circle cx="90" cy="50" r="7"/>
+            <circle cx="10" cy="90" r="7"/><circle cx="50" cy="90" r="7"/><circle cx="90" cy="90" r="7"/>
+          </svg>
+          <!-- bottom-right dots -->
+          <svg class="dots dots-br" viewBox="0 0 100 100" fill="currentColor" style="color: #00bfff;">
+            <circle cx="10" cy="10" r="7"/><circle cx="50" cy="10" r="7"/><circle cx="90" cy="10" r="7"/>
+            <circle cx="10" cy="50" r="7"/><circle cx="50" cy="50" r="7"/><circle cx="90" cy="50" r="7"/>
+            <circle cx="10" cy="90" r="7"/><circle cx="50" cy="90" r="7"/><circle cx="90" cy="90" r="7"/>
+          </svg>
+
+          <div class="logo-frame">
             ${
               iconBase64
                 ? `<img src="data:image/png;base64,${iconBase64}" />`
                 : `
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275Z"/>
-              <path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 5.5Z"/>
-              <path d="m19 17 1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1Z"/>
             </svg>
             `
             }
           </div>
+
+          <div class="title">LeadForge OS</div>
+          <div class="subtitle">Intelligent Sales Outbound OS</div>
+          <div class="version">v. ${appVersion}</div>
+
+          <div class="segments" id="segments-container"></div>
+          <div class="status" id="status-label">Initializing system...</div>
         </div>
-        <h1 class="title">LeadForge Desktop</h1>
-        <p class="subtitle">Starting up application...</p>
-        <div class="spinner"></div>
+
+        <script>
+          const totalSegments = 12;
+          const segments = [];
+          const container = document.getElementById('segments-container');
+          for (let i = 0; i < totalSegments; i++) {
+            const div = document.createElement('div');
+            div.style.flex = '1';
+            div.style.height = '4px';
+            div.style.backgroundColor = '#18181b';
+            div.style.transition = 'background-color 0.15s ease';
+            container.appendChild(div);
+            segments.push(div);
+          }
+
+          window.updateProgress = (stepId, label) => {
+            document.getElementById('status-label').innerText = label;
+            let filled = 0;
+            if (stepId === 'session') filled = 2;
+            else if (stepId === 'database:open') filled = 4;
+            else if (stepId === 'database:migrations') filled = 6;
+            else if (stepId === 'scheduler:start') filled = 8;
+            else if (stepId === 'sync:start') filled = 10;
+            else if (stepId === 'automation:start') filled = 11;
+            else if (stepId === 'ready') filled = 12;
+
+            for (let i = 0; i < totalSegments; i++) {
+              segments[i].style.backgroundColor = i < filled ? '#ff8c00' : '#18181b';
+            }
+          };
+        </script>
       </body>
     </html>
   `;
@@ -141,4 +259,16 @@ export function destroySplashWindow(): void {
     splashWindow.close();
   }
   splashWindow = null;
+}
+
+/**
+ * Feeds progress to the native splash window DOM directly.
+ */
+export function updateSplashProgress(step: string, label: string): void {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    const escapedLabel = label.replace(/'/g, "\\'");
+    splashWindow.webContents
+      .executeJavaScript(`if (window.updateProgress) window.updateProgress('${step}', '${escapedLabel}');`)
+      .catch(() => {});
+  }
 }
