@@ -9,10 +9,11 @@ import {
   Settings,
   Activity
 } from 'lucide-react';
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '../ui/sidebar';
-import { WorkspaceSwitcher } from '../ui/WorkspaceSwitcher';
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, useSidebar } from '../ui/sidebar';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { useState, useEffect } from 'react';
+import { WorkspaceSwitcher } from '../ui/WorkspaceSwitcher';
 import SidebarLinks from './SidebarLinks';
 import SidebarBottomNav from './SidebarBottomNav';
 import logoLight from '../../assets/app-icon-light.png';
@@ -41,6 +42,14 @@ const NAV_ITEMS = [
 export function AppSidebar({ activeWorkspace }: { activeWorkspace: any }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { open } = useSidebar();
+  const [version, setVersion] = useState<string>('');
+
+  useEffect(() => {
+    window.ipc.invoke('electron:version' as any, undefined)
+      .then((v: string) => setVersion(v))
+      .catch(() => {});
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -70,12 +79,17 @@ export function AppSidebar({ activeWorkspace }: { activeWorkspace: any }) {
         ))}
       </SidebarContent>
 
-      <SidebarFooter>
+      <SidebarFooter className="flex flex-col gap-1">
         <SidebarBottomNav
           user={user}
           activeWorkspace={activeWorkspace}
           handleLogout={handleLogout}
         />
+        {open && version && (
+          <div className="text-[10px] text-text-disabled font-mono text-start pl-2 select-none">
+            v{version}
+          </div>
+        )}
       </SidebarFooter>
     </Sidebar>
   );
