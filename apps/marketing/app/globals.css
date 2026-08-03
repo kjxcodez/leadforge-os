@@ -211,29 +211,58 @@
 .doc-content code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
+/* Premium Inline Code Style */
+.doc-content code:not(pre code) {
+  background-color: rgba(255, 255, 255, 0.04);
+  color: var(--primary);
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  font-size: 85%;
+  border: 1px solid var(--border-subtle);
+  font-weight: 500;
+}
 .doc-content hr {
   border: 0;
   border-top: 1px solid var(--border-subtle);
   margin: 2rem 0;
 }
+/* Modern Premium Table Style */
 .doc-content table {
   width: 100%;
   border-collapse: collapse;
-  margin: 1.5rem 0;
-  font-size: 11.5px;
+  margin: 2rem 0;
+  font-size: 11px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+}
+.doc-content tr {
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background-color 0.15s;
+}
+.doc-content tr:hover {
+  background-color: rgba(255, 255, 255, 0.01);
 }
 .doc-content th {
-  border: 1px solid var(--border-subtle);
-  padding: 0.5rem 0.75rem;
-  background-color: rgba(20, 20, 21, 0.4);
+  padding: 0.75rem 1rem;
+  background-color: var(--card);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 9px;
+  font-mono: true;
+  text-transform: uppercase;
+  tracking-wider: true;
+  letter-spacing: 0.05em;
   font-weight: 600;
-  color: var(--foreground);
+  color: var(--text-tertiary);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
 }
 .doc-content td {
-  border: 1px solid var(--border-subtle);
-  padding: 0.5rem 0.75rem;
+  padding: 0.75rem 1rem;
   color: var(--muted-foreground);
+  text-align: left;
 }
+
 
 /* Cinematic Operating System UI Extensions */
 @keyframes noise {

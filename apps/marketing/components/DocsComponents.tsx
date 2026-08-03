@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState } from "react"
-import { Info, AlertTriangle, CheckCircle, Flame, Check, Copy } from "lucide-react"
+import { Info, AlertTriangle, CheckCircle, Flame, Check, Copy, ArrowRight } from "lucide-react"
 
 // ---------------------------------------------------------------------------
 // Callout & Alerts
@@ -14,34 +14,35 @@ interface CalloutProps {
 }
 
 export function Callout({ type = "info", title, children }: CalloutProps) {
-  let borderClass = "border-blue-500/30 bg-blue-500/5 text-blue-400"
+  let borderClass = "border-[#5B8DEF]/40 bg-[#5B8DEF]/5 text-[#5B8DEF]"
   let titleText = title || "Info"
   let Icon = Info
 
   if (type === "warning") {
-    borderClass = "border-amber-500/30 bg-amber-500/5 text-amber-400"
+    borderClass = "border-[var(--primary)]/40 bg-[var(--primary)]/5 text-[var(--primary)]"
     titleText = title || "Warning"
     Icon = AlertTriangle
   } else if (type === "tip") {
-    borderClass = "border-emerald-500/30 bg-emerald-500/5 text-emerald-400"
+    borderClass = "border-[var(--success)]/40 bg-[var(--success)]/5 text-[var(--success)]"
     titleText = title || "Tip"
     Icon = CheckCircle
   } else if (type === "danger") {
-    borderClass = "border-red-500/30 bg-red-500/5 text-red-400"
+    borderClass = "border-red-500/40 bg-red-500/5 text-red-400"
     titleText = title || "Danger"
     Icon = Flame
   }
 
   return (
-    <div className={`my-6 flex gap-3 border-l-2 p-4 rounded-r-lg text-xs leading-relaxed ${borderClass}`}>
-      <Icon className="h-4.5 w-4.5 shrink-0 mt-0.5" />
+    <div className={`my-6 flex gap-3 border-l-3 p-4.5 rounded-r-lg text-[11.5px] leading-relaxed ${borderClass}`}>
+      <Icon className="h-4.5 w-4.5 shrink-0 mt-0.5 opacity-90" />
       <div>
-        <div className="font-semibold uppercase tracking-wider text-[10px] mb-1.5">{titleText}</div>
-        <div className="text-[var(--text-secondary)]">{children}</div>
+        <div className="font-semibold uppercase tracking-wider text-[9px] mb-1 font-sans">{titleText}</div>
+        <div className="text-[var(--muted-foreground)] leading-normal">{children}</div>
       </div>
     </div>
   )
 }
+
 
 export function Note({ children }: { children: React.ReactNode }) {
   return <Callout type="info" title="Note">{children}</Callout>
@@ -182,13 +183,17 @@ export function Card({ title, description, href }: { title: string; description:
   const CardWrapper = ({ children }: { children: React.ReactNode }) => {
     if (href) {
       return (
-        <a href={href} className="border border-[var(--border-subtle)] rounded-lg p-4 bg-[var(--card)] hover:border-[var(--primary)] transition-all block text-left group">
+        <a 
+          href={href} 
+          className="border border-[var(--border)] rounded-lg p-5 bg-[var(--card)] hover:border-[var(--primary)] hover:bg-[rgba(232,98,44,0.015)] hover:shadow-[0_4px_16px_rgba(232,98,44,0.03)] transition-all duration-200 block text-left group relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 w-[40px] h-[40px] bg-gradient-to-bl from-[rgba(232,98,44,0.04)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
           {children}
         </a>
       )
     }
     return (
-      <div className="border border-[var(--border-subtle)] rounded-lg p-4 bg-[var(--card)] text-left">
+      <div className="border border-[var(--border)] rounded-lg p-5 bg-[var(--card)] text-left shadow-[0_1px_4px_rgba(0,0,0,0.1)]">
         {children}
       </div>
     )
@@ -196,8 +201,15 @@ export function Card({ title, description, href }: { title: string; description:
 
   return (
     <CardWrapper>
-      <h4 className="text-xs font-semibold text-[var(--foreground)] mb-1 group-hover:text-[var(--primary)] transition-colors">{title}</h4>
-      <p className="text-[11px] text-[var(--text-secondary)] leading-normal m-0">{description}</p>
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <h4 className="text-[12.5px] font-semibold text-[var(--foreground)] group-hover:text-[var(--primary)] transition-colors duration-150 m-0">
+          {title}
+        </h4>
+        {href && (
+          <ArrowRight className="h-3.5 w-3.5 text-[var(--text-tertiary)] group-hover:text-[var(--primary)] group-hover:translate-x-1 transition-all duration-200 shrink-0" />
+        )}
+      </div>
+      <p className="text-[11px] text-[var(--muted-foreground)] leading-relaxed m-0">{description}</p>
     </CardWrapper>
   )
 }
@@ -217,23 +229,23 @@ export function TerminalWindow({ children, command }: { children?: React.ReactNo
   }
 
   return (
-    <div className="my-6 border border-[var(--border-subtle)] rounded-lg overflow-hidden bg-[rgba(10,10,11,0.6)] font-mono text-[11px] leading-relaxed">
-      <div className="flex h-8 items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--card)] px-4 select-none">
+    <div className="my-6 border border-[var(--border-subtle)] rounded-lg overflow-hidden bg-[rgba(8,8,9,0.75)] backdrop-blur-sm font-mono text-[11px] leading-relaxed shadow-[0_4px_20px_rgba(0,0,0,0.25)] relative group/term">
+      <div className="flex h-8.5 items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--card)] px-4 select-none">
         <div className="flex gap-1.5">
           <span className="h-2 w-2 rounded-full bg-[var(--border-strong)] opacity-60"></span>
           <span className="h-2 w-2 rounded-full bg-[var(--border-strong)] opacity-60"></span>
           <span className="h-2 w-2 rounded-full bg-[var(--border-strong)] opacity-60"></span>
         </div>
-        <span className="text-[9px] text-[var(--text-tertiary)] uppercase tracking-wider font-semibold">terminal</span>
+        <span className="text-[9px] text-[var(--text-tertiary)] uppercase tracking-wider font-semibold font-sans">terminal</span>
         <button 
           onClick={handleCopy}
-          className="text-[9px] font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] flex items-center gap-1 cursor-pointer"
+          className="text-[9px] font-medium text-[var(--text-tertiary)] hover:text-[var(--foreground)] flex items-center gap-1 cursor-pointer bg-transparent border-0 outline-none transition-colors"
         >
-          {copied ? <Check className="h-3 w-3 text-[var(--success)]" /> : <Copy className="h-3 w-3" />}
+          {copied ? <Check className="h-3 w-3 text-[var(--success)]" /> : <Copy className="h-3 w-3 opacity-60 group-hover/term:opacity-100 transition-opacity" />}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <div className="p-4 overflow-x-auto text-[var(--muted-foreground)] whitespace-pre-wrap select-all">
+      <div className="p-4 overflow-x-auto text-[var(--muted-foreground)] whitespace-pre-wrap select-all custom-scrollbar">
         {command ? <span className="text-[var(--primary)] select-none">$ </span> : null}
         {command || children}
       </div>

@@ -8,6 +8,7 @@ import rehypePrettyCode from "rehype-pretty-code"
 import { getDocsNavigation, getDocBySlug, NavGroup } from "../../../lib/mdx-utils"
 import { DocsLayoutShell } from "../../../components/DocsLayoutShell"
 import { Callout, Note, Warning, Tip, Tabs, Tab, Steps, Step, Badge, VersionBadge, CardGrid, Card, TerminalWindow } from "../../../components/DocsComponents"
+import { Mermaid } from "../../../components/Mermaid"
 
 interface PageProps {
   params: Promise<{
@@ -35,7 +36,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 }
 
-
 function slugify(text: string) {
   return text
     .toLowerCase()
@@ -44,6 +44,14 @@ function slugify(text: string) {
     .replace(/[\s_]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
+
+function preprocessMermaid(content: string) {
+  return content.replace(/```mermaid\r?\n([\s\S]*?)\r?\n```/g, (match, chartCode) => {
+    const base64Chart = Buffer.from(chartCode).toString("base64")
+    return `<Mermaid chart="${base64Chart}" isbase64="true" />`
+  })
+}
+
 
 function extractHeadings(content: string) {
   const headings: Array<{ level: number; text: string; id: string }> = []
@@ -80,9 +88,11 @@ export default async function Page({ params }: PageProps) {
     notFound()
   }
 
+  const preprocessedSource = preprocessMermaid(doc.content)
+
   // Compile MDX on the server
   const { content } = await compileMDX({
-    source: doc.content,
+    source: preprocessedSource,
     options: {
       parseFrontmatter: true,
       mdxOptions: {
@@ -117,9 +127,11 @@ export default async function Page({ params }: PageProps) {
       VersionBadge,
       CardGrid,
       Card,
-      Terminal: TerminalWindow
+      Terminal: TerminalWindow,
+      Mermaid
     }
   })
+
 
   // Get dynamic navigation sidebar
   const navigation = getDocsNavigation()

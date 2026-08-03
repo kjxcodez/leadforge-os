@@ -15,7 +15,7 @@ LeadForge OS is built on a **Local-First Architecture**. The client machine's de
 
 ```mermaid
 graph TD
-  subgraph Client Machine (Local-First Context)
+  subgraph Client["Client Machine (Local-First Context)"]
     Renderer[React UI - Chromium Renderer]
     Main[Main Process - Electron / Node]
     Worker[Worker Host - Forked Node Process]
@@ -23,7 +23,7 @@ graph TD
     safeStorage[safeStorage - OS Keychain]
   end
 
-  subgraph Cloud Context
+  subgraph Cloud["Cloud Context"]
     API[Hono REST API Server]
     Mongo[(MongoDB)]
   end
