@@ -2,7 +2,7 @@
 
 import React from "react"
 import { motion } from "motion/react"
-import { Image, FileText, Download, Briefcase, FileCheck, Mail } from "lucide-react"
+import { Image, FileText, Download, Briefcase, FileCheck, MessageSquare } from "lucide-react"
 
 export default function PressPage() {
   const containerVariants = {
@@ -113,17 +113,19 @@ export default function PressPage() {
           <div className="border border-[var(--border)] rounded-lg p-5 bg-[var(--card)] space-y-3.5 flex flex-col justify-between">
             <div className="space-y-2">
               <h4 className="text-xs font-semibold text-white flex items-center gap-1.5">
-                <Mail className="h-4 w-4 text-[var(--primary)]" /> Press Inquiries
+                <MessageSquare className="h-4 w-4 text-[var(--primary)]" /> Press Inquiries
               </h4>
               <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
-                For interview requests with the maintainers or questions about outbound security models, please contact us.
+                For interview requests with the maintainers or questions about outbound security models, please open an issue in our repository.
               </p>
             </div>
             <a 
-              href="mailto:press@leadforge.os"
-              className="inline-flex h-9 items-center justify-center rounded bg-[var(--primary)] text-xs font-semibold text-[var(--primary-foreground)] hover:opacity-90 transition-all"
+              href="https://github.com/kjxcodez/leadforge-os/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-9 items-center justify-center rounded bg-[var(--primary)] text-xs font-semibold text-[var(--primary-foreground)] hover:opacity-90 transition-all cursor-pointer"
             >
-              Contact Press Liaison
+              Open GitHub Issue
             </a>
           </div>
 

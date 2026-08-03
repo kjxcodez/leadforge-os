@@ -73,17 +73,22 @@ export default function SupportPage() {
             <span className="text-[10px] font-mono text-[var(--text-tertiary)] uppercase tracking-wider block">Invites Coming Soon</span>
           </div>
 
-          {/* Email Support */}
+          {/* GitHub Discussions */}
           <div className="border border-[var(--border)] rounded-lg p-5 bg-[var(--card)] space-y-4 hover:border-[var(--border-strong)] transition-all">
             <div className="p-2 rounded bg-[var(--background)] border border-[var(--border-subtle)] inline-block text-[var(--success)]">
-              <Mail className="h-5 w-5" />
+              <HelpCircle className="h-5 w-5" />
             </div>
-            <h3 className="text-sm font-semibold text-[var(--foreground)]">Direct Help</h3>
+            <h3 className="text-sm font-semibold text-[var(--foreground)]">GitHub Discussions</h3>
             <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
-              Pro and Enterprise subscribers get direct email support for custom SMTP handshakes and WAL checkpoints.
+              Ask setup questions, propose new scraping strategies, or share outbound configurations with the community.
             </p>
-            <a href="mailto:support@leadforge-os.com" className="inline-flex items-center gap-1.5 text-xs text-[var(--primary)] font-semibold hover:underline">
-              support@leadforge-os.com
+            <a 
+              href="https://github.com/kjxcodez/leadforge-os/discussions" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-[var(--primary)] font-semibold hover:underline"
+            >
+              Open Discussions
             </a>
           </div>
 
@@ -96,12 +101,12 @@ export default function SupportPage() {
             Generating a Support Debug Bundle
           </div>
           <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-            If you are running into scraping loop failures or database checkpoint crashes, you can export a secure debug bundle directly from settings in the desktop app. 
-            This bundle strips out SMTP credentials and WHOIS API keys, packaging only system logs and thread queue dumps.
+            If you are running into scraping loop failures or database checkpoint crashes, you can export a secure debug bundle directly from the diagnostics panel in the desktop application. 
+            This bundle strips out SMTP credentials and API keys, packaging only system logs and thread queue dumps.
           </p>
           <div className="bg-[var(--background)] border border-[var(--border-subtle)] p-3 rounded font-mono text-[10px] text-[var(--text-secondary)] leading-relaxed">
-            <span className="text-[var(--primary)] font-semibold">Debug Bundle Command (CLI):</span>
-            <div className="mt-1 select-all">$ leadforge-cli support --export-bundle</div>
+            <span className="text-[var(--primary)] font-semibold">Location in Desktop App:</span>
+            <div className="mt-1 select-all">Settings &gt; Diagnostics &gt; Export Debug Bundle</div>
           </div>
         </motion.div>
 
