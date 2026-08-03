@@ -401,6 +401,19 @@ export function Hero() {
       {/* Background Interactive Canvas Points */}
       <canvas ref={canvasRef} className="absolute inset-0 z-0 pointer-events-none" />
 
+      {/* Ambient Mouse-Tracking Glow backdrop */}
+      {!prefersReducedMotion && (
+        <motion.div 
+          style={{
+            x: useTransform(mouseX, (val) => val * 0.45),
+            y: useTransform(mouseY, (val) => val * 0.45),
+            left: "calc(50% - 250px)",
+            top: "calc(50% - 250px)"
+          }}
+          className={`absolute w-[500px] h-[500px] rounded-full bg-gradient-to-br ${activeTheme.glowGradient} opacity-20 blur-[130px] pointer-events-none z-0`}
+        />
+      )}
+
       {/* Background invisible SQL data traces (Reward for looking closer) */}
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden font-mono text-[7px] text-[rgba(255,255,255,0.03)] hidden md:block">
         {bgSqlStream.map((sql) => (

@@ -5,6 +5,7 @@ import { motion } from "motion/react"
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion"
 import { Monitor, Apple, Terminal, Clipboard, Check, HelpCircle, ArrowDown } from "lucide-react"
 import { GENERATED_RELEASES } from "../lib/generated-releases"
+import { SparklesCore } from "./ui/sparkles"
 
 export function Downloads() {
   const prefersReducedMotion = usePrefersReducedMotion()
@@ -68,7 +69,22 @@ export function Downloads() {
       {/* Background radial glow */}
       <div className="absolute bottom-[5%] left-[10%] w-[300px] h-[300px] bg-primary/5 rounded-full blur-[90px] pointer-events-none" />
 
-      <div className="container mx-auto px-6">
+      {/* Sparkles Particle Backdrop */}
+      {!prefersReducedMotion && (
+        <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
+          <SparklesCore
+            id="tsparticlesdownloads"
+            background="transparent"
+            minSize={0.6}
+            maxSize={1.5}
+            particleDensity={40}
+            className="w-full h-full opacity-35"
+            particleColor="#E8622C"
+          />
+        </div>
+      )}
+
+      <div className="container mx-auto px-6 relative z-10">
         
         {/* Section Header */}
         <div className="max-w-2xl mb-16 text-left">

@@ -2,15 +2,16 @@
 
 import React from "react"
 import Link from "next/link"
+import { TextHoverEffect } from "./ui/text-hover-effect"
 
 export function Footer() {
   return (
     <footer className="border-t border-[var(--border-subtle)] bg-[var(--background)] py-16 text-xs text-[var(--text-tertiary)]">
-      <div className="container mx-auto px-6">
-        
+      <div className="container mx-auto px-6 relative">
+
         {/* Footer Top Grid */}
         <div className="grid grid-cols-1 md:grid-cols-[1.6fr_repeat(4,1fr)] gap-8 mb-12 select-none">
-          
+
           {/* Brand Col */}
           <div className="space-y-4">
             <Link href="/" className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[var(--foreground)]">
@@ -94,6 +95,13 @@ export function Footer() {
           </div>
         </div>
 
+        {/* Big Background Outline Text */}
+        <div className="w-full text-center select-none relative group flex items-center justify-center overflow-visible z-0 pointer-events-none">
+         
+          <div className="h-[40dvh] w-screen flex items-center justify-center pointer-events-auto z-10">
+            <TextHoverEffect text="LEADFORGE" />
+          </div>
+        </div>
       </div>
     </footer>
   )
