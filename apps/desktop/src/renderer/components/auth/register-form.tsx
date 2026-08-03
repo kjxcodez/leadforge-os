@@ -8,6 +8,8 @@ import { FormCard } from './form-card';
 import { AuthHeader } from './auth-header';
 import { Divider } from './divider';
 import { AuthFooter } from './auth-footer';
+import { useState } from 'react';
+import { PasswordToggle } from './password-toggle';
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -35,6 +37,7 @@ export function RegisterForm({
   isLoading = false,
   error = null
 }: RegisterFormProps) {
+  const [showPassword, setShowPassword] = useState(false);
   const {
     register,
     handleSubmit,
@@ -120,14 +123,23 @@ export function RegisterForm({
           >
             Password
           </Label>
-          <Input
-            id="reg-password"
-            type="password"
-            placeholder="At least 8 characters"
-            disabled={isLoading}
-            aria-invalid={!!errors.password}
-            {...register('password')}
-          />
+
+          <div className="relative">
+            <Input
+              id="reg-password"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="At least 8 characters"
+              disabled={isLoading}
+              aria-invalid={!!errors.password}
+              {...register('password')}
+            />
+            <PasswordToggle
+              show={showPassword}
+              onToggle={() => setShowPassword(!showPassword)}
+              disabled={isLoading}
+            />
+          </div>
+
           {errors.password && (
             <p className="text-[11px] text-danger leading-none" role="alert">
               {errors.password.message}

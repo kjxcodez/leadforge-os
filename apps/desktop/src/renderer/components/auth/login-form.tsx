@@ -11,6 +11,8 @@ import { AuthHeader } from './auth-header';
 import { Divider } from './divider';
 // import { SocialLoginPlaceholder } from './social-placeholder';
 import { AuthFooter } from './auth-footer';
+import { useState } from 'react';
+import { PasswordToggle } from './password-toggle';
 
 interface LoginFormProps {
   onSubmit: (data: LoginDto) => void;
@@ -30,6 +32,7 @@ export function LoginForm({
   isLoading = false,
   error = null
 }: LoginFormProps) {
+  const [showPassword, setShowPassword] = useState(false);
   const {
     register,
     handleSubmit,
@@ -91,14 +94,21 @@ export function LoginForm({
           >
             Password
           </Label>
-          <Input
-            id="password"
-            type="password"
-            placeholder="••••••••"
-            disabled={isLoading}
-            aria-invalid={!!errors.password}
-            {...register('password')}
-          />
+          <div className="relative">
+            <Input
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="••••••••"
+              disabled={isLoading}
+              aria-invalid={!!errors.password}
+              {...register('password')}
+            />
+            <PasswordToggle
+              show={showPassword}
+              onToggle={() => setShowPassword(!showPassword)}
+              disabled={isLoading}
+            />
+          </div>
           {errors.password && (
             <p className="text-[11px] text-danger leading-none" role="alert">
               {errors.password.message}
