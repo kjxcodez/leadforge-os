@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { FileText, Trash2, Calendar, User } from 'lucide-react';
@@ -85,7 +85,7 @@ export function NotesSystem({ notesJson, onUpdate, readOnly = false }: NotesSyst
       )}
 
       {notes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-6 text-center bg-sunken/10 border border-dashed border-border-subtle rounded-md">
+        <div className="flex flex-col items-center justify-center p-6 text-center bg-surface-3/10 border border-dashed border-border-subtle rounded-md">
           <FileText className="w-6 h-6 text-muted-foreground opacity-60 mb-2" />
           <p className="text-[10px] text-muted-foreground">No notes added yet.</p>
         </div>
