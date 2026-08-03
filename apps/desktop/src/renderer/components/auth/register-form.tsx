@@ -1,42 +1,48 @@
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { loginDtoSchema } from '@leadforge/schema';
-import type { LoginDto } from '@leadforge/schema';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { FormCard } from './form-card';
 import { AuthHeader } from './auth-header';
 import { Divider } from './divider';
-// import { SocialLoginPlaceholder } from './social-placeholder';
 import { AuthFooter } from './auth-footer';
 
-interface LoginFormProps {
-  onSubmit: (data: LoginDto) => void;
-  onNavigateToRegister: () => void;
+const registerSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters')
+});
+
+export type RegisterFormValues = z.infer<typeof registerSchema>;
+
+interface RegisterFormProps {
+  onSubmit: (data: RegisterFormValues) => void;
+  onNavigateToLogin: () => void;
   isLoading?: boolean;
   error?: string | null;
 }
 
 /**
- * Standard credentials login form.
- * Uses React Hook Form with shared Zod validation from @leadforge/schema.
+ * Standard credentials registration form.
+ * Uses React Hook Form with Zod validation.
  * All interactive elements use shadcn/ui components and design-system tokens.
  */
-export function LoginForm({
+export function RegisterForm({
   onSubmit,
-  onNavigateToRegister,
+  onNavigateToLogin,
   isLoading = false,
   error = null
-}: LoginFormProps) {
+}: RegisterFormProps) {
   const {
     register,
     handleSubmit,
     formState: { errors }
-  } = useForm<LoginDto>({
-    resolver: zodResolver(loginDtoSchema as unknown as z.ZodType<any, any, any>),
+  } = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema),
     defaultValues: {
+      name: '',
       email: '',
       password: ''
     }
@@ -45,8 +51,8 @@ export function LoginForm({
   return (
     <FormCard>
       <AuthHeader
-        title="Welcome to LeadForge OS"
-        subtitle="Sign in with your professional credentials"
+        title="Create your account"
+        subtitle="Get started with LeadForge OS"
       />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
@@ -60,18 +66,41 @@ export function LoginForm({
           </div>
         )}
 
+        {/* Full Name field */}
+        <div className="space-y-1.5">
+          <Label
+            htmlFor="reg-name"
+            className="text-[12px] font-medium tracking-[0.04em] uppercase text-muted-foreground"
+          >
+            Full name
+          </Label>
+          <Input
+            id="reg-name"
+            type="text"
+            placeholder="Jane Smith"
+            disabled={isLoading}
+            aria-invalid={!!errors.name}
+            {...register('name')}
+          />
+          {errors.name && (
+            <p className="text-[11px] text-danger leading-none" role="alert">
+              {errors.name.message}
+            </p>
+          )}
+        </div>
+
         {/* Email field */}
         <div className="space-y-1.5">
           <Label
-            htmlFor="email"
+            htmlFor="reg-email"
             className="text-[12px] font-medium tracking-[0.04em] uppercase text-muted-foreground"
           >
-            Email address
+            Work email
           </Label>
           <Input
-            id="email"
+            id="reg-email"
             type="email"
-            placeholder="name@company.com"
+            placeholder="you@company.com"
             disabled={isLoading}
             aria-invalid={!!errors.email}
             {...register('email')}
@@ -86,15 +115,15 @@ export function LoginForm({
         {/* Password field */}
         <div className="space-y-1.5">
           <Label
-            htmlFor="password"
+            htmlFor="reg-password"
             className="text-[12px] font-medium tracking-[0.04em] uppercase text-muted-foreground"
           >
             Password
           </Label>
           <Input
-            id="password"
+            id="reg-password"
             type="password"
-            placeholder="••••••••"
+            placeholder="At least 8 characters"
             disabled={isLoading}
             aria-invalid={!!errors.password}
             {...register('password')}
@@ -113,18 +142,16 @@ export function LoginForm({
           className="w-full"
           size="default"
         >
-          {isLoading ? 'Signing in…' : 'Sign in'}
+          {isLoading ? 'Creating account…' : 'Create account'}
         </Button>
       </form>
 
       <Divider label="or" />
 
-      {/* <SocialLoginPlaceholder /> */}
-
       <AuthFooter
-        message="Don't have an account?"
-        linkText="Sign up"
-        onLinkClick={onNavigateToRegister}
+        message="Already have an account?"
+        linkText="Sign in"
+        onLinkClick={onNavigateToLogin}
       />
     </FormCard>
   );
