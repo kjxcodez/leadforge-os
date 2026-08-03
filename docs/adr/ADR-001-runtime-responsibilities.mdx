@@ -27,6 +27,24 @@ All reasoning loops, planners, tool execution contexts, and business workflows a
 
 ## Alternatives Considered
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#1a1a1a',
+  'primaryTextColor': '#f5f5f5',
+  'primaryBorderColor': '#E8622C',
+  'lineColor': '#E8622C',
+  'background': '#0d0d0d',
+  'fontFamily': 'Inter'
+}}}%%
+flowchart TD
+  Opt0["Monolithic AI Package"] -->|Rejected| Decision{Decision: AI Runtime Responsibilities}
+  Opt1["Direct Integration"] -->|Rejected| Decision{Decision: AI Runtime Responsibilities}
+  Opt2["Pros"] -->|Rejected| Decision{Decision: AI Runtime Responsibilities}
+  Opt3["Cons"] -->|Rejected| Decision{Decision: AI Runtime Responsibilities}
+  Chosen["AI Runtime Responsibilities"] -->|Chosen| Decision
+```
+
+
 - **Monolithic AI Package**: Combine the runtime, agents, and workflows into one package.
   - _Tradeoffs_: Hard to test, violates separation of concerns, and couples model provider code directly to business features.
 - **Direct Integration**: Call OpenRouter/Ollama APIs directly in the desktop main process without a runtime wrapper.

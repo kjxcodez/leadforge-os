@@ -5,58 +5,55 @@ category: "API"
 order: 1
 ---
 
-This document covers the cloud REST API server (`apps/api`), which acts as the synchronization and central storage repository for LeadForge OS workspaces.
+The Hono Cloud API serves as the centralized synchronization backend and collaborative workspace storage for LeadForge OS.
 
----
+## API Endpoint Reference
 
-## 🛠️ Technology Stack
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/health` | `GET` | Heartbeat health status and MongoDB connection verification. |
+| `/auth/login` | `POST` | Authenticates credentials and issues session cookie. |
+| `/auth/register` | `POST` | Registers new user profiles. |
+| `/auth/session` | `GET` | Resolves and verifies the active session. |
+| `/business/sync` | `POST` | Syncs local SQLite mutations in batch mode using Last-Write-Wins (LWW). |
+| `/business/companies` | `GET` | Fetches all synced company entities. |
+| `/business/companies` | `POST` | Creates or updates company entities. |
+| `/business/contacts` | `GET` | Fetches synced contact lists. |
+| `/automation/sequences` | `GET` | Fetches email outreach sequences. |
+| `/automation/sequences` | `POST` | Deploys or modifies outreach sequences. |
 
-- **Framework**: [Hono](https://hono.dev/) running on Node.js via `@hono/node-server`.
-- **Database**: [MongoDB](https://www.mongodb.com/) utilizing [Mongoose](https://mongoosejs.com/) schemas.
-- **Specification**: [OpenAPI 3.0](https://www.openapis.org/) structured definitions generated via `@hono/zod-openapi`.
-- **Interactive Documentation**: Embedded [Scalar](https://scalar.com/) interface exposed at the `/reference` endpoint.
+## Sync Request Example
 
----
+The following `POST` payload syncs a mutation from the client's local SQLite database:
 
-## 📡 API Routes Index
+```bash
+curl -X POST http://localhost:3000/business/sync \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer session_token_here" \
+  -d '{
+    "workspaceId": "ws_abc123",
+    "mutations": [
+      {
+        "table": "companies",
+        "action": "INSERT",
+        "id": "comp_99",
+        "data": {
+          "name": "Acme Corp",
+          "domain": "acme.com",
+          "updatedAt": "2026-08-03T12:00:00Z"
+        }
+      }
+    ]
+  }'
+```
 
-### 1. Health & Diagnostics
-
-- **`GET /health`**: Standard heartbeat check confirming database connectivity.
-
-### 2. Authentication (`/auth/*`)
-
-Uses `better-auth` configurations:
-
-- **`POST /auth/login`**: Authenticates credentials and returns a session cookie.
-- **`POST /auth/register`**: Creates new user records.
-- **`GET /auth/session`**: Validates the current HTTP session.
-
-### 3. Business & Sync Endpoints (`/business/*`)
-
-These endpoints are consumed by the desktop application's `SyncEngine` (`sync-engine.ts`) to upload local mutations:
-
-- **`POST /business/sync`**: Batch sync local changes from SQLite `sync_queue`. Resolves conflicts using Last-Write-Wins (LWW).
-- **`GET /business/companies`**: Fetch all synced companies.
-- **`POST /business/companies`**: Create or update companies.
-- **`GET /business/contacts`**: Fetch synced contacts.
-
-### 4. Automation & Workspaces (`/automation/*`)
-
-- **`GET /automation/sequences`**: Retrieve synced email sequences.
-- **`POST /automation/sequences`**: Publish and save sequence modifications.
-
----
-
-## 📖 Accessing OpenAPI Reference
-
-To start the API server locally:
-
+To run the API server locally and access the interactive Scalar UI, execute:
 ```bash
 pnpm dev --filter=api
 ```
+Navigate to `http://localhost:3000/reference` for complete OpenAPI parameter schemas.
 
-Once the server starts (default: `http://localhost:3000`), open your browser to:
+## Related
 
-- **Interactive reference**: `http://localhost:3000/reference`
-- **Swagger JSON**: `http://localhost:3000/openapi.json`
+- [System Architecture](../architecture/system-overview.mdx)
+- [Setup & Installation](../getting-started/installation.mdx)

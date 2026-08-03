@@ -1,0 +1,42 @@
+---
+title: "Architectural Decision Records"
+description: "Key design choices, runtime splits, and software structures adopted in LeadForge OS."
+category: "ADRs"
+order: 1
+---
+
+This directory contains the Architectural Decision Records (ADRs) for LeadForge OS. They document the key design choices, runtime splits, and software structures adopted in the project.
+
+## ADR Index
+
+1. **[ADR-001: AI Runtime Responsibilities](./ADR-001-runtime-responsibilities.mdx)**  
+   Restricts `@leadforge/ai` to low-level runtime concerns (providers, yaml templates, zod validations, prompts cache).
+2. **[ADR-002: Agent SDK Boundaries](./ADR-002-agent-sdk.mdx)**  
+   Defines decoupled interactions between agent scripts and the core Electron orchestrator.
+3. **[ADR-003: Worker Plugins as Tools](./ADR-003-worker-plugins-as-tools.mdx)**  
+   Wraps job scheduler worker plugins as LLM tools to enable agent-guided executions.
+4. **[ADR-004: Memory Model](./ADR-004-memory-model.mdx)**  
+   Adopts a workspace-isolated local CRM storing summaries and vectors on a per-tenant basis.
+5. **[ADR-005: Framework Adapter Strategy](./ADR-005-framework-adapter-strategy.mdx)**  
+   Applies framework-agnostic interfaces to isolate Electron and Hono APIs.
+6. **[ADR-006: Safety Model](./ADR-006-safety-model.mdx)**  
+   Guarantees credentials safety using safeStorage and sanitizing output logs from webhook triggers.
+7. **[ADR-007: Dependency Rules](./ADR-007-dependency-rules.mdx)**  
+   Sets up dependency cruiser gates preventing cycle loops and coupling between packages.
+8. **[ADR-008: LLM Infrastructure Separation](./ADR-008-llm-infrastructure-separation.mdx)**  
+   Separates prompt building from active model client instances.
+9. **[ADR-009: Scheduler Gateway](./ADR-009-scheduler-gateway.mdx)**  
+   Orchestrates concurrent crawler pings and CPU utilization via the main process.
+10. **[ADR-010: Distributed Data Model](./ADR-010-distributed-data-model.mdx)**  
+    Establishes offline-first mutations using isolated local-only SQLite schemas.
+11. **[ADR-011: Sync Architecture](./ADR-011-sync-architecture.mdx)**  
+    Coordinates SQLite sync queues to Hono MongoDB sync targets over HTTP.
+12. **[ADR-012: Provider Capability Model](./ADR-012-provider-capability-model.mdx)**  
+    Audits active model capabilities dynamically at startup.
+13. **[ADR-013: Tool Catalog](./ADR-013-tool-catalog.mdx)**  
+    Declares a single registry for scraping and emailing tools to prevent model errors.
+
+## Related
+
+- [System Architecture](../architecture/system-overview.mdx)
+- [Setup & Installation](../getting-started/installation.mdx)

@@ -24,6 +24,23 @@ We define the following rules for the Sync Engine:
 
 ## Alternatives Considered
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#1a1a1a',
+  'primaryTextColor': '#f5f5f5',
+  'primaryBorderColor': '#E8622C',
+  'lineColor': '#E8622C',
+  'background': '#0d0d0d',
+  'fontFamily': 'Inter'
+}}}%%
+flowchart TD
+  Opt0["Real-time Dual Writes"] -->|Rejected| Decision{Decision: Synchronization Architecture}
+  Opt1["Pros"] -->|Rejected| Decision{Decision: Synchronization Architecture}
+  Opt2["Cons"] -->|Rejected| Decision{Decision: Synchronization Architecture}
+  Chosen["Synchronization Architecture"] -->|Chosen| Decision
+```
+
+
 - **Real-time Dual Writes**: Write to SQLite and MongoDB synchronously in the same transaction.
   - _Tradeoffs_: Network lag blocks local UI writes; offline states result in application halts.
 

@@ -21,6 +21,23 @@ Tools are strictly forbidden from writing SQL commands or querying the `jobs` ta
 
 ## Alternatives Considered
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#1a1a1a',
+  'primaryTextColor': '#f5f5f5',
+  'primaryBorderColor': '#E8622C',
+  'lineColor': '#E8622C',
+  'background': '#0d0d0d',
+  'fontFamily': 'Inter'
+}}}%%
+flowchart TD
+  Opt0["Direct Database Inserts in Tools"] -->|Rejected| Decision{Decision: Scheduler Gateway Abstraction}
+  Opt1["Pros"] -->|Rejected| Decision{Decision: Scheduler Gateway Abstraction}
+  Opt2["Cons"] -->|Rejected| Decision{Decision: Scheduler Gateway Abstraction}
+  Chosen["Scheduler Gateway Abstraction"] -->|Chosen| Decision
+```
+
+
 - **Direct Database Inserts in Tools**: Simple to implement, but creates massive technical debt and couples packages to a specific database technology.
 
 ## Tradeoffs

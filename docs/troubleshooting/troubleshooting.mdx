@@ -7,39 +7,33 @@ order: 1
 
 This guide covers common errors, recovery actions, and diagnostic steps for resolving issues in LeadForge OS.
 
----
-
-## 🛑 Application Won't Start
+## Application Launch Failures
 
 ### SQLite Binary DLL Mismatch
 
-- **Symptom**: Startup crashes with an error:
+- **Symptom**: Startup crashes with the error:
   ```text
   better_sqlite3.node was compiled against a different Node.js version
   ```
-- **Cause**: The native SQLite binary was compiled for your global Node version instead of Electron's internal Node ABI.
+- **Cause**: The native SQLite binary was compiled for the global Node version instead of Electron's internal Node ABI.
 - **Solution**: Force rebuild native modules for Electron:
   ```bash
   pnpm -F @leadforge/desktop exec electron-builder install-app-deps
   ```
 
----
-
-## 🗄️ Database & Migration Failures
+## Database & Migration Failures
 
 ### Stuck or Corrupt Migrations
 
 - **Symptom**: Application displays database connection errors on startup, or loops during migrations.
 - **Self-Healing Mechanism**:
-  - The migration runner (`runner.ts`) copies your SQLite database file to `leadforge_${workspaceId}.db.migration.bak` before applying migrations.
+  - The migration runner (`runner.ts`) copies the SQLite database file to `leadforge_${workspaceId}.db.migration.bak` before applying migrations.
   - If a migration statement fails, the transaction is rolled back, the connection is closed, and the database is restored from the backup file.
 - **Manual Restoration**:
-  - If you need to manually restore the database state, go to the **Operations Center** diagnostics tab and select the **Restore Backup** recovery action.
+  - Open the **Operations Center** diagnostics tab and select the **Restore Backup** recovery action.
   - Alternatively, in your workspaces directory, copy the `.migration.bak` file over your main `.db` file manually.
 
----
-
-## ⚙️ Scheduler & Worker Crashes
+## Scheduler & Worker Crashes
 
 ### Worker Heartbeat Timeout
 
@@ -50,9 +44,7 @@ This guide covers common errors, recovery actions, and diagnostic steps for reso
   - If the worker crashed due to memory bounds (e.g. Playwright scrolling infinite listings), split your scrape query into smaller geographical locations.
   - Click the **Retry Job** action in the Cockpit to requeue.
 
----
-
-## 🔄 Sync Engine Failures
+## Sync Engine Failures
 
 ### Queue Stalling
 
@@ -63,11 +55,9 @@ This guide covers common errors, recovery actions, and diagnostic steps for reso
     ```bash
     curl http://localhost:3000/health
     ```
-  - Verify your network proxy configurations if offline. The sync queue will resume automatically once connection is restored.
+  - Verify network proxy configurations if offline. The sync queue will resume automatically once connection is restored.
 
----
-
-## 🤖 AI Provider Issues
+## AI Provider Issues
 
 ### OpenRouter Authorization Failures
 
@@ -89,3 +79,9 @@ This guide covers common errors, recovery actions, and diagnostic steps for reso
     ```bash
     ollama pull llama3.1
     ```
+
+## Related
+
+- [Setup & Installation](../getting-started/installation.mdx)
+- [System Architecture](../architecture/system-overview.mdx)
+- [Testing & Quality Assurance](../testing/README.mdx)

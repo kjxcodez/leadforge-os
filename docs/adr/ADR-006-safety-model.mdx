@@ -26,6 +26,24 @@ Safety gates are enforced at the platform level.
 
 ## Alternatives Considered
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#1a1a1a',
+  'primaryTextColor': '#f5f5f5',
+  'primaryBorderColor': '#E8622C',
+  'lineColor': '#E8622C',
+  'background': '#0d0d0d',
+  'fontFamily': 'Inter'
+}}}%%
+flowchart TD
+  Opt0["Full Agent Autonomy"] -->|Rejected| Decision{Decision: Safety Model & Human Approval Gates}
+  Opt1["Bespoke Agent Validation"] -->|Rejected| Decision{Decision: Safety Model & Human Approval Gates}
+  Opt2["Pros"] -->|Rejected| Decision{Decision: Safety Model & Human Approval Gates}
+  Opt3["Cons"] -->|Rejected| Decision{Decision: Safety Model & Human Approval Gates}
+  Chosen["Safety Model & Human Approval Gates"] -->|Chosen| Decision
+```
+
+
 - **Full Agent Autonomy**: Let the agent run with zero human gates.
   - _Tradeoffs_: Maximizes execution speed, but increases the risk of spam policy violations, IP blocks, or corrupted database states.
 - **Bespoke Agent Validation**: Let each agent implement its own safety checks.

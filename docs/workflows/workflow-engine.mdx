@@ -5,69 +5,74 @@ category: "Architecture"
 order: 3
 ---
 
-This document details the sequence execution model, drip automation steps, and lock controls of the LeadForge OS workflow engine (`@leadforge/workflow-engine`).
-
----
-
-## ⚙️ Workflow Engine Model
-
 The workflow engine executes sequential marketing and outreach flows for contacts enrolled in campaigns. Long-running sequence steps are routed to the sandboxed worker plugin `automation:workflow` (`automation.ts`).
 
-```text
-  [ Contact Enrolled ] ──► [ Check status = 'NEW' / 'CONTACTED' ]
-                                          │
-                                          ▼
-                             [ Check Automation Locks ]
-                                          │
-                                          ▼ (No Lock)
-                             [ Execute Step - e.g. SEND_EMAIL ]
-                                          │
-                                          ▼
-                             [ Update Execution Context ]
-                                          │
-                                          ▼
-                             [ Save Progress Checkpoint ]
+## Workflow Execution Model
+
+The diagram below maps the execution lifecycle and lock acquisition flow of an active workflow session:
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#1a1a1a',
+  'primaryTextColor': '#f5f5f5',
+  'primaryBorderColor': '#E8622C',
+  'lineColor': '#E8622C',
+  'background': '#0d0d0d',
+  'fontFamily': 'Inter'
+}}}%%
+flowchart TD
+  Enroll[Contact Enrolled] --> CheckStatus[Check Status 'NEW' or 'CONTACTED']
+  CheckStatus --> VerifyLock{Check Automation Locks}
+  VerifyLock -->|Locked| Exit[Defer Execution]
+  VerifyLock -->|No Lock| AcquireLock[Acquire Mutex Lock]
+  AcquireLock --> ExecuteStep[Execute Step]
+  ExecuteStep --> UpdateContext[Update JSON Execution Context]
+  UpdateContext --> SaveCheckpoint[Save Progress Checkpoint]
+  SaveCheckpoint --> ReleaseLock[Release Mutex Lock]
+  ReleaseLock --> Done[Step Completed]
 ```
 
----
-
-## 📋 Sequence Steps Reference
+## Sequence Steps Reference
 
 A sequence is defined as an array of step objects. The runner resolves and executes each step sequentially:
 
-### 1. `WAIT`
+| Step Type | Parameter Schema | Description |
+| :--- | :--- | :--- |
+| `WAIT` | `{ "durationSeconds": number }` | Pauses execution for a specified duration before checking the next step. |
+| `SEND_EMAIL` | `{ "templateId": string, "fromEmail": string }` | Renders tokens (`{{contact.firstName}}`), dispatches the email via the SMTP worker, and logs the activity. |
+| `IF` | `{ "condition": string }` | Evaluates a conditional expression in a sandboxed context and branches the execution path. |
+| `GOTO` | `{ "targetStepIndex": number }` | Jumps to a specific step index. The engine caps GOTO loops to a maximum of 100 jumps per run to prevent infinite loops. |
+| `HTTP_REQUEST` | `{ "url": string, "method": string, "headers": object, "body": object }` | Triggers external webhooks. Authorization and session headers are redacted from debug logs to prevent secret leakage. |
 
-- **Purpose**: Pause execution for a set duration.
-- **Parameters**: `durationSeconds` (or hours/days).
-- **Execution**: The engine schedules the next step check and exits the current run.
+## Worked Sequence Example
 
-### 2. `SEND_EMAIL`
+The following JSON schema represents a typical two-step follow-up sequence with a conditional branch:
 
-- **Purpose**: Send a templated email via the SMTP worker.
-- **Parameters**: `templateId`, `fromEmail`.
-- **Execution**: Renders tokens (e.g. `{{contact.firstName}}`), dispatches the email, and logs the activity.
+```json
+[
+  {
+    "type": "SEND_EMAIL",
+    "params": {
+      "templateId": "tmpl_welcome",
+      "fromEmail": "sales@company.com"
+    }
+  },
+  {
+    "type": "WAIT",
+    "params": {
+      "durationSeconds": 86400
+    }
+  },
+  {
+    "type": "IF",
+    "params": {
+      "condition": "contact.opportunityScore > 75"
+    }
+  }
+]
+```
 
-### 3. `IF`
-
-- **Purpose**: Conditional branch.
-- **Parameters**: `condition` (e.g., check tag matches, check opportunity score).
-- **Execution**: Evaluates expression in sandboxed context and branches execution path.
-
-### 4. `GOTO`
-
-- **Purpose**: Jump to a specific step index.
-- **Parameters**: `targetStepIndex`.
-- **Safety**: The engine caps GOTO loops to a maximum of 100 jumps per run to prevent infinite loops.
-
-### 5. `HTTP_REQUEST`
-
-- **Purpose**: Trigger external webhooks.
-- **Parameters**: `url`, `method`, `headers`, `body`.
-- **Safety**: Redacts authorization and session cookie headers from debug logs to prevent secret leakage.
-
----
-
-## 🔒 Concurrency & Step Locks
+## Concurrency & Step Locks
 
 To prevent race conditions where multiple campaign triggers execute the same sequence for the same contact at the same time:
 
@@ -75,9 +80,12 @@ To prevent race conditions where multiple campaign triggers execute the same seq
 - A lock is keyed by the combination of `sequenceId` and `entityId` (contact ID).
 - Locks expire automatically after 5 minutes to prevent permanent stalls if a worker process crashes unexpectedly.
 
----
-
-## 📦 Execution Context & Checkpoints
+## Execution Context & Checkpoints
 
 - **Execution Context**: The engine tracks variables, contact states, and execution histories inside a JSON object stored in the database (`executionContext`).
 - **Checkpoint Data**: When a sequence is paused, the worker saves the current step index and variables to `checkpointData` in SQLite before exiting. When restarted, the scheduler passes this data back to resume execution from the exact checkpoint.
+
+## Related
+
+- [System Architecture](../architecture/system-overview.mdx)
+- [Setup & Installation](../getting-started/installation.mdx)

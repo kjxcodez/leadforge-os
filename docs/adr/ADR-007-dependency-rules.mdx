@@ -26,6 +26,24 @@ No package other than `apps/desktop` may import Electron or SQLite.
 
 ## Alternatives Considered
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#1a1a1a',
+  'primaryTextColor': '#f5f5f5',
+  'primaryBorderColor': '#E8622C',
+  'lineColor': '#E8622C',
+  'background': '#0d0d0d',
+  'fontFamily': 'Inter'
+}}}%%
+flowchart TD
+  Opt0["Trust-Based Enforcement"] -->|Rejected| Decision{Decision: Dependency Rules & Import Restrictions}
+  Opt1["Bespoke Monorepo Linting Scripts"] -->|Rejected| Decision{Decision: Dependency Rules & Import Restrictions}
+  Opt2["Pros"] -->|Rejected| Decision{Decision: Dependency Rules & Import Restrictions}
+  Opt3["Cons"] -->|Rejected| Decision{Decision: Dependency Rules & Import Restrictions}
+  Chosen["Dependency Rules & Import Restrictions"] -->|Chosen| Decision
+```
+
+
 - **Trust-Based Enforcement**: Rely on developers to follow guidelines without compiler/lint rules.
   - _Tradeoffs_: High risk of architectural drift over time as the team grows.
 - **Bespoke Monorepo Linting Scripts**: Write custom bash scripts to check dependencies.

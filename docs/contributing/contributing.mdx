@@ -2,17 +2,67 @@
 title: "Contributing Guidelines"
 description: "Code of conduct, developer checks, and pull request review expectations."
 category: "Development"
-order: 2
+order: 3
 ---
 
-For information on contributing to this repository, please read the main **[CONTRIBUTING.md](../../CONTRIBUTING.md)** file in the root of the project.
+Contributing to LeadForge OS requires adhering to our development philosophy, coding standards, branching strategies, and testing requirements to help maintain a stable, clean, and secure local-first codebase.
 
-It covers:
+## Development Philosophy
 
-- Development philosophies
-- Coding standards
-- Branching strategy
-- Commit conventions
-- Pull request workflow
-- Code reviews
-- Testing requirements
+1. **Local-First & Offline Ready**: All features must remain functional without a active network connection. Cloud APIs serve as optional sync adapters, never blockers.
+2. **UI Responsiveness**: The Electron user interface must remain smooth (targeting 60fps). Heavy calculations, file system writes, and scraping operations are routed to sandboxed child worker processes rather than blocking the main React UI thread.
+3. **No Code Duplication**: Maintain modular package boundaries. Do not duplicate logic between the Hono REST API server (`apps/api/`) and the Electron application (`apps/desktop/`). Use shared workspace packages under `packages/` (e.g., `@leadforge/schema`).
+4. **Absolute Privacy**: Credentials, session cookies, and API keys must never be logged or exposed in plaintext. Sensitive strings are automatically masked during logging or Support Bundle generation.
+
+## Coding Standards
+
+- **TypeScript**: Strict type checking is required. Avoid the use of `any`. Explicitly type all function parameters and return signatures.
+- **Formatting**: Code formatting is handled automatically by Prettier. Run `pnpm format` before proposing changes.
+- **Linting**: We enforce strict linting rules using ESLint flat configurations. Run `pnpm lint` to check for violations.
+- **Directory Layout Rules**: Maintain package boundaries. `@leadforge/desktop` can import from packages, but packages cannot import from `apps/desktop` or each other in a circular fashion.
+
+## Branching Strategy
+
+Our git branching model follows a structured path to production:
+
+- **`main`**: The stable production release branch. All commits must be tagged and verified by release gates.
+- **`dev`**: The active development integration branch. Feature branches merge into `dev`.
+- **Feature Branches**: Local feature implementation branches. Create these off `dev` (e.g., `feat/maps-scraper-infinite-scroll`, `fix/imap-auth-recheck`).
+
+## Commit Conventions
+
+We follow the Conventional Commits standard to automatically manage releases:
+
+```text
+<type>(<scope>): <description>
+```
+
+### Standard Commit Types
+
+- `feat`: A new feature implementation.
+- `fix`: A bug fix.
+- `docs`: Documentation-only updates.
+- `style`: Changes that do not affect code logic (formatting, spacing).
+- `refactor`: Code restructurings that neither fix bugs nor add features.
+- `test`: Adding or modifying tests.
+- `chore`: Infrastructure, build configuration, or package dependency updates.
+
+## Pull Requests & Code Review
+
+1. **Create the PR**: Target your PR to the `dev` branch.
+2. **Run Diagnostic Tools**: Ensure that `pnpm doctor` passes on your local machine.
+3. **Release Gate Check**: Run `pnpm release:check` to verify changesets are ready.
+4. **Code Review**: Every PR requires review and approval from at least one core maintainer before merging.
+
+## Testing Requirements
+
+Automated tests are required for all logic changes:
+- **Unit & Integration Tests**: Run `pnpm -r test` to verify package logic.
+- **SRE Smoke Tests**: If changes impact the scheduler, databases, or event loops, execute the headless smoke tests via `pnpm test` (which triggers `smoke-test.ts`).
+- **Mock External Interfaces**: Do not call live APIs during unit/integration tests. Implement proper mocks for OpenRouter, Ollama, SMTP, and Playwright browsers.
+
+## Related
+
+- [Setup & Installation](../getting-started/installation.mdx)
+- [Testing & Quality Assurance](../testing/README.mdx)
+- [Developer Guides](../development/developer-guides.mdx)

@@ -45,8 +45,10 @@ function getMdxFiles(dir: string): string[] {
     const filePath = path.join(dir, file);
     const stat = fs.statSync(filePath);
     if (stat && stat.isDirectory()) {
+      // Explicitly skip the archive directory to keep it hidden from live docs
+      if (file === 'archive') return;
       results = results.concat(getMdxFiles(filePath));
-    } else if (file.endsWith('.mdx')) {
+    } else if (file.endsWith('.mdx') || file.endsWith('.md')) {
       results.push(filePath);
     }
   });
@@ -64,7 +66,7 @@ export function getDocsNavigation(): NavGroup[] {
     if (!frontmatter.title) return;
 
     const relativePath = path.relative(docsDir, filePath).replace(/\\/g, '/');
-    const cleanSlug = relativePath.replace(/\.mdx$/, '');
+    const cleanSlug = relativePath.replace(/\.(mdx|md)$/, '');
     const slugParts = cleanSlug.split('/');
     const urlPath = `/docs/${cleanSlug}`;
 
@@ -125,7 +127,11 @@ export function getDocBySlug(slug: string[]): {
   
   const possiblePaths = [
     slug.length === 0 ? 'getting-started/installation.mdx' : `${slugPath}.mdx`,
+    slug.length === 0 ? 'getting-started/installation.md' : `${slugPath}.md`,
     slug.length === 0 ? 'getting-started/installation.mdx' : `${slugPath}/index.mdx`,
+    slug.length === 0 ? 'getting-started/installation.mdx' : `${slugPath}/index.md`,
+    slug.length === 0 ? 'getting-started/installation.mdx' : `${slugPath}/README.mdx`,
+    slug.length === 0 ? 'getting-started/installation.mdx' : `${slugPath}/README.md`,
     slugPath
   ];
 
@@ -139,6 +145,7 @@ export function getDocBySlug(slug: string[]): {
   }
 
   if (!filePath) return null;
+
 
   const raw = fs.readFileSync(filePath, 'utf8');
   const { frontmatter, content } = parseFrontmatter(raw);

@@ -37,6 +37,24 @@ Memory scopes are governed by four dimensions: **Owner**, **Lifetime**, **Visibi
 
 ## Alternatives Considered
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#1a1a1a',
+  'primaryTextColor': '#f5f5f5',
+  'primaryBorderColor': '#E8622C',
+  'lineColor': '#E8622C',
+  'background': '#0d0d0d',
+  'fontFamily': 'Inter'
+}}}%%
+flowchart TD
+  Opt0["Single JSON Memory File"] -->|Rejected| Decision{Decision: Scoped Memory Model}
+  Opt1["Cloud Vector Host"] -->|Rejected| Decision{Decision: Scoped Memory Model}
+  Opt2["Pros"] -->|Rejected| Decision{Decision: Scoped Memory Model}
+  Opt3["Cons"] -->|Rejected| Decision{Decision: Scoped Memory Model}
+  Chosen["Scoped Memory Model"] -->|Chosen| Decision
+```
+
+
 - **Single JSON Memory File**: Store all memory scopes in a single JSON file per workspace.
   - _Tradeoffs_: Hard to query, lacks vector search, and risks file corruption on concurrent writes.
 - **Cloud Vector Host**: Sync embeddings to a cloud service (e.g. Pinecone).

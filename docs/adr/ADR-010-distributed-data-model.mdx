@@ -24,6 +24,23 @@ We establish the following distributed data model:
 
 ## Alternatives Considered
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#1a1a1a',
+  'primaryTextColor': '#f5f5f5',
+  'primaryBorderColor': '#E8622C',
+  'lineColor': '#E8622C',
+  'background': '#0d0d0d',
+  'fontFamily': 'Inter'
+}}}%%
+flowchart TD
+  Opt0["Direct Cloud Write"] -->|Rejected| Decision{Decision: Distributed Data Model}
+  Opt1["Pros"] -->|Rejected| Decision{Decision: Distributed Data Model}
+  Opt2["Cons"] -->|Rejected| Decision{Decision: Distributed Data Model}
+  Chosen["Distributed Data Model"] -->|Chosen| Decision
+```
+
+
 - **Direct Cloud Write**: Write to MongoDB Atlas directly from the desktop, writing to SQLite as a cache fallback.
   - _Tradeoffs_: Complex sync logic, slow latency, breaks full offline guarantees.
 

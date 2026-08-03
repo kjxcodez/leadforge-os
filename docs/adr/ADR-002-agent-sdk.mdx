@@ -24,6 +24,24 @@ External framework dependencies are imported only within `@leadforge/agent-frame
 
 ## Alternatives Considered
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#1a1a1a',
+  'primaryTextColor': '#f5f5f5',
+  'primaryBorderColor': '#E8622C',
+  'lineColor': '#E8622C',
+  'background': '#0d0d0d',
+  'fontFamily': 'Inter'
+}}}%%
+flowchart TD
+  Opt0["Single SDK Package"] -->|Rejected| Decision{Decision: Separation of Agent Core and Agent Framework}
+  Opt1["Direct Orchestration"] -->|Rejected| Decision{Decision: Separation of Agent Core and Agent Framework}
+  Opt2["Pros"] -->|Rejected| Decision{Decision: Separation of Agent Core and Agent Framework}
+  Opt3["Cons"] -->|Rejected| Decision{Decision: Separation of Agent Core and Agent Framework}
+  Chosen["Separation of Agent Core and Agent Framework"] -->|Chosen| Decision
+```
+
+
 - **Single SDK Package**: Combine contracts and executors into a single `@leadforge/agent-sdk`.
   - _Tradeoffs_: Simplifies directory structure, but forces the SDK to be rebuilt whenever we change execution loop structures or upgrade third-party adapters.
 - **Direct Orchestration**: Let business agents import Mastra or LangGraph directly.

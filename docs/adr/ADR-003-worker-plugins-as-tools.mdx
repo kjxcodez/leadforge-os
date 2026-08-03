@@ -25,6 +25,24 @@ No duplicate scheduling, heartbeat, retry, or recovery code will be written.
 
 ## Alternatives Considered
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#1a1a1a',
+  'primaryTextColor': '#f5f5f5',
+  'primaryBorderColor': '#E8622C',
+  'lineColor': '#E8622C',
+  'background': '#0d0d0d',
+  'fontFamily': 'Inter'
+}}}%%
+flowchart TD
+  Opt0["Direct Execution"] -->|Rejected| Decision{Decision: Worker Plugins as AI Tools}
+  Opt1["Duplicate AI Scheduler"] -->|Rejected| Decision{Decision: Worker Plugins as AI Tools}
+  Opt2["Pros"] -->|Rejected| Decision{Decision: Worker Plugins as AI Tools}
+  Opt3["Cons"] -->|Rejected| Decision{Decision: Worker Plugins as AI Tools}
+  Chosen["Worker Plugins as AI Tools"] -->|Chosen| Decision
+```
+
+
 - **Direct Execution**: Run Playwright and Cheerio directly within the agent's thread.
   - _Tradeoffs_: Simplifies execution flow, but blocks the main Electron UI, increases memory usage, and bypasses concurrency limits.
 - **Duplicate AI Scheduler**: Create a separate scheduler specifically for AI agent tasks.

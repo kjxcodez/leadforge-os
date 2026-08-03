@@ -21,6 +21,23 @@ All routing decisions, prompt decorators, fallback parameters, and tool bindings
 
 ## Alternatives Considered
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#1a1a1a',
+  'primaryTextColor': '#f5f5f5',
+  'primaryBorderColor': '#E8622C',
+  'lineColor': '#E8622C',
+  'background': '#0d0d0d',
+  'fontFamily': 'Inter'
+}}}%%
+flowchart TD
+  Opt0["Model Name Switch Checks"] -->|Rejected| Decision{Decision: Provider Capability Model}
+  Opt1["Pros"] -->|Rejected| Decision{Decision: Provider Capability Model}
+  Opt2["Cons"] -->|Rejected| Decision{Decision: Provider Capability Model}
+  Chosen["Provider Capability Model"] -->|Chosen| Decision
+```
+
+
 - **Model Name Switch Checks**: Checking string names (e.g. `model === 'gpt-4o'`).
   - _Tradeoffs_: Hard to maintain, requires code updates when new models are released.
 

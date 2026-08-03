@@ -26,6 +26,24 @@ External frameworks are treated as replaceable implementation details.
 
 ## Alternatives Considered
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#1a1a1a',
+  'primaryTextColor': '#f5f5f5',
+  'primaryBorderColor': '#E8622C',
+  'lineColor': '#E8622C',
+  'background': '#0d0d0d',
+  'fontFamily': 'Inter'
+}}}%%
+flowchart TD
+  Opt0["Single Framework Decision"] -->|Rejected| Decision{Decision: Framework Adapter Strategy}
+  Opt1["No Frameworks"] -->|Rejected| Decision{Decision: Framework Adapter Strategy}
+  Opt2["Pros"] -->|Rejected| Decision{Decision: Framework Adapter Strategy}
+  Opt3["Cons"] -->|Rejected| Decision{Decision: Framework Adapter Strategy}
+  Chosen["Framework Adapter Strategy"] -->|Chosen| Decision
+```
+
+
 - **Single Framework Decision**: Build all agents directly on LangGraph.
   - _Tradeoffs_: Hard to swap to lighter runtimes (like Mastra or Hermes) if execution requirements change.
 - **No Frameworks**: Write all planning, state management, and memory code from scratch.
