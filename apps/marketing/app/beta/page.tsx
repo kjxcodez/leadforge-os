@@ -30,7 +30,13 @@ export default function BetaPage() {
     setLoading(true)
     setError(null)
     
-    const apiHost = process.env.NEXT_PUBLIC_API_URL || "https://api.leadforge.kapiljangid.pro"
+    let apiHost = "https://api.leadforge.kapiljangid.pro"
+    if (typeof window !== "undefined") {
+      if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+        apiHost = "http://localhost:3001"
+      }
+    }
+    apiHost = process.env.NEXT_PUBLIC_API_URL || apiHost
     const apiUrl = `${apiHost}/api/v1/beta-apply`
 
     try {
@@ -41,13 +47,20 @@ export default function BetaPage() {
         },
         body: JSON.stringify({ email, platform, motivation })
       })
-      const data = await response.json()
       
-      if (data.success) {
-        setSubmitted(true)
+      const contentType = response.headers.get("content-type")
+      if (contentType && contentType.includes("application/json")) {
+        const data = await response.json()
+        if (data.success) {
+          setSubmitted(true)
+        } else {
+          console.error("Failed to submit beta application:", data.error)
+          setError(data.error || "Failed to submit application. Please try again.")
+        }
       } else {
-        console.error("Failed to submit beta application:", data.error)
-        setError(data.error || "Failed to submit application. Please try again.")
+        const text = await response.text()
+        console.error("Non-JSON response received:", text)
+        setError(`Error (${response.status}): ${text || "Unable to submit application"}`)
       }
     } catch (err) {
       console.error("Network error during beta application:", err)
