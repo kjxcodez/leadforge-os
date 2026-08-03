@@ -32,6 +32,7 @@ import {
 import { Badge } from '../components/ui/badge';
 import { CompanyStatus, ContactStatus } from '@leadforge/schema';
 import { useWorkspace } from '../hooks/useWorkspace';
+import { motion } from 'framer-motion';
 
 /**
  * CompaniesScreen presents a list of target organizations, a details panel,
@@ -429,28 +430,38 @@ export default function CompaniesScreen() {
           </div>
 
           {/* Tab switcher */}
-          <div className="flex bg-surface-3 border border-border-subtle rounded-none p-0.5 gap-0.5">
+          <div className="border-b border-border-subtle flex gap-4 w-full relative">
             <button
               onClick={() => setDetailTab('overview')}
-              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-none text-[10px] font-bold transition-all ${
-                detailTab === 'overview'
-                  ? 'bg-card text-foreground shadow-sm font-bold'
-                  : 'text-muted-foreground hover:text-foreground'
+              className={`flex-1 pb-2 flex items-center justify-center gap-1.5 rounded-none text-[11px] font-bold relative z-10 transition-colors duration-200 ${
+                detailTab === 'overview' ? 'text-primary font-bold' : 'text-muted-foreground hover:text-primary'
               }`}
             >
-              <Building2 className="w-3 h-3" />
+              <Building2 className="w-3.5 h-3.5" />
               CRM
+              {detailTab === 'overview' && (
+                <motion.div
+                  layoutId="companyDetailActiveTab"
+                  className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary"
+                  transition={{ type: 'spring', stiffness: 550, damping: 38 }}
+                />
+              )}
             </button>
             <button
               onClick={() => setDetailTab('intelligence')}
-              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-none text-[10px] font-bold transition-all ${
-                detailTab === 'intelligence'
-                  ? 'bg-card text-foreground shadow-sm font-bold'
-                  : 'text-muted-foreground hover:text-foreground'
+              className={`flex-1 pb-2 flex items-center justify-center gap-1.5 rounded-none text-[11px] font-bold relative z-10 transition-colors duration-200 ${
+                detailTab === 'intelligence' ? 'text-primary font-bold' : 'text-muted-foreground hover:text-primary'
               }`}
             >
-              <Cpu className="w-3 h-3" />
+              <Cpu className="w-3.5 h-3.5" />
               Intelligence
+              {detailTab === 'intelligence' && (
+                <motion.div
+                  layoutId="companyDetailActiveTab"
+                  className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary"
+                  transition={{ type: 'spring', stiffness: 550, damping: 38 }}
+                />
+              )}
             </button>
           </div>
 

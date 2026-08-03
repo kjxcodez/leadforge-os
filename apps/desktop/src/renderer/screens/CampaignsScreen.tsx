@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkspace } from '../hooks/useWorkspace';
+import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
@@ -498,24 +499,36 @@ export default function CampaignsScreen() {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="bg-surface-3 p-0.5 border border-border-subtle rounded-none flex w-max gap-1">
-          <TabsTrigger value="campaigns" className="px-3 py-1.5 flex items-center gap-1.5 rounded-none">
-            <Megaphone className="h-3 w-3" />
-            <span>Campaigns</span>
-          </TabsTrigger>
-          <TabsTrigger value="monitor" className="px-3 py-1.5 flex items-center gap-1.5 rounded-none">
-            <Activity className="h-3 w-3" />
-            <span>Queue Monitor</span>
-          </TabsTrigger>
-          <TabsTrigger value="templates" className="px-3 py-1.5 flex items-center gap-1.5 rounded-none">
-            <FileText className="h-3 w-3" />
-            <span>Templates</span>
-          </TabsTrigger>
-          <TabsTrigger value="accounts" className="px-3 py-1.5 flex items-center gap-1.5 rounded-none">
-            <Mail className="h-3 w-3" />
-            <span>Sender Accounts</span>
-          </TabsTrigger>
-        </TabsList>
+      <div className="border-b border-border-subtle flex gap-4 w-full relative mb-4">
+        {[
+          { id: 'campaigns', label: 'Campaigns', Icon: Megaphone },
+          { id: 'monitor', label: 'Queue Monitor', Icon: Activity },
+          { id: 'templates', label: 'Templates', Icon: FileText },
+          { id: 'accounts', label: 'Sender Accounts', Icon: Mail }
+        ].map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`relative pb-3 px-1 flex items-center gap-1.5 rounded-none text-xs font-semibold select-none outline-none z-10 transition-colors duration-200 ${
+                isActive ? 'text-primary font-bold' : 'text-muted-foreground hover:text-primary'
+              }`}
+            >
+              <tab.Icon className="h-3.5 w-3.5" />
+              <span>{tab.label}</span>
+              {isActive && (
+                <motion.div
+                  layoutId="campaignActiveTabUnderline"
+                  className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary"
+                  transition={{ type: 'spring', stiffness: 550, damping: 38 }}
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
 
         {/* ── CAMPAIGNS TAB (LIST VIEW OR DETAIL VIEW) ──────────────────────── */}
         <TabsContent value="campaigns" className="mt-4 space-y-4">
