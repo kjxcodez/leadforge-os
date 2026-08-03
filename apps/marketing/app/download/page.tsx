@@ -128,7 +128,7 @@ export default function DownloadPage() {
                 </div>
                 <span className="text-[10px] font-mono text-[var(--text-tertiary)]">{winAsset ? formatSize(winAsset.sizeBytes) : "x64 / ARM64"}</span>
               </div>
-              <h3 className="font-semibold text-sm text-[var(--foreground)]">Windows</h3>
+              <h2 className="font-semibold text-sm text-[var(--foreground)]">Windows</h2>
               <p className="text-[11px] text-[var(--text-secondary)] mt-1 mb-4 leading-normal">
                 Installer (.exe) supporting Win 10, 11+ with SQLite WAL support.
               </p>
@@ -162,7 +162,7 @@ export default function DownloadPage() {
                 </div>
                 <span className="text-[10px] font-mono text-[var(--text-tertiary)]">{macAsset ? formatSize(macAsset.sizeBytes) : "Apple / Intel"}</span>
               </div>
-              <h3 className="font-semibold text-sm text-[var(--foreground)]">macOS</h3>
+              <h2 className="font-semibold text-sm text-[var(--foreground)]">macOS</h2>
               <p className="text-[11px] text-[var(--text-secondary)] mt-1 mb-4 leading-normal">
                 Disk Image (.dmg) code-signed for M1/M2/M3 &amp; Intel processors.
               </p>
@@ -196,7 +196,7 @@ export default function DownloadPage() {
                 </div>
                 <span className="text-[10px] font-mono text-[var(--text-tertiary)]">{linuxAsset ? formatSize(linuxAsset.sizeBytes) : "AppImage / deb"}</span>
               </div>
-              <h3 className="font-semibold text-sm text-[var(--foreground)]">Linux</h3>
+              <h2 className="font-semibold text-sm text-[var(--foreground)]">Linux</h2>
               <p className="text-[11px] text-[var(--text-secondary)] mt-1 mb-4 leading-normal">
                 AppImage bundle for Debian, Ubuntu, and Fedora systems.
               </p>
@@ -219,7 +219,7 @@ export default function DownloadPage() {
 
         {/* Checksums Details */}
         <motion.div variants={childVariants} className="space-y-4">
-          <h3 className="text-base font-semibold text-[var(--foreground)]">Verify Checksums</h3>
+          <h2 className="text-base font-semibold text-[var(--foreground)]">Verify Checksums</h2>
           <div className="border border-[var(--border)] rounded-lg p-4 bg-[var(--card)] font-mono text-[10px] text-[var(--text-secondary)] space-y-2 overflow-x-auto leading-relaxed">
             {winAsset && (
               <div>
@@ -250,7 +250,7 @@ export default function DownloadPage() {
 
         {/* System Requirements */}
         <motion.div variants={childVariants} className="space-y-4">
-          <h3 className="text-base font-semibold text-[var(--foreground)]">System Requirements</h3>
+          <h2 className="text-base font-semibold text-[var(--foreground)]">System Requirements</h2>
           <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--card)]">
             <table className="w-full border-collapse text-xs text-left">
               <thead>

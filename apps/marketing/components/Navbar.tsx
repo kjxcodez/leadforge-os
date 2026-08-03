@@ -17,30 +17,31 @@ export function Navbar() {
         transition={{ duration: 0.3, ease: "easeOut" }}
       >
         <div className="container mx-auto flex items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-[var(--foreground)] group">
+          <Link href="/" id="nav-brand" className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-[var(--foreground)] group">
             <motion.div
               whileHover={{ scale: 1.05 }}
               transition={{ type: "spring", stiffness: 400, damping: 10 }}
               className="relative flex h-[26px] w-[26px] items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--card)] shadow-[0_1px_4px_rgba(0,0,0,0.2)]"
             >
-              <img src="/app-icon-dark.png" className="h-[18px] w-[18px] object-contain transition-all duration-300 group-hover:drop-shadow-[0_0_6px_rgba(232,98,44,0.5)]" alt="Logo" />
+              <img src="/app-icon-dark.png" className="h-[18px] w-[18px] object-contain transition-all duration-300 group-hover:drop-shadow-[0_0_6px_rgba(232,98,44,0.5)]" alt="LeadForge OS Logo" />
             </motion.div>
             LeadForge OS
           </Link>
           <div className="hidden gap-8 text-xs font-medium text-[var(--muted-foreground)] md:flex">
-            <Link href="/features" className="hover:text-[var(--foreground)] transition-colors duration-150">Features</Link>
-            <Link href="/architecture" className="hover:text-[var(--foreground)] transition-colors duration-150">Architecture</Link>
-            <Link href="/pricing" className="hover:text-[var(--foreground)] transition-colors duration-150">Pricing</Link>
-            <Link href="/roadmap" className="hover:text-[var(--foreground)] transition-colors duration-150">Roadmap</Link>
-            <Link href="/faq" className="hover:text-[var(--foreground)] transition-colors duration-150">FAQ</Link>
-            <Link href="/docs" className="hover:text-[var(--foreground)] transition-colors duration-150">Docs</Link>
+            <Link href="/features" id="nav-link-features" className="hover:text-[var(--foreground)] transition-colors duration-150">Features</Link>
+            <Link href="/architecture" id="nav-link-architecture" className="hover:text-[var(--foreground)] transition-colors duration-150">Architecture</Link>
+            <Link href="/pricing" id="nav-link-pricing" className="hover:text-[var(--foreground)] transition-colors duration-150">Pricing</Link>
+            <Link href="/roadmap" id="nav-link-roadmap" className="hover:text-[var(--foreground)] transition-colors duration-150">Roadmap</Link>
+            <Link href="/faq" id="nav-link-faq" className="hover:text-[var(--foreground)] transition-colors duration-150">FAQ</Link>
+            <Link href="/docs" id="nav-link-docs" className="hover:text-[var(--foreground)] transition-colors duration-150">Docs</Link>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/beta" className="hidden sm:inline-flex h-9 items-center justify-center px-4 text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
+            <Link href="/beta" id="nav-link-beta" className="hidden sm:inline-flex h-9 items-center justify-center px-4 text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">
               Beta
             </Link>
             <Link 
               href="/download" 
+              id="nav-link-download"
               className="hidden sm:inline-flex h-9 items-center justify-center rounded-md bg-[var(--primary)] px-4 text-xs font-medium text-[var(--primary-foreground)] hover:bg-[oklch(0.698_0.167_41.6)] transition-colors duration-150"
             >
               Download
@@ -48,6 +49,7 @@ export function Navbar() {
             {/* Hamburger Button */}
             <button 
               onClick={() => setMobileOpen(!mobileOpen)}
+              id="nav-menu-toggle"
               className="p-1 rounded md:hidden hover:bg-[var(--card)] transition-colors cursor-pointer"
             >
               {mobileOpen ? <X className="h-5 w-5 text-white" /> : <Menu className="h-5 w-5 text-white" />}

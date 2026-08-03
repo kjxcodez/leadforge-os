@@ -42,17 +42,17 @@ export default function TermsPage() {
             Please read these terms carefully before installing or launching the LeadForge OS client application.
           </p>
 
-          <h3 className="text-sm font-semibold text-[var(--foreground)] font-mono uppercase tracking-wider text-[11px] mt-8">1. License Grant</h3>
+          <h2 className="text-sm font-semibold text-[var(--foreground)] font-mono uppercase tracking-wider text-[11px] mt-8">1. License Grant</h2>
           <p>
             LeadForge OS is licensed under standard open-source parameters. You are granted the right to install, customize, run, and scale client scrapers and SMTP campaign relays locally on your hardware.
           </p>
 
-          <h3 className="text-sm font-semibold text-[var(--foreground)] font-mono uppercase tracking-wider text-[11px] mt-8">2. Acceptable Use</h3>
+          <h2 className="text-sm font-semibold text-[var(--foreground)] font-mono uppercase tracking-wider text-[11px] mt-8">2. Acceptable Use</h2>
           <p>
             You agree to use LeadForge OS in compliance with all local laws and regulations (including CAN-SPAM, GDPR, and local scraping compliance regulations). You represent that you own or have permission to connect to all SMTP mailboxes used in your campaigns.
           </p>
 
-          <h3 className="text-sm font-semibold text-[var(--foreground)] font-mono uppercase tracking-wider text-[11px] mt-8">3. Limitation of Liability</h3>
+          <h2 className="text-sm font-semibold text-[var(--foreground)] font-mono uppercase tracking-wider text-[11px] mt-8">3. Limitation of Liability</h2>
           <p>
             LeadForge OS is provided &ldquo;as is&rdquo;, without warranty of any kind. In no event shall the authors or copyright holders be liable for any claims, damages, or liabilities arising from the use of the scraping tools or direct campaign SMTP handshakes.
           </p>

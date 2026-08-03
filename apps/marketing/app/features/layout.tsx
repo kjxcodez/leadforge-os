@@ -1,0 +1,15 @@
+import { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "Platform Features",
+  description: "Explore Google Maps scrapers, local Ollama contact enrichment, sandboxed Chromium workers, and SMTP mail relay tools.",
+  openGraph: {
+    title: "Platform Features | LeadForge OS",
+    description: "Explore Google Maps scrapers, local Ollama contact enrichment, sandboxed Chromium workers, and SMTP mail relay tools.",
+    url: "https://github.com/kjxcodez/leadforge-os/features"
+  }
+}
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return <>{children}</>
+}

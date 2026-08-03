@@ -47,7 +47,7 @@ export default function SupportPage() {
             <div className="p-2 rounded bg-[var(--background)] border border-[var(--border-subtle)] inline-block text-[var(--primary)]">
               <Terminal className="h-5 w-5" />
             </div>
-            <h3 className="text-sm font-semibold text-[var(--foreground)]">GitHub Issues</h3>
+            <h2 className="text-sm font-semibold text-[var(--foreground)]">GitHub Issues</h2>
             <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
               Report code bugs, scraper failures, or suggest new SMTP parameters directly in our repo.
             </p>
@@ -66,7 +66,7 @@ export default function SupportPage() {
             <div className="p-2 rounded bg-[var(--background)] border border-[var(--border-subtle)] inline-block text-[#5B8DEF]">
               <MessageSquare className="h-5 w-5" />
             </div>
-            <h3 className="text-sm font-semibold text-[var(--foreground)]">Community Discord</h3>
+            <h2 className="text-sm font-semibold text-[var(--foreground)]">Community Discord</h2>
             <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
               Chat with other operators, share custom enrichment formulas, or troubleshoot config logs in real-time.
             </p>
@@ -78,7 +78,7 @@ export default function SupportPage() {
             <div className="p-2 rounded bg-[var(--background)] border border-[var(--border-subtle)] inline-block text-[var(--success)]">
               <HelpCircle className="h-5 w-5" />
             </div>
-            <h3 className="text-sm font-semibold text-[var(--foreground)]">GitHub Discussions</h3>
+            <h2 className="text-sm font-semibold text-[var(--foreground)]">GitHub Discussions</h2>
             <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
               Ask setup questions, propose new scraping strategies, or share outbound configurations with the community.
             </p>

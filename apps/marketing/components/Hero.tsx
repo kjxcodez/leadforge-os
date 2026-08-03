@@ -503,6 +503,7 @@ export function Hero() {
           >
             <motion.a
               href="/download"
+              id="cta-get-started"
               onMouseMove={handleMagneticMove}
               onMouseLeave={handleMagneticLeave}
               style={{ x: trgBtnXSpring, y: trgBtnYSpring }}
@@ -512,6 +513,7 @@ export function Hero() {
             </motion.a>
             <a
               href="/docs"
+              id="cta-docs"
               className="inline-flex h-11 items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[rgba(15,15,16,0.35)] backdrop-blur px-6 font-medium text-white hover:border-[var(--border-strong)] transition-all text-xs shrink-0"
             >
               Interactive Docs

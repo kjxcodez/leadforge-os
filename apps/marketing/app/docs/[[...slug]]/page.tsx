@@ -1,5 +1,6 @@
 import React from "react"
 import { notFound } from "next/navigation"
+import { Metadata } from "next"
 import { compileMDX } from "next-mdx-remote/rsc"
 import remarkGfm from "remark-gfm"
 import rehypeSlug from "rehype-slug"
@@ -13,6 +14,27 @@ interface PageProps {
     slug?: string[]
   }>
 }
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const resolvedParams = await params
+  const slug = resolvedParams.slug || []
+  const doc = getDocBySlug(slug)
+  if (!doc) {
+    return {
+      title: "Not Found",
+      description: "Document not found"
+    }
+  }
+  return {
+    title: doc.frontmatter.title,
+    description: doc.frontmatter.description || `Documentation for ${doc.frontmatter.title} in LeadForge OS.`,
+    openGraph: {
+      title: `${doc.frontmatter.title} | LeadForge OS Docs`,
+      description: doc.frontmatter.description
+    }
+  }
+}
+
 
 function slugify(text: string) {
   return text

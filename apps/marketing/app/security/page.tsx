@@ -66,7 +66,7 @@ export default function SecurityPage() {
                 <div className="p-2 rounded bg-[var(--background)] border border-[var(--border-subtle)] inline-block text-[var(--primary)]">
                   <IconComp className="h-5 w-5" />
                 </div>
-                <h3 className="text-sm font-semibold text-[var(--foreground)] leading-snug">{point.title}</h3>
+                <h2 className="text-sm font-semibold text-[var(--foreground)] leading-snug">{point.title}</h2>
                 <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">{point.description}</p>
               </div>
             )
@@ -75,7 +75,7 @@ export default function SecurityPage() {
 
         {/* Security Compliance Statement */}
         <motion.div variants={childVariants} className="border border-[var(--border)] rounded-lg p-6 bg-[var(--card)] space-y-4">
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">Security FAQ Summary</h3>
+          <h2 className="text-sm font-semibold text-[var(--foreground)]">Security FAQ Summary</h2>
           <ul className="text-xs text-[var(--text-secondary)] space-y-3 leading-relaxed">
             <li className="flex items-start gap-2">
               <Check className="h-4 w-4 text-[var(--primary)] shrink-0 mt-0.5" />

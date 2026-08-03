@@ -75,7 +75,7 @@ export default function BlogPage() {
                     {post.readTime}
                   </span>
                 </div>
-                <h3 className="text-sm font-semibold text-[var(--foreground)] leading-snug">{post.title}</h3>
+                <h2 className="text-sm font-semibold text-[var(--foreground)] leading-snug">{post.title}</h2>
                 <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">{post.summary}</p>
               </div>
 

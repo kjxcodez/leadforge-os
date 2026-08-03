@@ -42,17 +42,17 @@ export default function PrivacyPage() {
             This Privacy Policy explains how LeadForge OS manages information. Because LeadForge is a local-first application, the fundamental design principle is that **your data belongs on your own hardware**.
           </p>
 
-          <h3 className="text-sm font-semibold text-[var(--foreground)] font-mono uppercase tracking-wider text-[11px] mt-8">1. Information Gathered Locally</h3>
+          <h2 className="text-sm font-semibold text-[var(--foreground)] font-mono uppercase tracking-wider text-[11px] mt-8">1. Information Gathered Locally</h2>
           <p>
             All lead scraping lists, target SMTP credentials, email histories, notes, and outreach parameters are saved locally in SQLite databases inside your user configuration directories. We do not transmit this data to our systems.
           </p>
 
-          <h3 className="text-sm font-semibold text-[var(--foreground)] font-mono uppercase tracking-wider text-[11px] mt-8">2. Sync Backup Relays</h3>
+          <h2 className="text-sm font-semibold text-[var(--foreground)] font-mono uppercase tracking-wider text-[11px] mt-8">2. Sync Backup Relays</h2>
           <p>
             If you opt into our Hybrid Sync plan (Pro or Enterprise), your local SQLite databases are synced to an encrypted cloud backup relay to support backups and cross-device sync. Credentials are encrypted on-client with AES-256 before synchronization, meaning our relay nodes cannot read your SMTP credentials or email content.
           </p>
 
-          <h3 className="text-sm font-semibold text-[var(--foreground)] font-mono uppercase tracking-wider text-[11px] mt-8">3. Contacting Us</h3>
+          <h2 className="text-sm font-semibold text-[var(--foreground)] font-mono uppercase tracking-wider text-[11px] mt-8">3. Contacting Us</h2>
           <p>
             If you have questions about this privacy protocol, you can reach out via our GitHub repository or support channels.
           </p>

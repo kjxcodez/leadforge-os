@@ -149,7 +149,7 @@ export default function BetaPage() {
               >
                 <CheckCircle2 className="h-10 w-10 text-[var(--success)] mx-auto animate-bounce" />
                 <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-[var(--foreground)]">Application Received</h3>
+                  <h2 className="text-sm font-semibold text-[var(--foreground)]">Application Received</h2>
                   <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed max-w-xs mx-auto">
                     Thanks for applying! We have successfully registered your application (for platform: <span className="font-mono text-white">{platform}</span>). We will notify you via email (<span className="text-white">{email}</span>) as soon as new slots open.
                   </p>

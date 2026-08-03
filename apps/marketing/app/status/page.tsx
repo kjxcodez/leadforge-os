@@ -59,7 +59,7 @@ export default function StatusPage() {
           <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-4">
             <div className="flex items-center gap-2">
               <Activity className="h-4.5 w-4.5 text-[var(--primary)]" />
-              <h3 className="text-sm font-semibold text-[var(--foreground)]">Asset Delivery network (CDN) Latency</h3>
+              <h2 className="text-sm font-semibold text-[var(--foreground)]">Asset Delivery network (CDN) Latency</h2>
             </div>
             <span className="font-mono text-[10px] text-[var(--muted-foreground)]">Ping: 12ms</span>
           </div>
@@ -74,12 +74,12 @@ export default function StatusPage() {
 
         {/* Systems List */}
         <motion.div variants={childVariants} className="space-y-4">
-          <h3 className="text-base font-semibold text-[var(--foreground)]">Individual Services</h3>
+          <h2 className="text-base font-semibold text-[var(--foreground)]">Individual Services</h2>
           <div className="space-y-3">
             {systems.map((sys) => (
               <div key={sys.name} className="flex items-start justify-between border border-[var(--border)] rounded-lg p-4 bg-[var(--card)]">
                 <div className="space-y-1 text-left">
-                  <h4 className="text-xs font-semibold text-[var(--foreground)]">{sys.name}</h4>
+                  <h3 className="text-xs font-semibold text-[var(--foreground)]">{sys.name}</h3>
                   <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed">{sys.desc}</p>
                 </div>
                 <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border bg-[rgba(63,178,127,0.12)] text-[#3FB27F] border-[rgba(63,178,127,0.2)]">

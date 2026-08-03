@@ -72,7 +72,7 @@ export default function PricingPage() {
             <div className="space-y-4">
               <div className="flex items-start justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-[var(--foreground)]">LeadForge OS Open Beta</h3>
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">LeadForge OS Open Beta</h2>
                   <p className="text-[11px] text-[var(--text-secondary)] mt-1">
                     Complete local-first pipeline environment running locally inside your system container.
                   </p>
@@ -112,9 +112,9 @@ export default function PricingPage() {
             className="border border-[var(--border)] rounded-lg p-6 bg-[var(--card)] flex flex-col justify-between"
           >
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-[var(--foreground)] flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-[var(--foreground)] flex items-center gap-2">
                 <Globe className="h-4 w-4 text-[var(--text-tertiary)]" /> Future Extensions
-              </h3>
+              </h2>
               <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
                 As we build team collaboration modules, we will introduce optional paid cloud hosting services. The core desktop app remains local and free.
               </p>
@@ -151,10 +151,10 @@ export default function PricingPage() {
         {/* Local Security block */}
         <motion.div variants={childVariants} className="border border-[var(--border)] rounded-xl bg-[var(--card)] p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-[var(--foreground)] flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-[var(--foreground)] flex items-center gap-2">
               <ShieldAlert className="h-4.5 w-4.5 text-[var(--primary)]" />
               100% Offline Portability
-            </h3>
+            </h2>
             <p className="text-xs text-[var(--text-secondary)] max-w-xl leading-relaxed">
               Your SQLite database tables sit safely on your machine. Even if you choose not to subscribe to future cloud layers, your campaigns, indexes, and logs are 100% accessible forever.
             </p>

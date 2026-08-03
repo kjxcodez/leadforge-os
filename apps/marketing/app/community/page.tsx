@@ -46,7 +46,7 @@ export default function CommunityPage() {
             <div className="p-2 rounded bg-[var(--background)] border border-[var(--border-subtle)] inline-block text-[var(--primary)]">
               <Terminal className="h-5 w-5" />
             </div>
-            <h3 className="text-sm font-semibold text-[var(--foreground)]">GitHub Discussions</h3>
+            <h2 className="text-sm font-semibold text-[var(--foreground)]">GitHub Discussions</h2>
             <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
               Ask architectural questions, propose feature changes, or share custom parsing scripts.
             </p>
@@ -65,7 +65,7 @@ export default function CommunityPage() {
             <div className="p-2 rounded bg-[var(--background)] border border-[var(--border-subtle)] inline-block text-[#5B8DEF]">
               <MessageSquare className="h-5 w-5" />
             </div>
-            <h3 className="text-sm font-semibold text-[var(--foreground)]">Operator Discord</h3>
+            <h2 className="text-sm font-semibold text-[var(--foreground)]">Operator Discord</h2>
             <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
               Talk directly to the creators, get help with SMTP tls settings, or chat with active users.
             </p>
@@ -77,7 +77,7 @@ export default function CommunityPage() {
             <div className="p-2 rounded bg-[var(--background)] border border-[var(--border-subtle)] inline-block text-[var(--success)]">
               <Heart className="h-5 w-5" />
             </div>
-            <h3 className="text-sm font-semibold text-[var(--foreground)]">Open Contributors</h3>
+            <h2 className="text-sm font-semibold text-[var(--foreground)]">Open Contributors</h2>
             <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
               Submit code PRs, update documentation translations, or design visual layouts.
             </p>

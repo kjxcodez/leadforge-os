@@ -30,10 +30,10 @@ export function Footer() {
           <div className="space-y-4">
             <h5 className="font-mono text-[9px] uppercase tracking-wider text-[var(--text-tertiary)] font-semibold">Product</h5>
             <ul className="space-y-2.5">
-              <li><Link href="/features" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Features</Link></li>
-              <li><Link href="/architecture" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Architecture</Link></li>
-              <li><Link href="/pricing" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Pricing</Link></li>
-              <li><Link href="/download" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Download</Link></li>
+              <li><Link href="/features" id="footer-link-features" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Features</Link></li>
+              <li><Link href="/architecture" id="footer-link-architecture" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Architecture</Link></li>
+              <li><Link href="/pricing" id="footer-link-pricing" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Pricing</Link></li>
+              <li><Link href="/download" id="footer-link-download" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Download</Link></li>
             </ul>
           </div>
 
@@ -41,11 +41,11 @@ export function Footer() {
           <div className="space-y-4">
             <h5 className="font-mono text-[9px] uppercase tracking-wider text-[var(--text-tertiary)] font-semibold">Resources</h5>
             <ul className="space-y-2.5">
-              <li><Link href="/docs" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Documentation</Link></li>
-              <li><Link href="/changelog" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Changelog</Link></li>
-              <li><Link href="/releases" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Releases</Link></li>
-              <li><Link href="/roadmap" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Roadmap</Link></li>
-              <li><Link href="/faq" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">FAQ</Link></li>
+              <li><Link href="/docs" id="footer-link-docs" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Documentation</Link></li>
+              <li><Link href="/changelog" id="footer-link-changelog" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Changelog</Link></li>
+              <li><Link href="/releases" id="footer-link-releases" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Releases</Link></li>
+              <li><Link href="/roadmap" id="footer-link-roadmap" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Roadmap</Link></li>
+              <li><Link href="/faq" id="footer-link-faq" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">FAQ</Link></li>
             </ul>
           </div>
 
@@ -53,11 +53,11 @@ export function Footer() {
           <div className="space-y-4">
             <h5 className="font-mono text-[9px] uppercase tracking-wider text-[var(--text-tertiary)] font-semibold">Company</h5>
             <ul className="space-y-2.5">
-              <li><Link href="/about" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">About</Link></li>
-              <li><Link href="/blog" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Blog</Link></li>
-              <li><Link href="/contact" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Contact</Link></li>
-              <li><Link href="/community" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Community</Link></li>
-              <li><Link href="/beta" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Beta Program</Link></li>
+              <li><Link href="/about" id="footer-link-about" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">About</Link></li>
+              <li><Link href="/blog" id="footer-link-blog" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Blog</Link></li>
+              <li><Link href="/contact" id="footer-link-contact" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Contact</Link></li>
+              <li><Link href="/community" id="footer-link-community" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Community</Link></li>
+              <li><Link href="/beta" id="footer-link-beta" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Beta Program</Link></li>
             </ul>
           </div>
 
@@ -65,11 +65,11 @@ export function Footer() {
           <div className="space-y-4">
             <h5 className="font-mono text-[9px] uppercase tracking-wider text-[var(--text-tertiary)] font-semibold">Legal</h5>
             <ul className="space-y-2.5">
-              <li><Link href="/privacy" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Privacy</Link></li>
-              <li><Link href="/terms" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Terms</Link></li>
-              <li><Link href="/security" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Security</Link></li>
-              <li><Link href="/press" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Press Kit</Link></li>
-              <li><Link href="/brand" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Brand Assets</Link></li>
+              <li><Link href="/privacy" id="footer-link-privacy" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Privacy</Link></li>
+              <li><Link href="/terms" id="footer-link-terms" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Terms</Link></li>
+              <li><Link href="/security" id="footer-link-security" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Security</Link></li>
+              <li><Link href="/press" id="footer-link-press" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Press Kit</Link></li>
+              <li><Link href="/brand" id="footer-link-brand" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors duration-150">Brand Assets</Link></li>
             </ul>
           </div>
 

@@ -54,17 +54,17 @@ export default function AboutPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-4">
             <div className="space-y-2 border border-[var(--border-subtle)] rounded p-4 bg-[var(--card)]">
               <HardDrive className="h-4 w-4 text-[var(--primary)]" />
-              <h4 className="text-xs font-semibold text-[var(--foreground)]">Instant Speed</h4>
+              <h2 className="text-xs font-semibold text-[var(--foreground)]">Instant Speed</h2>
               <p className="text-[10px] leading-normal">Sub-millisecond query responses from local SQLite indexes instead of REST API trips.</p>
             </div>
             <div className="space-y-2 border border-[var(--border-subtle)] rounded p-4 bg-[var(--card)]">
               <EyeOff className="h-4 w-4 text-[var(--success)]" />
-              <h4 className="text-xs font-semibold text-[var(--foreground)]">Absolute Privacy</h4>
+              <h2 className="text-xs font-semibold text-[var(--foreground)]">Absolute Privacy</h2>
               <p className="text-[10px] leading-normal">No third-party trackers or multi-tenant database leaks. Your keys remain yours.</p>
             </div>
             <div className="space-y-2 border border-[var(--border-subtle)] rounded p-4 bg-[var(--card)]">
               <ShieldCheck className="h-4 w-4 text-[#5B8DEF]" />
-              <h4 className="text-xs font-semibold text-[var(--foreground)]">Direct Handshakes</h4>
+              <h2 className="text-xs font-semibold text-[var(--foreground)]">Direct Handshakes</h2>
               <p className="text-[10px] leading-normal">Direct TLS email deliveries from your client system to the mail server relay.</p>
             </div>
           </div>

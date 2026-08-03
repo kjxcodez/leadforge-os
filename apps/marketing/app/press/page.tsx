@@ -56,7 +56,7 @@ export default function PressPage() {
               <div className="p-2 rounded bg-[var(--background)] border border-[var(--border-subtle)] inline-block text-[var(--primary)]">
                 <Image className="h-5 w-5" />
               </div>
-              <h3 className="text-sm font-semibold text-[var(--foreground)]">Brand Logo Package</h3>
+              <h2 className="text-sm font-semibold text-[var(--foreground)]">Brand Logo Package</h2>
               <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
                 Contains SVG vector formats of the LeadForge logo (light, dark, monochrome) for media prints.
               </p>
@@ -75,7 +75,7 @@ export default function PressPage() {
               <div className="p-2 rounded bg-[var(--background)] border border-[var(--border-subtle)] inline-block text-[var(--primary)]">
                 <FileText className="h-5 w-5" />
               </div>
-              <h3 className="text-sm font-semibold text-[var(--foreground)]">Product Boilerplate</h3>
+              <h2 className="text-sm font-semibold text-[var(--foreground)]">Product Boilerplate</h2>
               <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
                 Summary details of the product architecture, developer guidelines, and company vision boilerplate.
               </p>
@@ -92,9 +92,9 @@ export default function PressPage() {
           
           {/* List of Facts */}
           <div className="md:col-span-2 space-y-4 text-left">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
               <FileCheck className="h-4.5 w-4.5 text-[var(--primary)]" /> Fact Sheet
-            </h3>
+            </h2>
             <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--card)]">
               <table className="w-full border-collapse text-xs text-left">
                 <tbody className="divide-y divide-[var(--border-subtle)] text-[var(--text-secondary)]">
@@ -112,9 +112,9 @@ export default function PressPage() {
           {/* Press Contact */}
           <div className="border border-[var(--border)] rounded-lg p-5 bg-[var(--card)] space-y-3.5 flex flex-col justify-between">
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-white flex items-center gap-1.5">
+              <h3 className="text-xs font-semibold text-white flex items-center gap-1.5">
                 <MessageSquare className="h-4 w-4 text-[var(--primary)]" /> Press Inquiries
-              </h4>
+              </h3>
               <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
                 For interview requests with the maintainers or questions about outbound security models, please open an issue in our repository.
               </p>

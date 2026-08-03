@@ -92,7 +92,7 @@ export default function ContactPage() {
               >
                 <CheckCircle2 className="h-10 w-10 text-[var(--success)] mx-auto" />
                 <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-[var(--foreground)]">Inquiry Received</h3>
+                  <h2 className="text-sm font-semibold text-[var(--foreground)]">Inquiry Received</h2>
                   <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed max-w-xs mx-auto">
                     We will get back to you shortly. You can also view active code updates in our GitHub repository.
                   </p>

@@ -41,7 +41,7 @@ export default function ApiDocsPage() {
 
         {/* Integration Code Block */}
         <motion.div variants={childVariants} className="border border-[var(--border)] rounded-lg p-5 bg-[var(--card)] space-y-4">
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">Direct SQLite Queries (Node.js)</h3>
+          <h2 className="text-sm font-semibold text-[var(--foreground)]">Direct SQLite Queries (Node.js)</h2>
           <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
             Because LeadForge OS saves CRM pipelines in simple SQLite databases, you can connect directly to your local file and run custom SQL scripts.
           </p>
@@ -61,7 +61,7 @@ export default function ApiDocsPage() {
         <motion.div variants={childVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="border border-[var(--border)] rounded-lg p-5 bg-[var(--card)] space-y-3">
             <BookOpen className="h-4.5 w-4.5 text-[var(--primary)]" />
-            <h4 className="text-xs font-semibold text-[var(--foreground)] font-mono">leads Table Schema</h4>
+            <h3 className="text-xs font-semibold text-[var(--foreground)] font-mono">leads Table Schema</h3>
             <ul className="text-xs text-[var(--text-secondary)] space-y-1.5 list-disc list-inside leading-relaxed">
               <li>`id` (TEXT, Primary Key)</li>
               <li>`name` (TEXT, Company name)</li>
@@ -73,7 +73,7 @@ export default function ApiDocsPage() {
 
           <div className="border border-[var(--border)] rounded-lg p-5 bg-[var(--card)] space-y-3">
             <Layers className="h-4.5 w-4.5 text-[var(--success)]" />
-            <h4 className="text-xs font-semibold text-[var(--foreground)] font-mono">campaigns Table Schema</h4>
+            <h3 className="text-xs font-semibold text-[var(--foreground)] font-mono">campaigns Table Schema</h3>
             <ul className="text-xs text-[var(--text-secondary)] space-y-1.5 list-disc list-inside leading-relaxed">
               <li>`id` (TEXT, Primary Key)</li>
               <li>`sender_id` (TEXT, SMTP relayer reference)</li>

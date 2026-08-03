@@ -129,7 +129,7 @@ export default function RoadmapPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-[var(--foreground)]">{milestone.title}</h3>
+                  <h2 className="text-sm font-semibold text-[var(--foreground)]">{milestone.title}</h2>
                   <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">{milestone.description}</p>
                 </div>
 

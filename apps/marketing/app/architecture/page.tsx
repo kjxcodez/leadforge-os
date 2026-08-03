@@ -147,7 +147,7 @@ export default function ArchitecturePage() {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Zap className="h-4.5 w-4.5 text-[var(--primary)]" />
-              <h3 className="text-sm font-semibold text-[var(--foreground)]">Why Desktop First?</h3>
+              <h2 className="text-sm font-semibold text-[var(--foreground)]">Why Desktop First?</h2>
             </div>
             <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
               Scraping google maps, scraping WHOIS directories, and crawling sites for contacts is highly CPU intensive. Cloud hosts charge premiums for this; your desktop runs it essentially free.
@@ -157,7 +157,7 @@ export default function ArchitecturePage() {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4.5 w-4.5 text-[var(--success)]" />
-              <h3 className="text-sm font-semibold text-[var(--foreground)]">Data Ownership</h3>
+              <h2 className="text-sm font-semibold text-[var(--foreground)]">Data Ownership</h2>
             </div>
             <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
               Your database sits directly in standard `.db` structures on your hard drive. Your SMTP password keys and target credentials are never sent to third-party databases.
@@ -167,7 +167,7 @@ export default function ArchitecturePage() {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Activity className="h-4.5 w-4.5 text-[#5B8DEF]" />
-              <h3 className="text-sm font-semibold text-[var(--foreground)]">Hybrid Synchronizer</h3>
+              <h2 className="text-sm font-semibold text-[var(--foreground)]">Hybrid Synchronizer</h2>
             </div>
             <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
               When online, the LeadForge Sync Engine handles remote outbound dispatch queue synchronizations. If you go offline, jobs pause locally and resume seamlessly without data losses.
