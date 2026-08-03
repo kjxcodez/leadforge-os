@@ -10,6 +10,7 @@ export default function BetaPage() {
   const [motivation, setMotivation] = useState("")
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -24,32 +25,36 @@ export default function BetaPage() {
     visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" as const } }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError(null)
     
-    setTimeout(() => {
-      // Persist the applicant data locally in the browser's context
-      const applicant = {
-        email,
-        platform,
-        motivation,
-        timestamp: new Date().toISOString()
-      }
+    const apiHost = process.env.NEXT_PUBLIC_API_URL || "https://api.leadforge.kapiljangid.pro"
+    const apiUrl = `${apiHost}/api/v1/beta-apply`
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ email, platform, motivation })
+      })
+      const data = await response.json()
       
-      try {
-        const stored = localStorage.getItem("leadforge_beta_applicants")
-        const list = stored ? JSON.parse(stored) : []
-        list.push(applicant)
-        localStorage.setItem("leadforge_beta_applicants", JSON.stringify(list))
-        console.log("New beta applicant registered:", applicant)
-      } catch (err) {
-        console.error("Failed to save beta application details:", err)
+      if (data.success) {
+        setSubmitted(true)
+      } else {
+        console.error("Failed to submit beta application:", data.error)
+        setError(data.error || "Failed to submit application. Please try again.")
       }
-      
+    } catch (err) {
+      console.error("Network error during beta application:", err)
+      setError("Network error: Please check your internet connection and try again.")
+    } finally {
       setLoading(false)
-      setSubmitted(true)
-    }, 1200)
+    }
   }
 
   return (
@@ -139,6 +144,12 @@ export default function BetaPage() {
                     </>
                   )}
                 </button>
+
+                {error && (
+                  <p className="text-[11px] text-red-500 text-center font-medium mt-2">
+                    {error}
+                  </p>
+                )}
               </motion.form>
             ) : (
               <motion.div 
