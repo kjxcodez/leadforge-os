@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Badge } from '../ui/badge';
 import { X, Plus, Tag as TagIcon } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -77,7 +77,7 @@ export function TagSystem({ tags, onChange, readOnly = false }: TagSystemProps) 
               </div>
               <button
                 onClick={handleCustomAdd}
-                className="w-full text-left text-xs px-1.5 py-1 rounded border border-dashed border-border-subtle hover:bg-sunken flex items-center gap-1 text-muted-foreground hover:text-foreground font-medium"
+                className="w-full text-left text-xs px-1.5 py-1 rounded border border-dashed border-border-subtle hover:bg-surface-3 flex items-center gap-1 text-muted-foreground hover:text-foreground font-medium"
               >
                 <Plus className="w-3 h-3" />
                 Add Custom...
