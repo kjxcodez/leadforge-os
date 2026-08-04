@@ -1,6 +1,7 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useSidebar } from '../ui/sidebar';
+import { motion } from 'framer-motion';
 import type { LucideIcon } from 'lucide-react';
 
 interface SidebarLinkProps {
@@ -10,18 +11,22 @@ interface SidebarLinkProps {
 }
 
 /**
- * SidebarLinks — nav item with active state and tooltip in collapsed mode.
+ * SidebarLinks — nav item with active state, animated indicator, and tooltip.
  *
  * Active state per DESIGN.md §5 Sidebar:
- *   - accent-muted (12% opacity orange) background
+ *   - accent-muted (12% opacity orange) background via layoutId sliding pill
  *   - 2px left border in primary (orange)
  *   - text-foreground label
  *
+ * The active background is a shared `layoutId="sidebar-pill"` Framer Motion
+ * element that slides smoothly between nav items on route change.
+ *
  * Inactive: text-muted-foreground, hover: text-foreground + surface-3 bg.
- * Transition: instant (100ms) per DESIGN.md §7.
  */
 const SidebarLinks = ({ to, label, Icon }: SidebarLinkProps) => {
   const { open } = useSidebar();
+  const location = useLocation();
+  const isActive = location.pathname === to || location.pathname.startsWith(to + '/');
 
   const navId = to.replace('/', 'nav-').replace(/^-/, '');
 
@@ -32,31 +37,42 @@ const SidebarLinks = ({ to, label, Icon }: SidebarLinkProps) => {
           key={to}
           to={to}
           id={navId}
-          className={({ isActive }) =>
+          className={({ isActive: linkActive }) =>
             [
-              'flex items-center gap-2.5 rounded-[--radius-md]',
+              'relative flex items-center gap-2.5',
               'text-[13px] font-medium',
               'transition-colors duration-[--duration-instant]',
               'outline-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-1',
-              isActive
-                ? [
-                    'bg-primary/12 border-l-2 border-primary text-foreground',
-                    'pl-[10px] pr-2.5 py-1.5' // 10px = 12px - 2px border compensation
-                  ].join(' ')
-                : [
-                    'text-muted-foreground hover:text-foreground hover:bg-surface-3',
-                    'px-2.5 py-1.5'
-                  ].join(' ')
+              linkActive
+                ? 'border-l-2 border-primary text-foreground pl-[10px] pr-2.5 py-1.5'
+                : 'text-muted-foreground hover:text-foreground px-2.5 py-1.5'
             ].join(' ')
           }
         >
-          <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
-          {open ? (
-            <span>{label}</span>
-          ) : (
-            <TooltipContent side="right">
-              <span>{label}</span>
-            </TooltipContent>
+          {({ isActive: linkActive }) => (
+            <>
+              {/* Animated sliding background pill */}
+              {linkActive && (
+                <motion.span
+                  layoutId="sidebar-pill"
+                  className="absolute inset-0 bg-primary/12"
+                  style={{ borderRadius: 0 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                />
+              )}
+              {/* Hover background for inactive items */}
+              {!linkActive && (
+                <span className="absolute inset-0 rounded-none bg-transparent hover:bg-surface-3 transition-colors duration-[--duration-instant]" />
+              )}
+              <Icon className="relative w-4 h-4 shrink-0 z-10" aria-hidden="true" />
+              {open ? (
+                <span className="relative z-10">{label}</span>
+              ) : (
+                <TooltipContent side="right">
+                  <span>{label}</span>
+                </TooltipContent>
+              )}
+            </>
           )}
         </NavLink>
       </TooltipTrigger>

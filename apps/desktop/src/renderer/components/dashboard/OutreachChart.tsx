@@ -108,9 +108,9 @@ export function OutreachChart({ data, isLoading, range, onRangeChange }: Outreac
 
       {/* Chart body */}
       {isLoading ? (
-        <Skeleton className="flex-1 w-full rounded-[--radius-md]" />
+        <Skeleton className="flex-1 w-full rounded-none" />
       ) : data.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center border border-dashed border-border-subtle rounded-[--radius-md] bg-surface-3/50">
+        <div className="flex-1 flex items-center justify-center border border-dashed border-border-subtle rounded-none bg-surface-3/50">
           <span className="text-muted-foreground text-[12px]">
             No activity logs found for this period.
           </span>
@@ -142,9 +142,9 @@ export function OutreachChart({ data, isLoading, range, onRangeChange }: Outreac
                 content={<ChartTooltipContent />}
                 cursor={{ fill: 'var(--surface-3)', opacity: 0.15 }}
               />
-              <Bar dataKey="executions" stackId="outreach" fill="var(--primary)" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="emailsSent" stackId="outreach" fill="var(--info)" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="contactsCreated" stackId="outreach" fill="var(--success)" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="executions" stackId="outreach" fill="var(--primary)" radius={[0, 0, 0, 0]} isAnimationActive animationDuration={700} animationEasing="ease-out" />
+              <Bar dataKey="emailsSent" stackId="outreach" fill="var(--info)" radius={[0, 0, 0, 0]} isAnimationActive animationDuration={800} animationEasing="ease-out" />
+              <Bar dataKey="contactsCreated" stackId="outreach" fill="var(--success)" radius={[2, 2, 0, 0]} isAnimationActive animationDuration={900} animationEasing="ease-out" />
             </BarChart>
           </ChartContainer>
         </div>

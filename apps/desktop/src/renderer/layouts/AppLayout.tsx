@@ -1,7 +1,7 @@
 import { useEffect, Suspense } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import { useWorkspace } from '../hooks/useWorkspace';
 import { Skeleton } from '../components/ui/skeleton';
@@ -19,11 +19,15 @@ import ProductTour from '../components/onboarding/ProductTour';
  *
  * Emits `electron:ready-to-show` when there is no active workspace (so the
  * window frame appears even before a workspace is selected).
+ *
+ * Route transitions: AnimatePresence (mode="wait") wraps each page in a
+ * 180ms fade + y-slide so navigation feels immediate and premium.
  */
 export function AppLayout() {
   const { activeWorkspace } = useWorkspace();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Redirect to onboarding if not completed
   useEffect(() => {
@@ -59,7 +63,12 @@ export function AppLayout() {
   if (!activeWorkspace) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background px-4">
-        <div className="w-full max-w-sm space-y-6 text-center border border-border-subtle p-8 rounded-[--radius-lg] bg-card">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+          className="w-full max-w-sm space-y-6 text-center border border-border-subtle p-8 rounded-none bg-card"
+        >
           <div className="space-y-1.5">
             <h2 className="text-lg font-semibold tracking-tight text-foreground">
               Create a workspace
@@ -69,7 +78,7 @@ export function AppLayout() {
             </p>
           </div>
           <CreateWorkspaceForm />
-        </div>
+        </motion.div>
       </div>
     );
   }
@@ -83,7 +92,18 @@ export function AppLayout() {
           <AppHeader />
           <main className="flex-1 overflow-y-auto p-4 max-h-[calc(100vh-44px)]">
             <Suspense fallback={<AppContentSkeleton />}>
-              <Outlet />
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={location.pathname}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+                  className="h-full"
+                >
+                  <Outlet />
+                </motion.div>
+              </AnimatePresence>
             </Suspense>
           </main>
         </SidebarInset>
@@ -99,12 +119,12 @@ function AppContentSkeleton() {
     <div className="space-y-4 p-2">
       <Skeleton className="h-6 w-1/3" />
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Skeleton className="h-20 rounded-[--radius-lg]" />
-        <Skeleton className="h-20 rounded-[--radius-lg]" />
-        <Skeleton className="h-20 rounded-[--radius-lg]" />
-        <Skeleton className="h-20 rounded-[--radius-lg]" />
+        <Skeleton className="h-20 rounded-none" />
+        <Skeleton className="h-20 rounded-none" />
+        <Skeleton className="h-20 rounded-none" />
+        <Skeleton className="h-20 rounded-none" />
       </div>
-      <Skeleton className="h-64 rounded-[--radius-lg]" />
+      <Skeleton className="h-64 rounded-none" />
     </div>
   );
 }
