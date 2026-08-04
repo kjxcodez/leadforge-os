@@ -1,4 +1,4 @@
-import { useEffect, Suspense } from 'react';
+import { useEffect, Suspense, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +10,8 @@ import AppHeader from './AppHeader';
 import { AppSidebar } from '../components/sidebar/AppSidebar';
 import { CreateWorkspaceForm } from '../components/workspace/CreateWorkspaceForm';
 import ProductTour from '../components/onboarding/ProductTour';
+import { CommandPalette } from '../components/common/CommandPalette';
+import { NotificationCenter } from '../components/common/NotificationCenter';
 
 /**
  * AppLayout — the authenticated application shell.
@@ -28,6 +30,7 @@ export function AppLayout() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   // Redirect to onboarding if not completed
   useEffect(() => {
@@ -89,7 +92,7 @@ export function AppLayout() {
         <AppSidebar activeWorkspace={activeWorkspace} />
 
         <SidebarInset className="flex flex-col min-w-0">
-          <AppHeader />
+          <AppHeader onOpenNotifications={() => setNotificationsOpen(true)} />
           <main className="flex-1 overflow-y-auto p-4 max-h-[calc(100vh-44px)]">
             <Suspense fallback={<AppContentSkeleton />}>
               <AnimatePresence mode="wait" initial={false}>
@@ -109,6 +112,8 @@ export function AppLayout() {
         </SidebarInset>
       </div>
       <ProductTour />
+      <CommandPalette />
+      <NotificationCenter isOpen={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
     </SidebarProvider>
   );
 }

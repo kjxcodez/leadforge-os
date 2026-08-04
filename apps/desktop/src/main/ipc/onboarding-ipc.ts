@@ -358,4 +358,24 @@ export function registerOnboardingIpc() {
 
     return { success: true };
   });
+
+  safeRegister('settings:get-all', async (_event, { workspaceId }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    const db = getDatabase(workspaceId);
+    const { decryptSecret } = require('../lib/crypto');
+
+    const rows = db.prepare('SELECT key, value FROM settings WHERE workspaceId = ?').all(workspaceId) as Array<{ key: string; value: string }>;
+    const settings: Record<string, string> = {};
+
+    for (const row of rows) {
+      try {
+        const isSecret = row.key === 'openrouter_key' || row.key.includes('password') || row.key.includes('li_at');
+        settings[row.key] = isSecret ? decryptSecret(row.value) : row.value;
+      } catch {
+        settings[row.key] = row.value; // Fallback to raw if decryption fails
+      }
+    }
+
+    return settings;
+  });
 }
