@@ -6,6 +6,7 @@ import Database from 'better-sqlite3';
 import { safeRegister } from './helper';
 import { getDatabase } from '../database/connection';
 import { randomUUID } from 'crypto';
+import { encryptSecret, decryptSecret } from '../lib/crypto';
 
 export function registerOnboardingIpc() {
   // ── Onboarding Diagnostics IPC ──────────────────────────────────────────
@@ -344,7 +345,6 @@ export function registerOnboardingIpc() {
     if (!key) throw new Error('key is required.');
 
     const db = getDatabase(workspaceId);
-    const { encryptSecret } = require('../lib/crypto');
     const encryptedValue =
       key === 'openrouter_key' || key.includes('password') ? encryptSecret(value) : value;
 
@@ -362,7 +362,6 @@ export function registerOnboardingIpc() {
   safeRegister('settings:get-all', async (_event, { workspaceId }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     const db = getDatabase(workspaceId);
-    const { decryptSecret } = require('../lib/crypto');
 
     const rows = db.prepare('SELECT key, value FROM settings WHERE workspaceId = ?').all(workspaceId) as Array<{ key: string; value: string }>;
     const settings: Record<string, string> = {};
