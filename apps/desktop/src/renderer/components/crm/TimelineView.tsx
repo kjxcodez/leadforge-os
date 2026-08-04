@@ -1,5 +1,6 @@
-﻿import React from 'react';
+import React from 'react';
 import { Calendar, MessageSquare, PlusCircle, CheckCircle, Info, Trash } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export interface TimelineEvent {
   id: string;
@@ -41,6 +42,7 @@ const EVENT_COLORS: Record<string, string> = {
 
 /**
  * TimelineView renders an audit trail timeline of workspace events and actions.
+ * Redesigned to use rounded-none, layout constraints and staggered framer-motion entrance animations.
  */
 export function TimelineView({ events, isLoading = false }: TimelineViewProps) {
   if (isLoading) {
@@ -49,7 +51,7 @@ export function TimelineView({ events, isLoading = false }: TimelineViewProps) {
 
   if (events.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 border border-dashed border-border-subtle rounded-xl text-center bg-surface-3/10">
+      <div className="flex flex-col items-center justify-center p-8 border border-dashed border-border-subtle rounded-none text-center bg-surface-3/10">
         <Calendar className="w-6 h-6 text-muted-foreground opacity-60 mb-2" />
         <p className="text-[10px] text-muted-foreground">No recent activity logs available.</p>
       </div>
@@ -57,30 +59,48 @@ export function TimelineView({ events, isLoading = false }: TimelineViewProps) {
   }
 
   return (
-    <div className="relative border-l border-border-subtle pl-4 ml-3 space-y-5 py-2">
+    <motion.div
+      className="relative border-l border-border-subtle pl-4 ml-3 space-y-5 py-2"
+      initial="hidden"
+      animate="visible"
+      variants={{
+        visible: {
+          transition: {
+            staggerChildren: 0.04
+          }
+        }
+      }}
+    >
       {events.map((event) => {
         const Icon = EVENT_ICONS[event.type] || Info;
         const colorClass =
           EVENT_COLORS[event.type] || 'bg-surface-3 text-muted-foreground border-border-subtle';
 
         return (
-          <div key={event.id} className="relative group">
+          <motion.div
+            key={event.id}
+            className="relative group"
+            variants={{
+              hidden: { opacity: 0, x: -8 },
+              visible: { opacity: 1, x: 0, transition: { duration: 0.2, ease: 'easeOut' } }
+            }}
+          >
             {/* Timeline bullet */}
             <div
-              className={`absolute -left-[27px] top-0.5 w-6 h-6 rounded-full border flex items-center justify-center ${colorClass} shadow-sm z-10`}
+              className={`absolute -left-[27px] top-0.5 w-6 h-6 rounded-none border flex items-center justify-center ${colorClass} shadow-sm z-10`}
             >
               <Icon className="w-3.5 h-3.5" />
             </div>
 
             <div className="space-y-1">
               <p className="text-xs text-foreground font-medium pr-10">{event.content}</p>
-              <span className="text-[9px] text-muted-foreground block">
+              <span className="text-[9px] text-muted-foreground block font-mono">
                 {new Date(event.createdAt).toLocaleString()}
               </span>
             </div>
-          </div>
+          </motion.div>
         );
       })}
-    </div>
+    </motion.div>
   );
 }

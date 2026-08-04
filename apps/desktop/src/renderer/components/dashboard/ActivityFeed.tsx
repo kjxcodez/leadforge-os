@@ -19,7 +19,13 @@ export function ActivityFeed({ events, isLoading }: ActivityFeedProps) {
         <h3 className="text-[11px] font-semibold uppercase tracking-[0.04em] text-foreground">
           Recent Activity
         </h3>
-        <span className="text-[10px] text-muted-foreground font-mono">Live Logs</span>
+        <div className="flex items-center gap-1.5">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-success"></span>
+          </span>
+          <span className="text-[10px] text-muted-foreground font-mono select-none">Live Logs</span>
+        </div>
       </div>
 
       {/* Content */}
