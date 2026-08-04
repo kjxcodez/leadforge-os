@@ -16,6 +16,7 @@ import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { PageHeader } from '../components/common/PageHeader';
 import { Label } from '../components/ui/label';
+import { Sheet, SheetContent } from '../components/ui/sheet';
 import {
   Building2,
   X,
@@ -421,9 +422,11 @@ export default function CompaniesScreen() {
       </div>
 
       {/* ── Slide-over Side Panel (Details) ───────────────────────────────── */}
-      {selectedCompany && (
-        <aside className="w-80 bg-card border border-border-subtle rounded-none p-4 space-y-5 flex flex-col h-full shadow-sm animate-in slide-in-from-right duration-200">
-          <div className="flex items-center justify-between border-b border-border-subtle pb-3">
+      <Sheet open={!!selectedCompany} onOpenChange={(open) => !open && setSelectedCompany(null)}>
+        <SheetContent side="right" showCloseButton={false} className="w-[420px] sm:max-w-[420px] bg-card border-l border-border-subtle rounded-none p-4 space-y-5 flex flex-col h-full shadow-elevation-2 select-none outline-none">
+          {selectedCompany && (
+            <>
+              <div className="flex items-center justify-between border-b border-border-subtle pb-3">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-none bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
                 <Building2 className="w-4 h-4" />
@@ -713,8 +716,10 @@ export default function CompaniesScreen() {
               </>
             )}
           </div>
-        </aside>
-      )}
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* ── Create / Edit Dialogs ────────────────────────────────────────── */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

@@ -20,6 +20,7 @@ import { Users, X, Mail, Phone, Briefcase, Linkedin } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { ContactStatus } from '@leadforge/schema';
 import { PageHeader } from '../components/common/PageHeader';
+import { Sheet, SheetContent } from '../components/ui/sheet';
 
 /**
  * ContactsScreen handles contact directory listing, side profile drawer,
@@ -443,9 +444,11 @@ export default function ContactsScreen() {
       </div>
 
       {/* ── Slide-over Side Panel (Details) ───────────────────────────────── */}
-      {selectedContact && (
-        <aside className="w-80 bg-card border border-border-subtle rounded-none p-4 space-y-5 flex flex-col h-full shadow-sm animate-in slide-in-from-right duration-200">
-          <div className="flex items-center justify-between border-b border-border-subtle pb-3">
+      <Sheet open={!!selectedContact} onOpenChange={(open) => !open && setSelectedContact(null)}>
+        <SheetContent side="right" showCloseButton={false} className="w-[420px] sm:max-w-[420px] bg-card border-l border-border-subtle rounded-none p-4 space-y-5 flex flex-col h-full shadow-elevation-2 select-none outline-none">
+          {selectedContact && (
+            <>
+              <div className="flex items-center justify-between border-b border-border-subtle pb-3">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-none bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
                 <Users className="w-4 h-4" />
@@ -575,8 +578,10 @@ export default function ContactsScreen() {
               />
             </div>
           </div>
-        </aside>
-      )}
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* ── Create / Edit Dialogs ────────────────────────────────────────── */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
