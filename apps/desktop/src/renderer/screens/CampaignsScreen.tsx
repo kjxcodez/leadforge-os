@@ -582,14 +582,22 @@ export default function CampaignsScreen() {
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <TableBody>
+                    <motion.tbody
+                      initial="hidden"
+                      animate="visible"
+                      variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+                    >
                       {paginatedCampaigns.map((camp: any) => {
                         const sequence = sequences.find((s: any) => s.id === camp.sequenceId);
                         const account = accounts.find((a: any) => a.id === camp.sendingAccountId);
                         return (
-                          <TableRow
+                          <motion.tr
                             key={camp.id}
-                            className="hover:bg-surface-3/10 cursor-pointer"
+                            variants={{
+                              hidden: { opacity: 0, y: 8 },
+                              visible: { opacity: 1, y: 0, transition: { duration: 0.18, ease: [0.4, 0, 0.2, 1] } }
+                            }}
+                            className="hover:bg-surface-3/10 cursor-pointer border-b border-border-subtle/50 text-xs"
                             onClick={() => {
                               setSelectedCampaignId(camp.id);
                               setEnrollmentPage(1);
@@ -670,10 +678,10 @@ export default function CampaignsScreen() {
                                 </Button>
                               </div>
                             </TableCell>
-                          </TableRow>
+                          </motion.tr>
                         );
                       })}
-                    </TableBody>
+                    </motion.tbody>
                   </Table>
                 </div>
               )}

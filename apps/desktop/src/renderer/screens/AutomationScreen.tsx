@@ -437,10 +437,19 @@ export default function AutomationScreen() {
                 <Zap className="h-4 w-4 text-primary" />
                 <span>Recent Sequences Templates</span>
               </h3>
-              <div className="divide-y divide-border-subtle/50">
+              <motion.div
+                className="divide-y divide-border-subtle/50"
+                initial="hidden"
+                animate="visible"
+                variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+              >
                 {seqsList.slice(0, 5).map((seq: any, idx) => (
-                  <div
+                  <motion.div
                     key={idx}
+                    variants={{
+                      hidden: { opacity: 0, x: -8 },
+                      visible: { opacity: 1, x: 0, transition: { duration: 0.16, ease: [0.4, 0, 0.2, 1] } }
+                    }}
                     className="py-2.5 flex justify-between items-center first:pt-0 last:pb-0"
                   >
                     <div>
@@ -450,14 +459,14 @@ export default function AutomationScreen() {
                     <Badge className={getBadgeClass(seq.status)}>
                       {seq.status}
                     </Badge>
-                  </div>
+                  </motion.div>
                 ))}
                 {seqsList.length === 0 && (
                   <p className="text-muted-foreground text-[11px] py-4 text-center">
                     No sequences template created yet.
                   </p>
                 )}
-              </div>
+              </motion.div>
             </div>
 
             <div className="bg-card border border-border-subtle rounded-none p-5 space-y-4">
@@ -465,10 +474,19 @@ export default function AutomationScreen() {
                 <Activity className="h-4 w-4 text-primary" />
                 <span>Latest Executions Activity</span>
               </h3>
-              <div className="divide-y divide-border-subtle/50">
+              <motion.div
+                className="divide-y divide-border-subtle/50"
+                initial="hidden"
+                animate="visible"
+                variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+              >
                 {execsList.slice(0, 5).map((exec: any, idx) => (
-                  <div
+                  <motion.div
                     key={idx}
+                    variants={{
+                      hidden: { opacity: 0, x: -8 },
+                      visible: { opacity: 1, x: 0, transition: { duration: 0.16, ease: [0.4, 0, 0.2, 1] } }
+                    }}
                     className="py-2.5 flex justify-between items-center first:pt-0 last:pb-0"
                   >
                     <div>
@@ -480,23 +498,35 @@ export default function AutomationScreen() {
                     <Badge className={getBadgeClass(exec.status)}>
                       {exec.status}
                     </Badge>
-                  </div>
+                  </motion.div>
                 ))}
                 {execsList.length === 0 && (
                   <p className="text-muted-foreground text-[11px] py-4 text-center">
                     No automation execution run activity found.
                   </p>
                 )}
-              </div>
+              </motion.div>
             </div>
           </div>
         </TabsContent>
 
         {/* ── TabsContent: Sequences List ───────────────────────────────────── */}
         <TabsContent value="sequences" className="space-y-4 mt-0">
-          <div className="bg-card border border-border-subtle rounded-none divide-y divide-border-subtle/50">
+          <motion.div
+            className="bg-card border border-border-subtle rounded-none divide-y divide-border-subtle/50"
+            initial="hidden"
+            animate="visible"
+            variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+          >
             {paginatedTemplates.map((seq: any, idx) => (
-              <div key={idx} className="p-4 flex justify-between items-start">
+              <motion.div
+                key={idx}
+                variants={{
+                  hidden: { opacity: 0, y: 8 },
+                  visible: { opacity: 1, y: 0, transition: { duration: 0.18, ease: [0.4, 0, 0.2, 1] } }
+                }}
+                className="p-4 flex justify-between items-start"
+              >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <h3 className="text-xs font-semibold text-foreground">{seq.name}</h3>
@@ -541,7 +571,7 @@ export default function AutomationScreen() {
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
-              </div>
+              </motion.div>
             ))}
             {seqsList.length === 0 && (
               <div className="p-12 text-center text-muted-foreground">
@@ -552,7 +582,7 @@ export default function AutomationScreen() {
                 </p>
               </div>
             )}
-          </div>
+          </motion.div>
 
           {/* Templates list pagination controls */}
           {totalTemplatesPages > 1 && (

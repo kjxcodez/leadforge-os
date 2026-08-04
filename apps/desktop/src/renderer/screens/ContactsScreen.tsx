@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useWorkspace } from '../hooks/useWorkspace';
+import { motion } from 'framer-motion';
 import { SyncContactRepository, SyncCompanyRepository } from '../repositories/sync';
 import {
   useEntityList,
@@ -260,14 +261,23 @@ export default function ContactsScreen() {
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border-subtle/50">
+                <motion.tbody
+                  className="divide-y divide-border-subtle/50"
+                  initial="hidden"
+                  animate="visible"
+                  variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
+                >
                   {paginatedContacts.map((item: any) => {
                     const isSelected = selectedIds.includes(item.id);
                     const isPanelSelected = selectedContact?.id === item.id;
 
                     return (
-                      <tr
+                      <motion.tr
                         key={item.id}
+                        variants={{
+                          hidden: { opacity: 0, y: 8 },
+                          visible: { opacity: 1, y: 0, transition: { duration: 0.18, ease: [0.4, 0, 0.2, 1] } }
+                        }}
                         onClick={() => setSelectedContact(item)}
                         className={`hover:bg-surface-3/45 cursor-pointer transition-colors ${
                           isPanelSelected ? 'bg-primary/12' : ''
@@ -329,10 +339,10 @@ export default function ContactsScreen() {
                             Delete
                           </Button>
                         </td>
-                      </tr>
+                      </motion.tr>
                     );
                   })}
-                </tbody>
+                </motion.tbody>
               </table>
             </div>
 

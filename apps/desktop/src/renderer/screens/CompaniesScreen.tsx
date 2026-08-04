@@ -248,14 +248,23 @@ export default function CompaniesScreen() {
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border-subtle/50">
+                <motion.tbody
+                  className="divide-y divide-border-subtle/50"
+                  initial="hidden"
+                  animate="visible"
+                  variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
+                >
                   {paginatedCompanies.map((item: any) => {
                     const isSelected = selectedIds.includes(item.id);
                     const isPanelSelected = selectedCompany?.id === item.id;
 
                     return (
-                      <tr
+                      <motion.tr
                         key={item.id}
+                        variants={{
+                          hidden: { opacity: 0, y: 8 },
+                          visible: { opacity: 1, y: 0, transition: { duration: 0.18, ease: [0.4, 0, 0.2, 1] } }
+                        }}
                         onClick={() => setSelectedCompany(item)}
                         className={`hover:bg-surface-3/45 cursor-pointer transition-colors ${
                           isPanelSelected ? 'bg-primary/12' : ''
@@ -308,10 +317,10 @@ export default function CompaniesScreen() {
                             Delete
                           </Button>
                         </td>
-                      </tr>
+                      </motion.tr>
                     );
                   })}
-                </tbody>
+                </motion.tbody>
               </table>
             </div>
 

@@ -357,7 +357,12 @@ export default function DiscoveryScreen() {
                             <th className="px-4 py-2.5 text-right">Actions</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-border-subtle/50">
+                        <motion.tbody
+                          className="divide-y divide-border-subtle/50"
+                          initial="hidden"
+                          animate="visible"
+                          variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
+                        >
                           <AnimatePresence initial={false}>
                             {paginatedResults.map((res) => {
                               const companyContacts = existingContacts.filter(
@@ -494,7 +499,7 @@ export default function DiscoveryScreen() {
                               );
                             })}
                           </AnimatePresence>
-                        </tbody>
+                        </motion.tbody>
                       </table>
                     </div>
 
