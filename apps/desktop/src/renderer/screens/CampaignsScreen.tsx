@@ -550,11 +550,20 @@ export default function CampaignsScreen() {
               </div>
 
               {campaigns.length === 0 ? (
-                <div className="h-[280px] flex items-center justify-center p-6 bg-card border border-border-subtle border-dashed rounded-none">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.25 }}
+                  className="h-[280px] flex items-center justify-center p-6 bg-card border border-border-subtle border-dashed rounded-none"
+                >
                   <div className="max-w-md w-full flex flex-col items-center text-center space-y-4">
-                    <div className="w-12 h-12 rounded-none bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                    <motion.div
+                      animate={{ y: [0, -6, 0] }}
+                      transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+                      className="w-12 h-12 rounded-none bg-primary/10 flex items-center justify-center text-primary border border-primary/20"
+                    >
                       <Megaphone className="h-6 w-6" />
-                    </div>
+                    </motion.div>
                     <div>
                       <h3 className="text-xs font-semibold text-foreground">No outbound campaigns launched</h3>
                       <p className="text-[10px] text-muted-foreground mt-1">
@@ -565,7 +574,7 @@ export default function CampaignsScreen() {
                       + Launch Campaign
                     </Button>
                   </div>
-                </div>
+                </motion.div>
               ) : (
                 <div className="bg-card border border-border-subtle rounded-none overflow-hidden shadow-sm flex flex-col justify-between">
                   <Table>
