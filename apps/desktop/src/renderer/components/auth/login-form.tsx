@@ -59,7 +59,7 @@ export function LoginForm({
         {error && (
           <div
             role="alert"
-            className="rounded-[--radius-md] border border-danger/20 bg-danger-muted px-3 py-2 text-[12px] font-medium text-danger text-center"
+            className="rounded-none border border-danger/20 bg-danger-muted px-3 py-2 text-[12px] font-medium text-danger text-center"
           >
             {error}
           </div>
@@ -80,6 +80,7 @@ export function LoginForm({
             disabled={isLoading}
             aria-invalid={!!errors.email}
             {...register('email')}
+            className="rounded-none"
           />
           {errors.email && (
             <p className="text-[11px] text-danger leading-none" role="alert">
@@ -104,6 +105,7 @@ export function LoginForm({
               disabled={isLoading}
               aria-invalid={!!errors.password}
               {...register('password')}
+              className="rounded-none"
             />
             <PasswordToggle
               show={showPassword}
@@ -129,7 +131,7 @@ export function LoginForm({
         </div>
 
         {/* Primary submit button — Forge Orange */}
-        <Button type="submit" disabled={isLoading} className="w-full" size="default">
+        <Button type="submit" disabled={isLoading} className="w-full rounded-none" size="default">
           {isLoading ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
