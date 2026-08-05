@@ -135,7 +135,13 @@ contextBridge.exposeInMainWorld('ipc', {
       'updater:download',
       'updater:install',
       'agent:execute',
-      'agent:workflow:execute'
+      'agent:workflow:execute',
+      'campaigns:enroll',
+      'campaigns:enrollments:list',
+      'campaigns:bulk-pause-enrollments',
+      'campaigns:bulk-resume-enrollments',
+      'campaigns:bulk-remove-enrollments',
+      'scheduler:queue:list'
     ];
     if (validChannels.includes(channel as string)) {
       return ipcRenderer.invoke(channel, payload);
