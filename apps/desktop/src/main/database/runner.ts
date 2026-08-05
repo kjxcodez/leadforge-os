@@ -663,6 +663,12 @@ export const MIGRATIONS: Migration[] = [
 
       CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_memory_key ON workspace_memory(workspaceId, scope, key);
     `
+  },
+  {
+    name: '025_add_contacts_tags',
+    up: `
+      ALTER TABLE contacts ADD COLUMN tags TEXT;
+    `
   }
 ];
 
