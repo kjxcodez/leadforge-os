@@ -58,9 +58,9 @@ jobs:
           echo "Version match verified: $PKG_VERSION == $TAG_VERSION"
 
       - name: Build Application
-        run: pnpm run build
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pnpm --filter=!@leadforge/desktop build
+          pnpm --filter=@leadforge/desktop run build --publish never
 
       - name: Generate Checksum Assets
         shell: bash
