@@ -1,5 +1,4 @@
 import Database from 'better-sqlite3';
-import { AppLogger } from '../lib/logger';
 import { AIRuntime, PromptsLibrary } from '@leadforge/ai';
 
 export interface CompanyIntelligence {
@@ -314,10 +313,8 @@ export class AIInsightGenerator {
           return result.data;
         }
       } catch (err) {
-        AppLogger.error(
-          'AIInsightGenerator',
-          'OpenRouter request failed, falling back to rule-based mock engine',
-          undefined,
+        console.error(
+          '[AIInsightGenerator] OpenRouter request failed, falling back to rule-based mock engine:',
           err
         );
       }
