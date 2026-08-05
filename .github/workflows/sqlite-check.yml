@@ -1,0 +1,50 @@
+name: SQLite Schema Check
+
+on:
+  pull_request:
+    paths:
+      - 'apps/desktop/src/main/database/**'
+      - 'scripts/verify-migrations.ts'
+      - '.github/workflows/sqlite-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify Migrations Integrity
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Get pnpm store directory
+        shell: bash
+        id: pnpm-cache
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Setup Cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify Migrations Run Cleanly
+        run: pnpm --filter @leadforge/desktop exec npx tsx ../../scripts/verify-migrations.ts

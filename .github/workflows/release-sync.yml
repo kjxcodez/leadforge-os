@@ -1,0 +1,42 @@
+name: Release Sync
+
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Sync Release Notes to Marketing
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run Releases Compilation
+        run: node scripts/generate-releases.mjs
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add apps/marketing/lib/generated-releases.ts
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: auto-sync github release list to marketing website"
+            git push origin main
+          else
+            echo "No changes in generated-releases.ts to commit."
+          fi
