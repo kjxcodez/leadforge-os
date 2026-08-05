@@ -128,11 +128,18 @@ export class SyncEngine {
       try {
         const campaigns = await this.sdk.campaigns.list();
         if (campaigns && campaigns.length) {
-          const records = campaigns.map((c: any) => ({
-            ...c,
-            workspaceId: this.workspaceId,
-            syncStatus: 'synced'
-          }));
+          const records = campaigns.map((c: any) => {
+            let status = c.status;
+            if (status) {
+              status = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+            }
+            return {
+              ...c,
+              status,
+              workspaceId: this.workspaceId,
+              syncStatus: 'synced'
+            };
+          });
           await LocalCRMRepository.saveMany('campaigns', records, true); // skipQueue = true
         }
       } catch (e) {
@@ -327,6 +334,11 @@ export class SyncEngine {
     for (const item of pendingItems) {
       try {
         const payload = JSON.parse(item.payload || '{}');
+
+        // Map local campaign status casing to server uppercase requirements
+        if (item.entityType === 'campaigns' && payload.status) {
+          payload.status = payload.status.toUpperCase();
+        }
 
         // Resolve SDK module dynamically
         const clientModule = this.resolveSdkModule(item.entityType);

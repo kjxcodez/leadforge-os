@@ -8,17 +8,12 @@ const emptyToNull = (val: unknown) => {
   return val;
 };
 
-export const objectIdField = z.string().regex(/^[0-9a-fA-F]{24}$/, {
-  message: 'Invalid ObjectId format'
-});
+export const objectIdField = z.string().min(1, 'ID is required');
 
 // Nullable variant that accepts empty strings (coerces them to null)
 export const objectIdFieldNullable = z.preprocess(
   emptyToNull,
-  z
-    .string()
-    .regex(/^[0-9a-fA-F]{24}$/, { message: 'Invalid ObjectId format' })
-    .nullable()
+  z.string().nullable()
 );
 
 export const emailField = z.string().email({ message: 'Invalid email address' });

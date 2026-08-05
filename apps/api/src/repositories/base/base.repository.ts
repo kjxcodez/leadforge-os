@@ -8,11 +8,13 @@ import {
 
 type FilterQuery<T> = any;
 
-export class BaseRepository<T extends Document> {
+export class BaseRepository<T extends Document<any>> {
   constructor(
     protected model: Model<T>,
     protected workspaceId?: string
   ) {}
+
+
 
   /**
    * Translates mongoose exceptions to domain errors.
@@ -86,6 +88,9 @@ export class BaseRepository<T extends Document> {
   public async create(data: Partial<T> | any, session?: ClientSession): Promise<T> {
     try {
       const payload = this.workspaceId ? { ...data, workspaceId: this.workspaceId } : data;
+      if (payload.id && !payload._id) {
+        payload._id = payload.id;
+      }
       const doc = new this.model(payload);
 
       const saveOptions = session ? { session } : {};

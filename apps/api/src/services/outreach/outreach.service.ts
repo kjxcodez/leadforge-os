@@ -16,7 +16,8 @@ export class OutreachService {
    * Encrypts SMTP App Password and saves the email account to the workspace database.
    */
   public async createEmailAccount(data: any): Promise<EmailAccountDocument> {
-    const encrypted = encrypt(data.password);
+    const rawPassword = data.password || data.smtpPassword || data.imapPassword || '';
+    const encrypted = encrypt(rawPassword);
 
     if (data.isDefault) {
       await EmailAccountModel.updateMany({ workspaceId: this.workspaceId } as any, {
@@ -25,6 +26,7 @@ export class OutreachService {
     }
 
     const account = new EmailAccountModel({
+      _id: data.id || data._id || undefined,
       workspaceId: this.workspaceId as any,
       name: data.name,
       email: data.email,
@@ -93,6 +95,7 @@ export class OutreachService {
     const variables = Array.from(new Set([...bodyVars, ...subjectVars]));
 
     const template = new EmailTemplateModel({
+      _id: data.id || data._id || undefined,
       workspaceId: new mongoose.Types.ObjectId(this.workspaceId),
       name: data.name,
       subject: data.subject,

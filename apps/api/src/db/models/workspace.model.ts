@@ -21,7 +21,8 @@ export interface WorkspaceMember {
 }
 
 export interface WorkspaceDocument
-  extends mongoose.Document, SoftDeleteDocument, AuditDocument, TimestampDocument {
+  extends mongoose.Document<any>, SoftDeleteDocument, AuditDocument, TimestampDocument {
+  _id: string;
   name: string;
   slug: string;
   ownerId: string;
@@ -39,6 +40,10 @@ export interface WorkspaceDocument
 
 const workspaceSchema = new Schema<WorkspaceDocument>(
   {
+    _id: {
+      type: String,
+      default: () => new mongoose.Types.ObjectId().toString()
+    },
     name: {
       type: String,
       required: true,

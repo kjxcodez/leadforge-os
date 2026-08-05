@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export interface BetaApplicantDocument extends Document {
+export interface BetaApplicantDocument extends Document<any> {
+  _id: string;
   email: string;
   platform: 'win' | 'mac-arm' | 'mac-intel' | 'linux';
   motivation: string;
@@ -9,6 +10,10 @@ export interface BetaApplicantDocument extends Document {
 
 const BetaApplicantSchema = new Schema<BetaApplicantDocument>(
   {
+    _id: {
+      type: String,
+      default: () => new mongoose.Types.ObjectId().toString()
+    },
     email: { 
       type: String, 
       required: true, 

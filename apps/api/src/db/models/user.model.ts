@@ -9,7 +9,8 @@ import {
 } from '../plugins/index.js';
 
 export interface UserDocument
-  extends mongoose.Document, SoftDeleteDocument, AuditDocument, TimestampDocument {
+  extends mongoose.Document<any>, SoftDeleteDocument, AuditDocument, TimestampDocument {
+  _id: string;
   email: string;
   passwordHash?: string | null;
   name: string;
@@ -25,6 +26,10 @@ export interface UserDocument
 
 const userSchema = new Schema<UserDocument>(
   {
+    _id: {
+      type: String,
+      default: () => new mongoose.Types.ObjectId().toString()
+    },
     email: {
       type: String,
       required: true,

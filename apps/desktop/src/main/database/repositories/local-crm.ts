@@ -131,7 +131,21 @@ export const LocalCRMRepository = {
       const operation = existing ? 'UPDATE' : 'CREATE';
 
       // 2. Perform write on target table
-      db.prepare(query).run(...params);
+      if (existing) {
+        const updateColumns = columns.filter((c) => c !== 'id');
+        const setClause = updateColumns.map((c) => `${c} = ?`).join(', ');
+        const updateQuery = `UPDATE ${tableName} SET ${setClause} WHERE id = ?`;
+        const updateParams = updateColumns.map((col) => {
+          const val = record[col];
+          if (val instanceof Date) return val.toISOString();
+          if (typeof val === 'object' && val !== null) return JSON.stringify(val);
+          return val;
+        });
+        updateParams.push(record.id);
+        db.prepare(updateQuery).run(...updateParams);
+      } else {
+        db.prepare(query).run(...params);
+      }
 
       // 3. Queue offline mutation task if this is a syncable crm table
       const syncableTables = [
@@ -218,7 +232,12 @@ export const LocalCRMRepository = {
     const placeholders = columns.map(() => '?').join(', ');
     const query = `INSERT OR REPLACE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
 
+    const updateColumns = columns.filter((c) => c !== 'id');
+    const setClause = updateColumns.map((c) => `${c} = ?`).join(', ');
+    const updateQuery = `UPDATE ${tableName} SET ${setClause} WHERE id = ?`;
+
     const statement = db.prepare(query);
+    const updateStatement = db.prepare(updateQuery);
     const checkStmt = db.prepare(`SELECT * FROM ${tableName} WHERE id = ?`);
     const insertSyncQueue = db.prepare(`
       INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
@@ -237,17 +256,31 @@ export const LocalCRMRepository = {
 
     const transaction = db.transaction((list: any[]) => {
       for (const item of list) {
-        const params = columns.map((col) => {
-          const val = item[col];
-          if (val instanceof Date) return val.toISOString();
-          if (typeof val === 'object' && val !== null) return JSON.stringify(val);
-          return val;
-        });
-
         const existing = checkStmt.get(item.id) as any;
         const operation = existing ? 'UPDATE' : 'CREATE';
 
-        statement.run(...params);
+        if (existing) {
+          // Prevent remote sync from overwriting local changes still queued to upload
+          if (existing.syncStatus === 'pending') {
+            continue;
+          }
+          const updateParams = updateColumns.map((col) => {
+            const val = item[col];
+            if (val instanceof Date) return val.toISOString();
+            if (typeof val === 'object' && val !== null) return JSON.stringify(val);
+            return val;
+          });
+          updateParams.push(item.id);
+          updateStatement.run(...updateParams);
+        } else {
+          const params = columns.map((col) => {
+            const val = item[col];
+            if (val instanceof Date) return val.toISOString();
+            if (typeof val === 'object' && val !== null) return JSON.stringify(val);
+            return val;
+          });
+          statement.run(...params);
+        }
 
         if (!skipQueue && syncableTables.includes(tableName)) {
           insertSyncQueue.run(
