@@ -58,20 +58,26 @@ export class OutreachService {
   }
 
   public async deleteEmailAccount(id: string): Promise<void> {
-    await EmailAccountModel.findOneAndDelete({
-      _id: id,
-      workspaceId: this.workspaceId
-    } as any);
+    const filter: any = { workspaceId: this.workspaceId };
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      filter.$or = [{ _id: id }, { _id: new mongoose.Types.ObjectId(id) }];
+    } else {
+      filter._id = id;
+    }
+    await EmailAccountModel.findOneAndDelete(filter);
   }
 
   /**
    * Simulates SMTP credential validation.
    */
   public async testConnection(id: string): Promise<boolean> {
-    const acc = await EmailAccountModel.findOne({
-      _id: id,
-      workspaceId: this.workspaceId
-    } as any);
+    const filter: any = { workspaceId: this.workspaceId };
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      filter.$or = [{ _id: id }, { _id: new mongoose.Types.ObjectId(id) }];
+    } else {
+      filter._id = id;
+    }
+    const acc = await EmailAccountModel.findOne(filter);
 
     if (!acc) throw new Error('Email Account not found.');
 

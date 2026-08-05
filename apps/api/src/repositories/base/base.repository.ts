@@ -1,4 +1,4 @@
-import { type Model, type Document, type ClientSession } from 'mongoose';
+import mongoose, { type Model, type Document, type ClientSession } from 'mongoose';
 import {
   NotFoundError,
   ConflictError,
@@ -13,6 +13,16 @@ export class BaseRepository<T extends Document> {
     protected model: Model<T>,
     protected workspaceId?: string
   ) {}
+
+  /**
+   * Generates a query filter that works for both String and ObjectId identifiers.
+   */
+  protected normalizeIdFilter(id: string): any {
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      return { $or: [{ _id: id }, { _id: new mongoose.Types.ObjectId(id) }] };
+    }
+    return { _id: id };
+  }
 
   /**
    * Translates mongoose exceptions to domain errors.
@@ -45,7 +55,7 @@ export class BaseRepository<T extends Document> {
 
   public async findById(id: string, session?: ClientSession): Promise<T> {
     try {
-      const filter = this.applyScope({ _id: id } as any);
+      const filter = this.applyScope(this.normalizeIdFilter(id));
       const doc = await this.model.findOne(filter).session(session || null);
       if (!doc) {
         throw new NotFoundError(`Resource with id ${id} not found.`);
@@ -105,7 +115,7 @@ export class BaseRepository<T extends Document> {
     session?: ClientSession
   ): Promise<T> {
     try {
-      const filter = this.applyScope({ _id: id } as any);
+      const filter = this.applyScope(this.normalizeIdFilter(id));
       const options: any = { new: true, runValidators: true };
       if (session) {
         options.session = session;
@@ -129,7 +139,7 @@ export class BaseRepository<T extends Document> {
 
   public async delete(id: string, session?: ClientSession): Promise<boolean> {
     try {
-      const filter = this.applyScope({ _id: id } as any);
+      const filter = this.applyScope(this.normalizeIdFilter(id));
       const doc = await this.model.findOne(filter).session(session || null);
       if (!doc) {
         throw new NotFoundError(`Resource with id ${id} not found.`);
@@ -140,7 +150,8 @@ export class BaseRepository<T extends Document> {
         return true;
       }
 
-      const result = await this.model.deleteOne({ _id: id } as any).session(session || null);
+      const deleteFilter = this.normalizeIdFilter(id);
+      const result = await this.model.deleteOne(deleteFilter).session(session || null);
       return result.deletedCount > 0;
     } catch (error) {
       if (error instanceof NotFoundError) throw error;
