@@ -2,6 +2,26 @@
 
 All notable changes to LeadForge OS will be documented in this file.
 
+## [1.0.0-beta.3] - 2026-08-05
+
+### Added
+- **Interactive Auth UI**: Implemented `AuthLayout` with an interactive, animated background component for premium visual aesthetics.
+- **Lead Intelligence Engine**: Built the intelligence engine for deep analysis, scoring, and automated insight generation for leads.
+- **Forgot Password & Email Verification Flows**: Integrated secure forgotten password and verification email flows, with manual check actions and session polling to auto-unblock verified users.
+- **Design System Email Templates**: Upgraded all system email templates and hosted pages to match the `DESIGN.md` guidelines.
+
+### Fixed
+- **Campaign & Sequence Execution**: Resolved the crash when loading sequence step counts when online by checking the type of `sequence.steps` before parsing.
+- **SQLite Schema Migration (`tags` column)**: Added migration `025_add_contacts_tags` to alter and add the missing `tags` column to the `contacts` table, resolving worker execution boot crashes.
+- **SMTP Credentials & Sender Decryption**: Updated automation worker's email sender step to resolve campaign-specific sending accounts, retrieve SMTP connection credentials, and decrypt SMTP passwords using Electron's `decryptSecret` tool.
+- **Unified String/UUID Identifiers**: Standardized client-provided UUID string identifiers across all workspace-scoped models, reverted temporary casting bypasses, and added conflict protection for local-to-cloud pull synchronization.
+- **Pre-Encrypted Password Support**: Handled sync payloads with pre-encrypted credentials and preserved local-only credentials in SQLite by switching from REPLACE to standard UPDATE queries.
+- **Campaign Status Casing**: Mapped campaign status casing between local SQLite (capitalized) and remote API (uppercase) during sync.
+- **Observability Metrics RangeError**: Bound the `type` parameter when executing the `getAvgDuration` prepared query inside `observability-ipc.ts`.
+- **Operations Center List Rendering**: Selected both `j.id` and `j.id as jobId` in the scheduler queue list IPC query to support both the Operations Center list view and CRM QueueMonitor component.
+- **Preload Script Whitelist**: Whitelisted missing `campaigns`, `scheduler`, `auth:forgot-password`, and `auth:resend-verification` IPC channels in the preload script.
+- **Windows Silent Installer**: Resolved Windows silent installer execution blockages and throttled download progress IPC updates to improve auto-updater performance.
+
 ## [1.0.0-beta.2] - 2026-08-05
 
 ### Added
