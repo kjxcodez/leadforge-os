@@ -109,6 +109,21 @@ export function useAuth() {
     }
   };
 
+  /**
+   * refreshSession silently re-fetches the current session from the main process
+   * and updates the auth store without a full page reload. Returns true if the
+   * session is verified, false otherwise. Used by VerifyEmailScreen to detect
+   * when emailVerified has flipped to true server-side.
+   */
+  const refreshSession = async (): Promise<boolean> => {
+    const result = await AuthService.restoreSession();
+    if (result) {
+      setAuthenticated(result.user, result.token);
+      return result.user?.emailVerified === true;
+    }
+    return false;
+  };
+
   return {
     // State
     user: state.user,
@@ -123,6 +138,7 @@ export function useAuth() {
     register,
     logout,
     restoreSession,
+    refreshSession,
     clearError
   };
 }
