@@ -914,7 +914,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         `Automation workflow: sequence "${sequenceId}" not found in workspace "${ctx.workspaceId}".`
       );
     }
-    if (sequence.status !== 'active') {
+    if (sequence.status?.toLowerCase() !== 'active') {
       throw new Error(
         `Automation workflow: sequence "${sequence.name}" is not active (status: "${sequence.status}").`
       );
