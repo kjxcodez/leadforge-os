@@ -289,7 +289,7 @@ export function registerObservabilityIpc() {
         WHERE type = ? AND status = 'completed' AND durationMs IS NOT NULL
       `
         )
-        .get() as any;
+        .get(type) as any;
       return Math.round(row?.avgVal || 0);
     };
 
