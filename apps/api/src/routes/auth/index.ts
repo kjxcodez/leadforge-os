@@ -307,196 +307,308 @@ router.openapi(resendVerificationRoute, async (c) => {
   }
 });
 
-// GET /reset-password-form - serves the reset password HTML form
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared HTML page shell — all hosted pages use this for consistency.
+// Uses exact DESIGN.md tokens.
+// ─────────────────────────────────────────────────────────────────────────────
+function pageShell(title: string, body: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${title} — LeadForge OS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-base:      #0A0A0B;
+      --bg-surface-1: #131316;
+      --bg-surface-2: #1B1B1F;
+      --border-subtle: #232327;
+      --border-default: #2E2E33;
+      --accent:       #E8622C;
+      --accent-hover: #F17441;
+      --text-primary: #F4F4F5;
+      --text-secondary: #A3A3AB;
+      --text-tertiary: #6E6E76;
+      --text-on-accent: #0A0A0B;
+      --success:      #3FB27F;
+      --danger:       #E24C4B;
+      --font: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+      --mono: 'JetBrains Mono', 'Menlo', monospace;
+    }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: var(--font);
+      background-color: var(--bg-base);
+      color: var(--text-secondary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 16px;
+    }
+
+    /* Wordmark */
+    .wordmark {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      margin-bottom: 32px;
+      user-select: none;
+    }
+    .wordmark em {
+      font-style: normal;
+      color: var(--accent);
+    }
+
+    /* Card */
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background-color: var(--bg-surface-1);
+      border: 1px solid var(--border-default);
+      border-radius: 12px;
+      padding: 40px;
+    }
+
+    /* Typography */
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      line-height: 28px;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 14px;
+      line-height: 22px;
+      color: var(--text-secondary);
+      margin-bottom: 32px;
+    }
+
+    /* Form elements */
+    .field { margin-bottom: 20px; }
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      margin-bottom: 6px;
+    }
+    input[type="password"] {
+      width: 100%;
+      height: 40px;
+      padding: 0 14px;
+      background-color: var(--bg-base);
+      border: 1px solid var(--border-default);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-family: var(--font);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 120ms ease;
+      -webkit-appearance: none;
+    }
+    input[type="password"]:focus { border-color: var(--accent); }
+    input[type="password"]::placeholder { color: var(--text-tertiary); }
+
+    /* Primary button */
+    .btn {
+      display: block;
+      width: 100%;
+      height: 44px;
+      padding: 0 16px;
+      background-color: var(--accent);
+      color: var(--text-on-accent);
+      border: none;
+      border-radius: 8px;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: -0.01em;
+      transition: background-color 120ms ease;
+      margin-top: 8px;
+    }
+    .btn:hover { background-color: var(--accent-hover); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Error message */
+    .error-msg {
+      display: none;
+      font-size: 12px;
+      color: var(--danger);
+      margin-top: 10px;
+      line-height: 18px;
+    }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background-color: var(--border-subtle);
+      margin: 28px 0;
+    }
+
+    /* Icon box */
+    .icon-box {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px auto;
+      font-size: 20px;
+      font-weight: 600;
+    }
+    .icon-box.success {
+      background-color: rgba(63, 178, 127, 0.12);
+      border: 1px solid rgba(63, 178, 127, 0.25);
+      color: var(--success);
+    }
+    .icon-box.danger {
+      background-color: rgba(226, 76, 75, 0.12);
+      border: 1px solid rgba(226, 76, 75, 0.25);
+      color: var(--danger);
+    }
+
+    /* Caption */
+    .caption {
+      font-size: 12px;
+      line-height: 18px;
+      color: var(--text-tertiary);
+    }
+    .mono {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-tertiary);
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <div class="wordmark">LEAD<em>FORGE</em> OS</div>
+  <div class="card">
+    ${body}
+  </div>
+</body>
+</html>`;
+}
+
+// GET /reset-password-form — serves the reset password HTML form
 router.get('/reset-password-form', (c) => {
   const token = c.req.query('token') || '';
+
   if (!token) {
-    return c.html(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Error - LeadForge OS</title>
-        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
-        <style>
-          body { font-family: 'Outfit', sans-serif; background-color: #0c0a09; color: #e7e5e4; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-          .card { background-color: #1c1917; border: 1px solid #2e2a24; padding: 40px; text-align: center; }
-          h2 { color: #ef4444; margin-top: 0; }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <h2>Invalid Link</h2>
-          <p>This password reset link is invalid or expired.</p>
-        </div>
-      </body>
-      </html>
-    `, 400);
+    return c.html(pageShell('Invalid Link', `
+      <div class="icon-box danger">✕</div>
+      <h1 style="text-align:center;">Invalid link</h1>
+      <p class="subtitle" style="text-align:center;">
+        This password reset link is invalid or has expired.
+        Request a new one from the desktop app.
+      </p>
+    `), 400);
   }
 
-  return c.html(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>Reset Password - LeadForge OS</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
-      <style>
-        body { font-family: 'Outfit', sans-serif; background-color: #0c0a09; color: #e7e5e4; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; box-sizing: border-box; margin: 0; }
-        .card { width: 100%; max-width: 400px; background-color: #1c1917; border: 1px solid #2e2a24; padding: 40px; box-sizing: border-box; }
-        .logo { font-size: 24px; font-weight: 800; color: #ffffff; margin-bottom: 32px; letter-spacing: -0.03em; text-align: center; }
-        h2 { font-size: 18px; font-weight: 700; color: #ffffff; margin-top: 0; margin-bottom: 8px; }
-        p.desc { font-size: 12px; color: #a8a29e; margin-top: 0; margin-bottom: 24px; line-height: 1.6; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; font-size: 11px; text-transform: uppercase; font-weight: 600; color: #78716c; margin-bottom: 6px; letter-spacing: 0.05em; }
-        input { width: 100%; background-color: #0c0a09; border: 1px solid #2e2a24; color: #ffffff; padding: 10px 14px; font-size: 13px; font-family: inherit; box-sizing: border-box; outline: none; transition: border-color 0.15s ease; }
-        input:focus { border-color: #f5f5f4; }
-        button { width: 100%; background-color: #f5f5f4; color: #0c0a09; border: none; padding: 12px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background-color 0.15s ease; }
-        button:hover { background-color: #e7e5e4; }
-        .error-msg { font-size: 11px; color: #ef4444; margin-top: 12px; display: none; text-align: center; }
-      </style>
-    </head>
-    <body>
-      <div class="card">
-        <div class="logo">LEADFORGE OS</div>
-        <h2>Reset Password</h2>
-        <p class="desc">Please enter your new password below. It must be at least 6 characters long.</p>
-        <form action="/api/v1/auth/reset-password-submit" method="POST" onsubmit="return validateForm()">
-          <input type="hidden" name="token" value="${token}" />
-          <div class="form-group">
-            <label for="newPassword">New Password</label>
-            <input type="password" id="newPassword" name="newPassword" required minlength="6" autofocus />
-          </div>
-          <div class="form-group">
-            <label for="confirmPassword">Confirm Password</label>
-            <input type="password" id="confirmPassword" required minlength="6" />
-          </div>
-          <button type="submit">Update Password</button>
-          <div id="error" class="error-msg">Passwords do not match.</div>
-        </form>
+  return c.html(pageShell('Reset Password', `
+    <h1>Reset password</h1>
+    <p class="subtitle">Enter a new password below. Minimum 8 characters.</p>
+
+    <form action="/api/v1/auth/reset-password-submit" method="POST"
+          onsubmit="return validate()" autocomplete="off">
+      <input type="hidden" name="token" value="${token}" />
+
+      <div class="field">
+        <label for="newPassword">New password</label>
+        <input type="password" id="newPassword" name="newPassword"
+               required minlength="8" autofocus placeholder="At least 8 characters" />
       </div>
-      <script>
-        function validateForm() {
-          var pass = document.getElementById('newPassword').value;
-          var conf = document.getElementById('confirmPassword').value;
-          var err = document.getElementById('error');
-          if (pass !== conf) {
-            err.style.display = 'block';
-            return false;
-          }
-          err.style.display = 'none';
-          return true;
-        }
-      </script>
-    </body>
-    </html>
-  `);
+      <div class="field">
+        <label for="confirmPassword">Confirm new password</label>
+        <input type="password" id="confirmPassword" required minlength="8"
+               placeholder="Repeat your password" />
+      </div>
+
+      <p id="errMsg" class="error-msg">Passwords do not match.</p>
+      <button type="submit" class="btn" id="submitBtn">Update password</button>
+    </form>
+
+    <script>
+      function validate() {
+        var p = document.getElementById('newPassword').value;
+        var c = document.getElementById('confirmPassword').value;
+        var e = document.getElementById('errMsg');
+        if (p !== c) { e.style.display = 'block'; return false; }
+        e.style.display = 'none';
+        document.getElementById('submitBtn').disabled = true;
+        document.getElementById('submitBtn').textContent = 'Updating…';
+        return true;
+      }
+    </script>
+  `));
 });
 
-// POST /reset-password-submit - handles password reset form submission
+// POST /reset-password-submit — processes the reset form
 router.post('/reset-password-submit', async (c) => {
   try {
     const body = await c.req.parseBody();
     const token = body.token as string;
     const newPassword = body.newPassword as string;
 
-    if (!token || !newPassword) {
-      throw new Error('Token and password are required.');
-    }
+    if (!token || !newPassword) throw new Error('Token and password are required.');
 
     await auth.api.resetPassword({
-      body: {
-        token,
-        newPassword
-      },
+      body: { token, newPassword },
       headers: c.req.raw.headers
     });
 
-    return c.html(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Success - LeadForge OS</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
-        <style>
-          body { font-family: 'Outfit', sans-serif; background-color: #0c0a09; color: #e7e5e4; margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; box-sizing: border-box; }
-          .card { width: 100%; max-width: 400px; background-color: #1c1917; border: 1px solid #2e2a24; padding: 40px; box-sizing: border-box; text-align: center; }
-          .logo { font-size: 24px; font-weight: 800; color: #ffffff; margin-bottom: 32px; letter-spacing: -0.03em; }
-          .icon-box { width: 48px; height: 48px; background-color: #14532d; border: 1px solid #166534; color: #4ade80; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px auto; font-size: 24px; font-weight: bold; }
-          h2 { font-size: 18px; font-weight: 700; color: #ffffff; margin-top: 0; margin-bottom: 12px; }
-          p { font-size: 13px; color: #a8a29e; line-height: 1.6; margin-top: 0; margin-bottom: 24px; }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <div class="logo">LEADFORGE OS</div>
-          <div class="icon-box">✓</div>
-          <h2>Password Updated</h2>
-          <p>Your password has been reset successfully.</p>
-          <div style="font-size: 11px; color: #78716c;">You can now close this window and log in on the desktop app.</div>
-        </div>
-      </body>
-      </html>
-    `);
+    return c.html(pageShell('Password Updated', `
+      <div class="icon-box success">✓</div>
+      <h1 style="text-align:center;">Password updated</h1>
+      <p class="subtitle" style="text-align:center;">
+        Your password has been reset. You can now sign in on the desktop app
+        with your new password.
+      </p>
+      <div class="divider"></div>
+      <p class="caption" style="text-align:center;">You can close this window.</p>
+    `));
   } catch (err: any) {
-    console.error('[DEBUG] Hono Auth reset-password-submit caught error:', err);
-    return c.html(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Error - LeadForge OS</title>
-        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
-        <style>
-          body { font-family: 'Outfit', sans-serif; background-color: #0c0a09; color: #e7e5e4; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-          .card { background-color: #1c1917; border: 1px solid #2e2a24; padding: 40px; text-align: center; }
-          h2 { color: #ef4444; margin-top: 0; }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <h2>Reset Failed</h2>
-          <p>${err.message || 'An error occurred during password reset.'}</p>
-        </div>
-      </body>
-      </html>
-    `, 400);
+    console.error('[Auth] reset-password-submit error:', err);
+    return c.html(pageShell('Reset Failed', `
+      <div class="icon-box danger">✕</div>
+      <h1 style="text-align:center;">Reset failed</h1>
+      <p class="subtitle" style="text-align:center;">
+        ${err.message || 'An error occurred while resetting your password.'}
+        The link may have expired — request a new one from the desktop app.
+      </p>
+    `), 400);
   }
 });
 
-// GET /verify-success - serves verification success page
+// GET /verify-success — shown after Better Auth processes the verification link
 router.get('/verify-success', (c) => {
-  return c.html(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>Email Verified - LeadForge OS</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
-      <style>
-        body { font-family: 'Outfit', sans-serif; background-color: #0c0a09; color: #e7e5e4; margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; box-sizing: border-box; }
-        .card { width: 100%; max-width: 400px; background-color: #1c1917; border: 1px solid #2e2a24; padding: 40px; box-sizing: border-box; text-align: center; }
-        .logo { font-size: 24px; font-weight: 800; color: #ffffff; margin-bottom: 32px; letter-spacing: -0.03em; }
-        .icon-box { width: 48px; height: 48px; background-color: #14532d; border: 1px solid #166534; color: #4ade80; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px auto; font-size: 24px; font-weight: bold; }
-        h2 { font-size: 18px; font-weight: 700; color: #ffffff; margin-top: 0; margin-bottom: 12px; }
-        p { font-size: 13px; color: #a8a29e; line-height: 1.6; margin-top: 0; margin-bottom: 24px; }
-      </style>
-    </head>
-    <body>
-      <div class="card">
-        <div class="logo">LEADFORGE OS</div>
-        <div class="icon-box">✓</div>
-        <h2>Email Verified</h2>
-        <p>Your email address has been verified successfully.</p>
-        <div style="font-size: 11px; color: #78716c;">You can now close this window and log in on the desktop app.</div>
-      </div>
-    </body>
-    </html>
-  `);
+  return c.html(pageShell('Email Verified', `
+    <div class="icon-box success">✓</div>
+    <h1 style="text-align:center;">Email verified</h1>
+    <p class="subtitle" style="text-align:center;">
+      Your email address has been confirmed. Your LeadForge OS account is now active.
+    </p>
+    <div class="divider"></div>
+    <p class="caption" style="text-align:center;">
+      Open the desktop app, click <strong style="color: #F4F4F5; font-weight: 500;">
+      "I've verified my email"</strong>, and you'll be signed in automatically.
+    </p>
+  `));
 });
 
 // Wildcard routing to support direct Better Auth client SDK requests
