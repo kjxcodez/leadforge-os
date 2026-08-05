@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('ipc', {
       'auth:register',
       'auth:logout',
       'auth:session',
+      'auth:forgot-password',
+      'auth:resend-verification',
       'workspaces:create',
       'workspaces:list',
       'workspaces:update',
