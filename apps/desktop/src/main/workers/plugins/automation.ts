@@ -3,7 +3,16 @@ import { randomUUID } from 'crypto';
 import nodemailer from 'nodemailer';
 import { AIRuntime, PromptsLibrary } from '@leadforge/ai';
 import type { JobContext } from '../../../shared/types/job';
-import { decryptSecret } from '../../lib/crypto';
+
+function decryptSecretFallback(val: string): string {
+  if (!val) return '';
+  if (val.startsWith('_enc_base64:')) {
+    // Cannot decrypt in worker process because Electron safeStorage is unavailable.
+    // Must rely on Main process passing decrypted secrets in ctx.payload._secrets.
+    return '';
+  }
+  return val;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1871,7 +1880,7 @@ async function handleSendEmailStep(
   let accountPassword = '';
   if (account?.smtpPassword) {
     try {
-      accountPassword = decryptSecret(account.smtpPassword);
+      accountPassword = decryptSecretFallback(account.smtpPassword);
     } catch {
       accountPassword = account.smtpPassword;
     }
