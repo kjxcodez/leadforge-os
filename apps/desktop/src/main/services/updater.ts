@@ -1,7 +1,6 @@
-import { app, ipcMain } from 'electron';
+import { app, ipcMain, shell } from 'electron';
 import { join } from 'path';
 import { existsSync, mkdirSync, createWriteStream, unlinkSync } from 'fs';
-import { spawn } from 'child_process';
 import crypto from 'crypto';
 import { AppLogger } from '../lib/logger';
 import { loadConfig } from '../lib/config';
@@ -336,6 +335,7 @@ export class UpdateManager {
       if (!reader) throw new Error('ReadableStream not supported.');
 
       let receivedBytes = 0;
+      let lastProgress = -1;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -343,8 +343,12 @@ export class UpdateManager {
         fileStream.write(value);
         receivedBytes += value.length;
         if (contentLength > 0) {
-          this.progress = Math.round((receivedBytes / contentLength) * 100);
-          this.notifyRenderer();
+          const currentProgress = Math.round((receivedBytes / contentLength) * 100);
+          if (currentProgress !== lastProgress) {
+            lastProgress = currentProgress;
+            this.progress = currentProgress;
+            this.notifyRenderer();
+          }
         }
       }
       fileStream.end();
@@ -434,11 +438,13 @@ export class UpdateManager {
 
     const platform = process.platform;
     if (platform === 'win32') {
-      spawn(this.downloadedFilePath, ['/S'], {
-        detached: true,
-        stdio: 'ignore'
-      }).unref();
-      app.quit();
+      shell.openPath(this.downloadedFilePath).then((err) => {
+        if (err) {
+          AppLogger.error('Updater', `Failed to open installer path: ${err}`, undefined);
+        } else {
+          app.quit();
+        }
+      });
     } else {
       AppLogger.warn(
         'Updater',
