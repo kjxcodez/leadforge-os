@@ -9,6 +9,7 @@ import {
 import { usePermissions } from '../hooks/usePermissions';
 import { UserAvatar } from '../components/ui/UserAvatar';
 import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
 import { RenameWorkspaceDialog, DeleteWorkspaceDialog } from '../components/ui/WorkspaceDialogs';
 import {
   InviteMemberDialog,
@@ -22,17 +23,24 @@ import {
   UserPlus,
   LogOut,
   ArrowLeftRight,
-  Key,
   CheckCircle,
   AlertCircle,
   RefreshCw,
   Linkedin,
   Sparkles
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { PageHeader } from '../components/common/PageHeader';
 
 /**
  * WorkspaceSettingsScreen enables team management, invitation oversight,
  * role adjustments, ownership transfer, and workspace settings updates.
+ *
+ * Design updates:
+ *   - Unified PageHeader integration.
+ *   - Squared borders (rounded-none on cards, dialogs, inputs, buttons, and badges).
+ *   - Theme variables synchronization (primary, success, warning, danger).
+ *   - Removed raw alert calls, substituted with premium sonner toasts.
  */
 export default function WorkspaceSettingsScreen() {
   const { activeWorkspace } = useWorkspace();
@@ -55,19 +63,29 @@ export default function WorkspaceSettingsScreen() {
 
   if (!activeWorkspace) {
     return (
-      <div className="flex h-full items-center justify-center p-6 text-muted-foreground text-xs">
+      <div className="flex h-full items-center justify-center p-6 text-muted-foreground text-xs font-sans">
         No active workspace selected.
       </div>
     );
   }
 
   const handleRoleChange = async (memberId: string, newRole: string) => {
-    await updateRoleMutation.mutateAsync({ memberId, role: newRole as WorkspaceRole });
+    try {
+      await updateRoleMutation.mutateAsync({ memberId, role: newRole as WorkspaceRole });
+      toast.success('Role updated successfully.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update role.');
+    }
   };
 
   const handleRemove = async (memberId: string) => {
     if (confirm('Are you sure you want to remove this member from the workspace?')) {
-      await removeMemberMutation.mutateAsync(memberId);
+      try {
+        await removeMemberMutation.mutateAsync(memberId);
+        toast.success('Member removed.');
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to remove member.');
+      }
     }
   };
 
@@ -77,17 +95,14 @@ export default function WorkspaceSettingsScreen() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 p-6 font-sans">
-      {/* Header */}
-      <div className="border-b border-border-subtle pb-5">
-        <h1 className="text-xl font-bold tracking-tight text-foreground">Workspace Settings</h1>
-        <p className="text-xs text-muted-foreground mt-1">
-          Manage your workspace details, invites, and team permissions.
-        </p>
-      </div>
+    <div className="max-w-4xl mx-auto space-y-8 p-6 font-sans text-xs h-full overflow-y-auto pr-1 select-none">
+      <PageHeader
+        title="Workspace Settings"
+        description="Manage your workspace details, invites, and team permissions."
+      />
 
       {/* ── SECTION 1: General Details ──────────────────────────────────── */}
-      <div className="bg-card border border-border-subtle rounded-xl p-5 space-y-4">
+      <div className="bg-card border border-border-subtle rounded-none p-5 space-y-4 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-semibold text-foreground">General</h2>
@@ -96,7 +111,7 @@ export default function WorkspaceSettingsScreen() {
             </p>
           </div>
           {isAdmin && (
-            <Button variant="outline" size="sm" onClick={() => setRenameOpen(true)}>
+            <Button variant="outline" size="sm" onClick={() => setRenameOpen(true)} className="rounded-none h-8 text-[11px] font-semibold">
               Rename
             </Button>
           )}
@@ -107,7 +122,7 @@ export default function WorkspaceSettingsScreen() {
             <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
               Workspace Name
             </span>
-            <p className="text-xs font-medium text-foreground">{activeWorkspace.name}</p>
+            <p className="text-xs font-semibold text-foreground">{activeWorkspace.name}</p>
           </div>
           <div className="space-y-1">
             <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
@@ -118,15 +133,15 @@ export default function WorkspaceSettingsScreen() {
         </div>
       </div>
 
-      {/* ── SECTION 2: Members Management ──────────────────────────────── */}
-      <div className="bg-card border border-border-subtle rounded-xl p-5 space-y-4">
+      {/* ── SECTION 2: Workspace Members ──────────────────────────────── */}
+      <div className="bg-card border border-border-subtle rounded-none p-5 space-y-4 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-semibold text-foreground">Workspace Members</h2>
             <p className="text-xs text-muted-foreground mt-0.5">Collaborators in this workspace.</p>
           </div>
           {isAdmin && (
-            <Button size="sm" onClick={() => setInviteOpen(true)} className="gap-1">
+            <Button size="sm" onClick={() => setInviteOpen(true)} className="gap-1 rounded-none h-8 text-[11px] font-semibold">
               <UserPlus className="w-3.5 h-3.5" />
               <span>Invite Member</span>
             </Button>
@@ -141,26 +156,25 @@ export default function WorkspaceSettingsScreen() {
             {((membersQuery.data as WorkspaceMember[]) || []).map((m) => {
               const emailStr = m.email || '';
               const memberName = emailStr.split('@')[0] || 'User';
-              const isSelf = m.userId === activeWorkspace.ownerId; // placeholder check
 
               return (
                 <div
                   key={m.id || m.userId || m.email}
-                  className="flex items-center justify-between py-3"
+                  className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
                 >
                   <div className="flex items-center gap-3">
                     <UserAvatar initials={memberName.substring(0, 2).toUpperCase()} size="sm" />
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-medium text-foreground">{m.email}</span>
+                        <span className="text-xs font-semibold text-foreground">{m.email}</span>
                         {m.status === WorkspaceMemberStatus.PENDING && (
-                          <span className="px-1.5 py-0.5 rounded bg-warning-bg text-warning-text text-[9px] font-bold">
+                          <Badge className="bg-warning-muted text-warning border border-warning/20 text-[9px] font-bold rounded-none">
                             Pending
-                          </span>
+                          </Badge>
                         )}
                       </div>
-                      <span className="text-[10px] text-muted-foreground">
-                        Joined {m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : 'N/A'}
+                      <span className="text-[10px] text-muted-foreground mt-0.5 block font-mono">
+                        Joined {m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : '—'}
                       </span>
                     </div>
                   </div>
@@ -171,7 +185,7 @@ export default function WorkspaceSettingsScreen() {
                       <select
                         value={m.role}
                         onChange={(e) => handleRoleChange(m.userId || m.id || '', e.target.value)}
-                        className="bg-sunken border border-border rounded px-2 py-1 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="bg-surface-3 border border-border-subtle rounded-none px-2 py-1 h-8 text-[11px] text-foreground focus-visible:outline-none font-semibold"
                       >
                         <option value={WorkspaceRole.MEMBER}>Member</option>
                         <option value={WorkspaceRole.ADMIN}>Admin</option>
@@ -179,7 +193,7 @@ export default function WorkspaceSettingsScreen() {
                         <option value={WorkspaceRole.BILLING}>Billing</option>
                       </select>
                     ) : (
-                      <span className="text-[10px] font-bold text-muted-foreground px-2 py-0.5 border border-border rounded bg-sunken">
+                      <span className="text-[10px] font-bold text-muted-foreground px-2.5 py-1 border border-border-subtle rounded-none bg-surface-3 font-mono">
                         {m.role}
                       </span>
                     )}
@@ -189,23 +203,25 @@ export default function WorkspaceSettingsScreen() {
                       m.role !== WorkspaceRole.OWNER &&
                       m.status === WorkspaceMemberStatus.ACTIVE && (
                         <Button
+                          type="button"
                           variant="ghost"
-                          size="icon-sm"
+                          className="h-8 w-8 p-0 rounded-none text-muted-foreground hover:text-foreground"
                           title="Transfer Ownership"
                           onClick={() => startTransfer(m.userId || '', m.email)}
                         >
-                          <ArrowLeftRight className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
+                          <ArrowLeftRight className="w-3.5 h-3.5" />
                         </Button>
                       )}
 
                     {/* Remove member button */}
                     {isAdmin && m.role !== WorkspaceRole.OWNER && (
                       <Button
+                        type="button"
                         variant="ghost"
-                        size="icon-sm"
+                        className="h-8 w-8 p-0 rounded-none text-danger hover:bg-danger-muted"
                         onClick={() => handleRemove(m.userId || m.id || '')}
                       >
-                        <Trash2 className="w-3.5 h-3.5 text-danger-text" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     )}
                   </div>
@@ -223,10 +239,10 @@ export default function WorkspaceSettingsScreen() {
       <AutoUpdateSection />
 
       {/* ── SECTION 3.6: Onboarding & Interactive Guides ──────────────── */}
-      <div className="bg-card border border-border-subtle rounded-xl p-5 space-y-4">
+      <div className="bg-card border border-border-subtle rounded-none p-5 space-y-4 shadow-sm">
         <div>
           <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-accent" />
+            <Sparkles className="w-4 h-4 text-primary" />
             <span>Interactive Guides & Onboarding</span>
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -235,7 +251,7 @@ export default function WorkspaceSettingsScreen() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-          <div className="flex items-center justify-between border border-border rounded-lg p-3 bg-sunken/15">
+          <div className="flex items-center justify-between border border-border-subtle rounded-none p-3 bg-surface-3/30">
             <div>
               <p className="text-xs font-semibold text-foreground">Interactive Product Tour</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -243,8 +259,10 @@ export default function WorkspaceSettingsScreen() {
               </p>
             </div>
             <Button
+              type="button"
               size="sm"
               variant="outline"
+              className="rounded-none text-[10px] h-8 font-semibold"
               onClick={() => {
                 localStorage.setItem('product_tour_active', 'true');
                 navigate('/');
@@ -254,7 +272,7 @@ export default function WorkspaceSettingsScreen() {
             </Button>
           </div>
 
-          <div className="flex items-center justify-between border border-border rounded-lg p-3 bg-sunken/15">
+          <div className="flex items-center justify-between border border-border-subtle rounded-none p-3 bg-surface-3/30">
             <div>
               <p className="text-xs font-semibold text-foreground">Workspace Setup Wizard</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -262,8 +280,10 @@ export default function WorkspaceSettingsScreen() {
               </p>
             </div>
             <Button
+              type="button"
               size="sm"
               variant="outline"
+              className="rounded-none text-[10px] h-8 font-semibold"
               onClick={() => {
                 localStorage.removeItem('onboarding_completed');
                 navigate('/onboarding');
@@ -276,10 +296,10 @@ export default function WorkspaceSettingsScreen() {
       </div>
 
       {/* ── SECTION 4: Danger Zone ────────────────────────────────────── */}
-      <div className="bg-card border border-destructive/20 rounded-xl p-5 space-y-4">
+      <div className="bg-card border border-danger/20 rounded-none p-5 space-y-4 shadow-sm">
         <div>
-          <h2 className="text-sm font-semibold text-danger-text flex items-center gap-1.5">
-            <ShieldAlert className="w-4 h-4 text-danger-text" />
+          <h2 className="text-sm font-semibold text-danger flex items-center gap-1.5">
+            <ShieldAlert className="w-4 h-4 text-danger animate-pulse" />
             <span>Danger Zone</span>
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">Irreversible workspace settings.</p>
@@ -287,7 +307,7 @@ export default function WorkspaceSettingsScreen() {
 
         <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-between">
           {!isOwner && (
-            <div className="flex items-center justify-between w-full border border-border rounded-lg p-3 bg-sunken/45">
+            <div className="flex items-center justify-between w-full border border-border-subtle rounded-none p-3 bg-surface-3/45">
               <div>
                 <p className="text-xs font-semibold text-foreground">Leave Workspace</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -295,10 +315,11 @@ export default function WorkspaceSettingsScreen() {
                 </p>
               </div>
               <Button
+                type="button"
                 variant="destructive"
                 size="sm"
                 onClick={() => setLeaveOpen(true)}
-                className="gap-1"
+                className="gap-1 rounded-none h-8 text-[11px]"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Leave</span>
@@ -307,14 +328,14 @@ export default function WorkspaceSettingsScreen() {
           )}
 
           {isOwner && (
-            <div className="flex items-center justify-between w-full border border-destructive/20 rounded-lg p-3 bg-destructive/[0.02]">
+            <div className="flex items-center justify-between w-full border border-danger/25 rounded-none p-3 bg-danger/[0.02]">
               <div>
-                <p className="text-xs font-semibold text-danger-text">Delete Workspace</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
+                <p className="text-xs font-semibold text-danger">Delete Workspace</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5 font-medium leading-normal">
                   Permanently delete this workspace and all associated CRM data.
                 </p>
               </div>
-              <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
+              <Button type="button" variant="destructive" size="sm" onClick={() => setDeleteOpen(true)} className="rounded-none h-8 text-[11px]">
                 Delete Workspace
               </Button>
             </div>
@@ -406,8 +427,9 @@ function LinkedInIntegrationCard({ workspaceId }: { workspaceId: string }) {
       setCookie('');
       setTestResult(null);
       await fetchStatus();
+      toast.success('LinkedIn cookie saved successfully.');
     } catch (err: any) {
-      alert(`Failed to save cookie: ${err.message || err}`);
+      toast.error(`Failed to save cookie: ${err.message || err}`);
     } finally {
       setSaving(false);
     }
@@ -420,34 +442,40 @@ function LinkedInIntegrationCard({ workspaceId }: { workspaceId: string }) {
       const payload = cookie.trim() ? { cookie: cookie.trim() } : {};
       const res = await window.ipc.invoke('linkedin:validate', payload);
       setTestResult(res);
+      if (res.valid) {
+        toast.success('Session connection validated successfully!');
+      } else {
+        toast.error('LinkedIn session validation failed.');
+      }
     } catch (err: any) {
       setTestResult({ valid: false, message: `Test error: ${err.message || err}` });
+      toast.error(`Test failed: ${err.message}`);
     } finally {
       setTesting(false);
     }
   };
 
   return (
-    <div className="bg-card border border-border-subtle rounded-xl p-5 space-y-4">
+    <div className="bg-card border border-border-subtle rounded-none p-5 space-y-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <Linkedin className="w-4 h-4 text-blue-400" />
+            <Linkedin className="w-4 h-4 text-[#0077b5]" />
             <span>LinkedIn Executive Enrichment</span>
           </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
             Store your LinkedIn session cookie (
-            <code className="font-mono text-[10px] bg-sunken px-1 py-0.5 rounded">li_at</code>) to
+            <code className="font-mono text-[10px] bg-surface-3 px-1.5 py-0.5 rounded-none border border-border-subtle/40">li_at</code>) to
             automatically scrape executive decision-makers (CEOs, VPs, Directors).
           </p>
         </div>
         <div>
           {status.configured ? (
-            <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold flex items-center gap-1">
+            <span className="px-2 py-0.5 rounded-none bg-success-muted text-success border border-success/20 text-[10px] font-bold flex items-center gap-1">
               <CheckCircle className="w-3 h-3" /> Configured ({status.preview})
             </span>
           ) : (
-            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+            <span className="px-2 py-0.5 rounded-none bg-warning-muted text-warning border border-warning/20 text-[10px] font-bold">
               Not Configured
             </span>
           )}
@@ -473,18 +501,19 @@ function LinkedInIntegrationCard({ workspaceId }: { workspaceId: string }) {
               }
               value={cookie}
               onChange={(e) => setCookie(e.target.value)}
-              className="flex-1 bg-sunken border border-border rounded px-3 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="flex-1 bg-surface-3 border border-border-subtle rounded-none px-3 py-1.5 text-xs font-mono text-foreground focus-visible:outline-none focus:border-primary"
             />
             <Button
               type="button"
               variant="outline"
               size="sm"
+              className="rounded-none h-8 font-semibold text-[11px]"
               onClick={handleTest}
               disabled={testing}
             >
               {testing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Test Cookie'}
             </Button>
-            <Button type="submit" size="sm" disabled={saving || !cookie.trim()}>
+            <Button type="submit" size="sm" className="rounded-none h-8 font-semibold text-[11px]" disabled={saving || !cookie.trim()}>
               {saving ? 'Saving...' : 'Save Cookie'}
             </Button>
           </div>
@@ -492,10 +521,10 @@ function LinkedInIntegrationCard({ workspaceId }: { workspaceId: string }) {
 
         {testResult && (
           <div
-            className={`p-3 rounded-lg border text-xs flex items-start gap-2 ${
+            className={`p-3 rounded-none border text-xs flex items-start gap-2 ${
               testResult.valid
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                : 'bg-destructive/10 text-destructive border-destructive/20'
+                ? 'bg-success-muted text-success border-success/20'
+                : 'bg-danger-muted text-danger border-danger/20'
             }`}
           >
             {testResult.valid ? (
@@ -504,27 +533,27 @@ function LinkedInIntegrationCard({ workspaceId }: { workspaceId: string }) {
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             )}
             <div>
-              <div className="font-semibold">
+              <div className="font-bold">
                 {testResult.valid ? 'Session Active' : 'Validation Failed'}
               </div>
-              <div className="text-[11px] opacity-90">{testResult.message}</div>
+              <div className="text-[11px] opacity-90 leading-relaxed font-mono">{testResult.message}</div>
             </div>
           </div>
         )}
 
-        <div className="bg-sunken/40 border border-border-subtle rounded-lg p-3 text-[10px] text-muted-foreground space-y-1">
-          <div className="font-semibold text-foreground flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-accent" />
+        <div className="bg-surface-3/45 border border-border-subtle rounded-none p-3 text-[10px] text-muted-foreground space-y-1">
+          <div className="font-bold text-foreground flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-primary animate-pulse" />
             How to get your li_at cookie:
           </div>
           <div>1. Log into LinkedIn in Google Chrome or Edge</div>
           <div>
-            2. Press <code className="font-mono bg-sunken px-1 rounded text-foreground">F12</code> →
+            2. Press <code className="font-mono bg-surface-3 px-1.5 py-0.5 text-foreground rounded-none border border-border-subtle/50">F12</code> →
             Open <strong>Application</strong> tab → <strong>Cookies</strong> →{' '}
-            <code className="font-mono text-foreground">https://www.linkedin.com</code>
+            <code className="font-mono text-foreground font-semibold">https://www.linkedin.com</code>
           </div>
           <div>
-            3. Find <code className="font-mono bg-sunken px-1 rounded text-foreground">li_at</code>{' '}
+            3. Find <code className="font-mono bg-surface-3 px-1.5 py-0.5 text-foreground rounded-none border border-border-subtle/50">li_at</code>{' '}
             → Copy the Cookie Value → Paste here
           </div>
         </div>
@@ -568,13 +597,13 @@ function AutoUpdateSection() {
     try {
       const res = await window.ipc.invoke('updater:check', undefined);
       if (res.updateAvailable) {
-        alert(`Update v${res.version} is available!`);
+        toast.success(`Update v${res.version} is available!`);
       } else {
-        alert('You are already running the latest version.');
+        toast.info('You are already running the latest version.');
       }
       await fetchStatus();
     } catch (err: any) {
-      alert(`Check failed: ${err.message || err}`);
+      toast.error(`Check failed: ${err.message || err}`);
     } finally {
       setChecking(false);
     }
@@ -585,8 +614,9 @@ function AutoUpdateSection() {
     try {
       await window.ipc.invoke('updater:download', undefined);
       await fetchStatus();
+      toast.success('Downloading update...');
     } catch (err: any) {
-      alert(`Download failed: ${err.message || err}`);
+      toast.error(`Download failed: ${err.message || err}`);
     } finally {
       setDownloading(false);
     }
@@ -596,15 +626,15 @@ function AutoUpdateSection() {
     try {
       await window.ipc.invoke('updater:install', undefined);
     } catch (err: any) {
-      alert(`Installation failed: ${err.message || err}`);
+      toast.error(`Installation failed: ${err.message || err}`);
     }
   };
 
   return (
-    <div className="bg-card border border-border-subtle rounded-xl p-5 space-y-4">
+    <div className="bg-card border border-border-subtle rounded-none p-5 space-y-4 shadow-sm">
       <div>
         <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <RefreshCw className="w-4 h-4 text-accent" />
+          <RefreshCw className="w-4 h-4 text-primary" />
           <span>Application Updates</span>
         </h2>
         <p className="text-xs text-muted-foreground mt-0.5">
@@ -617,7 +647,7 @@ function AutoUpdateSection() {
           <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
             Current Version
           </span>
-          <p className="text-xs font-semibold text-foreground">v{status.currentVersion}</p>
+          <p className="text-xs font-semibold text-foreground font-mono">v{status.currentVersion}</p>
         </div>
         <div className="space-y-1">
           <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
@@ -629,23 +659,23 @@ function AutoUpdateSection() {
           <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
             Updater Status
           </span>
-          <p className="text-xs font-semibold text-foreground capitalize">{status.status}</p>
+          <p className="text-xs font-semibold text-foreground capitalize font-mono">{status.status}</p>
         </div>
       </div>
 
       {status.status === 'available' && (
-        <div className="bg-accent/5 border border-accent/15 rounded-lg p-3 text-xs flex items-center justify-between">
+        <div className="bg-primary/[0.02] border border-primary/20 rounded-none p-3 text-xs flex items-center justify-between shadow-inner">
           <div>
-            <div className="font-semibold text-foreground">
+            <div className="font-bold text-foreground">
               New Version Available: v{status.availableVersion}
             </div>
             {status.releaseNotes && (
-              <div className="text-[10px] text-muted-foreground mt-1 line-clamp-2">
+              <div className="text-[10px] text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
                 {status.releaseNotes}
               </div>
             )}
           </div>
-          <Button size="sm" onClick={handleDownload} disabled={downloading}>
+          <Button size="sm" className="rounded-none text-[10px]" onClick={handleDownload} disabled={downloading}>
             {downloading ? 'Downloading...' : 'Download Update'}
           </Button>
         </div>
@@ -655,11 +685,11 @@ function AutoUpdateSection() {
         <div className="space-y-1">
           <div className="flex justify-between text-xs font-bold text-muted-foreground">
             <span>Downloading Update...</span>
-            <span>{status.progress}%</span>
+            <span className="font-mono">{status.progress}%</span>
           </div>
-          <div className="w-full bg-sunken rounded-full h-1.5 overflow-hidden">
+          <div className="w-full bg-surface-3 rounded-none h-1.5 overflow-hidden">
             <div
-              className="bg-accent h-1.5 transition-all duration-300"
+              className="bg-primary h-1.5 transition-all duration-300"
               style={{ width: `${status.progress}%` }}
             ></div>
           </div>
@@ -667,17 +697,18 @@ function AutoUpdateSection() {
       )}
 
       {status.status === 'ready' && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-xs flex items-center justify-between">
+        <div className="bg-success-muted border border-success/20 rounded-none p-3 text-xs flex items-center justify-between shadow-inner">
           <div>
-            <div className="font-semibold text-emerald-400">Update Downloaded & Verified</div>
+            <div className="font-bold text-success">Update Downloaded & Verified</div>
             <div className="text-[10px] text-muted-foreground mt-0.5">
               Ready to install on restart.
             </div>
           </div>
           <Button
+            type="button"
             size="sm"
             onClick={handleInstall}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white border-none"
+            className="bg-success hover:bg-success/80 text-white rounded-none border-none text-[10px] h-8 font-semibold"
           >
             Restart & Install
           </Button>
@@ -685,7 +716,7 @@ function AutoUpdateSection() {
       )}
 
       <div className="flex gap-3 pt-2">
-        <Button variant="outline" size="sm" onClick={handleCheck} disabled={checking}>
+        <Button type="button" variant="outline" size="sm" className="rounded-none h-8 font-semibold text-[11px]" onClick={handleCheck} disabled={checking}>
           {checking ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Check for Updates'}
         </Button>
       </div>

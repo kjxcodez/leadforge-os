@@ -92,7 +92,7 @@ export function EntityToolbar({
       {/* Bulk actions banner */}
       {selectedCount > 0 && (
         <div className="flex items-center justify-between p-2 bg-accent/5 border border-accent/15 rounded-lg text-xs animate-in slide-in-from-top-1 duration-150">
-          <span className="font-semibold text-accent">{selectedCount} items selected</span>
+          <span className="font-semibold text-foreground">{selectedCount} items selected</span>
 
           <div className="flex items-center gap-2">
             {onBulkStatusChange && bulkStatusOptions.length > 0 && (
@@ -121,7 +121,7 @@ export function EntityToolbar({
                 onClick={onBulkEnroll}
                 className="h-7 text-[10px] gap-1 border-border-subtle text-foreground hover:bg-accent/10"
               >
-                <Plus className="w-3 h-3 text-accent" />
+                <Plus className="w-3 h-3" />
                 Enroll in Campaign
               </Button>
             )}

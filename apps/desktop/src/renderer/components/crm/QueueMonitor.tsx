@@ -9,21 +9,23 @@ import {
   Activity,
   Clock,
   RefreshCw,
-  XCircle,
   AlertCircle,
-  CheckCircle,
-  Play,
-  RotateCcw,
-  Search
+  RotateCcw
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
+/**
+ * QueueMonitor — scheduler jobs status monitor and job dispatcher queue.
+ *
+ * Design updates:
+ *   - Squared corners: all tables, tabs, progress bars, badges, and buttons use rounded-none.
+ *   - Design System Colors: matches primary/success/warning/info/danger tokens.
+ */
 export function QueueMonitor() {
   const { activeWorkspace } = useWorkspace();
   const workspaceId = activeWorkspace?.id || '';
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('jobs');
-  const [searchQuery, setSearchQuery] = useState('');
 
   // 1. Fetch scheduler jobs list
   const jobsQuery = useQuery({
@@ -81,44 +83,44 @@ export function QueueMonitor() {
     switch (status) {
       case 'running':
         return (
-          <Badge className="bg-blue-500/10 text-blue-400 border border-blue-500/20 animate-pulse text-[9px] px-1.5 py-0.5 font-bold">
+          <Badge className="bg-info-muted text-info border border-info/20 animate-pulse text-[9px] px-1.5 py-0.5 font-bold rounded-none">
             Running
           </Badge>
         );
       case 'queued':
       case 'starting':
         return (
-          <Badge className="bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-[9px] px-1.5 py-0.5 font-semibold">
+          <Badge className="bg-warning-muted text-warning border border-warning/20 text-[9px] px-1.5 py-0.5 font-semibold rounded-none">
             Queued
           </Badge>
         );
       case 'waiting':
         return (
-          <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[9px] px-1.5 py-0.5 font-semibold">
+          <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[9px] px-1.5 py-0.5 font-semibold rounded-none">
             Waiting
           </Badge>
         );
       case 'paused':
         return (
-          <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] px-1.5 py-0.5 font-semibold">
+          <Badge className="bg-warning-muted text-warning border border-warning/20 text-[9px] px-1.5 py-0.5 font-semibold rounded-none">
             Paused
           </Badge>
         );
       case 'failed':
         return (
-          <Badge className="bg-red-500/10 text-red-400 border border-red-500/20 text-[9px] px-1.5 py-0.5 font-bold">
+          <Badge className="bg-danger-muted text-danger border border-danger/20 text-[9px] px-1.5 py-0.5 font-bold rounded-none">
             Failed
           </Badge>
         );
       case 'cancelled':
         return (
-          <Badge className="bg-muted/10 text-muted-foreground border border-muted/20 text-[9px] px-1.5 py-0.5 font-semibold">
+          <Badge className="bg-muted-muted text-muted-foreground border border-border-subtle text-[9px] px-1.5 py-0.5 font-semibold rounded-none">
             Cancelled
           </Badge>
         );
       default:
         return (
-          <Badge className="bg-green-500/10 text-green-400 border border-green-500/20 text-[9px] px-1.5 py-0.5 font-bold">
+          <Badge className="bg-success-muted text-success border border-success/20 text-[9px] px-1.5 py-0.5 font-bold rounded-none">
             Completed
           </Badge>
         );
@@ -151,7 +153,7 @@ export function QueueMonitor() {
       <div className="flex justify-between items-center pb-2 border-b border-border-subtle">
         <div>
           <h3 className="font-semibold text-foreground text-sm flex items-center gap-1.5">
-            <Activity className="h-4 w-4 text-accent" />
+            <Activity className="h-4 w-4 text-primary" />
             Execution Monitor
           </h3>
           <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -159,13 +161,14 @@ export function QueueMonitor() {
           </p>
         </div>
         <Button
+          type="button"
           variant="outline"
           size="sm"
           onClick={() => {
             jobsQuery.refetch();
             queueQuery.refetch();
           }}
-          className="h-8 text-[10px] gap-1"
+          className="h-8 text-[10px] gap-1 rounded-none"
         >
           <RefreshCw className="h-3.5 w-3.5" />
           Refresh
@@ -173,20 +176,20 @@ export function QueueMonitor() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="bg-sunken/40 p-0.5 border border-border-subtle rounded flex w-max gap-1">
-          <TabsTrigger value="jobs" className="px-3 py-1 text-[11px] font-medium">
+        <TabsList className="bg-surface-3 p-0.5 border border-border-subtle rounded-none flex w-max gap-1">
+          <TabsTrigger value="jobs" className="px-3 py-1 text-[11px] font-medium rounded-none">
             Active Jobs ({activeJobs.length})
           </TabsTrigger>
-          <TabsTrigger value="queue" className="px-3 py-1 text-[11px] font-medium">
+          <TabsTrigger value="queue" className="px-3 py-1 text-[11px] font-medium rounded-none">
             Outbound Queue ({queueData.jobs.length + queueData.waiting.length})
           </TabsTrigger>
         </TabsList>
 
         {/* ── Active Scheduler Jobs Tab ───────────────────────────────────── */}
         <TabsContent value="jobs" className="mt-3">
-          <div className="bg-card border border-border-subtle rounded-xl overflow-hidden shadow-sm">
+          <div className="bg-card border border-border-subtle rounded-none overflow-hidden shadow-sm">
             <Table>
-              <TableHeader className="bg-sunken/50">
+              <TableHeader className="bg-surface-3/50">
                 <TableRow>
                   <TableHead className="py-2.5">Task / Job Type</TableHead>
                   <TableHead className="py-2.5">Status</TableHead>
@@ -201,7 +204,7 @@ export function QueueMonitor() {
                     ? formatDistanceToNow(new Date(job.updatedAt))
                     : 'N/A';
                   return (
-                    <TableRow key={job.id} className="hover:bg-sunken/10">
+                    <TableRow key={job.id} className="hover:bg-surface-3/10">
                       <TableCell className="font-semibold text-foreground py-2.5">
                         {getJobName(job.type)}
                         <span className="block text-[9px] text-muted-foreground font-mono mt-0.5">
@@ -211,9 +214,9 @@ export function QueueMonitor() {
                       <TableCell className="py-2.5">{getStatusBadge(job.status)}</TableCell>
                       <TableCell className="py-2.5">
                         <div className="flex items-center gap-2">
-                          <div className="w-24 bg-sunken rounded-full h-1.5 overflow-hidden border border-border-subtle">
+                          <div className="w-24 bg-surface-3 rounded-none h-1.5 overflow-hidden border border-border-subtle">
                             <div
-                              className="bg-accent h-1.5 rounded-full"
+                              className="bg-primary h-1.5 rounded-none"
                               style={{ width: `${job.progress || 0}%` }}
                             />
                           </div>
@@ -226,10 +229,11 @@ export function QueueMonitor() {
                       <TableCell className="py-2.5 text-right">
                         {['running', 'queued', 'starting'].includes(job.status) && (
                           <Button
+                            type="button"
                             variant="ghost"
                             size="sm"
                             onClick={() => cancelJobMutation.mutate(job.id)}
-                            className="h-7 text-[10px] text-danger-text hover:bg-danger-bg hover:text-danger-text"
+                            className="h-7 text-[10px] text-danger hover:bg-danger-muted rounded-none"
                           >
                             Cancel
                           </Button>
@@ -256,12 +260,12 @@ export function QueueMonitor() {
           {/* Waiting/Scheduled Emails */}
           <div className="space-y-2">
             <h4 className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5 text-accent" />
+              <Clock className="h-3.5 w-3.5 text-primary" />
               Scheduled / Waiting Emails ({queueData.waiting.length})
             </h4>
-            <div className="bg-card border border-border-subtle rounded-xl overflow-hidden shadow-sm">
+            <div className="bg-card border border-border-subtle rounded-none overflow-hidden shadow-sm">
               <Table>
-                <TableHeader className="bg-sunken/30">
+                <TableHeader className="bg-surface-3/30">
                   <TableRow>
                     <TableHead className="py-2">Contact</TableHead>
                     <TableHead className="py-2">Campaign</TableHead>
@@ -276,7 +280,7 @@ export function QueueMonitor() {
                       ? formatDistanceToNow(new Date(wait.nextExecutionAt))
                       : 'N/A';
                     return (
-                      <TableRow key={wait.id} className="hover:bg-sunken/10">
+                      <TableRow key={wait.id} className="hover:bg-surface-3/10">
                         <TableCell className="py-2 font-medium">
                           {wait.firstName} {wait.lastName || ''}
                           <span className="block text-[9px] text-muted-foreground font-mono mt-0.5">
@@ -310,12 +314,12 @@ export function QueueMonitor() {
           {/* Queued, Retrying, Failed & Cancelled Email Jobs */}
           <div className="space-y-2">
             <h4 className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
-              <AlertCircle className="h-3.5 w-3.5 text-accent" />
+              <AlertCircle className="h-3.5 w-3.5 text-primary" />
               Email Job Queue History ({queueData.jobs.length})
             </h4>
-            <div className="bg-card border border-border-subtle rounded-xl overflow-hidden shadow-sm">
+            <div className="bg-card border border-border-subtle rounded-none overflow-hidden shadow-sm">
               <Table>
-                <TableHeader className="bg-sunken/30">
+                <TableHeader className="bg-surface-3/30">
                   <TableRow>
                     <TableHead className="py-2">Contact</TableHead>
                     <TableHead className="py-2">Campaign</TableHead>
@@ -327,7 +331,7 @@ export function QueueMonitor() {
                 </TableHeader>
                 <TableBody>
                   {queueData.jobs.map((job) => (
-                    <TableRow key={job.jobId} className="hover:bg-sunken/10">
+                    <TableRow key={job.jobId} className="hover:bg-surface-3/10">
                       <TableCell className="py-2 font-medium">
                         {job.firstName} {job.lastName || ''}
                         <span className="block text-[9px] text-muted-foreground font-mono mt-0.5">
@@ -339,7 +343,7 @@ export function QueueMonitor() {
                       </TableCell>
                       <TableCell className="py-2">{getStatusBadge(job.status)}</TableCell>
                       <TableCell className="py-2 font-mono">{job.retryCount || 0} / 3</TableCell>
-                      <TableCell className="py-2 text-red-400 font-mono text-[9px] max-w-xs truncate">
+                      <TableCell className="py-2 text-danger font-mono text-[9px] max-w-xs truncate">
                         {job.status === 'failed'
                           ? 'Max retries exhausted'
                           : job.status === 'cancelled'
@@ -349,10 +353,11 @@ export function QueueMonitor() {
                       <TableCell className="py-2 text-right">
                         {['failed', 'cancelled'].includes(job.status) && (
                           <Button
+                            type="button"
                             variant="ghost"
                             size="sm"
                             onClick={() => retryJobMutation.mutate(job.jobId)}
-                            className="h-6 px-1.5 text-[9px] text-emerald-500 hover:bg-emerald-500/10 gap-0.5"
+                            className="h-6 px-1.5 text-[9px] text-success hover:bg-success-muted gap-0.5 rounded-none"
                           >
                             <RotateCcw className="h-3 w-3" />
                             Retry
@@ -360,10 +365,11 @@ export function QueueMonitor() {
                         )}
                         {['running', 'queued', 'retrying'].includes(job.status) && (
                           <Button
+                            type="button"
                             variant="ghost"
                             size="sm"
                             onClick={() => cancelJobMutation.mutate(job.jobId)}
-                            className="h-6 px-1.5 text-[9px] text-red-500 hover:bg-red-500/10"
+                            className="h-6 px-1.5 text-[9px] text-danger hover:bg-danger-muted rounded-none"
                           >
                             Cancel
                           </Button>

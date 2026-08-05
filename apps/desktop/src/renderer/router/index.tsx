@@ -41,6 +41,7 @@ const OperationsCenterScreen = lazy(() =>
 );
 const ReportsScreen = lazy(() => import('../screens/ReportsScreen'));
 const OnboardingScreen = lazy(() => import('../screens/OnboardingScreen'));
+const PreferencesScreen = lazy(() => import('../screens/PreferencesScreen'));
 
 // ---------------------------------------------------------------------------
 // Session Bootstrap
@@ -167,7 +168,8 @@ const router = createHashRouter([
           { path: '/settings', element: <WorkspaceSettingsScreen /> },
           { path: '/invites', element: <WorkspaceInvitesScreen /> },
           { path: '/diagnostics', element: <Navigate to="/operations" replace /> },
-          { path: '/operations', element: <OperationsCenterScreen /> }
+          { path: '/operations', element: <OperationsCenterScreen /> },
+          { path: '/preferences', element: <PreferencesScreen /> }
         ]
       }
     ]

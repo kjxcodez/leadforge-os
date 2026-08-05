@@ -1,5 +1,6 @@
-import { ChevronsUpDownIcon, Sparkles, BadgeCheck, CreditCard, Bell, LogOut } from 'lucide-react';
+import { ChevronsUpDownIcon, Sparkles, BadgeCheck, CreditCard, Bell, LogOut, Settings } from 'lucide-react';
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '../ui/sidebar';
+import { useNavigate } from 'react-router-dom';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,7 @@ const SidebarBottomNav = ({
   handleLogout: () => void;
 }) => {
   const { isMobile, open } = useSidebar();
+  const navigate = useNavigate();
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -79,9 +81,9 @@ const SidebarBottomNav = ({
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem disabled className="cursor-not-allowed">
-                <BadgeCheck />
-                Account
+              <DropdownMenuItem onClick={() => navigate('/preferences')} className="cursor-pointer">
+                <Settings />
+                Preferences
               </DropdownMenuItem>
               <DropdownMenuItem disabled className="cursor-not-allowed">
                 <CreditCard />

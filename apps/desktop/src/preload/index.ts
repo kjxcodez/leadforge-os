@@ -120,6 +120,7 @@ contextBridge.exposeInMainWorld('ipc', {
       'onboarding:get-diagnostics',
       'onboarding:generate-sample-data',
       'onboarding:save-setting',
+      'settings:get-all',
       'system-logs:query',
       'audit-logs:list',
       'diagnostics:run',

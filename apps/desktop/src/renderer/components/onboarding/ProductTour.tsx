@@ -86,7 +86,7 @@ export default function ProductTour() {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         el.classList.add(
           'ring-2',
-          'ring-accent',
+          'ring-primary',
           'ring-offset-2',
           'ring-offset-background',
           'transition-all'
@@ -101,7 +101,7 @@ export default function ProductTour() {
       clearTimeout(timeout);
       const el = document.getElementById(current.targetId);
       if (el) {
-        el.classList.remove('ring-2', 'ring-accent', 'ring-offset-2', 'ring-offset-background');
+        el.classList.remove('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-background');
       }
     };
   }, [currentStep, active]);
@@ -137,12 +137,12 @@ export default function ProductTour() {
 
       {/* Tour Card */}
       <div
-        className="absolute w-64 bg-card/95 backdrop-blur-md border border-accent/25 rounded-xl p-4.5 shadow-2xl space-y-3.5 pointer-events-auto transition-all duration-300 animate-in zoom-in-95"
+        className="absolute w-64 bg-card/95 backdrop-blur-md border border-primary/25 rounded-none p-4.5 shadow-2xl space-y-3.5 pointer-events-auto transition-all duration-300 animate-in zoom-in-95"
         style={{ top: `${coords.top}px`, left: `${coords.left}px` }}
       >
         <div className="flex items-center justify-between">
-          <span className="text-[9px] uppercase font-bold text-accent tracking-wider flex items-center gap-1">
-            <Sparkles className="w-3 h-3" />
+          <span className="text-[9px] uppercase font-bold text-primary tracking-wider flex items-center gap-1">
+            <Sparkles className="w-3 h-3 animate-pulse" />
             <span>
               Interactive Tour ({currentStep + 1}/{TOUR_STEPS.length})
             </span>
@@ -161,17 +161,19 @@ export default function ProductTour() {
 
         <div className="flex items-center justify-between pt-1 border-t border-border-subtle/50">
           <Button
+            type="button"
             size="icon"
             variant="ghost"
-            className="h-6 w-6 rounded"
+            className="h-6 w-6 rounded-none"
             disabled={currentStep === 0}
             onClick={handleBack}
           >
             <ChevronLeft className="w-3.5 h-3.5" />
           </Button>
           <Button
+            type="button"
             size="sm"
-            className="h-6.5 text-[10px] font-bold px-3 rounded"
+            className="h-6.5 text-[10px] font-bold px-3 rounded-none"
             onClick={handleNext}
           >
             {currentStep === TOUR_STEPS.length - 1 ? 'Finish' : 'Next'}{' '}

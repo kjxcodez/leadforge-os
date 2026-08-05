@@ -33,16 +33,10 @@ export function LoginScreen() {
       <LoginForm
         onSubmit={handleSubmit}
         onNavigateToRegister={() => navigate('/auth/register')}
+        onNavigateToResetPassword={() => navigate('/auth/forgot-password')}
         isLoading={isLoading}
         error={errorMsg}
       />
-
-      <p className="text-center text-xs text-muted-foreground">
-        Don&apos;t have an account?{' '}
-        <Link to="/auth/register" className="text-accent hover:underline font-medium">
-          Request access
-        </Link>
-      </p>
     </div>
   );
 }

@@ -50,14 +50,17 @@ export function InviteMemberDialog({ open, onOpenChange, workspaceId }: InviteMe
   const onSubmit = async (values: InviteFormValues) => {
     try {
       await inviteMutation.mutateAsync(values);
+      toast.success('Team member invited successfully!');
       reset();
       onOpenChange(false);
-    } catch {}
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send invitation.');
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-sm rounded-none bg-background border border-border-subtle shadow-elevation-2">
         <DialogHeader>
           <DialogTitle>Invite team member</DialogTitle>
           <DialogDescription>
@@ -67,7 +70,7 @@ export function InviteMemberDialog({ open, onOpenChange, workspaceId }: InviteMe
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <label htmlFor="invite-email" className="text-xs font-medium text-foreground">
+            <label htmlFor="invite-email" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
               Work email address
             </label>
             <input
@@ -75,19 +78,19 @@ export function InviteMemberDialog({ open, onOpenChange, workspaceId }: InviteMe
               type="email"
               placeholder="name@company.com"
               {...register('email')}
-              className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full h-8 px-3 bg-card border border-border-subtle rounded-none text-foreground text-xs focus-visible:outline-none focus:border-primary font-semibold"
             />
-            {errors.email && <p className="text-[10px] text-danger-text">{errors.email.message}</p>}
+            {errors.email && <p className="text-[10px] text-danger font-semibold mt-0.5">{errors.email.message}</p>}
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="invite-role" className="text-xs font-medium text-foreground">
+            <label htmlFor="invite-role" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
               Workspace role
             </label>
             <select
               id="invite-role"
               {...register('role')}
-              className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full h-8 px-3 bg-card border border-border-subtle rounded-none text-foreground text-xs focus-visible:outline-none focus:border-primary font-semibold"
             >
               <option value={WorkspaceRole.MEMBER}>Member (can build campaigns)</option>
               <option value={WorkspaceRole.ADMIN}>Administrator (can manage workspace)</option>
@@ -96,11 +99,11 @@ export function InviteMemberDialog({ open, onOpenChange, workspaceId }: InviteMe
             </select>
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="gap-2 pt-2 border-t border-border-subtle/50">
+            <Button type="button" variant="secondary" size="sm" className="rounded-none" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" size="sm" disabled={isSubmitting}>
+            <Button type="submit" size="sm" className="rounded-none" disabled={isSubmitting}>
               {isSubmitting ? 'Sending invite...' : 'Send invitation'}
             </Button>
           </DialogFooter>
@@ -138,14 +141,17 @@ export function LeaveWorkspaceDialog({
 
     try {
       await leaveMutation.mutateAsync();
+      toast.success('Successfully left workspace.');
       onOpenChange(false);
       onSuccess?.();
-    } catch {}
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to leave workspace.');
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-sm rounded-none bg-background border border-border-subtle shadow-elevation-2">
         <DialogHeader>
           <DialogTitle>Leave Workspace</DialogTitle>
           <DialogDescription>
@@ -163,18 +169,19 @@ export function LeaveWorkspaceDialog({
               type="text"
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value.toUpperCase())}
-              className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full h-8 px-3 bg-card border border-border-subtle rounded-none text-foreground text-xs focus-visible:outline-none focus:border-primary font-semibold font-mono"
             />
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="gap-2 pt-2 border-t border-border-subtle/50">
+            <Button type="button" variant="secondary" size="sm" className="rounded-none" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button
               type="submit"
               variant="destructive"
               size="sm"
+              className="rounded-none"
               disabled={confirmText !== 'LEAVE' || leaveMutation.isPending}
             >
               {leaveMutation.isPending ? 'Leaving...' : 'Leave workspace'}
@@ -216,14 +223,17 @@ export function TransferOwnershipDialog({
 
     try {
       await transferMutation.mutateAsync(newOwnerId);
+      toast.success('Workspace ownership transferred successfully!');
       onOpenChange(false);
       onSuccess?.();
-    } catch {}
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to transfer ownership.');
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-sm rounded-none bg-background border border-border-subtle shadow-elevation-2">
         <DialogHeader>
           <DialogTitle>Transfer Ownership</DialogTitle>
           <DialogDescription>
@@ -242,17 +252,18 @@ export function TransferOwnershipDialog({
               type="text"
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value.toUpperCase())}
-              className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full h-8 px-3 bg-card border border-border-subtle rounded-none text-foreground text-xs focus-visible:outline-none focus:border-primary font-semibold font-mono"
             />
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="gap-2 pt-2 border-t border-border-subtle/50">
+            <Button type="button" variant="secondary" size="sm" className="rounded-none" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button
               type="submit"
               size="sm"
+              className="rounded-none"
               disabled={confirmText !== 'TRANSFER' || transferMutation.isPending}
             >
               {transferMutation.isPending ? 'Transferring...' : 'Transfer ownership'}

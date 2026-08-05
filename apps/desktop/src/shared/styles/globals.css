@@ -4,127 +4,271 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * LeadForge OS — Design System Tokens
+ *
+ * This file is the single source of truth for all CSS custom properties
+ * used by the renderer. Every value here is derived from DESIGN.md.
+ * Do not introduce hardcoded colors, spacing, or radius values in components.
+ *
+ * Token naming follows shadcn/ui conventions for Tailwind class generation,
+ * with additional design-system-specific tokens layered on top.
+ */
+
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
+  /* ── Core surface & text ─────────────────────────────────────────────── */
+  --color-background:         var(--background);
+  --color-foreground:         var(--foreground);
+  --color-card:               var(--card);
+  --color-card-foreground:    var(--card-foreground);
+  --color-popover:            var(--popover);
   --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
+
+  /* ── Brand: Forge Orange (primary = CTA, active nav, key data) ───────── */
+  --color-primary:            var(--primary);
   --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
+
+  /* ── Secondary surface (secondary button background) ────────────────── */
+  --color-secondary:            var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
+
+  /* ── Muted (subtle background, secondary text) ───────────────────────── */
+  --color-muted:            var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
+
+  /* ── Accent (surface-level highlight, ghost hover) ───────────────────── */
+  --color-accent:            var(--accent);
   --color-accent-foreground: var(--accent-foreground);
-  --color-accent-tint: var(--accent-tint);
-  --color-sunken: var(--sunken);
-  --color-border-subtle: var(--border-subtle);
-  --color-border-default: var(--border-default);
-  --color-destructive: var(--destructive);
+
+  /* ── Semantic: Destructive ───────────────────────────────────────────── */
+  --color-destructive:            var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+
+  /* ── Form & interaction ──────────────────────────────────────────────── */
   --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
+  --color-input:  var(--input);
+  --color-ring:   var(--ring);
+
+  /* ── Border hierarchy (DESIGN.md §2) ─────────────────────────────────── */
+  --color-border-subtle:  var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-strong:  var(--border-strong);
+
+  /* ── Surface hierarchy (aliased for convenience) ─────────────────────── */
+  /* surface-1 = card, surface-2 = popover, surface-3 = sunken/hover */
+  --color-surface-3: var(--surface-3);
+  --color-sunken:    var(--surface-3);   /* backward-compat alias */
+
+  /* ── Text hierarchy (DESIGN.md §2 Text) ─────────────────────────────── */
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-disabled: var(--text-disabled);
+
+  /* ── Semantic state colors (DESIGN.md §2 Semantic) ───────────────────── */
+  --color-success:       var(--success);
+  --color-success-muted: var(--success-muted);
+  --color-warning:       var(--warning);
+  --color-warning-muted: var(--warning-muted);
+  --color-danger:        var(--danger);
+  --color-danger-muted:  var(--danger-muted);
+  --color-info:          var(--info);
+  --color-info-muted:    var(--info-muted);
+
+  /* ── Radius scale (DESIGN.md §5.0) ──────────────────────────────────── */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* ── Elevation (DESIGN.md §5.0) ──────────────────────────────────────── */
+  --shadow-elevation-0: none;
+  --shadow-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-elevation-2: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  /* ── Motion (DESIGN.md §7) ───────────────────────────────────────────── */
+  --duration-instant: 100ms;
+  --duration-fast:    150ms;
+  --duration-base:    200ms;
+  --duration-slow:    300ms;
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+   LIGHT MODE (secondary — documentation/accessibility; not the default identity)
+   DESIGN.md §2 Light Mode
+   ──────────────────────────────────────────────────────────────────────────── */
 :root {
-  --radius: 6px;
+  /* ── Shared radius base (kept for shadcn compat) ─────────────────────── */
+  --radius: 0.75rem; /* 12px = radius-lg */
 
-  /* Backgrounds & Surfaces */
-  --background: #FAFBFC;
-  --sunken: #F4F5F7;
-  --card: #FFFFFF;
-  --popover: #FFFFFF;
+  /* ── Backgrounds & Surfaces ──────────────────────────────────────────── */
+  --background:    #FAFAF9;
+  --card:          #FFFFFF;
+  --card-foreground: #151517;
+  --popover:       #F2F2F0;
+  --popover-foreground: #151517;
+  --surface-3:     #E8E8E6;
 
-  /* Text Colors */
-  --foreground: #2E3440;
-  --primary: #2E3440;
-  --primary-foreground: #FAFBFC;
-  --secondary: #5B6270;
-  --secondary-foreground: #2E3440;
-  --muted: #5B6270;
-  --muted-foreground: #8B929E;
+  /* ── Text ────────────────────────────────────────────────────────────── */
+  --foreground:        #151517;
+  --muted-foreground:  #55555B;
+  --text-tertiary:     #87878E;
+  --text-disabled:     #ADADB0;
 
-  /* Accent & Signal */
-  --accent: #3358E0;
-  --accent-foreground: #FFFFFF;
-  --accent-tint: #EEF1FE;
+  /* ── Forge Orange (darkened ~8% for AA contrast on white — DESIGN.md §2) */
+  --primary:            #D6551F;
+  --primary-foreground: #FAFAF9;
 
-  /* Borders & Inputs */
-  --border: #DFE2E6;
-  --border-subtle: #DFE2E6;
-  --border-default: #C9CDD4;
-  --input: #DFE2E6;
-  --ring: #3358E0;
+  /* ── Secondary surface (button bg, etc.) ─────────────────────────────── */
+  --secondary:            #F2F2F0;
+  --secondary-foreground: #151517;
 
-  /* Semantic Colors */
-  --success-bg: #EAF6EE;
-  --success-text: #1E8A4C;
-  --warning-bg: #FDF3E0;
-  --warning-text: #B8730A;
-  --danger-bg: #FCEBEC;
-  --danger-text: #C42B3A;
-  --info-bg: #EBF3FE;
-  --info-text: #2361C7;
+  /* ── Muted ───────────────────────────────────────────────────────────── */
+  --muted:    #F2F2F0;
+  --accent:   #F2F2F0;
+  --accent-foreground: #151517;
+
+  /* ── Destructive ─────────────────────────────────────────────────────── */
+  --destructive:            #E24C4B;
+  --destructive-foreground: #FAFAF9;
+
+  /* ── Borders ─────────────────────────────────────────────────────────── */
+  --border:         #DADAD7;
+  --border-subtle:  #E7E7E5;
+  --border-default: #DADAD7;
+  --border-strong:  #C4C4C0;
+  --input:          #DADAD7;
+
+  /* ── Focus ring = Forge Orange ───────────────────────────────────────── */
+  --ring: #D6551F;
+
+  /* ── Semantic state colors ───────────────────────────────────────────── */
+  --success:       #3FB27F;
+  --success-muted: rgba(63, 178, 127, 0.12);
+  --warning:       #D9A441;
+  --warning-muted: rgba(217, 164, 65, 0.12);
+  --danger:        #E24C4B;
+  --danger-muted:  rgba(226, 76, 75, 0.12);
+  --info:          #5B8DEF;
+  --info-muted:    rgba(91, 141, 239, 0.12);
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+   DARK MODE (default identity — desktop app & marketing site)
+   DESIGN.md §2 Primary Palette (Dark Mode)
+   ──────────────────────────────────────────────────────────────────────────── */
 .dark {
-  /* Backgrounds & Surfaces */
-  --background: #0D0F13;
-  --sunken: #181B21;
-  --card: #12151A;
-  --popover: #1B1F26;
+  /* ── Backgrounds & Surfaces ──────────────────────────────────────────── */
+  --background:         #0A0A0B;   /* color-bg-base */
+  --card:               #131316;   /* color-bg-surface-1 */
+  --card-foreground:    #F4F4F5;
+  --popover:            #1B1B1F;   /* color-bg-surface-2 */
+  --popover-foreground: #F4F4F5;
+  --surface-3:          #232327;   /* color-bg-surface-3 (hover surface) */
 
-  /* Text Colors */
-  --foreground: #F4F5F7;
-  --primary: #F4F5F7;
-  --primary-foreground: #0D0F13;
-  --secondary: #AEB4BD;
-  --secondary-foreground: #F4F5F7;
-  --muted: #AEB4BD;
-  --muted-foreground: #8B929E;
+  /* ── Text ────────────────────────────────────────────────────────────── */
+  --foreground:       #F4F4F5;     /* color-text-primary */
+  --muted-foreground: #A3A3AB;     /* color-text-secondary */
+  --text-tertiary:    #6E6E76;     /* color-text-tertiary */
+  --text-disabled:    #4A4A50;     /* color-text-disabled */
 
-  /* Accent & Signal */
-  --accent: #5B7CFF;
-  --accent-foreground: #0D0F13;
-  --accent-tint: #182144;
+  /* ── Forge Orange — DESIGN.md §2 Accent ─────────────────────────────── */
+  --primary:            #E8622C;   /* color-accent */
+  --primary-foreground: #0A0A0B;   /* color-text-on-accent */
 
-  /* Borders & Inputs */
-  --border: #21252D;
-  --border-subtle: #1E222B;
-  --border-default: #2D3139;
-  --input: #21252D;
-  --ring: #5B7CFF;
+  /* ── Secondary surface ───────────────────────────────────────────────── */
+  --secondary:            #1B1B1F; /* surface-2 */
+  --secondary-foreground: #F4F4F5;
 
-  /* Semantic Colors */
-  --success-bg: #122A1B;
-  --success-text: #4ADE80;
-  --warning-bg: #2E230F;
-  --warning-text: #F5A524;
-  --danger-bg: #301418;
-  --danger-text: #F76A7A;
-  --info-bg: #101E33;
-  --info-text: #6FA8FF;
+  /* ── Muted (surface-1 for backgrounds, text-secondary for text) ──────── */
+  --muted:    #131316;
+  --accent:   #1B1B1F;
+  --accent-foreground: #F4F4F5;
+
+  /* ── Destructive ─────────────────────────────────────────────────────── */
+  --destructive:            #E24C4B;
+  --destructive-foreground: #F4F4F5;
+
+  /* ── Borders ─────────────────────────────────────────────────────────── */
+  --border:         #2E2E33;   /* color-border-default */
+  --border-subtle:  #232327;   /* color-border-subtle */
+  --border-default: #2E2E33;   /* color-border-default */
+  --border-strong:  #3D3D44;   /* color-border-strong */
+  --input:          #2E2E33;
+
+  /* ── Focus ring = Forge Orange ───────────────────────────────────────── */
+  --ring: #E8622C;
+
+  /* ── Semantic state colors (DESIGN.md §2 — desaturated, instrumentation) */
+  --success:       #3FB27F;
+  --success-muted: rgba(63, 178, 127, 0.12);
+  --warning:       #D9A441;
+  --warning-muted: rgba(217, 164, 65, 0.12);
+  --danger:        #E24C4B;
+  --danger-muted:  rgba(226, 76, 75, 0.12);
+  --info:          #5B8DEF;
+  --info-muted:    rgba(91, 141, 239, 0.12);
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+   BASE LAYER
+   ──────────────────────────────────────────────────────────────────────────── */
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
 
-  body {
-    @apply bg-background text-foreground;
+  html {
+    /* Typography: Inter (variable) → system-ui fallback chain.
+     * JetBrains Mono for monospace/code/data.
+     * DESIGN.md §3 — no third typeface, no serif.
+     */
+    font-family:
+      'Inter var',
+      'Inter',
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      sans-serif;
+    font-feature-settings: 'cv11', 'ss01'; /* Inter: rounded zero, contextual alts */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
+  body {
+    @apply bg-background text-foreground;
+    /* All motion at DESIGN.md §7 spec — instant color transitions by default */
+    transition: background-color var(--duration-base), color var(--duration-base);
+  }
+
+  /* Global focus ring — DESIGN.md §2 Accessibility: 2px, accent, 2px offset */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Monospace elements */
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family:
+      'JetBrains Mono',
+      ui-monospace,
+      'Cascadia Code',
+      'Fira Code',
+      Consolas,
+      'Liberation Mono',
+      monospace;
+    font-feature-settings: 'liga' 0; /* Disable ligatures for data clarity */
+  }
+
+  /* ── Scrollbars ────────────────────────────────────────────────────────
+   * Minimal, on-theme scrollbars per DESIGN.md §8 (no decoration).
+   */
   ::-webkit-scrollbar {
     width: 4px;
+    height: 4px;
   }
 
   ::-webkit-scrollbar-track {
@@ -132,17 +276,49 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border-radius: 4px;
+    background: var(--border-default);
+    border-radius: var(--radius-sm);
+    transition: background var(--duration-instant);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--ring);
+    background: var(--border-strong);
   }
 
   /* Firefox */
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
+    scrollbar-color: var(--border-default) transparent;
   }
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   AUTH BACKGROUND TEXTURE UTILITIES
+   Used exclusively by AnimatedBackground.tsx — matches Hero.tsx cinematic style.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Filmic noise grain — SVG fractal turbulence tiled at 128px.
+ * Adds surface depth without visible tiling seams.
+ * Apply with opacity-50 to opacity-70 for the right density.
+ */
+.auth-noise-texture {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 128px 128px;
+}
+
+/**
+ * CRT scanlines — repeating 4px horizontal band pattern.
+ * Creates subtle horizontal depth lines at very low opacity.
+ * Apply with opacity-[0.15] to opacity-[0.25].
+ */
+.auth-scanlines-overlay {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.06) 2px,
+    rgba(0, 0, 0, 0.06) 4px
+  );
 }

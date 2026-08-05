@@ -6,17 +6,21 @@ import ReactDOM from 'react-dom/client';
 import '@/shared/styles/globals.css';
 import { AppProviders } from '../providers/AppProviders';
 import { AppRouter } from '../router';
+import { AppErrorBoundary } from '../components/common/AppErrorBoundary';
 
 /**
  * Application entry point.
  *
- * AppProviders — wraps all global state stores + React Query
- * AppRouter    — manages all routing with session-aware guards
+ * AppErrorBoundary — catches unhandled React render errors, shows a premium fallback
+ * AppProviders     — wraps all global state stores + React Query
+ * AppRouter        — manages all routing with session-aware guards
  */
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <AppProviders>
-      <AppRouter />
-    </AppProviders>
+    <AppErrorBoundary>
+      <AppProviders>
+        <AppRouter />
+      </AppProviders>
+    </AppErrorBoundary>
   </React.StrictMode>
 );

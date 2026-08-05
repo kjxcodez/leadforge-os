@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { SyncCompanyRepository, SyncContactRepository } from '../repositories/sync';
 import {
@@ -14,7 +14,9 @@ import { NotesSystem } from '../components/crm/NotesSystem';
 import LeadIntelligenceDetails from '../components/crm/LeadIntelligenceDetails';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { PageHeader } from '../components/common/PageHeader';
 import { Label } from '../components/ui/label';
+import { Sheet, SheetContent } from '../components/ui/sheet';
 import {
   Building2,
   X,
@@ -31,10 +33,16 @@ import {
 import { Badge } from '../components/ui/badge';
 import { CompanyStatus, ContactStatus } from '@leadforge/schema';
 import { useWorkspace } from '../hooks/useWorkspace';
+import { motion } from 'framer-motion';
 
 /**
  * CompaniesScreen presents a list of target organizations, a details panel,
  * and handles workspace CRUD.
+ *
+ * Design updates:
+ *   - Squared corners: all buttons, dialog contents, panels, badges, select boxes have rounded-none.
+ *   - Correct Palette: uses semantic design tokens (primary, info, success, warning, danger).
+ *   - Pagination: client-side pagination with controls and info readout.
  */
 export default function CompaniesScreen() {
   const { activeWorkspace } = useWorkspace();
@@ -45,6 +53,20 @@ export default function CompaniesScreen() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<any | null>(null);
   const [detailTab, setDetailTab] = useState<'overview' | 'intelligence'>('overview');
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+
+  const handleSearchChange = useCallback((val: string) => {
+    setSearch(val);
+    setCurrentPage(1);
+  }, []);
+
+  const handleStatusFilterChange = useCallback((val: string) => {
+    setStatusFilter(val);
+    setCurrentPage(1);
+  }, []);
 
   // Campaign enrollment states
   const [enrollOpen, setEnrollOpen] = useState(false);
@@ -113,6 +135,13 @@ export default function CompaniesScreen() {
     return matchesSearch && matchesStatus;
   });
 
+  // Pagination calculation
+  const totalItems = filtered.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const adjustedPage = Math.min(Math.max(1, currentPage), totalPages || 1);
+  const startIndex = (adjustedPage - 1) * itemsPerPage;
+  const paginatedCompanies = filtered.slice(startIndex, startIndex + itemsPerPage);
+
   const handleCreate = async (data: any) => {
     await createMutation.mutateAsync(data);
     setCreateOpen(false);
@@ -149,30 +178,26 @@ export default function CompaniesScreen() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.length === filtered.length) {
+    if (selectedIds.length === paginatedCompanies.length) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(filtered.map((c: any) => c.id));
+      setSelectedIds(paginatedCompanies.map((c: any) => c.id));
     }
   };
 
   return (
     <div className="flex h-full gap-4 text-xs font-sans">
       <div className="flex-1 space-y-4 overflow-y-auto pr-1">
-        <div className="flex justify-between items-end border-b border-border-subtle pb-3">
-          <div>
-            <h2 className="text-sm font-semibold tracking-tight text-foreground">Companies</h2>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              Manage accounts, details, notes, and activity pipelines.
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          title="Companies"
+          description="Manage accounts, details, notes, and activity pipelines."
+        />
 
         <EntityToolbar
           search={search}
-          onSearchChange={setSearch}
+          onSearchChange={handleSearchChange}
           filterStatus={statusFilter}
-          onStatusChange={setStatusFilter}
+          onStatusChange={handleStatusFilterChange}
           statusOptions={Object.values(CompanyStatus)}
           createLabel="Add Company"
           onCreateTrigger={() => setCreateOpen(true)}
@@ -186,125 +211,231 @@ export default function CompaniesScreen() {
             Loading companies...
           </div>
         ) : filtered.length === 0 ? (
-          <div className="h-[280px] flex items-center justify-center p-6 bg-card border border-border-subtle border-dashed rounded-xl">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.25 }}
+            className="h-[280px] flex items-center justify-center p-6 bg-card border border-border-subtle border-dashed rounded-none"
+          >
             <div className="max-w-md w-full flex flex-col items-center text-center space-y-4">
-              <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center text-accent">
+              <motion.div
+                animate={{ y: [0, -6, 0] }}
+                transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+                className="w-12 h-12 rounded-none bg-primary/10 border border-primary/20 flex items-center justify-center text-primary"
+              >
                 <Building2 className="h-6 w-6" />
-              </div>
+              </motion.div>
               <div>
                 <h3 className="text-xs font-semibold text-foreground">No companies found</h3>
                 <p className="text-[10px] text-muted-foreground mt-1">
                   Try adding a new company or adjusting search filters.
                 </p>
               </div>
-              <Button onClick={() => setCreateOpen(true)} size="sm">
+              <Button onClick={() => setCreateOpen(true)} size="sm" className="rounded-none">
                 + Add Company
               </Button>
             </div>
-          </div>
+          </motion.div>
         ) : (
-          <div className="bg-card border border-border-subtle rounded-xl overflow-hidden shadow-sm">
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="bg-sunken border-b border-border-subtle text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  <th className="px-4 py-3 w-10">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.length === filtered.length && filtered.length > 0}
-                      onChange={toggleSelectAll}
-                      className="rounded border-border-subtle text-accent focus:ring-accent"
-                    />
-                  </th>
-                  <th className="px-4 py-3">Company Name</th>
-                  <th className="px-4 py-3">Domain</th>
-                  <th className="px-4 py-3">Industry</th>
-                  <th className="px-4 py-3">Size</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle/50">
-                {filtered.map((item: any) => {
-                  const isSelected = selectedIds.includes(item.id);
-                  const isPanelSelected = selectedCompany?.id === item.id;
+          <div className="flex flex-col justify-between">
+            <div className="bg-card border border-border-subtle overflow-hidden shadow-sm rounded-none">
+              <table className="w-full border-collapse text-left">
+                <thead>
+                  <tr className="bg-surface-3 border-b border-border-subtle text-[10px] font-semibold text-muted-foreground uppercase tracking-wider select-none">
+                    <th className="px-4 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.length === paginatedCompanies.length && paginatedCompanies.length > 0}
+                        onChange={toggleSelectAll}
+                        className="rounded-none border-border-subtle text-primary focus:ring-ring"
+                      />
+                    </th>
+                    <th className="px-4 py-3">Company Name</th>
+                    <th className="px-4 py-3">Domain</th>
+                    <th className="px-4 py-3">Industry</th>
+                    <th className="px-4 py-3">Size</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <motion.tbody
+                  className="divide-y divide-border-subtle/50"
+                  initial="hidden"
+                  animate="visible"
+                  variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
+                >
+                  {paginatedCompanies.map((item: any) => {
+                    const isSelected = selectedIds.includes(item.id);
+                    const isPanelSelected = selectedCompany?.id === item.id;
 
-                  return (
-                    <tr
-                      key={item.id}
-                      onClick={() => setSelectedCompany(item)}
-                      className={`hover:bg-sunken/40 cursor-pointer transition-colors ${
-                        isPanelSelected ? 'bg-accent/5' : ''
-                      }`}
-                    >
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelect(item.id)}
-                          className="rounded border-border-subtle text-accent focus:ring-accent"
-                        />
-                      </td>
-                      <td className="px-4 py-3 font-semibold text-foreground">{item.name}</td>
-                      <td className="px-4 py-3 font-mono text-accent">{item.domain || 'N/A'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{item.industry || 'N/A'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{item.size || 'N/A'}</td>
-                      <td className="px-4 py-3">
-                        <Badge
-                          variant="outline"
-                          className={`text-[9px] font-bold ${
-                            item.status === 'CUSTOMER'
-                              ? 'bg-green-500/10 text-green-600 border-green-500/20'
-                              : item.status === 'QUALIFIED'
-                                ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
-                                : 'bg-muted/10 text-muted-foreground border-muted/20'
-                          }`}
-                        >
-                          {item.status}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedCompany(item);
-                            setEditOpen(true);
-                          }}
-                          className="h-7 text-[10px]"
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(item.id)}
-                          className="h-7 text-[10px] text-danger-text hover:bg-danger-bg hover:text-danger-text"
-                        >
-                          Delete
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    return (
+                      <motion.tr
+                        key={item.id}
+                        variants={{
+                          hidden: { opacity: 0, y: 8 },
+                          visible: { opacity: 1, y: 0, transition: { duration: 0.18, ease: [0.4, 0, 0.2, 1] } }
+                        }}
+                        onClick={() => setSelectedCompany(item)}
+                        className={`hover:bg-surface-3/45 cursor-pointer transition-colors ${
+                          isPanelSelected ? 'bg-primary/12' : ''
+                        }`}
+                      >
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelect(item.id)}
+                            className="rounded-none border-border-subtle text-primary focus:ring-ring"
+                          />
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-foreground">{item.name}</td>
+                        <td className="px-4 py-3 font-mono text-primary">{item.domain || 'N/A'}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{item.industry || 'N/A'}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{item.size || 'N/A'}</td>
+                        <td className="px-4 py-3">
+                          <Badge
+                            variant="outline"
+                            className={`text-[9px] font-bold rounded-none ${
+                              item.status === 'CUSTOMER'
+                                ? 'bg-success-muted text-success border-success/20'
+                                : item.status === 'QUALIFIED'
+                                ? 'bg-info-muted text-info border-info/20'
+                                : 'bg-muted-muted text-muted-foreground border-border-subtle'
+                            }`}
+                          >
+                            {item.status}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedCompany(item);
+                              setEditOpen(true);
+                            }}
+                            className="h-7 text-[10px] rounded-none hover:bg-surface-3"
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(item.id)}
+                            className="h-7 text-[10px] text-danger hover:bg-danger-muted hover:text-danger rounded-none"
+                          >
+                            Delete
+                          </Button>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </motion.tbody>
+              </table>
+            </div>
+
+            {/* Pagination controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-border-subtle pt-4 mt-4 select-none">
+                <span className="text-[11px] text-muted-foreground">
+                  Showing{' '}
+                  <strong className="text-foreground font-mono">{startIndex + 1}</strong>{' '}
+                  to{' '}
+                  <strong className="text-foreground font-mono">
+                    {Math.min(startIndex + itemsPerPage, totalItems)}
+                  </strong>{' '}
+                  of <strong className="text-foreground font-mono">{totalItems}</strong> companies
+                </span>
+
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentPage((p) => Math.max(1, p - 1));
+                    }}
+                    disabled={adjustedPage === 1}
+                    className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
+                  >
+                    Previous
+                  </Button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => {
+                      return p === 1 || p === totalPages || Math.abs(p - adjustedPage) <= 1;
+                    })
+                    .map((p, idx, arr) => {
+                      const prev = arr[idx - 1];
+                      const showEllipsis = prev && p - prev > 1;
+
+                      return (
+                        <React.Fragment key={p}>
+                          {showEllipsis && (
+                            <span className="px-2 text-muted-foreground font-mono text-xs select-none">
+                              ...
+                            </span>
+                          )}
+                          <Button
+                            type="button"
+                            variant={p === adjustedPage ? 'default' : 'secondary'}
+                            size="sm"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setCurrentPage(p);
+                            }}
+                            className={[
+                              'h-8 w-8 rounded-none text-[11px] font-semibold transition-colors cursor-pointer',
+                              p === adjustedPage
+                                ? 'bg-primary text-primary-foreground border-primary font-bold'
+                                : 'hover:bg-surface-3'
+                            ].join(' ')}
+                          >
+                            {p}
+                          </Button>
+                        </React.Fragment>
+                      );
+                    })}
+
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentPage((p) => Math.min(totalPages, p + 1));
+                    }}
+                    disabled={adjustedPage === totalPages}
+                    className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* ── Slide-over Side Panel (Details) ───────────────────────────────── */}
-      {selectedCompany && (
-        <aside className="w-80 bg-card border border-border-subtle rounded-xl p-4 space-y-5 flex flex-col h-full shadow-sm animate-in slide-in-from-right duration-200">
-          <div className="flex items-center justify-between border-b border-border-subtle pb-3">
+      <Sheet open={!!selectedCompany} onOpenChange={(open) => !open && setSelectedCompany(null)}>
+        <SheetContent side="right" showCloseButton={false} className="w-[420px] sm:max-w-[420px] bg-card border-l border-border-subtle rounded-none p-4 space-y-5 flex flex-col h-full shadow-elevation-2 select-none outline-none">
+          {selectedCompany && (
+            <>
+              <div className="flex items-center justify-between border-b border-border-subtle pb-3">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded bg-accent/10 flex items-center justify-center text-accent">
+              <div className="w-8 h-8 rounded-none bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
                 <Building2 className="w-4 h-4" />
               </div>
               <div>
                 <h3 className="font-semibold text-foreground text-xs leading-none">
                   {selectedCompany.name}
                 </h3>
-                <span className="text-[10px] text-muted-foreground mt-1 block">
+                <span className="text-[10px] text-muted-foreground mt-1 block font-mono">
                   {selectedCompany.domain}
                 </span>
               </div>
@@ -313,35 +444,45 @@ export default function CompaniesScreen() {
               variant="ghost"
               size="icon"
               onClick={() => setSelectedCompany(null)}
-              className="h-6 w-6 p-0"
+              className="h-6 w-6 p-0 rounded-none hover:bg-surface-3"
             >
               <X className="w-4 h-4" />
             </Button>
           </div>
 
           {/* Tab switcher */}
-          <div className="flex bg-sunken/50 border border-border-subtle rounded-lg p-0.5 gap-0.5">
+          <div className="border-b border-border-subtle flex gap-4 w-full relative">
             <button
               onClick={() => setDetailTab('overview')}
-              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold transition-all ${
-                detailTab === 'overview'
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
+              className={`flex-1 pb-2 flex items-center justify-center gap-1.5 rounded-none text-[11px] font-bold relative z-10 transition-colors duration-200 ${
+                detailTab === 'overview' ? 'text-primary font-bold' : 'text-muted-foreground hover:text-primary'
               }`}
             >
-              <Building2 className="w-3 h-3" />
+              <Building2 className="w-3.5 h-3.5" />
               CRM
+              {detailTab === 'overview' && (
+                <motion.div
+                  layoutId="companyDetailActiveTab"
+                  className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary"
+                  transition={{ type: 'spring', stiffness: 550, damping: 38 }}
+                />
+              )}
             </button>
             <button
               onClick={() => setDetailTab('intelligence')}
-              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-[10px] font-bold transition-all ${
-                detailTab === 'intelligence'
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
+              className={`flex-1 pb-2 flex items-center justify-center gap-1.5 rounded-none text-[11px] font-bold relative z-10 transition-colors duration-200 ${
+                detailTab === 'intelligence' ? 'text-primary font-bold' : 'text-muted-foreground hover:text-primary'
               }`}
             >
-              <Cpu className="w-3 h-3" />
+              <Cpu className="w-3.5 h-3.5" />
               Intelligence
+              {detailTab === 'intelligence' && (
+                <motion.div
+                  layoutId="companyDetailActiveTab"
+                  className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary"
+                  transition={{ type: 'spring', stiffness: 550, damping: 38 }}
+                />
+              )}
             </button>
           </div>
 
@@ -359,7 +500,7 @@ export default function CompaniesScreen() {
                   <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                     Overview
                   </h4>
-                  <div className="bg-sunken/20 border border-border-subtle rounded-lg p-2.5 space-y-2">
+                  <div className="bg-surface-3 border border-border-subtle rounded-none p-2.5 space-y-2">
                     {selectedCompany.website && (
                       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                         <ExternalLink className="w-3.5 h-3.5 shrink-0 opacity-70" />
@@ -367,7 +508,7 @@ export default function CompaniesScreen() {
                           href={selectedCompany.website}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-accent truncate hover:underline"
+                          className="text-primary truncate hover:underline font-mono"
                         >
                           {selectedCompany.website}
                         </a>
@@ -394,7 +535,7 @@ export default function CompaniesScreen() {
                     {selectedCompany.phone && (
                       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                         <Phone className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                        <span className="text-foreground">{selectedCompany.phone}</span>
+                        <span className="text-foreground font-mono">{selectedCompany.phone}</span>
                       </div>
                     )}
                     {selectedCompany.rating != null && (
@@ -406,12 +547,12 @@ export default function CompaniesScreen() {
                     {selectedCompany.crawlStatus && (
                       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                         <span className="opacity-60">Crawl:</span>
-                        <Badge variant="outline" className="text-[9px] h-4 px-1.5">
+                        <Badge variant="outline" className="text-[9px] h-4 px-1.5 rounded-none border-border-subtle bg-surface-3">
                           {selectedCompany.crawlStatus}
                         </Badge>
                         {selectedCompany.contactCount != null && (
-                          <span className="text-foreground">
-                            {selectedCompany.contactCount} contacts found
+                          <span className="text-foreground font-mono">
+                            {selectedCompany.contactCount} contacts
                           </span>
                         )}
                       </div>
@@ -424,7 +565,7 @@ export default function CompaniesScreen() {
                   <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                     Company Status
                   </h4>
-                  <div className="flex flex-wrap gap-1 bg-sunken/20 border border-border-subtle rounded-lg p-2">
+                  <div className="flex flex-wrap gap-1 bg-surface-3 border border-border-subtle rounded-none p-2">
                     {Object.values(CompanyStatus).map((status) => {
                       const isActive = selectedCompany.status === status;
                       return (
@@ -438,10 +579,10 @@ export default function CompaniesScreen() {
                             });
                             setSelectedCompany(updated);
                           }}
-                          className={`px-2 py-1 rounded text-[10px] font-semibold border transition-all ${
+                          className={`px-2 py-1 rounded-none text-[10px] font-semibold border transition-all ${
                             isActive
-                              ? 'bg-accent text-white border-accent'
-                              : 'bg-card text-muted-foreground border-border-subtle hover:bg-sunken'
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-card text-muted-foreground border-border-subtle hover:bg-surface-3'
                           }`}
                         >
                           {status}
@@ -465,7 +606,7 @@ export default function CompaniesScreen() {
                         {linkedContacts.map((c: any) => (
                           <div
                             key={c.id}
-                            className="bg-sunken/20 border border-border-subtle rounded-lg p-2.5 space-y-1"
+                            className="bg-surface-3 border border-border-subtle rounded-none p-2.5 space-y-1"
                           >
                             <div className="flex items-center justify-between gap-1">
                               <p className="text-[10px] font-semibold text-foreground">
@@ -478,27 +619,27 @@ export default function CompaniesScreen() {
                               {c.type === 'executive' && (
                                 <Badge
                                   variant="outline"
-                                  className="bg-violet-500/10 text-violet-400 border-violet-500/20 text-[8px] h-3.5 px-1 font-bold"
+                                  className="bg-primary/10 text-primary border-primary/20 rounded-none text-[8px] h-3.5 px-1 font-bold"
                                 >
                                   Executive
                                 </Badge>
                               )}
                             </div>
                             {(c.title || c.headline) && (
-                              <p className="text-[9px] text-accent font-medium leading-snug">
+                              <p className="text-[9px] text-primary font-medium leading-snug">
                                 {c.title || c.headline}
                               </p>
                             )}
                             {c.email && (
                               <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                 <Mail className="w-3 h-3 shrink-0 opacity-60" />
-                                <span className="truncate">{c.email}</span>
+                                <span className="truncate font-mono">{c.email}</span>
                               </div>
                             )}
                             {c.phone && (
                               <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                 <Phone className="w-3 h-3 shrink-0 opacity-60" />
-                                <span>{c.phone}</span>
+                                <span className="font-mono">{c.phone}</span>
                               </div>
                             )}
                             {c.linkedinUrl && (
@@ -507,7 +648,7 @@ export default function CompaniesScreen() {
                                   href={c.linkedinUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-blue-400 hover:underline flex items-center gap-1"
+                                  className="text-info hover:underline flex items-center gap-1"
                                 >
                                   LinkedIn Profile
                                 </a>
@@ -523,7 +664,7 @@ export default function CompaniesScreen() {
                                     data: { status: e.target.value }
                                   });
                                 }}
-                                className="bg-card border border-border-subtle rounded text-[9px] font-semibold px-1 py-0.5 text-foreground focus-visible:outline-none"
+                                className="bg-card border border-border-subtle rounded-none text-[9px] font-semibold px-1 py-0.5 text-foreground focus-visible:outline-none"
                               >
                                 {Object.values(ContactStatus).map((status) => (
                                   <option key={status} value={status}>
@@ -575,12 +716,14 @@ export default function CompaniesScreen() {
               </>
             )}
           </div>
-        </aside>
-      )}
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* ── Create / Edit Dialogs ────────────────────────────────────────── */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-none bg-background border border-border-subtle shadow-elevation-2">
           <DialogHeader>
             <DialogTitle>Add New Company</DialogTitle>
           </DialogHeader>
@@ -589,7 +732,7 @@ export default function CompaniesScreen() {
       </Dialog>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-none bg-background border border-border-subtle shadow-elevation-2">
           <DialogHeader>
             <DialogTitle>Edit Company Details</DialogTitle>
           </DialogHeader>
@@ -605,7 +748,7 @@ export default function CompaniesScreen() {
 
       {/* ── Campaign Enrollment Dialog ────────────────────────────────────── */}
       <Dialog open={enrollOpen} onOpenChange={setEnrollOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-none bg-background border border-border-subtle shadow-elevation-2">
           <DialogHeader>
             <DialogTitle>Enroll Company Leads in Campaign</DialogTitle>
           </DialogHeader>
@@ -620,7 +763,7 @@ export default function CompaniesScreen() {
                 id="enrollCampSelect"
                 value={enrollCampaignId}
                 onChange={(e) => setEnrollCampaignId(e.target.value)}
-                className="w-full h-8 px-2 bg-background border border-input rounded text-xs focus-visible:outline-none"
+                className="w-full h-8 px-2 bg-background border border-border-subtle rounded-none text-xs focus-visible:outline-none"
               >
                 <option value="">-- Select Campaign --</option>
                 {(campaignsQuery.data || []).map((camp: any) => (
@@ -631,10 +774,11 @@ export default function CompaniesScreen() {
               </select>
             </div>
             <div className="flex justify-end gap-2 pt-2 border-t border-border-subtle">
-              <Button type="button" variant="outline" onClick={() => setEnrollOpen(false)}>
+              <Button type="button" variant="secondary" className="rounded-none" onClick={() => setEnrollOpen(false)}>
                 Cancel
               </Button>
               <Button
+                className="rounded-none"
                 onClick={() => {
                   if (!enrollCampaignId) {
                     alert('Please select a campaign.');

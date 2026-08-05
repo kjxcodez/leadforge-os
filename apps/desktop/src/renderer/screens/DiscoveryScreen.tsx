@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkspace } from '../hooks/useWorkspace';
 import { SyncCompanyRepository, SyncContactRepository } from '../repositories/sync';
@@ -26,13 +26,40 @@ import {
   Linkedin,
   UserCheck
 } from 'lucide-react';
+import { PageHeader } from '../components/common/PageHeader';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.04
+    }
+  }
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 12 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      type: 'spring' as const,
+      stiffness: 280,
+      damping: 24
+    }
+  }
+};
 
 /**
  * DiscoveryScreen — lead discovery, job management, and results view.
  *
- * Layout: Results for the selected job are shown FIRST (above the fold).
- * The job queue is below, with crawler:website child jobs collapsed into
- * a summary count — not shown as individual rows.
+ * Design updates:
+ *   - Squared corners: all buttons, cards, dialogs, badges, and progress rails use rounded-none.
+ *   - Design System Colors: synced with primary, info, success, warning, danger.
+ *   - Framer Motion: staggered card entries, table row transitions, and modal sliders.
+ *   - Pagination: client-side pagination on scraper results table and job queue table.
  */
 export default function DiscoveryScreen() {
   const { activeWorkspace } = useWorkspace();
@@ -46,6 +73,26 @@ export default function DiscoveryScreen() {
   const [jobName, setJobName] = useState('');
   const [jobQuery, setJobQuery] = useState('');
   const [maxResults, setMaxResults] = useState(20);
+
+  // Pagination states
+  const [resultsPage, setResultsPage] = useState(1);
+  const [resultsPerPage] = useState(10);
+
+  const [jobsPage, setJobsPage] = useState(1);
+  const [jobsPerPage] = useState(10);
+
+  // Reset pagination on selection changes
+  useEffect(() => {
+    setResultsPage(1);
+  }, [selectedJobId]);
+
+  const handleResultsPageChange = useCallback((page: number) => {
+    setResultsPage(page);
+  }, []);
+
+  const handleJobsPageChange = useCallback((page: number) => {
+    setJobsPage(page);
+  }, []);
 
   const jobsQuery = useQuery({
     queryKey: ['scheduler_jobs', 'list', workspaceId],
@@ -138,11 +185,11 @@ export default function DiscoveryScreen() {
     }
   });
 
-  const handleCreateJob = (e: React.FormEvent) => {
+  const handleCreateJob = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (!jobName.trim() || !jobQuery.trim()) return;
     createJobMutation.mutate({ name: jobName, query: jobQuery, maxResults });
-  };
+  }, [jobName, jobQuery, maxResults, createJobMutation]);
 
   const allJobs = (jobsQuery.data || []) as any[];
   const existingCompanies = (companiesQuery.data || []) as any[];
@@ -159,6 +206,7 @@ export default function DiscoveryScreen() {
   const selectedJobPayload = selectedJob ? JSON.parse(selectedJob.payload || '{}') : {};
   const selectedQuery = (selectedJobPayload.query || '').toLowerCase().trim();
 
+  // Scraper results matching the active query parameters
   const results = existingCompanies.filter((c) => {
     if (!selectedQuery) return true;
     const blob =
@@ -177,93 +225,109 @@ export default function DiscoveryScreen() {
   ).length;
 
   const statusColor = (status: string) => {
-    if (status === 'completed') return 'bg-green-500/10 text-green-500 border-green-500/20';
-    if (status === 'running') return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
-    if (status === 'retrying') return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
+    if (status === 'completed') return 'bg-success-muted text-success border-success/20';
+    if (status === 'running') return 'bg-info-muted text-info border-info/20';
+    if (status === 'retrying') return 'bg-warning-muted text-warning border-warning/20';
     if (status === 'cancelled' || status === 'failed')
-      return 'bg-red-500/10 text-red-500 border-red-500/20';
-    return 'bg-muted/10 text-muted-foreground border-muted/20';
+      return 'bg-danger-muted text-danger border-danger/20';
+    return 'bg-muted-muted text-muted-foreground border-border-subtle';
   };
 
-  return (
-    <div className="flex flex-col gap-5 text-xs font-sans">
-      {/* Header */}
-      <div className="flex flex-wrap justify-between items-end gap-3 border-b border-border-subtle pb-3">
-        <div>
-          <h2 className="text-sm font-semibold tracking-tight text-foreground">
-            Discovery Platform
-          </h2>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            Scrape Google Maps leads, enrich contacts, and import directly into your CRM.
-          </p>
-        </div>
-        <Button
-          onClick={() => setCreateOpen(true)}
-          size="sm"
-          className="h-8 font-semibold gap-1.5 shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          New Discovery Run
-        </Button>
-      </div>
+  // Pagination calculation: Scraper results
+  const totalResults = results.length;
+  const totalResultsPages = Math.ceil(totalResults / resultsPerPage);
+  const adjustedResultsPage = Math.min(Math.max(1, resultsPage), totalResultsPages || 1);
+  const resultsStartIndex = (adjustedResultsPage - 1) * resultsPerPage;
+  const paginatedResults = results.slice(resultsStartIndex, resultsStartIndex + resultsPerPage);
 
-      {/* Stats row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+  // Pagination calculation: Jobs list
+  const totalParentJobs = parentJobs.length;
+  const totalJobsPages = Math.ceil(totalParentJobs / jobsPerPage);
+  const adjustedJobsPage = Math.min(Math.max(1, jobsPage), totalJobsPages || 1);
+  const jobsStartIndex = (adjustedJobsPage - 1) * jobsPerPage;
+  const paginatedJobs = parentJobs.slice(jobsStartIndex, jobsStartIndex + jobsPerPage);
+
+  return (
+    <div className="flex flex-col gap-5 text-xs font-sans h-full overflow-y-auto pr-1 select-none">
+      <PageHeader
+        title="Discovery Platform"
+        description="Scrape Google Maps leads, enrich contacts, and import directly into your CRM."
+        actions={
+          <Button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            size="sm"
+            className="h-8 font-semibold gap-1.5 shrink-0 rounded-none"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            New Discovery Run
+          </Button>
+        }
+      />
+
+      {/* Stats row with Framer Motion entry animations */}
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+        className="grid grid-cols-2 sm:grid-cols-4 gap-3"
+      >
         {[
-          { label: 'Discovery Jobs', value: parentJobs.length, Icon: Search, color: 'text-accent' },
-          { label: 'Active Jobs', value: runningJobs, Icon: Activity, color: 'text-blue-400' },
+          { label: 'Discovery Jobs', value: parentJobs.length, Icon: Search, color: 'text-primary' },
+          { label: 'Active Jobs', value: runningJobs, Icon: Activity, color: 'text-info' },
           {
             label: 'Companies Found',
             value: existingCompanies.length,
             Icon: Layers,
-            color: 'text-emerald-400'
+            color: 'text-success'
           },
           {
             label: 'Site Crawlers',
             value: runningCrawlers > 0 ? `${runningCrawlers} active` : `${completedCrawlers} done`,
             Icon: Globe,
-            color: 'text-violet-400'
+            color: 'text-primary'
           }
         ].map((w, i) => (
-          <div
+          <motion.div
             key={i}
-            className="bg-card border border-border-subtle rounded-xl p-3 flex items-start gap-2.5"
+            variants={cardVariants}
+            className="bg-card border border-border-subtle rounded-none p-3 flex items-start gap-2.5 shadow-sm"
           >
             <div className={`mt-0.5 ${w.color}`}>
               <w.Icon className="w-3.5 h-3.5" />
             </div>
             <div className="min-w-0">
-              <div className="text-lg font-bold text-foreground leading-tight">{w.value}</div>
-              <span className="text-[9px] text-muted-foreground uppercase tracking-wide block">
+              <div className="text-lg font-bold text-foreground leading-tight font-mono">{w.value}</div>
+              <span className="text-[9px] text-muted-foreground uppercase tracking-wide block font-semibold mt-0.5">
                 {w.label}
               </span>
             </div>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
 
-      {/* RESULTS PANEL — presented in a bottom-sliding sheet overlay */}
+      {/* RESULTS PANEL — bottom-sliding sheet overlay */}
       <Sheet open={!!selectedJobId} onOpenChange={(isOpen) => { if (!isOpen) setSelectedJobId(null); }}>
-        <SheetContent side="bottom" className="max-h-[70dvh] border-t border-border-subtle bg-card shadow-2xl p-0 flex flex-col">
+        <SheetContent side="bottom" className="max-h-[70dvh] border-t border-border-subtle bg-card shadow-2xl p-0 flex flex-col rounded-none">
           {selectedJobId && (
             <div className="flex flex-col h-full min-h-0 text-xs font-sans">
-              <div className="px-4 py-3 border-b border-border-subtle flex flex-wrap gap-2 justify-between items-center bg-accent/5 sticky top-0 z-10 backdrop-blur-md">
+              <div className="px-4 py-3 border-b border-border-subtle flex flex-wrap gap-2 justify-between items-center bg-primary/5 sticky top-0 z-10 backdrop-blur-md">
                 <h3 className="font-bold text-foreground uppercase tracking-wider text-[10px] flex items-center gap-1.5">
-                  <Compass className="w-3.5 h-3.5 text-accent" />
+                  <Compass className="w-3.5 h-3.5 text-primary" />
                   Results —{' '}
-                  <span className="font-mono text-accent normal-case">
+                  <span className="font-mono text-primary normal-case">
                     {selectedQuery || 'All companies'}
                   </span>
                   <Badge
                     variant="outline"
-                    className="ml-1 text-[9px] h-4 px-1.5 border-accent/30 text-accent"
+                    className="ml-1 text-[9px] h-4 px-1.5 border-primary/30 text-primary rounded-none"
                   >
                     {results.length}
                   </Badge>
                 </h3>
                 <div className="flex items-center gap-2 pr-8">
                   {selectedJob?.status === 'running' && (
-                    <span className="text-[9px] text-blue-400 flex items-center gap-1 animate-pulse">
+                    <span className="text-[9px] text-info flex items-center gap-1 animate-pulse">
                       <Activity className="w-3.5 h-3.5" /> Scraping live...
                     </span>
                   )}
@@ -272,7 +336,7 @@ export default function DiscoveryScreen() {
 
               <div className="flex-1 min-h-0 overflow-auto px-4 pb-4 pt-0">
                 {companiesQuery.isLoading ? (
-                  <div className="p-8 text-center text-muted-foreground">Loading...</div>
+                  <div className="p-8 text-center text-muted-foreground animate-pulse">Loading scraper database...</div>
                 ) : results.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground">
                     {selectedJob?.status === 'running'
@@ -280,157 +344,222 @@ export default function DiscoveryScreen() {
                       : 'No leads found for this query.'}
                   </div>
                 ) : (
-                  <table className="w-full text-left border-separate border-spacing-0 min-w-[640px]">
-                      <thead>
-                        <tr className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
-                          <th className="sticky top-0 z-10 px-4 py-2.5 bg-sunken border-b border-border-subtle">Company</th>
-                          <th className="sticky top-0 z-10 px-4 py-2.5 bg-sunken border-b border-border-subtle">Website</th>
-                          <th className="sticky top-0 z-10 px-4 py-2.5 bg-sunken border-b border-border-subtle">Phone</th>
-                          <th className="sticky top-0 z-10 px-4 py-2.5 bg-sunken border-b border-border-subtle">Location</th>
-                          <th className="sticky top-0 z-10 px-4 py-2.5 bg-sunken border-b border-border-subtle">Contacts / Emails</th>
-                          <th className="sticky top-0 z-10 px-4 py-2.5 text-right bg-sunken border-b border-border-subtle">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border-subtle/50">
-                        {results.map((res) => {
-                          const companyContacts = existingContacts.filter(
-                            (ct) => ct.companyId === res.id
-                          );
-                          const emailContacts = companyContacts.filter((ct) => ct.email);
-                          const primaryEmail = emailContacts[0]?.email;
+                  <div className="flex flex-col justify-between h-full pt-4 space-y-4">
+                    <div className="border border-border-subtle rounded-none overflow-hidden">
+                      <table className="w-full text-left border-collapse min-w-[640px]">
+                        <thead>
+                          <tr className="bg-surface-3 border-b border-border-subtle text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
+                            <th className="px-4 py-2.5">Company</th>
+                            <th className="px-4 py-2.5">Website</th>
+                            <th className="px-4 py-2.5">Phone</th>
+                            <th className="px-4 py-2.5">Location</th>
+                            <th className="px-4 py-2.5">Contacts / Emails</th>
+                            <th className="px-4 py-2.5 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <motion.tbody
+                          className="divide-y divide-border-subtle/50"
+                          initial="hidden"
+                          animate="visible"
+                          variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
+                        >
+                          <AnimatePresence initial={false}>
+                            {paginatedResults.map((res) => {
+                              const companyContacts = existingContacts.filter(
+                                (ct) => ct.companyId === res.id
+                              );
+                              const emailContacts = companyContacts.filter((ct) => ct.email);
+                              const primaryEmail = emailContacts[0]?.email;
 
-                          return (
-                            <tr key={res.id} className="hover:bg-sunken/10 transition-colors">
-                              <td className="px-4 py-3">
-                                <div className="font-semibold text-foreground leading-snug">
-                                  {res.name}
-                                </div>
-                                {res.rating != null && (
-                                  <span className="text-[9px] text-amber-400">★ {res.rating}</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 max-w-[160px]">
-                                {res.website ? (
-                                  <a
-                                    href={res.website}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="font-mono text-accent hover:underline truncate block text-[10px]"
-                                  >
-                                    {res.domain || res.website}
-                                  </a>
-                                ) : (
-                                  <span className="opacity-40">—</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                                {res.phone || <span className="opacity-40">—</span>}
-                              </td>
-                              <td className="px-4 py-3 text-muted-foreground max-w-[180px]">
-                                <span className="truncate block">
-                                  {res.location || <span className="opacity-40">—</span>}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3">
-                                {(() => {
-                                  const execContacts = companyContacts.filter(
-                                    (ct) => ct.type === 'executive' || ct.sourcePlatform === 'linkedin'
-                                  );
-                                  return (
-                                    <div className="flex flex-col gap-1 items-start">
-                                      {emailContacts.length > 0 && (
-                                        <Badge
-                                          variant="outline"
-                                          className="bg-blue-500/10 text-blue-400 border-blue-500/20 font-bold text-[9px]"
-                                        >
-                                          <Mail className="w-2.5 h-2.5 mr-1" />
-                                          {emailContacts.length} email
-                                          {emailContacts.length > 1 ? 's' : ''} · {primaryEmail}
-                                        </Badge>
-                                      )}
-                                      {execContacts.length > 0 && (
-                                        <Badge
-                                          variant="outline"
-                                          className="bg-violet-500/10 text-violet-400 border-violet-500/20 font-bold text-[9px]"
-                                        >
-                                          <UserCheck className="w-2.5 h-2.5 mr-1" />
-                                          {execContacts.length} Exec{execContacts.length > 1 ? 's' : ''} (
-                                          {execContacts[0].firstName} {execContacts[0].lastName || ''})
-                                        </Badge>
-                                      )}
-                                      {emailContacts.length === 0 &&
-                                        execContacts.length === 0 &&
-                                        companyContacts.length > 0 && (
-                                          <Badge
-                                            variant="outline"
-                                            className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 font-bold text-[9px]"
-                                          >
-                                            <Phone className="w-2.5 h-2.5 mr-1" />
-                                            Phone saved
-                                          </Badge>
-                                        )}
-                                      {companyContacts.length === 0 && (
-                                        <span className="opacity-40">No contacts yet</span>
-                                      )}
+                              return (
+                                <motion.tr
+                                  key={res.id}
+                                  initial={{ opacity: 0, y: 4 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0 }}
+                                  className="hover:bg-surface-3/45 transition-colors"
+                                >
+                                  <td className="px-4 py-3">
+                                    <div className="font-semibold text-foreground leading-snug">
+                                      {res.name}
                                     </div>
-                                  );
-                                })()}
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <div className="flex justify-end gap-1.5">
-                                  {res.website && (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() =>
-                                        enrichCompanyMutation.mutate({
-                                          companyId: res.id,
-                                          website: res.website
-                                        })
-                                      }
-                                      disabled={enrichCompanyMutation.isPending}
-                                      title="Crawl website for email addresses"
-                                      className="h-6 text-[10px] gap-1 font-semibold border-accent/30 text-accent hover:bg-accent/10"
-                                    >
-                                      <Sparkles className="w-3 h-3" />
-                                      Crawl
-                                    </Button>
-                                  )}
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                      enrichLinkedInMutation.mutate({
-                                        companyId: res.id,
-                                        companyName: res.name,
-                                        domain: res.domain
-                                      })
-                                    }
-                                    disabled={enrichLinkedInMutation.isPending}
-                                    title="Scrape executive decision makers (CEOs, VPs, Directors)"
-                                    className="h-6 text-[10px] gap-1 font-semibold border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
-                                  >
-                                    <Linkedin className="w-3 h-3" />
-                                    Execs
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
+                                    {res.rating != null && (
+                                      <span className="text-[9px] text-warning font-mono">★ {res.rating}</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3 max-w-[160px]">
+                                    {res.website ? (
+                                      <a
+                                        href={res.website}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="font-mono text-primary hover:underline truncate block text-[10px]"
+                                      >
+                                        {res.domain || res.website}
+                                      </a>
+                                    ) : (
+                                      <span className="opacity-40">—</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3 text-muted-foreground font-mono whitespace-nowrap">
+                                    {res.phone || <span className="opacity-40">—</span>}
+                                  </td>
+                                  <td className="px-4 py-3 text-muted-foreground max-w-[180px]">
+                                    <span className="truncate block">
+                                      {res.location || <span className="opacity-40">—</span>}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    {(() => {
+                                      const execContacts = companyContacts.filter(
+                                        (ct) => ct.type === 'executive' || ct.sourcePlatform === 'linkedin'
+                                      );
+                                      return (
+                                        <div className="flex flex-col gap-1 items-start">
+                                          {emailContacts.length > 0 && (
+                                            <Badge
+                                              variant="outline"
+                                              className="bg-info-muted text-info border border-info/20 font-bold text-[9px] rounded-none"
+                                            >
+                                              <Mail className="w-2.5 h-2.5 mr-1" />
+                                              {emailContacts.length} email
+                                              {emailContacts.length > 1 ? 's' : ''} · {primaryEmail}
+                                            </Badge>
+                                          )}
+                                          {execContacts.length > 0 && (
+                                            <Badge
+                                              variant="outline"
+                                              className="bg-primary/10 text-primary border border-primary/20 font-bold text-[9px] rounded-none"
+                                            >
+                                              <UserCheck className="w-2.5 h-2.5 mr-1" />
+                                              {execContacts.length} Exec{execContacts.length > 1 ? 's' : ''} (
+                                              {execContacts[0].firstName} {execContacts[0].lastName || ''})
+                                            </Badge>
+                                          )}
+                                          {emailContacts.length === 0 &&
+                                            execContacts.length === 0 &&
+                                            companyContacts.length > 0 && (
+                                              <Badge
+                                                variant="outline"
+                                                className="bg-success-muted text-success border border-success/20 font-bold text-[9px] rounded-none"
+                                              >
+                                                <Phone className="w-2.5 h-2.5 mr-1" />
+                                                Phone saved
+                                              </Badge>
+                                            )}
+                                          {companyContacts.length === 0 && (
+                                            <span className="opacity-40 text-[10px]">No contacts found</span>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    <div className="flex justify-end gap-1.5">
+                                      {res.website && (
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() =>
+                                            enrichCompanyMutation.mutate({
+                                              companyId: res.id,
+                                              website: res.website
+                                            })
+                                          }
+                                          disabled={enrichCompanyMutation.isPending}
+                                          title="Crawl website for email addresses"
+                                          className="h-6 text-[10px] gap-1 font-semibold border-primary/20 text-primary hover:bg-primary/10 rounded-none"
+                                        >
+                                          <Sparkles className="w-3 h-3" />
+                                          Crawl
+                                        </Button>
+                                      )}
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          enrichLinkedInMutation.mutate({
+                                            companyId: res.id,
+                                            companyName: res.name,
+                                            domain: res.domain
+                                          })
+                                        }
+                                        disabled={enrichLinkedInMutation.isPending}
+                                        title="Scrape executive decision makers"
+                                        className="h-6 text-[10px] gap-1 font-semibold border-info/20 text-info hover:bg-info/10 rounded-none"
+                                      >
+                                        <Linkedin className="w-3 h-3" />
+                                        Execs
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </motion.tr>
+                              );
+                            })}
+                          </AnimatePresence>
+                        </motion.tbody>
+                      </table>
+                    </div>
+
+                    {/* Results table pagination controls */}
+                    {totalResultsPages > 1 && (
+                      <div className="flex items-center justify-between border-t border-border-subtle pt-4 mt-2 select-none px-1">
+                        <span className="text-[11px] text-muted-foreground">
+                          Showing{' '}
+                          <strong className="text-foreground font-mono">{resultsStartIndex + 1}</strong>{' '}
+                          to{' '}
+                          <strong className="text-foreground font-mono">
+                            {Math.min(resultsStartIndex + resultsPerPage, totalResults)}
+                          </strong>{' '}
+                          of <strong className="text-foreground font-mono">{totalResults}</strong> companies
+                        </span>
+
+                        <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleResultsPageChange(Math.max(1, resultsPage - 1));
+                            }}
+                            disabled={adjustedResultsPage === 1}
+                            className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
+                          >
+                            Previous
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleResultsPageChange(Math.min(totalResultsPages, resultsPage + 1));
+                            }}
+                            disabled={adjustedResultsPage === totalResultsPages}
+                            className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
+          )}
         </SheetContent>
       </Sheet>
 
-      {/* JOB QUEUE — collapsible, crawler:website collapsed into a count */}
-      <div className="bg-card border border-border-subtle rounded-xl overflow-hidden shadow-sm">
+      {/* JOB QUEUE — collapsible list */}
+      <div className="bg-card border border-border-subtle rounded-none overflow-hidden shadow-sm">
         <div
-          className="px-4 py-3 border-b border-border-subtle flex items-center justify-between cursor-pointer hover:bg-sunken/20 transition-colors"
+          className="px-4 py-3 border-b border-border-subtle flex items-center justify-between cursor-pointer hover:bg-surface-3/45 transition-colors"
           onClick={() => setJobQueueCollapsed((v) => !v)}
         >
           <div className="flex items-center gap-2">
@@ -441,26 +570,27 @@ export default function DiscoveryScreen() {
             {runningJobs > 0 && (
               <Badge
                 variant="outline"
-                className="text-[9px] h-4 px-1.5 bg-blue-500/10 text-blue-400 border-blue-500/20 animate-pulse"
+                className="text-[9px] h-4 px-1.5 bg-info-muted text-info border border-info/20 animate-pulse rounded-none"
               >
                 {runningJobs} active
               </Badge>
             )}
             {crawlerJobs.length > 0 && (
-              <Badge variant="outline" className="text-[9px] h-4 px-1.5 text-muted-foreground">
+              <Badge variant="outline" className="text-[9px] h-4 px-1.5 text-muted-foreground rounded-none">
                 +{crawlerJobs.length} crawler{crawlerJobs.length !== 1 ? 's' : ''}
               </Badge>
             )}
           </div>
           <div className="flex items-center gap-1.5">
             <Button
+              type="button"
               variant="ghost"
               size="icon"
               onClick={(e) => {
                 e.stopPropagation();
                 jobsQuery.refetch();
               }}
-              className="w-6 h-6 p-0 text-muted-foreground"
+              className="w-6 h-6 p-0 text-muted-foreground rounded-none"
             >
               <RefreshCw className="w-3 h-3" />
             </Button>
@@ -480,110 +610,167 @@ export default function DiscoveryScreen() {
                 begin.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[560px]">
-                  <thead>
-                    <tr className="bg-sunken/40 text-[9px] font-bold text-muted-foreground uppercase border-b border-border-subtle tracking-wider">
-                      <th className="px-4 py-2.5">Job Name</th>
-                      <th className="px-4 py-2.5">Query</th>
-                      <th className="px-4 py-2.5">Status</th>
-                      <th className="px-4 py-2.5 w-40">Progress</th>
-                      <th className="px-4 py-2.5">Crawlers</th>
-                      <th className="px-4 py-2.5 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border-subtle/50">
-                    {parentJobs.map((job) => {
-                      const isSelected = selectedJobId === job.id;
-                      const payloadObj = JSON.parse(job.payload || '{}');
-                      const displayName = payloadObj.name || job.type;
-                      const queryStr = payloadObj.query || '';
-                      const limitStr = payloadObj.maxResults
-                        ? `${payloadObj.maxResults} leads`
-                        : '';
-                      const isRunnable = ['queued', 'running', 'retrying'].includes(job.status);
+              <div className="flex flex-col justify-between">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[560px]">
+                    <thead>
+                      <tr className="bg-surface-3/40 text-[9px] font-bold text-muted-foreground uppercase border-b border-border-subtle tracking-wider">
+                        <th className="px-4 py-2.5">Job Name</th>
+                        <th className="px-4 py-2.5">Query</th>
+                        <th className="px-4 py-2.5">Status</th>
+                        <th className="px-4 py-2.5 w-40">Progress</th>
+                        <th className="px-4 py-2.5">Crawlers</th>
+                        <th className="px-4 py-2.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-subtle/50">
+                      <AnimatePresence initial={false}>
+                        {paginatedJobs.map((job) => {
+                          const isSelected = selectedJobId === job.id;
+                          const payloadObj = JSON.parse(job.payload || '{}');
+                          const displayName = payloadObj.name || job.type;
+                          const queryStr = payloadObj.query || '';
+                          const limitStr = payloadObj.maxResults
+                            ? `${payloadObj.maxResults} leads`
+                            : '';
+                          const isRunnable = ['queued', 'running', 'retrying'].includes(job.status);
 
-                      return (
-                        <tr
-                          key={job.id}
-                          onClick={() => setSelectedJobId(isSelected ? null : job.id)}
-                          className={`hover:bg-sunken/30 cursor-pointer transition-colors ${isSelected ? 'bg-accent/5' : ''}`}
-                        >
-                          <td className="px-4 py-3">
-                            <div className="font-semibold text-foreground">{displayName}</div>
-                            {limitStr && (
-                              <div className="text-[9px] text-muted-foreground">· {limitStr}</div>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 font-mono text-accent text-[10px]">
-                            {queryStr}
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge
-                              variant="outline"
-                              className={`text-[9px] font-bold uppercase ${statusColor(job.status)}`}
+                          return (
+                            <motion.tr
+                              key={job.id}
+                              initial={{ opacity: 0, y: 4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0 }}
+                              onClick={() => setSelectedJobId(isSelected ? null : job.id)}
+                              className={`hover:bg-surface-3/45 cursor-pointer transition-colors ${isSelected ? 'bg-primary/12' : ''}`}
                             >
-                              {job.status}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-3 w-44">
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 bg-sunken rounded-full h-1.5 overflow-hidden border border-border-subtle">
-                                <div
-                                  className="bg-accent h-full transition-all duration-300"
-                                  style={{ width: `${job.progress || 0}%` }}
-                                />
-                              </div>
-                              <span className="font-mono text-[10px] text-muted-foreground w-8 shrink-0">
-                                {job.progress || 0}%
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground text-[10px]">
-                            {runningCrawlers > 0 ? (
-                              <span className="text-blue-400 animate-pulse">
-                                {runningCrawlers} crawling
-                              </span>
-                            ) : completedCrawlers > 0 ? (
-                              <span className="text-emerald-400">{completedCrawlers} done</span>
-                            ) : (
-                              <span className="opacity-40">—</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-right space-x-2">
-                            {isRunnable ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  cancelJobMutation.mutate(job.id);
-                                }}
-                                disabled={cancelJobMutation.isPending}
-                                className="h-6 text-[10px] text-red-500 hover:text-white hover:bg-red-500 border-red-500/25"
-                              >
-                                Cancel
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className={`h-6 text-[10px] gap-1 ${isSelected ? 'text-accent' : ''}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedJobId(isSelected ? null : job.id);
-                                }}
-                              >
-                                {isSelected ? <CheckCircle className="w-3 h-3" /> : null}
-                                {isSelected ? 'Showing' : 'View Results'}
-                              </Button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                              <td className="px-4 py-3">
+                                <div className="font-semibold text-foreground">{displayName}</div>
+                                {limitStr && (
+                                  <div className="text-[9px] text-muted-foreground">· {limitStr}</div>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 font-mono text-primary text-[10px]">
+                                {queryStr}
+                              </td>
+                              <td className="px-4 py-3">
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[9px] font-bold uppercase rounded-none ${statusColor(job.status)}`}
+                                >
+                                  {job.status}
+                                </Badge>
+                              </td>
+                              <td className="px-4 py-3 w-44">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 bg-surface-3 rounded-none h-1.5 overflow-hidden border border-border-subtle">
+                                    <div
+                                      className="bg-primary h-full transition-all duration-300 rounded-none"
+                                      style={{ width: `${job.progress || 0}%` }}
+                                    />
+                                  </div>
+                                  <span className="font-mono text-[10px] text-muted-foreground w-8 shrink-0">
+                                    {job.progress || 0}%
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground text-[10px]">
+                                {runningCrawlers > 0 ? (
+                                  <span className="text-info animate-pulse">
+                                    {runningCrawlers} crawling
+                                  </span>
+                                ) : completedCrawlers > 0 ? (
+                                  <span className="text-success">{completedCrawlers} done</span>
+                                ) : (
+                                  <span className="opacity-40">—</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-right space-x-2" onClick={(e) => e.stopPropagation()}>
+                                {isRunnable ? (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      cancelJobMutation.mutate(job.id);
+                                    }}
+                                    disabled={cancelJobMutation.isPending}
+                                    className="h-6 text-[10px] text-danger border-danger/20 hover:bg-danger-muted rounded-none"
+                                  >
+                                    Cancel
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className={`h-6 text-[10px] gap-1 rounded-none ${isSelected ? 'text-primary' : ''}`}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setSelectedJobId(isSelected ? null : job.id);
+                                    }}
+                                  >
+                                    {isSelected ? <CheckCircle className="w-3 h-3 text-primary" /> : null}
+                                    {isSelected ? 'Showing' : 'View Results'}
+                                  </Button>
+                                )}
+                              </td>
+                            </motion.tr>
+                          );
+                        })}
+                      </AnimatePresence>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Job queue table pagination controls */}
+                {totalJobsPages > 1 && (
+                  <div className="flex items-center justify-between border-t border-border-subtle pt-4 mt-2 select-none px-4 pb-4">
+                    <span className="text-[11px] text-muted-foreground">
+                      Showing{' '}
+                      <strong className="text-foreground font-mono">{jobsStartIndex + 1}</strong>{' '}
+                      to{' '}
+                      <strong className="text-foreground font-mono">
+                        {Math.min(jobsStartIndex + jobsPerPage, totalParentJobs)}
+                      </strong>{' '}
+                      of <strong className="text-foreground font-mono">{totalParentJobs}</strong> jobs
+                    </span>
+
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleJobsPageChange(Math.max(1, jobsPage - 1));
+                        }}
+                        disabled={adjustedJobsPage === 1}
+                        className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleJobsPageChange(Math.min(totalJobsPages, jobsPage + 1));
+                        }}
+                        disabled={adjustedJobsPage === totalJobsPages}
+                        className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -592,10 +779,10 @@ export default function DiscoveryScreen() {
 
       {/* CREATION MODAL */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-none bg-background border border-border-subtle shadow-elevation-2">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Compass className="w-4 h-4 text-accent" />
+              <Compass className="w-4 h-4 text-primary" />
               Launch Discovery Run
             </DialogTitle>
           </DialogHeader>
@@ -610,6 +797,7 @@ export default function DiscoveryScreen() {
                 value={jobName}
                 onChange={(e) => setJobName(e.target.value)}
                 required
+                className="rounded-none bg-card border-border-subtle"
               />
             </div>
             <div className="space-y-1">
@@ -622,8 +810,9 @@ export default function DiscoveryScreen() {
                 value={jobQuery}
                 onChange={(e) => setJobQuery(e.target.value)}
                 required
+                className="rounded-none bg-card border-border-subtle font-mono text-xs"
               />
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-[10px] text-muted-foreground mt-0.5">
                 Enter a keyword query exactly as you would type it into Google Maps.
               </p>
             </div>
@@ -633,7 +822,7 @@ export default function DiscoveryScreen() {
                 className="text-xs font-semibold flex items-center justify-between"
               >
                 <span>Max Leads to Scrape</span>
-                <span className="font-mono text-accent text-sm">{maxResults}</span>
+                <span className="font-mono text-primary text-sm font-bold">{maxResults}</span>
               </Label>
               <input
                 id="maxResults"
@@ -643,15 +832,15 @@ export default function DiscoveryScreen() {
                 step={5}
                 value={maxResults}
                 onChange={(e) => setMaxResults(Number(e.target.value))}
-                className="w-full h-1.5 rounded-full cursor-pointer"
+                className="w-full h-1.5 cursor-pointer bg-surface-3 rounded-none outline-none border border-border-subtle accent-primary"
               />
-              <div className="flex justify-between text-[9px] text-muted-foreground">
+              <div className="flex justify-between text-[9px] text-muted-foreground font-mono">
                 <span>5 (fast)</span>
                 <span>20 (default)</span>
                 <span>100 (deep)</span>
               </div>
             </div>
-            <div className="bg-sunken/40 border border-border-subtle rounded-lg p-3 text-[10px] text-muted-foreground space-y-1">
+            <div className="bg-surface-3 border border-border-subtle rounded-none p-3 text-[10px] text-muted-foreground space-y-1">
               <div className="font-semibold text-foreground">What happens next</div>
               <div>
                 ① Google Maps is scraped for up to{' '}
@@ -663,9 +852,10 @@ export default function DiscoveryScreen() {
             <div className="flex justify-end gap-2 pt-2 border-t border-border-subtle">
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 onClick={() => setCreateOpen(false)}
                 size="sm"
+                className="rounded-none"
               >
                 Cancel
               </Button>
@@ -673,7 +863,7 @@ export default function DiscoveryScreen() {
                 type="submit"
                 disabled={createJobMutation.isPending}
                 size="sm"
-                className="gap-1.5"
+                className="gap-1.5 rounded-none"
               >
                 <Compass className="w-3.5 h-3.5" />
                 {createJobMutation.isPending ? 'Launching...' : 'Start Discovery'}

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkspace } from '../hooks/useWorkspace';
+import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
@@ -33,15 +34,24 @@ import {
   Search,
   ArrowLeft,
   Users,
-  ChevronRight,
-  Activity,
-  Archive,
   Layers,
-  Settings,
-  HelpCircle
+  Archive,
+  HelpCircle,
+  Activity
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { PageHeader } from '../components/common/PageHeader';
 
+/**
+ * CampaignsScreen — outbound sequences dashboard, templates, and SMTP senders.
+ *
+ * Design updates:
+ *   - Squared corners: all buttons, dialog contents, tabs, badges, cards, code tags, select boxes, and table containers use rounded-none.
+ *   - Correct Palette: uses semantic design tokens (primary, info, success, warning, danger).
+ *   - Pagination: client-side pagination for Campaigns table and Enrolled leads table.
+ *   - Stable Callback references to prevent state resets.
+ *   - Premium Empty States: gorgeous, styled empty states matching CRM list designs.
+ */
 export default function CampaignsScreen() {
   const { activeWorkspace } = useWorkspace();
   const workspaceId = activeWorkspace?.id || '';
@@ -88,6 +98,23 @@ export default function CampaignsScreen() {
   const [enrollmentSearch, setEnrollmentSearch] = useState('');
   const [enrollmentStatusFilter, setEnrollmentStatusFilter] = useState('all');
   const [selectedEnrollmentIds, setSelectedEnrollmentIds] = useState<string[]>([]);
+
+  // Pagination states
+  const [campaignPage, setCampaignPage] = useState(1);
+  const [campaignsPerPage] = useState(10);
+
+  const [enrollmentPage, setEnrollmentPage] = useState(1);
+  const [enrollmentsPerPage] = useState(10);
+
+  const handleEnrollmentSearchChange = useCallback((val: string) => {
+    setEnrollmentSearch(val);
+    setEnrollmentPage(1);
+  }, []);
+
+  const handleEnrollmentStatusChange = useCallback((val: string) => {
+    setEnrollmentStatusFilter(val);
+    setEnrollmentPage(1);
+  }, []);
 
   // ── Query Hooks ─────────────────────────────────────────────────────────
 
@@ -370,31 +397,31 @@ export default function CampaignsScreen() {
     switch (status) {
       case 'Active':
         return (
-          <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-bold px-2">
+          <Badge className="bg-success-muted text-success border border-success/20 text-[9px] font-bold px-2 rounded-none">
             Active
           </Badge>
         );
       case 'Paused':
         return (
-          <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] font-semibold px-2">
+          <Badge className="bg-warning-muted text-warning border border-warning/20 text-[9px] font-semibold px-2 rounded-none">
             Paused
           </Badge>
         );
       case 'Completed':
         return (
-          <Badge className="bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[9px] font-semibold px-2">
+          <Badge className="bg-info-muted text-info border border-info/20 text-[9px] font-semibold px-2 rounded-none">
             Completed
           </Badge>
         );
       case 'Archived':
         return (
-          <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[9px] font-semibold px-2">
+          <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[9px] font-semibold px-2 rounded-none">
             Archived
           </Badge>
         );
       default:
         return (
-          <Badge className="bg-muted/10 text-muted-foreground border border-muted/20 text-[9px] font-semibold px-2">
+          <Badge className="bg-muted-muted text-muted-foreground border border-border-subtle text-[9px] font-semibold px-2 rounded-none">
             Draft
           </Badge>
         );
@@ -407,82 +434,101 @@ export default function CampaignsScreen() {
       case 'queued':
       case 'starting':
         return (
-          <Badge className="bg-blue-500/10 text-blue-400 border border-blue-500/20 animate-pulse text-[9px]">
+          <Badge className="bg-info-muted text-info border border-info/20 animate-pulse text-[9px] rounded-none">
             Running
           </Badge>
         );
       case 'waiting':
         return (
-          <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[9px]">
+          <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[9px] rounded-none">
             Waiting
           </Badge>
         );
       case 'paused':
         return (
-          <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px]">
+          <Badge className="bg-warning-muted text-warning border border-warning/20 text-[9px] rounded-none">
             Paused
           </Badge>
         );
       case 'replied':
         return (
-          <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-bold">
+          <Badge className="bg-success-muted text-success border border-success/20 text-[9px] font-bold rounded-none">
             Replied
           </Badge>
         );
       case 'failed':
         return (
-          <Badge className="bg-red-500/10 text-red-400 border border-red-500/20 text-[9px] font-bold">
+          <Badge className="bg-danger-muted text-danger border border-danger/20 text-[9px] font-bold rounded-none">
             Failed
           </Badge>
         );
       case 'completed':
         return (
-          <Badge className="bg-green-500/10 text-green-400 border border-green-500/20 text-[9px] font-bold">
+          <Badge className="bg-success-muted text-success border border-success/20 text-[9px] font-bold rounded-none">
             Completed
           </Badge>
         );
       default:
         return (
-          <Badge variant="outline" className="text-[9px]">
+          <Badge variant="outline" className="text-[9px] rounded-none">
             {status}
           </Badge>
         );
     }
   };
 
+  // Pagination calculation: Campaigns list
+  const totalCampaigns = campaigns.length;
+  const totalCampaignPages = Math.ceil(totalCampaigns / campaignsPerPage);
+  const adjustedCampaignPage = Math.min(Math.max(1, campaignPage), totalCampaignPages || 1);
+  const campaignStartIndex = (adjustedCampaignPage - 1) * campaignsPerPage;
+  const paginatedCampaigns = campaigns.slice(campaignStartIndex, campaignStartIndex + campaignsPerPage);
+
+  // Pagination calculation: Enrollments list
+  const totalEnrollments = filteredEnrollments.length;
+  const totalEnrollmentPages = Math.ceil(totalEnrollments / enrollmentsPerPage);
+  const adjustedEnrollmentPage = Math.min(Math.max(1, enrollmentPage), totalEnrollmentPages || 1);
+  const enrollmentStartIndex = (adjustedEnrollmentPage - 1) * enrollmentsPerPage;
+  const paginatedEnrollments = filteredEnrollments.slice(enrollmentStartIndex, enrollmentStartIndex + enrollmentsPerPage);
+
   return (
     <div className="space-y-6 text-xs font-sans h-full overflow-y-auto pr-1">
-      {/* ── TOP HEADER ────────────────────────────────────────────────────── */}
-      <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-sm font-semibold tracking-tight text-foreground">
-            Outreach Platform
-          </h2>
-          <p className="text-[11px] text-secondary mt-0.5">
-            Manage Gmail senders, campaign lists, automated schedules, and follow-ups.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Outreach Platform"
+        description="Manage Gmail senders, campaign lists, automated schedules, and follow-ups."
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="bg-sunken p-0.5 border border-border-subtle rounded flex w-max gap-1">
-          <TabsTrigger value="campaigns" className="px-3 py-1.5 flex items-center gap-1.5">
-            <Megaphone className="h-3 w-3" />
-            <span>Campaigns</span>
-          </TabsTrigger>
-          <TabsTrigger value="monitor" className="px-3 py-1.5 flex items-center gap-1.5">
-            <Activity className="h-3 w-3" />
-            <span>Queue Monitor</span>
-          </TabsTrigger>
-          <TabsTrigger value="templates" className="px-3 py-1.5 flex items-center gap-1.5">
-            <FileText className="h-3 w-3" />
-            <span>Templates</span>
-          </TabsTrigger>
-          <TabsTrigger value="accounts" className="px-3 py-1.5 flex items-center gap-1.5">
-            <Mail className="h-3 w-3" />
-            <span>Sender Accounts</span>
-          </TabsTrigger>
-        </TabsList>
+      <div className="border-b border-border-subtle flex gap-4 w-full relative mb-4">
+        {[
+          { id: 'campaigns', label: 'Campaigns', Icon: Megaphone },
+          { id: 'monitor', label: 'Queue Monitor', Icon: Activity },
+          { id: 'templates', label: 'Templates', Icon: FileText },
+          { id: 'accounts', label: 'Sender Accounts', Icon: Mail }
+        ].map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`relative pb-3 px-1 flex items-center gap-1.5 rounded-none text-xs font-semibold select-none outline-none z-10 transition-colors duration-200 ${
+                isActive ? 'text-primary font-bold' : 'text-muted-foreground hover:text-primary'
+              }`}
+            >
+              <tab.Icon className="h-3.5 w-3.5" />
+              <span>{tab.label}</span>
+              {isActive && (
+                <motion.div
+                  layoutId="campaignActiveTabUnderline"
+                  className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary"
+                  transition={{ type: 'spring', stiffness: 550, damping: 38 }}
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
 
         {/* ── CAMPAIGNS TAB (LIST VIEW OR DETAIL VIEW) ──────────────────────── */}
         <TabsContent value="campaigns" className="mt-4 space-y-4">
@@ -496,127 +542,204 @@ export default function CampaignsScreen() {
                 <Button
                   onClick={() => setCampaignOpen(true)}
                   size="sm"
-                  className="flex items-center gap-1"
+                  className="flex items-center gap-1 rounded-none"
                 >
                   <Plus className="h-3 w-3" />
                   Launch Campaign
                 </Button>
               </div>
 
-              <div className="bg-card border border-border-subtle rounded-xl overflow-hidden shadow-sm">
-                <Table>
-                  <TableHeader className="bg-sunken/40">
-                    <TableRow>
-                      <TableHead>Campaign Name</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Sequence</TableHead>
-                      <TableHead>Sender Account</TableHead>
-                      <TableHead className="text-center">Enrolled</TableHead>
-                      <TableHead className="text-center text-blue-400">Running</TableHead>
-                      <TableHead className="text-center text-zinc-400">Waiting</TableHead>
-                      <TableHead className="text-center text-emerald-400">Replies</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {campaigns.map((camp: any) => {
-                      const sequence = sequences.find((s: any) => s.id === camp.sequenceId);
-                      const account = accounts.find((a: any) => a.id === camp.sendingAccountId);
-                      return (
-                        <TableRow
-                          key={camp.id}
-                          className="hover:bg-sunken/10 cursor-pointer"
-                          onClick={() => setSelectedCampaignId(camp.id)}
-                        >
-                          <TableCell className="font-semibold text-foreground py-3">
-                            {camp.name}
-                            <span className="block text-[10px] text-muted-foreground font-normal mt-0.5">
-                              {camp.description || 'No description provided.'}
-                            </span>
-                          </TableCell>
-                          <TableCell>{getCampaignStatusBadge(camp.status)}</TableCell>
-                          <TableCell>{sequence?.name || '—'}</TableCell>
-                          <TableCell>{account?.email || '—'}</TableCell>
-                          <TableCell className="text-center font-mono font-bold">
-                            {camp.contactsCount || 0}
-                          </TableCell>
-                          <TableCell className="text-center font-mono text-blue-400">
-                            {camp.runningCount || 0}
-                          </TableCell>
-                          <TableCell className="text-center font-mono text-zinc-400">
-                            {camp.waitingCount || 0}
-                          </TableCell>
-                          <TableCell className="text-center font-mono text-emerald-400">
-                            {camp.repliedCount || 0}
-                          </TableCell>
-                          <TableCell
-                            className="text-right py-3"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className="flex justify-end gap-1.5">
-                              {camp.status === 'Paused' || camp.status === 'Draft' ? (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    updateCampaignStatusMutation.mutate({
-                                      id: camp.id,
-                                      status: 'Active'
-                                    })
-                                  }
-                                  className="h-7 text-emerald-500 hover:bg-emerald-500/10 gap-0.5"
-                                >
-                                  <Play className="h-3 w-3" />
-                                  Resume
-                                </Button>
-                              ) : camp.status === 'Active' ? (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    updateCampaignStatusMutation.mutate({
-                                      id: camp.id,
-                                      status: 'Paused'
-                                    })
-                                  }
-                                  className="h-7 text-amber-500 hover:bg-amber-500/10 gap-0.5"
-                                >
-                                  <Pause className="h-3 w-3" />
-                                  Pause
-                                </Button>
-                              ) : null}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  if (
-                                    confirm(
-                                      'Are you sure you want to delete this campaign? All enrollments will be deleted.'
-                                    )
-                                  ) {
-                                    deleteCampaignMutation.mutate(camp.id);
-                                  }
-                                }}
-                                className="h-7 text-red-500 hover:bg-red-500/10"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-
-                    {campaigns.length === 0 && (
+              {campaigns.length === 0 ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.25 }}
+                  className="h-[280px] flex items-center justify-center p-6 bg-card border border-border-subtle border-dashed rounded-none"
+                >
+                  <div className="max-w-md w-full flex flex-col items-center text-center space-y-4">
+                    <motion.div
+                      animate={{ y: [0, -6, 0] }}
+                      transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+                      className="w-12 h-12 rounded-none bg-primary/10 flex items-center justify-center text-primary border border-primary/20"
+                    >
+                      <Megaphone className="h-6 w-6" />
+                    </motion.div>
+                    <div>
+                      <h3 className="text-xs font-semibold text-foreground">No outbound campaigns launched</h3>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Define campaign sequences, connect Gmail senders, and start reaching prospects.
+                      </p>
+                    </div>
+                    <Button onClick={() => setCampaignOpen(true)} size="sm" className="rounded-none">
+                      + Launch Campaign
+                    </Button>
+                  </div>
+                </motion.div>
+              ) : (
+                <div className="bg-card border border-border-subtle rounded-none overflow-hidden shadow-sm flex flex-col justify-between">
+                  <Table>
+                    <TableHeader className="bg-surface-3/40">
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
-                          No outbound campaigns created yet. Click "Launch Campaign" to start.
-                        </TableCell>
+                        <TableHead>Campaign Name</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Sequence</TableHead>
+                        <TableHead>Sender Account</TableHead>
+                        <TableHead className="text-center">Enrolled</TableHead>
+                        <TableHead className="text-center text-info">Running</TableHead>
+                        <TableHead className="text-center text-zinc-400">Waiting</TableHead>
+                        <TableHead className="text-center text-success">Replies</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <motion.tbody
+                      initial="hidden"
+                      animate="visible"
+                      variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+                    >
+                      {paginatedCampaigns.map((camp: any) => {
+                        const sequence = sequences.find((s: any) => s.id === camp.sequenceId);
+                        const account = accounts.find((a: any) => a.id === camp.sendingAccountId);
+                        return (
+                          <motion.tr
+                            key={camp.id}
+                            variants={{
+                              hidden: { opacity: 0, y: 8 },
+                              visible: { opacity: 1, y: 0, transition: { duration: 0.18, ease: [0.4, 0, 0.2, 1] } }
+                            }}
+                            className="hover:bg-surface-3/10 cursor-pointer border-b border-border-subtle/50 text-xs"
+                            onClick={() => {
+                              setSelectedCampaignId(camp.id);
+                              setEnrollmentPage(1);
+                            }}
+                          >
+                            <TableCell className="font-semibold text-foreground py-3">
+                              {camp.name}
+                              <span className="block text-[10px] text-muted-foreground font-normal mt-0.5">
+                                {camp.description || 'No description provided.'}
+                              </span>
+                            </TableCell>
+                            <TableCell>{getCampaignStatusBadge(camp.status)}</TableCell>
+                            <TableCell>{sequence?.name || '—'}</TableCell>
+                            <TableCell className="font-mono">{account?.email || '—'}</TableCell>
+                            <TableCell className="text-center font-mono font-bold">
+                              {camp.contactsCount || 0}
+                            </TableCell>
+                            <TableCell className="text-center font-mono text-info">
+                              {camp.runningCount || 0}
+                            </TableCell>
+                            <TableCell className="text-center font-mono text-zinc-400">
+                              {camp.waitingCount || 0}
+                            </TableCell>
+                            <TableCell className="text-center font-mono text-success">
+                              {camp.repliedCount || 0}
+                            </TableCell>
+                            <TableCell
+                              className="text-right py-3"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="flex justify-end gap-1.5">
+                                {camp.status === 'Paused' || camp.status === 'Draft' ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      updateCampaignStatusMutation.mutate({
+                                        id: camp.id,
+                                        status: 'Active'
+                                      })
+                                    }
+                                    className="h-7 text-success hover:bg-success-muted gap-0.5 rounded-none"
+                                  >
+                                    <Play className="h-3 w-3" />
+                                    Resume
+                                  </Button>
+                                ) : camp.status === 'Active' ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      updateCampaignStatusMutation.mutate({
+                                        id: camp.id,
+                                        status: 'Paused'
+                                      })
+                                    }
+                                    className="h-7 text-warning hover:bg-warning-muted gap-0.5 rounded-none"
+                                  >
+                                    <Pause className="h-3 w-3" />
+                                    Pause
+                                  </Button>
+                                ) : null}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (
+                                      confirm(
+                                        'Are you sure you want to delete this campaign? All enrollments will be deleted.'
+                                      )
+                                    ) {
+                                      deleteCampaignMutation.mutate(camp.id);
+                                    }
+                                  }}
+                                  className="h-7 text-danger hover:bg-danger-muted rounded-none"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </motion.tr>
+                        );
+                      })}
+                    </motion.tbody>
+                  </Table>
+                </div>
+              )}
+
+              {/* Campaigns list pagination controls */}
+              {totalCampaignPages > 1 && campaigns.length > 0 && (
+                <div className="flex items-center justify-between border-t border-border-subtle pt-4 mt-2 select-none">
+                  <span className="text-[11px] text-muted-foreground">
+                    Showing{' '}
+                    <strong className="text-foreground font-mono">{campaignStartIndex + 1}</strong>{' '}
+                    to{' '}
+                    <strong className="text-foreground font-mono">
+                      {Math.min(campaignStartIndex + campaignsPerPage, totalCampaigns)}
+                    </strong>{' '}
+                    of <strong className="text-foreground font-mono">{totalCampaigns}</strong> campaigns
+                  </span>
+
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setCampaignPage((p) => Math.max(1, p - 1));
+                      }}
+                      disabled={adjustedCampaignPage === 1}
+                      className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setCampaignPage((p) => Math.min(totalCampaignPages, p + 1));
+                      }}
+                      disabled={adjustedCampaignPage === totalCampaignPages}
+                      className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             /* ──── CAMPAIGN DETAILS VIEW ──── */
@@ -636,7 +759,7 @@ export default function CampaignsScreen() {
                         setSelectedCampaignId(null);
                         setSelectedEnrollment(null);
                       }}
-                      className="gap-1 h-8 text-[11px]"
+                      className="gap-1 h-8 text-[11px] rounded-none"
                     >
                       <ArrowLeft className="h-3.5 w-3.5" />
                       Back to Campaigns
@@ -653,7 +776,7 @@ export default function CampaignsScreen() {
                               status: 'Paused'
                             })
                           }
-                          className="h-8 text-[10px] text-amber-500 border-amber-500/20 gap-1 hover:bg-amber-500/5"
+                          className="h-8 text-[10px] text-warning border-warning/20 gap-1 hover:bg-warning-muted rounded-none"
                         >
                           <Pause className="h-3.5 w-3.5" />
                           Pause Campaign
@@ -668,7 +791,7 @@ export default function CampaignsScreen() {
                               status: 'Active'
                             })
                           }
-                          className="h-8 text-[10px] text-emerald-500 border-emerald-500/20 gap-1 hover:bg-emerald-500/5"
+                          className="h-8 text-[10px] text-success border-success/20 gap-1 hover:bg-success-muted rounded-none"
                         >
                           <Play className="h-3.5 w-3.5" />
                           Resume Campaign
@@ -686,7 +809,7 @@ export default function CampaignsScreen() {
                             });
                           }
                         }}
-                        className="h-8 text-[10px] text-zinc-400 gap-1"
+                        className="h-8 text-[10px] text-zinc-400 gap-1 rounded-none"
                       >
                         <Archive className="h-3.5 w-3.5" />
                         Archive
@@ -696,7 +819,7 @@ export default function CampaignsScreen() {
 
                   {/* Campaign Info Cards Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-card border border-border-subtle rounded-xl p-3.5 space-y-1">
+                    <div className="bg-card border border-border-subtle rounded-none p-3.5 space-y-1">
                       <span className="text-[10px] text-muted-foreground">Campaign Status</span>
                       <div className="flex items-center justify-between">
                         <span className="text-base font-bold text-foreground">{campaign.name}</span>
@@ -707,10 +830,10 @@ export default function CampaignsScreen() {
                       </span>
                     </div>
 
-                    <div className="bg-card border border-border-subtle rounded-xl p-3.5 space-y-1">
+                    <div className="bg-card border border-border-subtle rounded-none p-3.5 space-y-1">
                       <span className="text-[10px] text-muted-foreground">Active Sequence</span>
                       <div className="text-xs font-bold text-foreground truncate flex items-center gap-1">
-                        <Layers className="h-3.5 w-3.5 text-accent" />
+                        <Layers className="h-3.5 w-3.5 text-primary" />
                         {sequence?.name || '—'}
                       </div>
                       <span className="block text-[9px] text-muted-foreground">
@@ -718,18 +841,18 @@ export default function CampaignsScreen() {
                       </span>
                     </div>
 
-                    <div className="bg-card border border-border-subtle rounded-xl p-3.5 space-y-1">
+                    <div className="bg-card border border-border-subtle rounded-none p-3.5 space-y-1">
                       <span className="text-[10px] text-muted-foreground">Sender Account</span>
                       <div className="text-xs font-bold text-foreground truncate flex items-center gap-1">
-                        <Mail className="h-3.5 w-3.5 text-accent" />
+                        <Mail className="h-3.5 w-3.5 text-primary" />
                         {account?.name || '—'}
                       </div>
-                      <span className="block text-[9px] text-muted-foreground truncate">
+                      <span className="block text-[9px] text-muted-foreground truncate font-mono">
                         {account?.email || '—'}
                       </span>
                     </div>
 
-                    <div className="bg-card border border-border-subtle rounded-xl p-3.5 space-y-1">
+                    <div className="bg-card border border-border-subtle rounded-none p-3.5 space-y-1">
                       <span className="text-[10px] text-muted-foreground">Delivery Limits</span>
                       <div className="text-xs font-bold text-foreground font-mono">
                         {campaign.dailyLimit || 200} daily / {campaign.timezone || 'UTC'}
@@ -741,7 +864,7 @@ export default function CampaignsScreen() {
                   </div>
 
                   {/* Campaign Dashboard Stats */}
-                  <div className="grid grid-cols-7 gap-2 bg-sunken/30 border border-border-subtle/50 rounded-xl p-3.5">
+                  <div className="grid grid-cols-7 gap-2 bg-surface-3 border border-border-subtle rounded-none p-3.5">
                     <div className="text-center border-r border-border-subtle/50">
                       <span className="block font-mono text-base font-bold text-foreground">
                         {campaign.contactsCount || 0}
@@ -749,7 +872,7 @@ export default function CampaignsScreen() {
                       <span className="text-[9px] text-muted-foreground">Enrolled</span>
                     </div>
                     <div className="text-center border-r border-border-subtle/50">
-                      <span className="block font-mono text-base font-bold text-blue-400">
+                      <span className="block font-mono text-base font-bold text-info">
                         {campaign.runningCount || 0}
                       </span>
                       <span className="text-[9px] text-muted-foreground">Running</span>
@@ -761,25 +884,25 @@ export default function CampaignsScreen() {
                       <span className="text-[9px] text-muted-foreground">Waiting</span>
                     </div>
                     <div className="text-center border-r border-border-subtle/50">
-                      <span className="block font-mono text-base font-bold text-emerald-400">
+                      <span className="block font-mono text-base font-bold text-success">
                         {campaign.repliedCount || 0}
                       </span>
                       <span className="text-[9px] text-muted-foreground">Replies</span>
                     </div>
                     <div className="text-center border-r border-border-subtle/50">
-                      <span className="block font-mono text-base font-bold text-green-400">
+                      <span className="block font-mono text-base font-bold text-success">
                         {campaign.completedCount || 0}
                       </span>
                       <span className="text-[9px] text-muted-foreground">Completed</span>
                     </div>
                     <div className="text-center border-r border-border-subtle/50">
-                      <span className="block font-mono text-base font-bold text-amber-400">
+                      <span className="block font-mono text-base font-bold text-warning">
                         {campaign.pausedCount || 0}
                       </span>
                       <span className="text-[9px] text-muted-foreground">Paused</span>
                     </div>
                     <div className="text-center">
-                      <span className="block font-mono text-base font-bold text-red-400">
+                      <span className="block font-mono text-base font-bold text-danger">
                         {campaign.failedCount || 0}
                       </span>
                       <span className="text-[9px] text-muted-foreground">Failed</span>
@@ -789,28 +912,28 @@ export default function CampaignsScreen() {
                   {/* Main detail workflow section: Left Enrollment Table, Right Timeline Stepper */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     {/* Enrollment Table Column */}
-                    <div className="lg:col-span-2 space-y-3 bg-card border border-border-subtle rounded-xl p-4 shadow-sm">
+                    <div className="lg:col-span-2 space-y-3 bg-card border border-border-subtle rounded-none p-4 shadow-sm">
                       <div className="flex justify-between items-center gap-2">
                         <h4 className="font-semibold text-foreground text-[11px] flex items-center gap-1.5">
-                          <Users className="h-4 w-4 text-accent" />
+                          <Users className="h-4 w-4 text-primary" />
                           Enrolled Recipient Leads
                         </h4>
 
                         {/* Search and filter toolbar */}
                         <div className="flex gap-2">
                           <div className="relative">
-                            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground opacity-60" />
                             <Input
                               placeholder="Search leads..."
                               value={enrollmentSearch}
-                              onChange={(e) => setEnrollmentSearch(e.target.value)}
-                              className="pl-8 h-7 text-[10px] w-40"
+                              onChange={(e) => handleEnrollmentSearchChange(e.target.value)}
+                              className="pl-8 h-7 text-[10px] w-40 rounded-none border-border-subtle bg-card"
                             />
                           </div>
                           <select
                             value={enrollmentStatusFilter}
-                            onChange={(e) => setEnrollmentStatusFilter(e.target.value)}
-                            className="h-7 text-[10px] bg-background border border-input rounded px-1.5 focus-visible:outline-none"
+                            onChange={(e) => handleEnrollmentStatusChange(e.target.value)}
+                            className="h-7 text-[10px] bg-background border border-border-subtle rounded-none px-1.5 focus-visible:outline-none"
                           >
                             <option value="all">All Statuses</option>
                             <option value="running">Running</option>
@@ -825,28 +948,31 @@ export default function CampaignsScreen() {
 
                       {/* Bulk Actions Banner on selections */}
                       {selectedEnrollmentIds.length > 0 && (
-                        <div className="flex items-center justify-between bg-sunken border border-border-subtle rounded-lg p-2.5 text-[10px]">
+                        <div className="flex items-center justify-between bg-surface-3 border border-border-subtle rounded-none p-2.5 text-[10px]">
                           <span className="font-semibold text-foreground">
                             {selectedEnrollmentIds.length} lead(s) selected
                           </span>
                           <div className="flex gap-1.5">
                             <Button
+                              type="button"
                               variant="outline"
                               size="sm"
                               onClick={() => bulkResumeMutation.mutate(selectedEnrollmentIds)}
-                              className="h-6 text-[9px] px-2 text-emerald-500"
+                              className="h-6 text-[9px] px-2 text-success rounded-none hover:bg-success-muted"
                             >
                               Resume
                             </Button>
                             <Button
+                              type="button"
                               variant="outline"
                               size="sm"
                               onClick={() => bulkPauseMutation.mutate(selectedEnrollmentIds)}
-                              className="h-6 text-[9px] px-2 text-amber-500"
+                              className="h-6 text-[9px] px-2 text-warning rounded-none hover:bg-warning-muted"
                             >
                               Pause
                             </Button>
                             <Button
+                              type="button"
                               variant="outline"
                               size="sm"
                               onClick={() => {
@@ -858,7 +984,7 @@ export default function CampaignsScreen() {
                                   bulkRemoveMutation.mutate(selectedEnrollmentIds);
                                 }
                               }}
-                              className="h-6 text-[9px] px-2 text-red-500"
+                              className="h-6 text-[9px] px-2 text-danger rounded-none hover:bg-danger-muted"
                             >
                               Remove
                             </Button>
@@ -867,27 +993,27 @@ export default function CampaignsScreen() {
                       )}
 
                       {/* Enrolled Leads Table */}
-                      <div className="border border-border-subtle rounded-lg overflow-hidden">
+                      <div className="border border-border-subtle rounded-none overflow-hidden flex flex-col justify-between">
                         <Table>
-                          <TableHeader className="bg-sunken/40">
+                          <TableHeader className="bg-surface-3/40">
                             <TableRow>
                               <TableHead className="w-8 py-2">
                                 <input
                                   type="checkbox"
                                   checked={
-                                    selectedEnrollmentIds.length === filteredEnrollments.length &&
-                                    filteredEnrollments.length > 0
+                                    selectedEnrollmentIds.length === paginatedEnrollments.length &&
+                                    paginatedEnrollments.length > 0
                                   }
                                   onChange={(e) => {
                                     if (e.target.checked) {
                                       setSelectedEnrollmentIds(
-                                        filteredEnrollments.map((x: any) => x.id)
+                                        paginatedEnrollments.map((x: any) => x.id)
                                       );
                                     } else {
                                       setSelectedEnrollmentIds([]);
                                     }
                                   }}
-                                  className="rounded"
+                                  className="rounded-none border-border-subtle text-primary focus:ring-ring"
                                 />
                               </TableHead>
                               <TableHead className="py-2">Contact</TableHead>
@@ -898,7 +1024,7 @@ export default function CampaignsScreen() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {filteredEnrollments.map((enroll: any) => {
+                            {paginatedEnrollments.map((enroll: any) => {
                               const isChecked = selectedEnrollmentIds.includes(enroll.id);
                               const nextRun = enroll.nextExecutionAt
                                 ? formatDistanceToNow(new Date(enroll.nextExecutionAt))
@@ -906,8 +1032,8 @@ export default function CampaignsScreen() {
                               return (
                                 <TableRow
                                   key={enroll.id}
-                                  className={`hover:bg-sunken/10 cursor-pointer ${
-                                    selectedEnrollment?.id === enroll.id ? 'bg-sunken/20' : ''
+                                  className={`hover:bg-surface-3/15 cursor-pointer ${
+                                    selectedEnrollment?.id === enroll.id ? 'bg-primary/12' : ''
                                   }`}
                                   onClick={() => setSelectedEnrollment(enroll)}
                                 >
@@ -927,126 +1053,146 @@ export default function CampaignsScreen() {
                                           );
                                         }
                                       }}
-                                      className="rounded"
+                                      className="rounded-none border-border-subtle text-primary focus:ring-ring"
                                     />
                                   </TableCell>
                                   <TableCell className="py-2">
                                     <div className="font-semibold text-foreground">
                                       {enroll.firstName} {enroll.lastName || ''}
                                     </div>
-                                    <div className="text-[9px] text-muted-foreground font-mono mt-0.5">
-                                      {enroll.email} | {enroll.companyName || 'No Company'}
-                                    </div>
+                                    <span className="block text-[9px] font-mono text-primary truncate max-w-[120px]">
+                                      {enroll.email}
+                                    </span>
                                   </TableCell>
-                                  <TableCell className="py-2 font-mono text-[9px]">
+                                  <TableCell className="py-2 font-mono text-[10px] text-muted-foreground">
                                     {nextRun}
                                   </TableCell>
                                   <TableCell className="py-2">
                                     {getEnrollmentStatusBadge(enroll.status)}
                                   </TableCell>
-                                  <TableCell className="py-2 text-center font-mono">
-                                    {enroll.emailsSent || 0}
+                                  <TableCell className="py-2 text-center font-mono font-bold">
+                                    {enroll.emailsSentCount || 0}
                                   </TableCell>
                                   <TableCell
                                     className="py-2 text-right"
                                     onClick={(e) => e.stopPropagation()}
                                   >
-                                    <ChevronRight className="h-4 w-4 text-muted-foreground inline" />
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        if (confirm('Remove lead from this campaign?')) {
+                                          bulkRemoveMutation.mutate([enroll.id]);
+                                        }
+                                      }}
+                                      className="h-6 w-6 p-0 text-danger hover:bg-danger-muted rounded-none"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
                                   </TableCell>
                                 </TableRow>
                               );
                             })}
-
-                            {filteredEnrollments.length === 0 && (
-                              <TableRow>
-                                <TableCell
-                                  colSpan={6}
-                                  className="text-center py-6 text-muted-foreground"
-                                >
-                                  No enrolled contacts found.
-                                </TableCell>
-                              </TableRow>
-                            )}
                           </TableBody>
                         </Table>
                       </div>
+
+                      {/* Enrollment table pagination controls */}
+                      {totalEnrollmentPages > 1 && (
+                        <div className="flex items-center justify-between border-t border-border-subtle pt-4 mt-2 select-none">
+                          <span className="text-[11px] text-muted-foreground">
+                            Showing{' '}
+                            <strong className="text-foreground font-mono">{enrollmentStartIndex + 1}</strong>{' '}
+                            to{' '}
+                            <strong className="text-foreground font-mono">
+                              {Math.min(enrollmentStartIndex + enrollmentsPerPage, totalEnrollments)}
+                            </strong>{' '}
+                            of <strong className="text-foreground font-mono">{totalEnrollments}</strong> leads
+                          </span>
+
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setEnrollmentPage((p) => Math.max(1, p - 1));
+                              }}
+                              disabled={adjustedEnrollmentPage === 1}
+                              className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
+                            >
+                              Previous
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setEnrollmentPage((p) => Math.min(totalEnrollmentPages, p + 1));
+                              }}
+                              disabled={adjustedEnrollmentPage === totalEnrollmentPages}
+                              className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Timeline Progression / Execution Stepper Panel */}
-                    <div className="bg-card border border-border-subtle rounded-xl p-4 shadow-sm space-y-4">
-                      <h4 className="font-semibold text-foreground text-[11px] flex items-center gap-1.5">
-                        <Clock className="h-4 w-4 text-accent" />
-                        Sequence Execution Timeline
+                    {/* Stepper Details Column */}
+                    <div className="bg-card border border-border-subtle rounded-none p-4 shadow-sm space-y-4">
+                      <h4 className="font-semibold text-foreground text-[11px] flex items-center gap-1.5 pb-2 border-b border-border-subtle">
+                        <Activity className="h-4 w-4 text-primary" />
+                        Execution Telemetry Stream
                       </h4>
 
                       {selectedEnrollment ? (
                         <div className="space-y-4">
-                          {/* Selected Lead details */}
-                          <div className="pb-3 border-b border-border-subtle">
-                            <div className="font-bold text-foreground text-xs">
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                              Selected Recipient
+                            </span>
+                            <div className="font-bold text-foreground text-xs mt-0.5">
                               {selectedEnrollment.firstName} {selectedEnrollment.lastName || ''}
                             </div>
-                            <span className="block text-[10px] text-muted-foreground mt-0.5">
+                            <span className="text-[10px] font-mono text-primary block mt-0.5">
                               {selectedEnrollment.email}
                             </span>
+                            {selectedEnrollment.companyName && (
+                              <span className="text-[10px] text-muted-foreground block mt-0.5 truncate">
+                                Firm: {selectedEnrollment.companyName}
+                              </span>
+                            )}
                           </div>
 
-                          {/* Render visual sequence steps */}
-                          <div className="relative pl-4 border-l border-border-subtle space-y-4">
-                            {/* Initial Step */}
-                            <div className="relative">
-                              <span className="absolute -left-[21px] top-0 bg-green-500 rounded-full h-3 w-3 border-2 border-card" />
-                              <div className="font-bold text-foreground text-[10px]">
-                                Enrollment Initialized
-                              </div>
-                              <span className="block text-[9px] text-muted-foreground font-mono">
-                                {new Date(selectedEnrollment.createdAt).toLocaleString()}
+                          <div className="space-y-1">
+                            <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                              Sequence Progress
+                            </span>
+                            <div className="text-[11px] font-medium text-foreground flex items-center gap-2">
+                              {getEnrollmentStatusBadge(selectedEnrollment.status)}
+                              <span className="font-mono">
+                                Step {selectedEnrollment.currentStepIndex || 0} of{' '}
+                                {sequence?.steps ? JSON.parse(sequence.steps).length : 0}
                               </span>
                             </div>
-
-                            {/* Stepper logic mapping sequence steps */}
-                            {(() => {
-                              const rawSteps = sequence?.steps ? JSON.parse(sequence.steps) : [];
-                              return rawSteps.map((step: any, index: number) => {
-                                const isCurrent = selectedEnrollment.currentStep === index;
-                                const isPassed = selectedEnrollment.currentStep > index;
-
-                                // Determine step status colors
-                                let color = 'bg-zinc-600';
-                                if (isCurrent) color = 'bg-blue-500 animate-pulse';
-                                if (isPassed) color = 'bg-green-500';
-                                if (selectedEnrollment.status === 'failed' && isCurrent)
-                                  color = 'bg-red-500';
-
-                                return (
-                                  <div key={step.id} className="relative">
-                                    <span
-                                      className={`absolute -left-[21px] top-0 rounded-full h-3 w-3 border-2 border-card ${color}`}
-                                    />
-                                    <div className="font-bold text-foreground text-[10px]">
-                                      Step {index + 1}: {step.type.toUpperCase()}
-                                    </div>
-                                    <div className="text-[9px] text-muted-foreground mt-0.5">
-                                      {step.type === 'email'
-                                        ? 'Outgoing message dispatch'
-                                        : `Wait duration: ${step.config.delayDays || 1} day(s)`}
-                                    </div>
-                                  </div>
-                                );
-                              });
-                            })()}
-
-                            {/* Replied state step */}
                             {selectedEnrollment.status === 'replied' && (
-                              <div className="relative">
-                                <span className="absolute -left-[21px] top-0 bg-emerald-500 rounded-full h-3 w-3 border-2 border-card animate-bounce" />
-                                <div className="font-bold text-emerald-400 text-[10px]">
-                                  Reply Received
-                                </div>
-                                <span className="block text-[9px] text-emerald-500/80 font-mono">
-                                  Sequence auto-terminated
-                                </span>
-                              </div>
+                              <p className="text-[9px] text-success font-semibold flex items-center gap-0.5 mt-1 bg-success-muted border border-success/15 px-2 py-1">
+                                <CheckCircle className="h-3 w-3" />
+                                Sequence stopped because recipient replied!
+                              </p>
+                            )}
+                            {selectedEnrollment.status === 'failed' && (
+                              <p className="text-[9px] text-danger font-semibold flex items-center gap-0.5 mt-1 bg-danger-muted border border-danger/15 px-2 py-1">
+                                <AlertCircle className="h-3 w-3" />
+                                Send failed: check SMTP credentials or connection logs.
+                              </p>
                             )}
                           </div>
 
@@ -1055,7 +1201,7 @@ export default function CampaignsScreen() {
                             <span className="block font-semibold text-foreground text-[10px]">
                               Technical Audit Logs:
                             </span>
-                            <div className="bg-sunken border border-border-subtle rounded-lg p-2.5 font-mono text-[9px] max-h-40 overflow-y-auto space-y-1 text-muted-foreground">
+                            <div className="bg-surface-3 border border-border-subtle rounded-none p-2.5 font-mono text-[9px] max-h-40 overflow-y-auto space-y-1 text-muted-foreground">
                               {selectedEnrollment.logs && selectedEnrollment.logs.length > 0 ? (
                                 selectedEnrollment.logs.map((log: any, idx: number) => (
                                   <div
@@ -1105,61 +1251,75 @@ export default function CampaignsScreen() {
             <Button
               onClick={() => setTemplateOpen(true)}
               size="sm"
-              className="flex items-center gap-1"
+              className="flex items-center gap-1 rounded-none"
             >
               <Plus className="h-3 w-3" />
               Create Template
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {templates.map((tpl: any) => (
-              <div
-                key={tpl.id}
-                className="bg-card border border-border-subtle rounded-xl p-4 space-y-3 shadow-sm hover:shadow-md transition"
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="font-bold text-foreground text-xs">{tpl.name}</h4>
-                    <span className="block text-[10px] text-muted-foreground truncate max-w-xs mt-0.5">
-                      Subject: {tpl.subject}
-                    </span>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setPreviewTemplateId(tpl.id);
-                        setPreviewOpen(true);
-                      }}
-                      className="h-7 text-[10px] gap-0.5"
-                    >
-                      <Eye className="h-3 w-3" />
-                      Preview
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => deleteTemplateMutation.mutate(tpl.id)}
-                      className="h-7 w-7 p-0 text-red-500 hover:bg-red-500/10"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+          {templates.length === 0 ? (
+            <div className="h-[280px] flex items-center justify-center p-6 bg-card border border-border-subtle border-dashed rounded-none">
+              <div className="max-w-md w-full flex flex-col items-center text-center space-y-4">
+                <div className="w-12 h-12 rounded-none bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                  <FileText className="h-6 w-6" />
                 </div>
-                <div className="bg-sunken border border-border-subtle rounded p-2.5 font-mono text-[10px] text-secondary max-h-24 overflow-y-auto whitespace-pre-wrap">
-                  {tpl.body}
+                <div>
+                  <h3 className="text-xs font-semibold text-foreground">No email templates found</h3>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Draft merge copy templates with dynamic variables like {`{{firstName}}`} or {`{{company}}`}.
+                  </p>
                 </div>
+                <Button onClick={() => setTemplateOpen(true)} size="sm" className="rounded-none">
+                  + Create Template
+                </Button>
               </div>
-            ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {templates.map((tpl: any) => (
+                <div
+                  key={tpl.id}
+                  className="bg-card border border-border-subtle rounded-none p-4 space-y-3 shadow-sm hover:shadow-md transition"
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-bold text-foreground text-xs">{tpl.name}</h4>
+                      <span className="block text-[10px] text-muted-foreground truncate max-w-xs mt-0.5 font-mono">
+                        Subject: {tpl.subject}
+                      </span>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setPreviewTemplateId(tpl.id);
+                          setPreviewOpen(true);
+                        }}
+                        className="h-7 text-[10px] gap-0.5 rounded-none"
+                      >
+                        <Eye className="h-3 w-3" />
+                        Preview
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => deleteTemplateMutation.mutate(tpl.id)}
+                        className="h-7 w-7 p-0 text-danger hover:bg-danger-muted rounded-none"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
 
-            {templates.length === 0 && (
-              <div className="col-span-2 text-center py-10 border border-dashed border-border-subtle rounded-xl text-muted-foreground">
-                No templates configured. Click 'Create Template' to start mapping merge copy.
-              </div>
-            )}
-          </div>
+                  <div className="bg-surface-3 border border-border-subtle rounded-none p-2.5 font-mono text-[10px] text-muted-foreground max-h-24 overflow-y-auto whitespace-pre-wrap">
+                    {tpl.body}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         {/* ── SENDER ACCOUNTS TAB ─────────────────────────────────────────── */}
@@ -1171,70 +1331,83 @@ export default function CampaignsScreen() {
             <Button
               onClick={() => setAccountOpen(true)}
               size="sm"
-              className="flex items-center gap-1"
+              className="flex items-center gap-1 rounded-none"
             >
               <Plus className="h-3 w-3" />
               Connect Gmail
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {accounts.map((acc: any) => (
-              <div
-                key={acc.id}
-                className="bg-card border border-border-subtle rounded-xl p-4 space-y-3.5 shadow-sm"
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="font-bold text-foreground text-xs">{acc.name}</h4>
-                    <span className="block text-[10px] text-muted-foreground font-mono mt-0.5">
-                      {acc.email}
-                    </span>
+          {accounts.length === 0 ? (
+            <div className="h-[280px] flex items-center justify-center p-6 bg-card border border-border-subtle border-dashed rounded-none">
+              <div className="max-w-md w-full flex flex-col items-center text-center space-y-4">
+                <div className="w-12 h-12 rounded-none bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                  <Mail className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-semibold text-foreground">No sender accounts connected</h3>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Connect outbound Gmail SMTP credentials to execute outbound campaigns.
+                  </p>
+                </div>
+                <Button onClick={() => setAccountOpen(true)} size="sm" className="rounded-none">
+                  + Connect Gmail
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {accounts.map((acc: any) => (
+                <div
+                  key={acc.id}
+                  className="bg-card border border-border-subtle rounded-none p-4 space-y-3.5 shadow-sm"
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-bold text-foreground text-xs">{acc.name}</h4>
+                      <span className="block text-[10px] text-muted-foreground font-mono mt-0.5">
+                        {acc.email}
+                      </span>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => verifyAccountMutation.mutate(acc.id)}
+                        className="h-7 text-[10px] gap-0.5 rounded-none"
+                      >
+                        Verify SMTP
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => deleteAccountMutation.mutate(acc.id)}
+                        className="h-7 w-7 p-0 text-danger hover:text-danger-muted rounded-none"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-1.5">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => verifyAccountMutation.mutate(acc.id)}
-                      className="h-7 text-[10px] gap-0.5"
-                    >
-                      Verify SMTP
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => deleteAccountMutation.mutate(acc.id)}
-                      className="h-7 w-7 p-0 text-red-500 hover:text-red-600"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+
+                  <div className="flex justify-between items-center text-[10px] pt-2 border-t border-border-subtle/50">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`h-2 w-2 rounded-none ${acc.status === 'connected' ? 'bg-success animate-pulse' : 'bg-danger'}`}
+                      />
+                      <span className="capitalize font-semibold">{acc.status}</span>
+                    </div>
+                    <span className="font-mono text-muted-foreground">{`Limits: ${acc.dailySent || 0}/${acc.dailyLimit} daily`}</span>
                   </div>
                 </div>
-
-                <div className="flex justify-between items-center text-[10px] pt-2 border-t border-border-subtle/50">
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className={`h-2 w-2 rounded-full ${acc.status === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}
-                    />
-                    <span className="capitalize font-semibold">{acc.status}</span>
-                  </div>
-                  <span className="font-mono text-muted-foreground">{`Limits: ${acc.dailySent || 0}/${acc.dailyLimit} daily`}</span>
-                </div>
-              </div>
-            ))}
-
-            {accounts.length === 0 && (
-              <div className="col-span-2 text-center py-10 border border-dashed border-border-subtle rounded-xl text-muted-foreground">
-                No connected Gmail accounts found. Click 'Connect Gmail' to setup credentials.
-              </div>
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
       {/* ── Connect Account Dialog ────────────────────────────────────────── */}
       <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-none bg-background border border-border-subtle shadow-elevation-2">
           <DialogHeader>
             <DialogTitle>Connect Gmail SMTP</DialogTitle>
           </DialogHeader>
@@ -1247,6 +1420,7 @@ export default function CampaignsScreen() {
                 value={accName}
                 onChange={(e) => setAccName(e.target.value)}
                 required
+                className="rounded-none bg-card border-border-subtle"
               />
             </div>
             <div className="space-y-1">
@@ -1258,6 +1432,7 @@ export default function CampaignsScreen() {
                 value={accEmail}
                 onChange={(e) => setAccEmail(e.target.value)}
                 required
+                className="rounded-none bg-card border-border-subtle font-mono"
               />
             </div>
             <div className="space-y-1">
@@ -1269,8 +1444,9 @@ export default function CampaignsScreen() {
                 value={accPassword}
                 onChange={(e) => setAccPassword(e.target.value)}
                 required
+                className="rounded-none bg-card border-border-subtle"
               />
-              <p className="text-[9px] text-muted flex items-center gap-0.5 mt-0.5">
+              <p className="text-[9px] text-muted-foreground flex items-center gap-0.5 mt-0.5">
                 <HelpCircle className="h-3 w-3" />
                 Must be a 16-character Google App Password (not your primary password).
               </p>
@@ -1284,6 +1460,7 @@ export default function CampaignsScreen() {
                   value={accDaily}
                   onChange={(e) => setAccDaily(parseInt(e.target.value))}
                   required
+                  className="rounded-none bg-card border-border-subtle font-mono"
                 />
               </div>
               <div className="space-y-1">
@@ -1294,6 +1471,7 @@ export default function CampaignsScreen() {
                   value={accHourly}
                   onChange={(e) => setAccHourly(parseInt(e.target.value))}
                   required
+                  className="rounded-none bg-card border-border-subtle font-mono"
                 />
               </div>
             </div>
@@ -1304,13 +1482,14 @@ export default function CampaignsScreen() {
                 placeholder="Best regards, Sales Team"
                 value={accSig}
                 onChange={(e) => setAccSig(e.target.value)}
+                className="rounded-none bg-card border-border-subtle"
               />
             </div>
             <div className="flex justify-end gap-2 pt-2 border-t border-border-subtle">
-              <Button type="button" variant="outline" onClick={() => setAccountOpen(false)}>
+              <Button type="button" variant="secondary" className="rounded-none" onClick={() => setAccountOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={createAccountMutation.isPending}>
+              <Button type="submit" className="rounded-none" disabled={createAccountMutation.isPending}>
                 {createAccountMutation.isPending ? 'Verifying SMTP...' : 'Verify & Save'}
               </Button>
             </div>
@@ -1320,7 +1499,7 @@ export default function CampaignsScreen() {
 
       {/* ── Create Template Dialog ───────────────────────────────────────── */}
       <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-none bg-background border border-border-subtle shadow-elevation-2">
           <DialogHeader>
             <DialogTitle>Create Email Template</DialogTitle>
           </DialogHeader>
@@ -1333,6 +1512,7 @@ export default function CampaignsScreen() {
                 value={tplName}
                 onChange={(e) => setTplName(e.target.value)}
                 required
+                className="rounded-none bg-card border-border-subtle"
               />
             </div>
             <div className="space-y-1">
@@ -1343,6 +1523,7 @@ export default function CampaignsScreen() {
                 value={tplSubj}
                 onChange={(e) => setTplSubj(e.target.value)}
                 required
+                className="rounded-none bg-card border-border-subtle"
               />
             </div>
             <div className="space-y-1">
@@ -1354,20 +1535,21 @@ export default function CampaignsScreen() {
                 value={tplBody}
                 onChange={(e) => setTplBody(e.target.value)}
                 required
+                className="rounded-none bg-card border-border-subtle"
               />
-              <p className="text-[9px] text-muted mt-0.5">
+              <p className="text-[9px] text-muted-foreground mt-0.5">
                 Merge variables:{' '}
-                <code className="font-mono bg-sunken px-1 rounded">{`{{firstName}}`}</code>,{' '}
-                <code className="font-mono bg-sunken px-1 rounded">{`{{lastName}}`}</code>,{' '}
-                <code className="font-mono bg-sunken px-1 rounded">{`{{company}}`}</code>,{' '}
-                <code className="font-mono bg-sunken px-1 rounded">{`{{website}}`}</code>
+                <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{firstName}}`}</code>,{' '}
+                <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{lastName}}`}</code>,{' '}
+                <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{company}}`}</code>,{' '}
+                <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{website}}`}</code>
               </p>
             </div>
             <div className="flex justify-end gap-2 pt-2 border-t border-border-subtle">
-              <Button type="button" variant="outline" onClick={() => setTemplateOpen(false)}>
+              <Button type="button" variant="secondary" className="rounded-none" onClick={() => setTemplateOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={createTemplateMutation.isPending}>
+              <Button type="submit" className="rounded-none" disabled={createTemplateMutation.isPending}>
                 Save Template
               </Button>
             </div>
@@ -1377,7 +1559,7 @@ export default function CampaignsScreen() {
 
       {/* ── Launch Campaign Dialog ───────────────────────────────────────── */}
       <Dialog open={campaignOpen} onOpenChange={setCampaignOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-none bg-background border border-border-subtle shadow-elevation-2">
           <DialogHeader>
             <DialogTitle>Launch Outbound Campaign</DialogTitle>
           </DialogHeader>
@@ -1390,6 +1572,7 @@ export default function CampaignsScreen() {
                 value={campName}
                 onChange={(e) => setCampName(e.target.value)}
                 required
+                className="rounded-none bg-card border-border-subtle"
               />
             </div>
             <div className="space-y-1">
@@ -1400,6 +1583,7 @@ export default function CampaignsScreen() {
                 value={campDesc}
                 onChange={(e) => setCampDesc(e.target.value)}
                 rows={2}
+                className="rounded-none bg-card border-border-subtle"
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -1409,7 +1593,7 @@ export default function CampaignsScreen() {
                   id="campSeq"
                   value={campSeqId}
                   onChange={(e) => setCampSeqId(e.target.value)}
-                  className="w-full h-8 px-2 bg-background border border-input rounded text-xs focus-visible:outline-none"
+                  className="w-full h-8 px-2 bg-background border border-border-subtle rounded-none text-xs focus-visible:outline-none"
                   required
                 >
                   <option value="">-- Select Sequence --</option>
@@ -1426,7 +1610,7 @@ export default function CampaignsScreen() {
                   id="campAcc"
                   value={campAccId}
                   onChange={(e) => setCampAccId(e.target.value)}
-                  className="w-full h-8 px-2 bg-background border border-input rounded text-xs focus-visible:outline-none"
+                  className="w-full h-8 px-2 bg-background border border-border-subtle rounded-none text-xs focus-visible:outline-none"
                   required
                 >
                   <option value="">-- Select Account --</option>
@@ -1447,6 +1631,7 @@ export default function CampaignsScreen() {
                   value={campLimit}
                   onChange={(e) => setCampLimit(parseInt(e.target.value))}
                   required
+                  className="rounded-none bg-card border-border-subtle font-mono text-xs"
                 />
               </div>
               <div className="space-y-1">
@@ -1456,14 +1641,15 @@ export default function CampaignsScreen() {
                   value={campTimezone}
                   onChange={(e) => setCampTimezone(e.target.value)}
                   required
+                  className="rounded-none bg-card border-border-subtle text-xs"
                 />
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-2 border-t border-border-subtle">
-              <Button type="button" variant="outline" onClick={() => setCampaignOpen(false)}>
+              <Button type="button" variant="secondary" className="rounded-none" onClick={() => setCampaignOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={createCampaignMutation.isPending}>
+              <Button type="submit" className="rounded-none" disabled={createCampaignMutation.isPending}>
                 Create Draft Campaign
               </Button>
             </div>
@@ -1473,7 +1659,7 @@ export default function CampaignsScreen() {
 
       {/* ── Live Preview Drawer Dialog ────────────────────────────────────── */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-none bg-background border border-border-subtle shadow-elevation-2">
           <DialogHeader>
             <DialogTitle>Template Live Preview</DialogTitle>
           </DialogHeader>
@@ -1484,7 +1670,7 @@ export default function CampaignsScreen() {
                 id="previewContact"
                 value={previewContactId}
                 onChange={(e) => setPreviewContactId(e.target.value)}
-                className="w-full h-8 px-2 bg-background border border-input rounded text-xs focus-visible:outline-none"
+                className="w-full h-8 px-2 bg-background border border-border-subtle rounded-none text-xs focus-visible:outline-none"
               >
                 <option value="">-- Default Fallback Contact --</option>
                 {contacts.map((c: any) => (
@@ -1496,12 +1682,12 @@ export default function CampaignsScreen() {
             </div>
 
             {previewQuery.isLoading ? (
-              <div className="text-center py-4 text-muted-foreground">Compiling template...</div>
+              <div className="text-center py-4 text-muted-foreground animate-pulse">Compiling template...</div>
             ) : previewQuery.data ? (
-              <div className="border border-border-subtle rounded p-3 bg-sunken space-y-2 font-mono">
+              <div className="border border-border-subtle rounded-none p-3 bg-surface-3 space-y-2 font-mono text-[10px]">
                 <div className="font-bold text-foreground">
                   Subject:{' '}
-                  <span className="font-normal font-sans text-secondary">
+                  <span className="font-normal font-sans text-muted-foreground">
                     {previewQuery.data.subject}
                   </span>
                 </div>
@@ -1512,7 +1698,7 @@ export default function CampaignsScreen() {
             ) : null}
 
             <div className="flex justify-end pt-2">
-              <Button onClick={() => setPreviewOpen(false)}>Close Preview</Button>
+              <Button className="rounded-none" onClick={() => setPreviewOpen(false)}>Close Preview</Button>
             </div>
           </div>
         </DialogContent>
