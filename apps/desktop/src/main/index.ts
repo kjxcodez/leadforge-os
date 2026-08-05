@@ -14,6 +14,7 @@ import { telemetry } from './lib/telemetry';
 import { UpdateManager } from './services/updater';
 import { LocalCrashReporter } from './lib/crash-reporter';
 import { loadConfig } from './lib/config';
+import { ensurePlaywrightBrowsers } from './lib/playwright-setup';
 
 // Track and write process crashes locally
 LocalCrashReporter.initialize();
@@ -143,7 +144,7 @@ function createWindow() {
 export function registerIpcHandler() {}
 
 // App lifecycle
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   telemetry.whenReadyTime = Date.now();
 
   // Create lightweight native splash window immediately
@@ -197,7 +198,20 @@ app.whenReady().then(() => {
     }
   });
 
-  // 2. Register all IPC handlers exactly once using the coordinator
+  // 2. Ensure Playwright Chromium browser binaries are installed before any
+  //    scraper job can run. On first launch this downloads ~80 MB; on subsequent
+  //    launches the installed check takes < 10 ms.
+  try {
+    updateSplashProgress('browser:setup', 'Setting up browser engine...');
+    await ensurePlaywrightBrowsers((line) => {
+      // Pipe installation stdout into the splash screen label (truncated to 50 chars)
+      updateSplashProgress('browser:setup', line.slice(0, 60));
+    });
+  } catch (err) {
+    AppLogger.error('app', 'Playwright browser setup failed during startup', undefined, err);
+  }
+
+  // 3. Register all IPC handlers exactly once using the coordinator
   registerAllIpc(
     sdk,
     customHeaders,
