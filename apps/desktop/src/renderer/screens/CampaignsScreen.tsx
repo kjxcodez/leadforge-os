@@ -837,7 +837,7 @@ export default function CampaignsScreen() {
                         {sequence?.name || '—'}
                       </div>
                       <span className="block text-[9px] text-muted-foreground">
-                        Steps: {sequence?.steps ? JSON.parse(sequence.steps).length : 0} steps
+                        Steps: {sequence?.steps ? (typeof sequence.steps === 'string' ? JSON.parse(sequence.steps).length : sequence.steps.length) : 0} steps
                       </span>
                     </div>
 
@@ -1179,7 +1179,7 @@ export default function CampaignsScreen() {
                               {getEnrollmentStatusBadge(selectedEnrollment.status)}
                               <span className="font-mono">
                                 Step {selectedEnrollment.currentStepIndex || 0} of{' '}
-                                {sequence?.steps ? JSON.parse(sequence.steps).length : 0}
+                                {sequence?.steps ? (typeof sequence.steps === 'string' ? JSON.parse(sequence.steps).length : sequence.steps.length) : 0}
                               </span>
                             </div>
                             {selectedEnrollment.status === 'replied' && (
