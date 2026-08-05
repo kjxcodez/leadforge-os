@@ -246,9 +246,10 @@ const forgotPasswordRoute = createRoute({
 router.openapi(forgotPasswordRoute, async (c) => {
   try {
     const body = await c.req.json();
-    await auth.api.sendResetPassword({
+    await auth.api.requestPasswordReset({
       body: {
-        email: body.email
+        email: body.email,
+        redirectTo: `${process.env.BETTER_AUTH_URL}/api/v1/auth/reset-password-form`
       },
       headers: c.req.raw.headers
     });
