@@ -16,7 +16,8 @@ export class OutreachService {
    * Encrypts SMTP App Password and saves the email account to the workspace database.
    */
   public async createEmailAccount(data: any): Promise<EmailAccountDocument> {
-    const encrypted = encrypt(data.password);
+    const rawPassword = data.password || data.smtpPassword || data.imapPassword || '';
+    const encrypted = encrypt(rawPassword);
 
     if (data.isDefault) {
       await EmailAccountModel.updateMany({ workspaceId: this.workspaceId } as any, {
