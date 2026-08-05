@@ -2,6 +2,11 @@
 
 All notable changes to LeadForge OS will be documented in this file.
 
+## [1.0.0-beta.4] - 2026-08-05
+
+### Fixed
+- **Background Worker Decoupling**: Resolved a critical startup crash where background worker processes (running under standard Node.js) were unable to load the `electron` module. Decoupled worker execution by removing transitive Electron module dependencies and handling decryption in the Main process instead.
+
 ## [1.0.0-beta.3] - 2026-08-05
 
 ### Added

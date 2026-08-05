@@ -2,6 +2,11 @@
 
 This log tracks technical details, architectures, and dev tools improvements for LeadForge OS.
 
+## [1.0.0-beta.4] - 2026-08-05
+
+### Changed
+- **Removed Electron Dependency in Worker**: Eliminated the transitive `electron` module dependency from worker chunks by removing `decryptSecret` imports from background worker plugins, resolving the `MODULE_NOT_FOUND` crash in standard Node.js processes.
+
 ## [1.0.0-beta.3] - 2026-08-05
 
 ### Added
