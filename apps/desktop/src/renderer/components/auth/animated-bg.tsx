@@ -171,10 +171,10 @@ export function AnimatedBackground() {
       className="pointer-events-none absolute inset-0 overflow-hidden bg-[#000000]"
     >
       {/* 1. Noise texture — filmic grain for surface depth */}
-      <div className="absolute inset-0 auth-noise-texture opacity-10 z-0" />
+      <div className="absolute inset-0 auth-noise-texture opacity-20 z-0" />
 
       {/* 2. Scanlines — subtle CRT depth effect */}
-      <div className="absolute inset-0 auth-scanlines-overlay opacity-[0.18] z-0" />
+      <div className="absolute inset-0 auth-scanlines-overlay opacity-[0.18] z-10" />
 
       {/* 3. Interactive constellation canvas */}
       <canvas

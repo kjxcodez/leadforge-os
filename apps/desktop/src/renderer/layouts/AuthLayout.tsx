@@ -19,14 +19,14 @@ export function AuthLayout() {
   return (
     <div className="grid h-screen w-screen grid-cols-1 bg-background md:grid-cols-2 select-none">
       {/* Form column */}
-      <div className="relative flex flex-col overflow-hidden z-10">
+      <div className="relative flex flex-col overflow-hidden">
         <BrandPanel className="p-8" />
         <div className="flex flex-1 items-center justify-center px-8 pb-8 relative">
           {/* Subtle background pulsing glows behind the glassmorphic card */}
-          <div className="absolute top-[10%] left-[10%] w-[180px] h-[180px] bg-primary/10 rounded-full filter blur-[60px] pointer-events-none" />
-          <div className="absolute bottom-[10%] right-[10%] w-[160px] h-[160px] bg-info/8 rounded-full filter blur-[50px] pointer-events-none" />
+          <div className="absolute top-[10%] left-[10%] w-[180px] h-[180px] bg-primary/30 rounded-full filter blur-[60px] pointer-events-none z-10" />
+          <div className="absolute bottom-[10%] right-[10%] w-[160px] h-[160px] bg-info/20 rounded-full filter blur-[50px] pointer-events-none z-10" />
 
-          <div className="w-full max-w-md bg-card/45 backdrop-blur-xl border border-border-subtle/60 rounded-none p-10 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] relative overflow-hidden">
+          <div className="w-full max-w-md bg-card/45 backdrop-blur-xl border border-border-subtle/60 rounded-none p-10 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] relative overflow-hidden z-50">
             {/* Top-left decorative dots */}
             <svg
               className="absolute top-3 left-3 opacity-25 text-primary w-10 h-10"
