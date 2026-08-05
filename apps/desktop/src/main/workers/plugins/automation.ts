@@ -1830,14 +1830,17 @@ async function handleSendEmailStep(
   const settings = loadSettings(db, workspaceId);
 
   let accountId: string | undefined = undefined;
-  if (execCtx.execution.campaignId) {
-    try {
+  try {
+    const execRow = db
+      .prepare('SELECT campaignId FROM sequence_executions WHERE id = ?')
+      .get(execCtx.execution.id) as { campaignId: string | null } | undefined;
+    if (execRow?.campaignId) {
       const campaignRow = db
         .prepare('SELECT sendingAccountId FROM campaigns WHERE id = ? AND deletedAt IS NULL')
-        .get(execCtx.execution.campaignId) as { sendingAccountId: string } | undefined;
+        .get(execRow.campaignId) as { sendingAccountId: string } | undefined;
       accountId = campaignRow?.sendingAccountId;
-    } catch {}
-  }
+    }
+  } catch {}
 
   let account: any = undefined;
   if (accountId) {
