@@ -56,11 +56,11 @@ export class BaseRepository<T extends Document> {
   public async findById(id: string, session?: ClientSession): Promise<T> {
     try {
       const filter = this.applyScope(this.normalizeIdFilter(id));
-      const doc = await this.model.findOne(filter).session(session || null);
-      if (!doc) {
+      const rawDoc = await this.model.collection.findOne(filter);
+      if (!rawDoc) {
         throw new NotFoundError(`Resource with id ${id} not found.`);
       }
-      return doc;
+      return this.model.hydrate(rawDoc) as T;
     } catch (error) {
       if (error instanceof NotFoundError) throw error;
       this.handleError(error);
@@ -116,21 +116,17 @@ export class BaseRepository<T extends Document> {
   ): Promise<T> {
     try {
       const filter = this.applyScope(this.normalizeIdFilter(id));
-      const options: any = { new: true, runValidators: true };
-      if (session) {
-        options.session = session;
-      }
-
-      const doc = (await this.model.findOneAndUpdate(
-        filter,
-        { $set: updateData },
-        options
-      )) as unknown as T | null;
-
-      if (!doc) {
+      const rawDoc = await this.model.collection.findOne(filter);
+      if (!rawDoc) {
         throw new NotFoundError(`Resource with id ${id} not found.`);
       }
-      return doc;
+      
+      const doc = this.model.hydrate(rawDoc);
+      doc.set(updateData);
+      
+      const saveOptions = session ? { session } : {};
+      await doc.save(saveOptions);
+      return doc as T;
     } catch (error) {
       if (error instanceof NotFoundError) throw error;
       this.handleError(error);
@@ -140,19 +136,20 @@ export class BaseRepository<T extends Document> {
   public async delete(id: string, session?: ClientSession): Promise<boolean> {
     try {
       const filter = this.applyScope(this.normalizeIdFilter(id));
-      const doc = await this.model.findOne(filter).session(session || null);
-      if (!doc) {
+      const rawDoc = await this.model.collection.findOne(filter);
+      if (!rawDoc) {
         throw new NotFoundError(`Resource with id ${id} not found.`);
       }
 
+      const doc = this.model.hydrate(rawDoc);
       if (typeof (doc as any).softDelete === 'function') {
         await (doc as any).softDelete();
         return true;
       }
 
       const deleteFilter = this.normalizeIdFilter(id);
-      const result = await this.model.deleteOne(deleteFilter).session(session || null);
-      return result.deletedCount > 0;
+      const result = await this.model.collection.deleteOne(deleteFilter);
+      return result.deletedCount! > 0;
     } catch (error) {
       if (error instanceof NotFoundError) throw error;
       this.handleError(error);
