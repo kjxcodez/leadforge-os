@@ -260,6 +260,10 @@ export const LocalCRMRepository = {
         const operation = existing ? 'UPDATE' : 'CREATE';
 
         if (existing) {
+          // Prevent remote sync from overwriting local changes still queued to upload
+          if (existing.syncStatus === 'pending') {
+            continue;
+          }
           const updateParams = updateColumns.map((col) => {
             const val = item[col];
             if (val instanceof Date) return val.toISOString();

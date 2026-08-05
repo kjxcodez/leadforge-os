@@ -1,4 +1,4 @@
-import mongoose, { type Model, type Document, type ClientSession } from 'mongoose';
+import { type Model, type Document, type ClientSession } from 'mongoose';
 import {
   NotFoundError,
   ConflictError,
@@ -8,21 +8,13 @@ import {
 
 type FilterQuery<T> = any;
 
-export class BaseRepository<T extends Document> {
+export class BaseRepository<T extends Document<any>> {
   constructor(
     protected model: Model<T>,
     protected workspaceId?: string
   ) {}
 
-  /**
-   * Generates a query filter that works for both String and ObjectId identifiers.
-   */
-  protected normalizeIdFilter(id: string): any {
-    if (mongoose.Types.ObjectId.isValid(id)) {
-      return { $or: [{ _id: id }, { _id: new mongoose.Types.ObjectId(id) }] };
-    }
-    return { _id: id };
-  }
+
 
   /**
    * Translates mongoose exceptions to domain errors.
@@ -55,12 +47,12 @@ export class BaseRepository<T extends Document> {
 
   public async findById(id: string, session?: ClientSession): Promise<T> {
     try {
-      const filter = this.applyScope(this.normalizeIdFilter(id));
-      const rawDoc = await this.model.collection.findOne(filter);
-      if (!rawDoc) {
+      const filter = this.applyScope({ _id: id } as any);
+      const doc = await this.model.findOne(filter).session(session || null);
+      if (!doc) {
         throw new NotFoundError(`Resource with id ${id} not found.`);
       }
-      return this.model.hydrate(rawDoc) as T;
+      return doc;
     } catch (error) {
       if (error instanceof NotFoundError) throw error;
       this.handleError(error);
@@ -115,18 +107,22 @@ export class BaseRepository<T extends Document> {
     session?: ClientSession
   ): Promise<T> {
     try {
-      const filter = this.applyScope(this.normalizeIdFilter(id));
-      const rawDoc = await this.model.collection.findOne(filter);
-      if (!rawDoc) {
+      const filter = this.applyScope({ _id: id } as any);
+      const options: any = { new: true, runValidators: true };
+      if (session) {
+        options.session = session;
+      }
+
+      const doc = (await this.model.findOneAndUpdate(
+        filter,
+        { $set: updateData },
+        options
+      )) as unknown as T | null;
+
+      if (!doc) {
         throw new NotFoundError(`Resource with id ${id} not found.`);
       }
-      
-      const doc = this.model.hydrate(rawDoc);
-      doc.set(updateData);
-      
-      const saveOptions = session ? { session } : {};
-      await doc.save(saveOptions);
-      return doc as T;
+      return doc;
     } catch (error) {
       if (error instanceof NotFoundError) throw error;
       this.handleError(error);
@@ -135,21 +131,19 @@ export class BaseRepository<T extends Document> {
 
   public async delete(id: string, session?: ClientSession): Promise<boolean> {
     try {
-      const filter = this.applyScope(this.normalizeIdFilter(id));
-      const rawDoc = await this.model.collection.findOne(filter);
-      if (!rawDoc) {
+      const filter = this.applyScope({ _id: id } as any);
+      const doc = await this.model.findOne(filter).session(session || null);
+      if (!doc) {
         throw new NotFoundError(`Resource with id ${id} not found.`);
       }
 
-      const doc = this.model.hydrate(rawDoc);
       if (typeof (doc as any).softDelete === 'function') {
         await (doc as any).softDelete();
         return true;
       }
 
-      const deleteFilter = this.normalizeIdFilter(id);
-      const result = await this.model.collection.deleteOne(deleteFilter);
-      return result.deletedCount! > 0;
+      const result = await this.model.deleteOne({ _id: id } as any).session(session || null);
+      return result.deletedCount > 0;
     } catch (error) {
       if (error instanceof NotFoundError) throw error;
       this.handleError(error);
