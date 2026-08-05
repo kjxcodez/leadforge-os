@@ -74,5 +74,13 @@ export const AuthService = {
    */
   async logout(): Promise<void> {
     await window.ipc.invoke('auth:logout', undefined);
+  },
+
+  async forgotPassword(email: string): Promise<void> {
+    await window.ipc.invoke('auth:forgot-password', { email });
+  },
+
+  async resendVerificationEmail(email: string): Promise<void> {
+    await window.ipc.invoke('auth:resend-verification', { email });
   }
 };

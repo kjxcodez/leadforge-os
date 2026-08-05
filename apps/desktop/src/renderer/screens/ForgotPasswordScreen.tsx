@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Check } from 'lucide-react';
+import { AuthService } from '../services/auth-service';
 
 const schema = z.object({
   email: z.string().email('Please enter a valid email address')
@@ -33,8 +34,7 @@ export function ForgotPasswordScreen() {
 
   const onSubmit = async (data: ForgotForm) => {
     try {
-      // TODO: Wire to auth:forgot-password IPC in Phase 2
-      await new Promise((r) => setTimeout(r, 800));
+      await AuthService.forgotPassword(data.email);
       setSent(true);
       toast.success(`Reset link dispatched to ${data.email}`);
     } catch (err: any) {

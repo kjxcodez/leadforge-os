@@ -29,6 +29,10 @@ export function ProtectedRoute() {
     return <Navigate to="/auth/login" replace />;
   }
 
+  if (state.status === 'authenticated' && !state.user?.emailVerified) {
+    return <Navigate to="/auth/verify-email" replace />;
+  }
+
   return <Outlet />;
 }
 

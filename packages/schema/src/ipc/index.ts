@@ -42,6 +42,14 @@ export interface IpcChannelMap {
     input: void;
     output: any;
   };
+  'auth:forgot-password': {
+    input: { email: string };
+    output: { success: boolean };
+  };
+  'auth:resend-verification': {
+    input: { email: string };
+    output: { success: boolean };
+  };
   'auth:unauthorized': {
     input: void;
     output: void;

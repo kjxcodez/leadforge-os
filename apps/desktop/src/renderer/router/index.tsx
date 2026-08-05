@@ -139,10 +139,17 @@ const router = createHashRouter([
         children: [
           { path: '/auth/login', element: <LoginScreen /> },
           { path: '/auth/register', element: <RegisterScreen /> },
-          { path: '/auth/forgot-password', element: <ForgotPasswordScreen /> },
-          { path: '/auth/verify-email', element: <VerifyEmailScreen /> }
+          { path: '/auth/forgot-password', element: <ForgotPasswordScreen /> }
         ]
       }
+    ]
+  },
+
+  // ── Standalone auth routes (accessible by guests and unverified users) ─────
+  {
+    element: <AuthLayout />,
+    children: [
+      { path: '/auth/verify-email', element: <VerifyEmailScreen /> }
     ]
   },
 
