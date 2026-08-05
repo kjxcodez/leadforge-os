@@ -478,6 +478,13 @@ export class JobScheduler {
     const worker = fork(workerHostPath, [], {
       env: {
         WORKSPACES_DB_DIR: join(app.getPath('userData'), 'workspaces'),
+        // Forward the Playwright browsers path so workers find chromium in the
+        // same app-controlled location that ensurePlaywrightBrowsers() installed
+        // it into. Without this, playwright-core falls back to the OS-wide
+        // ms-playwright cache which may not exist on a fresh install.
+        PLAYWRIGHT_BROWSERS_PATH:
+          process.env.PLAYWRIGHT_BROWSERS_PATH ||
+          join(app.getPath('userData'), 'playwright-browsers'),
         NODE_ENV: process.env.NODE_ENV
       },
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
