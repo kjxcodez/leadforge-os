@@ -1,20 +1,47 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Mail } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { useAuth } from '../hooks/useAuth';
+import { useAuthStore } from '../stores/auth-store';
+import { AuthService } from '../services/auth-service';
 
 /**
  * VerifyEmailScreen is shown after registration to prompt email verification.
- * Actual verification link processing is handled by the IPC layer in Phase 2.
- *
- * Design updates:
- *   - Squared borders (rounded-none on icon and containers).
- *   - Design system aligned colors (success-muted, info-muted, primary).
- *   - Framer motion entrance spring transition.
+ * Actual verification link processing is handled by the API hosted webpage.
  */
 export function VerifyEmailScreen() {
-  const handleResend = () => {
-    toast.success('Verification email resent successfully!');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+  const { state } = useAuthStore();
+  const email = location.state?.email || state.user?.email || '';
+
+  const [resending, setResending] = useState(false);
+
+  const handleResend = async () => {
+    if (!email) {
+      toast.error('Email address is missing. Please sign in again.');
+      return;
+    }
+    setResending(true);
+    try {
+      await AuthService.resendVerificationEmail(email);
+      toast.success('Verification email resent successfully!');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to resend verification email.');
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const handleBackToSignIn = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      await logout();
+    } catch {}
+    navigate('/auth/login', { replace: true });
   };
 
   return (
@@ -31,8 +58,9 @@ export function VerifyEmailScreen() {
       <div className="space-y-2">
         <h2 className="text-lg font-bold text-foreground">Check your inbox</h2>
         <p className="text-xs text-muted-foreground max-w-[280px] mx-auto leading-relaxed">
-          We&apos;ve sent a verification link to your email address. Click the link to activate your
-          account.
+          We&apos;ve sent a verification link to{' '}
+          <span className="font-bold text-foreground">{email || 'your email address'}</span>. Click the
+          link to activate your account.
         </p>
       </div>
 
@@ -43,19 +71,21 @@ export function VerifyEmailScreen() {
         <button
           type="button"
           onClick={handleResend}
-          className="text-xs text-primary hover:underline font-bold select-none cursor-pointer"
+          disabled={resending}
+          className="text-xs text-primary hover:underline font-bold select-none cursor-pointer disabled:opacity-50"
         >
-          Resend verification email
+          {resending ? 'Resending...' : 'Resend verification email'}
         </button>
       </div>
 
       <div className="pt-4 border-t border-border-subtle">
-        <Link
-          to="/auth/login"
-          className="text-xs text-muted-foreground hover:text-foreground font-semibold transition-colors"
+        <a
+          href="#/auth/login"
+          onClick={handleBackToSignIn}
+          className="text-xs text-muted-foreground hover:text-foreground font-semibold transition-colors cursor-pointer"
         >
           Back to sign in
-        </Link>
+        </a>
       </div>
     </motion.div>
   );

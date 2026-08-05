@@ -1,5 +1,5 @@
 import { HttpClient } from '../http/client';
-import type { LoginDto, RegisterDto, AuthResponse } from '@leadforge/schema';
+import type { LoginDto, RegisterDto, AuthResponse, ForgotPasswordDto } from '@leadforge/schema';
 
 export class AuthModule {
   constructor(private client: HttpClient) {}
@@ -18,5 +18,13 @@ export class AuthModule {
 
   public async session(): Promise<any> {
     return this.client.get<any>('/auth/session');
+  }
+
+  public async forgotPassword(dto: ForgotPasswordDto): Promise<void> {
+    return this.client.post<void>('/auth/forgot-password', dto);
+  }
+
+  public async resendVerification(dto: { email: string }): Promise<void> {
+    return this.client.post<void>('/auth/resend-verification', dto);
   }
 }

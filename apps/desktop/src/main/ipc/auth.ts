@@ -150,6 +150,18 @@ export function registerAuthIpc(
     }
   });
 
+  safeRegister('auth:forgot-password', async (_event, payload) => {
+    AppLogger.info('auth', `Requesting forgot-password for: ${payload.email}`);
+    await sdk.auth.forgotPassword(payload);
+    return { success: true };
+  });
+
+  safeRegister('auth:resend-verification', async (_event, payload) => {
+    AppLogger.info('auth', `Requesting resend-verification for: ${payload.email}`);
+    await sdk.auth.resendVerification(payload);
+    return { success: true };
+  });
+
   safeRegister('system:status', async () => {
     return [
       { name: 'API Server', status: 'online' },
