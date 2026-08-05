@@ -2,7 +2,13 @@
 
 All notable changes to LeadForge OS will be documented in this file.
 
+## [1.0.0-beta.5] - 2026-08-06
+
+### Fixed
+- **Automatic Browser Engine Setup**: The desktop app now automatically downloads and installs the required Chromium browser engine on first launch. Previously, users on fresh machines received a silent failure on every Google Maps discovery job with the error "Executable doesn't exist". The app now detects a missing browser at startup and performs a one-time download (~80 MB) with progress visible on the splash screen. Subsequent launches are unaffected (check completes in < 10 ms).
+
 ## [1.0.0-beta.4] - 2026-08-05
+
 
 ### Fixed
 - **Background Worker Decoupling**: Resolved a critical startup crash where background worker processes (running under standard Node.js) were unable to load the `electron` module. Decoupled worker execution by removing transitive Electron module dependencies and handling decryption in the Main process instead.

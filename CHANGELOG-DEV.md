@@ -2,7 +2,17 @@
 
 This log tracks technical details, architectures, and dev tools improvements for LeadForge OS.
 
+## [1.0.0-beta.5] - 2026-08-06
+
+### Added
+- **`lib/playwright-setup.ts`**: New utility module exposing `ensurePlaywrightBrowsers()`. Uses `playwright-core`'s internal path resolver to detect a missing Chromium binary without hard-coding versioned folder names. If missing, forks `playwright-core/cli.js install chromium` — no dependency on `npx` or any globally installed tool. Browser is stored under `{userData}/playwright-browsers` (controlled via `PLAYWRIGHT_BROWSERS_PATH`) for stable, cross-update persistence with full user-level write access.
+
+### Changed
+- **`main/index.ts`**: Made `app.whenReady()` callback `async`. Added `ensurePlaywrightBrowsers()` call in the startup sequence (between migrations and IPC registration), wired to `updateSplashProgress` so the splash screen shows installation progress on first launch.
+- **`services/scheduler.ts`**: Added `PLAYWRIGHT_BROWSERS_PATH` to the worker `fork()` env whitelist. Without this, forked worker processes could not find the Chromium binary because the explicit env whitelist blocked inheritance of the variable set by the main process.
+
 ## [1.0.0-beta.4] - 2026-08-05
+
 
 ### Changed
 - **Removed Electron Dependency in Worker**: Eliminated the transitive `electron` module dependency from worker chunks by removing `decryptSecret` imports from background worker plugins, resolving the `MODULE_NOT_FOUND` crash in standard Node.js processes.
