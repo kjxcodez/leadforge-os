@@ -300,6 +300,7 @@ export function registerCampaignsIpc(): void {
       .prepare(
         `
       SELECT 
+        j.id,
         j.id as jobId,
         j.type,
         j.status,

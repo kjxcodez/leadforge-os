@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import nodemailer from 'nodemailer';
 import { AIRuntime, PromptsLibrary } from '@leadforge/ai';
 import type { JobContext } from '../../../shared/types/job';
+import { decryptSecret } from '../../lib/crypto';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -914,7 +915,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         `Automation workflow: sequence "${sequenceId}" not found in workspace "${ctx.workspaceId}".`
       );
     }
-    if (sequence.status !== 'active') {
+    if (sequence.status?.toLowerCase() !== 'active') {
       throw new Error(
         `Automation workflow: sequence "${sequence.name}" is not active (status: "${sequence.status}").`
       );
@@ -1827,32 +1828,70 @@ async function handleSendEmailStep(
   const renderedBody = resolveVariables(tpl.body, renderCtx);
 
   const settings = loadSettings(db, workspaceId);
-  const account = db
-    .prepare(
-      `
-    SELECT id, email, name
-    FROM email_accounts
-    WHERE workspaceId = ? AND status = 'connected' AND deletedAt IS NULL
-    ORDER BY createdAt ASC LIMIT 1
-  `
-    )
-    .get(workspaceId) as { id: string; email: string; name: string } | undefined;
 
-  let host = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.host', 'smtpHost', 'host');
+  let accountId: string | undefined = undefined;
+  try {
+    const execRow = db
+      .prepare('SELECT campaignId FROM sequence_executions WHERE id = ?')
+      .get(execCtx.execution.id) as { campaignId: string | null } | undefined;
+    if (execRow?.campaignId) {
+      const campaignRow = db
+        .prepare('SELECT sendingAccountId FROM campaigns WHERE id = ? AND deletedAt IS NULL')
+        .get(execRow.campaignId) as { sendingAccountId: string } | undefined;
+      accountId = campaignRow?.sendingAccountId;
+    }
+  } catch {}
+
+  let account: any = undefined;
+  if (accountId) {
+    account = db
+      .prepare(
+        `
+      SELECT id, email, name, smtpHost, smtpPort, smtpSecure, smtpUsername, smtpPassword
+      FROM email_accounts
+      WHERE id = ? AND workspaceId = ? AND status = 'connected' AND deletedAt IS NULL
+    `
+      )
+      .get(accountId, workspaceId);
+  }
+
+  if (!account) {
+    account = db
+      .prepare(
+        `
+      SELECT id, email, name, smtpHost, smtpPort, smtpSecure, smtpUsername, smtpPassword
+      FROM email_accounts
+      WHERE workspaceId = ? AND status = 'connected' AND deletedAt IS NULL
+      ORDER BY createdAt ASC LIMIT 1
+    `
+      )
+      .get(workspaceId);
+  }
+
+  let accountPassword = '';
+  if (account?.smtpPassword) {
+    try {
+      accountPassword = decryptSecret(account.smtpPassword);
+    } catch {
+      accountPassword = account.smtpPassword;
+    }
+  }
+
+  let host = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.host', 'smtpHost', 'host') || account?.smtpHost;
   let portStr = resolveSettingValue(
     ctx.payload._secrets,
     settings,
     'smtp.port',
     'smtpPort',
     'port'
-  );
+  ) || (account?.smtpPort ? String(account.smtpPort) : undefined);
   let secureStr = resolveSettingValue(
     ctx.payload._secrets,
     settings,
     'smtp.secure',
     'smtpSecure',
     'secure'
-  );
+  ) || (account?.smtpSecure ? String(account.smtpSecure) : undefined);
   let username = resolveSettingValue(
     ctx.payload._secrets,
     settings,
@@ -1860,7 +1899,7 @@ async function handleSendEmailStep(
     'smtp.user',
     'smtpUsername',
     'username'
-  );
+  ) || account?.smtpUsername;
   let password = resolveSettingValue(
     ctx.payload._secrets,
     settings,
@@ -1868,7 +1907,7 @@ async function handleSendEmailStep(
     'smtp.pass',
     'smtpPassword',
     'password'
-  );
+  ) || accountPassword;
   let senderName =
     resolveSettingValue(
       ctx.payload._secrets,
