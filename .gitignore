@@ -58,3 +58,6 @@ userData/
 # OS-specific
 Thumbs.db
 .DS_Store
+
+# Local AI agent / tooling state
+.serena/
