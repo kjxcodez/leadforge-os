@@ -82,5 +82,13 @@ export const AuthService = {
 
   async resendVerificationEmail(email: string): Promise<void> {
     await window.ipc.invoke('auth:resend-verification', { email });
+  },
+
+  async loginWithGoogle(): Promise<AuthResult> {
+    const res = await window.ipc.invoke('auth:google:login', undefined);
+    if (!res || !res.token) {
+      throw new Error('Google sign-in failed. Please try again.');
+    }
+    return { token: res.token, user: res.user as AuthUser };
   }
 };

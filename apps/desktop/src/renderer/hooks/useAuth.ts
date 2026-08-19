@@ -2,6 +2,31 @@ import { useAuthStore } from '../stores/auth-store';
 import { useWorkspaceStore } from '../stores/workspace-store';
 import { AuthService } from '../services/auth-service';
 import { WorkspaceService } from '../services/workspace-service';
+import type { AuthUser } from '../stores/auth-store';
+
+async function loadAndSetActiveWorkspace(
+  authUser: AuthUser,
+  workspaceStore: ReturnType<typeof useWorkspaceStore>
+) {
+  const workspaces = await WorkspaceService.listWorkspaces();
+  const persistedActiveId = await WorkspaceService.getActiveWorkspaceId();
+
+  let active = workspaces.find((w) => w.id === persistedActiveId) || null;
+  if (!active) {
+    active = workspaces.find((w) => w.id === authUser.activeWorkspaceId) || null;
+  }
+  if (!active && workspaces.length > 0) {
+    active = workspaces[0] || null;
+  }
+
+  if (active) {
+    await WorkspaceService.syncActiveWorkspace(active.id);
+  } else {
+    await WorkspaceService.syncActiveWorkspace(null);
+  }
+
+  workspaceStore.setWorkspaces(workspaces, active);
+}
 
 /**
  * useAuth is the primary hook for authentication state and actions.
@@ -18,28 +43,21 @@ export function useAuth() {
     try {
       const result = await AuthService.login({ email, password });
       setAuthenticated(result.user, result.token);
-
-      // Load workspaces after login
-      const workspaces = await WorkspaceService.listWorkspaces();
-      const persistedActiveId = await WorkspaceService.getActiveWorkspaceId();
-
-      let active = workspaces.find((w) => w.id === persistedActiveId) || null;
-      if (!active) {
-        active = workspaces.find((w) => w.id === result.user.activeWorkspaceId) || null;
-      }
-      if (!active && workspaces.length > 0) {
-        active = workspaces[0] || null;
-      }
-
-      if (active) {
-        await WorkspaceService.syncActiveWorkspace(active.id);
-      } else {
-        await WorkspaceService.syncActiveWorkspace(null);
-      }
-
-      workspaceStore.setWorkspaces(workspaces, active);
+      await loadAndSetActiveWorkspace(result.user, workspaceStore);
     } catch (err: any) {
       setUnauthenticated(err.message ?? 'Login failed');
+      throw err;
+    }
+  };
+
+  const loginWithGoogle = async () => {
+    setLoading();
+    try {
+      const result = await AuthService.loginWithGoogle();
+      setAuthenticated(result.user, result.token);
+      await loadAndSetActiveWorkspace(result.user, workspaceStore);
+    } catch (err: any) {
+      setUnauthenticated(err.message ?? 'Google sign-in failed');
       throw err;
     }
   };
@@ -49,25 +67,7 @@ export function useAuth() {
     try {
       const result = await AuthService.register({ email, password, name });
       setAuthenticated(result.user, result.token);
-
-      const workspaces = await WorkspaceService.listWorkspaces();
-      const persistedActiveId = await WorkspaceService.getActiveWorkspaceId();
-
-      let active = workspaces.find((w) => w.id === persistedActiveId) || null;
-      if (!active) {
-        active = workspaces.find((w) => w.id === result.user.activeWorkspaceId) || null;
-      }
-      if (!active && workspaces.length > 0) {
-        active = workspaces[0] || null;
-      }
-
-      if (active) {
-        await WorkspaceService.syncActiveWorkspace(active.id);
-      } else {
-        await WorkspaceService.syncActiveWorkspace(null);
-      }
-
-      workspaceStore.setWorkspaces(workspaces, active);
+      await loadAndSetActiveWorkspace(result.user, workspaceStore);
     } catch (err: any) {
       setUnauthenticated(err.message ?? 'Registration failed');
       throw err;
@@ -85,25 +85,7 @@ export function useAuth() {
     const result = await AuthService.restoreSession();
     if (result) {
       setAuthenticated(result.user, result.token);
-
-      const workspaces = await WorkspaceService.listWorkspaces();
-      const persistedActiveId = await WorkspaceService.getActiveWorkspaceId();
-
-      let active = workspaces.find((w) => w.id === persistedActiveId) || null;
-      if (!active) {
-        active = workspaces.find((w) => w.id === result.user.activeWorkspaceId) || null;
-      }
-      if (!active && workspaces.length > 0) {
-        active = workspaces[0] || null;
-      }
-
-      if (active) {
-        await WorkspaceService.syncActiveWorkspace(active.id);
-      } else {
-        await WorkspaceService.syncActiveWorkspace(null);
-      }
-
-      workspaceStore.setWorkspaces(workspaces, active);
+      await loadAndSetActiveWorkspace(result.user, workspaceStore);
     } else {
       setUnauthenticated();
     }
@@ -135,6 +117,7 @@ export function useAuth() {
     isIdle: state.status === 'idle',
     // Actions
     login,
+    loginWithGoogle,
     register,
     logout,
     restoreSession,

@@ -1,5 +1,5 @@
 import { app, BrowserWindow, shell, Menu, ipcMain } from 'electron';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import fs from 'fs';
 import { is } from '@electron-toolkit/utils';
 import { SdkClient } from '@leadforge/sdk';
@@ -15,6 +15,25 @@ import { UpdateManager } from './services/updater';
 import { LocalCrashReporter } from './lib/crash-reporter';
 import { loadConfig } from './lib/config';
 import { ensurePlaywrightBrowsers } from './lib/playwright-setup';
+
+// Load .env for main process (electron-vite only loads it for renderer)
+try {
+  const envPath = resolve(__dirname, '../../.env');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    for (const line of envContent.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx === -1) continue;
+      const key = trimmed.slice(0, eqIdx).trim();
+      const value = trimmed.slice(eqIdx + 1).trim();
+      if (!process.env[key]) process.env[key] = value;
+    }
+  }
+} catch {
+  // .env loading is optional for desktop app
+}
 
 // Track and write process crashes locally
 LocalCrashReporter.initialize();

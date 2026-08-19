@@ -11,8 +11,9 @@ import type { LoginDto } from '@leadforge/schema';
  */
 export function LoginScreen() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleSubmit = async (data: LoginDto) => {
@@ -28,13 +29,30 @@ export function LoginScreen() {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setIsGoogleLoading(true);
+    setErrorMsg(null);
+    try {
+      await loginWithGoogle();
+      navigate('/', { replace: true });
+    } catch (err: any) {
+      setErrorMsg(
+        err.message ?? 'Google sign-in failed. Please try again or use your password.'
+      );
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 w-full">
       <LoginForm
         onSubmit={handleSubmit}
+        onGoogleLogin={handleGoogleLogin}
         onNavigateToRegister={() => navigate('/auth/register')}
         onNavigateToResetPassword={() => navigate('/auth/forgot-password')}
         isLoading={isLoading}
+        isGoogleLoading={isGoogleLoading}
         error={errorMsg}
       />
     </div>

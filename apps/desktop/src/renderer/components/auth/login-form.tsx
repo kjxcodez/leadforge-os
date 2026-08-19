@@ -9,16 +9,18 @@ import { Label } from '../ui/label';
 import { FormCard } from './form-card';
 import { AuthHeader } from './auth-header';
 import { Divider } from './divider';
-// import { SocialLoginPlaceholder } from './social-placeholder';
+import { GoogleIcon } from './google-icon';
 import { AuthFooter } from './auth-footer';
 import { useState } from 'react';
 import { PasswordToggle } from './password-toggle';
 
 interface LoginFormProps {
   onSubmit: (data: LoginDto) => void;
+  onGoogleLogin: () => void;
   onNavigateToRegister: () => void;
   onNavigateToResetPassword: () => void;
   isLoading?: boolean;
+  isGoogleLoading?: boolean;
   error?: string | null;
 }
 
@@ -29,9 +31,11 @@ interface LoginFormProps {
  */
 export function LoginForm({
   onSubmit,
+  onGoogleLogin,
   onNavigateToRegister,
   onNavigateToResetPassword,
   isLoading = false,
+  isGoogleLoading = false,
   error = null
 }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
@@ -46,6 +50,8 @@ export function LoginForm({
       password: ''
     }
   });
+
+  const anyLoading = isLoading || isGoogleLoading;
 
   return (
     <FormCard>
@@ -77,7 +83,7 @@ export function LoginForm({
             id="email"
             type="email"
             placeholder="name@company.com"
-            disabled={isLoading}
+            disabled={anyLoading}
             aria-invalid={!!errors.email}
             {...register('email')}
             className="rounded-none"
@@ -102,7 +108,7 @@ export function LoginForm({
               id="password"
               type={showPassword ? 'text' : 'password'}
               placeholder="••••••••"
-              disabled={isLoading}
+              disabled={anyLoading}
               aria-invalid={!!errors.password}
               {...register('password')}
               className="rounded-none"
@@ -110,7 +116,7 @@ export function LoginForm({
             <PasswordToggle
               show={showPassword}
               onToggle={() => setShowPassword(!showPassword)}
-              disabled={isLoading}
+              disabled={anyLoading}
             />
           </div>
           {errors.password && (
@@ -131,14 +137,24 @@ export function LoginForm({
         </div>
 
         {/* Primary submit button — Forge Orange */}
-        <Button type="submit" disabled={isLoading} className="w-full rounded-none" size="default">
+        <Button type="submit" disabled={anyLoading} className="w-full rounded-none" size="default">
           {isLoading ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
 
       <Divider label="or" />
 
-      {/* <SocialLoginPlaceholder /> */}
+      <Button
+        type="button"
+        variant="outline"
+        onClick={onGoogleLogin}
+        disabled={anyLoading}
+        className="w-full rounded-none"
+        size="default"
+      >
+        <GoogleIcon className="mr-2 h-4 w-4" />
+        {isGoogleLoading ? 'Connecting to Google…' : 'Continue with Google'}
+      </Button>
 
       <AuthFooter
         message="Don't have an account?"

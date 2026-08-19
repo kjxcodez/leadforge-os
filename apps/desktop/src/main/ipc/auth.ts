@@ -1,6 +1,7 @@
 import { safeRegister } from './helper';
 import { SdkClient } from '@leadforge/sdk';
 import { saveSession, loadSession, clearSession } from '../lib/session';
+import { performGoogleOAuth } from '../lib/google-oauth';
 import { AppLogger } from '../lib/logger';
 
 /**
@@ -171,5 +172,91 @@ export function registerAuthIpc(
 
   safeRegister('ipc:test', async () => {
     return { status: 'ok', timestamp: Date.now() };
+  });
+
+  safeRegister('auth:google:login', async () => {
+    const apiBaseUrl = (sdk as any).httpClient?.config?.baseUrl as string | undefined;
+    if (!apiBaseUrl) {
+      throw new Error('API URL not configured');
+    }
+
+    AppLogger.info('auth', 'Starting Google OAuth flow');
+    const result = await performGoogleOAuth({ apiUrl: apiBaseUrl });
+
+    if (!result.ok || !result.token) {
+      const message =
+        result.reason === 'cancelled'
+          ? 'Google sign-in was cancelled.'
+          : result.reason === 'timeout'
+            ? 'Google sign-in timed out. Please try again.'
+            : result.reason === 'no-token'
+              ? 'Google sign-in completed but no session was issued. Please try again.'
+              : result.error || 'Google sign-in failed.';
+      throw new Error(message);
+    }
+
+    const sessionToken = result.token;
+
+    setToken(sessionToken);
+
+    let sessionResult: { token: string; user: any } | null = null;
+    try {
+      sessionResult = (await sdk.auth.session()) as any;
+    } catch (err) {
+      AppLogger.warn('auth', 'Failed to fetch session details after Google login', undefined, err as Error);
+    }
+
+    if (!sessionResult || !sessionResult.user) {
+      const fallbackUser = {
+        id: '',
+        email: '',
+        name: '',
+        displayName: '',
+        role: 'MEMBER',
+        activeWorkspaceId: null,
+        emailVerified: true,
+        status: 'active'
+      };
+      const payload = {
+        token: sessionToken,
+        user: fallbackUser
+      };
+
+      try {
+        saveSession({
+          accessToken: sessionToken,
+          userId: fallbackUser.id,
+          activeWorkspaceId: null,
+          user: fallbackUser,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        });
+      } catch (err) {
+        AppLogger.error('auth', 'Failed to save fallback session after Google login', undefined, err);
+      }
+
+      return payload;
+    }
+
+    AppLogger.info('auth', 'Google OAuth succeeded, restoring workspaces');
+
+    const savedWorkspaceId = getPersistedActiveWorkspace();
+    const workspaceId = savedWorkspaceId || sessionResult.user?.activeWorkspaceId;
+    if (workspaceId) {
+      setWorkspaceHeader(workspaceId);
+    }
+
+    try {
+      saveSession({
+        accessToken: sessionResult.token,
+        userId: sessionResult.user.id,
+        activeWorkspaceId: workspaceId || null,
+        user: sessionResult.user,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      });
+    } catch (err) {
+      AppLogger.error('auth', 'Failed to save session after Google login', undefined, err);
+    }
+
+    return sessionResult;
   });
 }
