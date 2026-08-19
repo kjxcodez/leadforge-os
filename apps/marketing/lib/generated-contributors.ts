@@ -10,9 +10,9 @@ export interface Contributor {
 export const GENERATED_CONTRIBUTORS: Contributor[] = [
   {
     "login": "kjxcodez",
-    "id": 103230903,
-    "avatar_url": "https://avatars.githubusercontent.com/u/103230903?v=4",
+    "id": 104273295,
+    "avatar_url": "https://github.com/kjxcodez.png",
     "html_url": "https://github.com/kjxcodez",
-    "contributions": 250
+    "contributions": 218
   }
 ];
