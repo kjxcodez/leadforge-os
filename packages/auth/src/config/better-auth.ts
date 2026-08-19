@@ -14,11 +14,24 @@ export interface BetterAuthConfigOptions {
   emailAndPassword?: {
     sendResetPassword?: (data: { user: any; url: string; token: string }) => Promise<void>;
   };
+  google?: {
+    clientId: string;
+    clientSecret: string;
+  };
 }
 
 export function createBetterAuth(options: BetterAuthConfigOptions) {
   const client = new MongoClient(options.mongodbUri);
   const db = client.db();
+
+  const socialProviders: Record<string, any> = {};
+
+  if (options.google) {
+    socialProviders.google = {
+      clientId: options.google.clientId,
+      clientSecret: options.google.clientSecret
+    };
+  }
 
   const betterAuthConfig: any = {
     secret: options.secret,
@@ -45,6 +58,10 @@ export function createBetterAuth(options: BetterAuthConfigOptions) {
       updateAge: 60 * 60 * 24 // 1 day
     }
   };
+
+  if (Object.keys(socialProviders).length > 0) {
+    betterAuthConfig.socialProviders = socialProviders;
+  }
 
   if (options.emailAndPassword?.sendResetPassword) {
     betterAuthConfig.emailAndPassword.sendResetPassword = options.emailAndPassword.sendResetPassword;

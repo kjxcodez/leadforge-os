@@ -54,6 +54,10 @@ export interface IpcChannelMap {
     input: void;
     output: void;
   };
+  'auth:google:login': {
+    input: void;
+    output: AuthResponse;
+  };
   'settings:getSync': {
     input: void;
     output: any;

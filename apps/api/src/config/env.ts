@@ -1,5 +1,8 @@
 import { loadAndValidateEnv } from '@leadforge/core';
+import { resolve } from 'path';
+import { fileURLToPath } from 'url';
 
-const env = loadAndValidateEnv();
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const env = loadAndValidateEnv(resolve(__dirname, '../../.env'));
 
 export { env };

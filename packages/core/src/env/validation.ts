@@ -1,12 +1,14 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
+import { resolve } from 'path';
 import { envSchema } from './env.schema.js';
 
 let hasLoaded = false;
 
-export function loadAndValidateEnv() {
+export function loadAndValidateEnv(envPath?: string) {
   if (!hasLoaded) {
-    dotenv.config();
+    const options = envPath ? { path: resolve(envPath) } : undefined;
+    dotenv.config(options);
     hasLoaded = true;
   }
 

@@ -23,5 +23,13 @@ export const auth: any = createBetterAuth({
       const resetLink = `${env.BETTER_AUTH_URL}/reset-password-form?token=${token}`;
       await mailer.sendResetPasswordEmail(user.email, resetLink);
     }
-  }
+  },
+  ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+    ? {
+        google: {
+          clientId: env.GOOGLE_CLIENT_ID,
+          clientSecret: env.GOOGLE_CLIENT_SECRET
+        }
+      }
+    : {})
 });
