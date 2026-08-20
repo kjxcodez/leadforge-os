@@ -19,29 +19,18 @@ asar: true
 
 compression: maximum
 
-artifactName: "${productName}-Setup-${version}.${ext}"
+artifactName: "${productName}-${version}-${os}-${arch}.${ext}"
 
 extraMetadata:
   main: out/main/index.js
-
-# ─── Code Signing ────────────────────────────────────────────────────────────
-# Only sign when a code signing certificate is explicitly provided via env vars.
-# Without CSC_LINK set, electron-builder will skip signing automatically.
-forceCodeSigning: false
-
-# ─── Windows (only supported release platform) ───────────────────────────────
 
 win:
   target:
     - nsis
   icon: resources/icon.png
-  sign: null
-  signAndEditExecutable: false
-  requestedExecutionLevel: asInvoker
 
 nsis:
   oneClick: false
-  allowOneInstallerInstance: false
   allowElevation: true
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
@@ -49,8 +38,16 @@ nsis:
   createStartMenuShortcut: true
   shortcutName: "LeadForge OS"
   runAfterFinish: true
-  # Installer display name shown in Add/Remove Programs
-  displayLanguageSelector: false
+
+mac:
+  target:
+    - dmg
+  icon: resources/icon.png
+
+linux:
+  target:
+    - AppImage
+  icon: resources/icon.png
 
 publish:
   provider: github
