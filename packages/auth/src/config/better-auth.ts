@@ -1,12 +1,11 @@
 import { betterAuth } from 'better-auth';
 import { bearer } from 'better-auth/plugins';
-import { mongodbAdapter } from 'better-auth/adapters/mongodb';
-import { MongoClient } from 'mongodb';
 
 export interface BetterAuthConfigOptions {
   secret: string;
   baseUrl: string;
-  mongodbUri: string;
+  mongodbUri?: string;
+  database?: any;
   trustedOrigins?: string[];
   authorizeHook?: (credentials: Record<string, unknown>) => Promise<any>;
   emailVerification?: {
@@ -22,9 +21,6 @@ export interface BetterAuthConfigOptions {
 }
 
 export function createBetterAuth(options: BetterAuthConfigOptions) {
-  const client = new MongoClient(options.mongodbUri);
-  const db = client.db();
-
   const socialProviders: Record<string, any> = {};
 
   if (options.google) {
@@ -84,7 +80,7 @@ export function createBetterAuth(options: BetterAuthConfigOptions) {
     secret: options.secret,
     baseURL: options.baseUrl,
     trustedOrigins,
-    database: mongodbAdapter(db),
+    database: options.database,
     emailAndPassword: {
       enabled: true
     },

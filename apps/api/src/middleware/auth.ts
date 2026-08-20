@@ -33,8 +33,11 @@ export async function workspaceMiddleware(c: Context, next: Next): Promise<void>
       if (!workspace) {
         throw new NotFoundError('Workspace not found.');
       }
-      const isOwner = workspace.ownerId === userId;
-      const isMember = workspace.members.some((m) => m.userId === userId);
+      const userIdStr = userId ? String(userId) : '';
+      const isOwner = workspace.ownerId ? String(workspace.ownerId) === userIdStr : false;
+      const isMember = Array.isArray(workspace.members)
+        ? workspace.members.some((m: any) => m.userId && String(m.userId) === userIdStr)
+        : false;
       if (!isOwner && !isMember) {
         throw new ForbiddenError('You are not a member of this workspace.');
       }

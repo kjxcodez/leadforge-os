@@ -1,13 +1,17 @@
 import { createBetterAuth } from '@leadforge/auth';
+import { mongodbAdapter } from 'better-auth/adapters/mongodb';
+import { MongoClient } from 'mongodb';
 import { env } from './env.js';
 import { MailerService } from '../lib/mailer.js';
 
 const mailer = MailerService.getInstance();
+const client = new MongoClient(env.MONGODB_URI);
+const db = client.db();
 
 export const auth: any = createBetterAuth({
   secret: env.BETTER_AUTH_SECRET,
   baseUrl: env.BETTER_AUTH_URL,
-  mongodbUri: env.MONGODB_URI,
+  database: mongodbAdapter(db),
   authorizeHook: async (credentials) => {
     // Better Auth authorization hook placeholder
     return null;
