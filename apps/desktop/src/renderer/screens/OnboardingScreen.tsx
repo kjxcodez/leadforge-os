@@ -32,7 +32,7 @@ import logoLight from '../assets/app-icon-light.png';
  */
 export default function OnboardingScreen() {
   const navigate = useNavigate();
-  const { createWorkspace } = useWorkspace();
+  const { workspaces, activeWorkspace, createWorkspace, updateWorkspace } = useWorkspace();
 
   const [step, setStep] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
@@ -46,14 +46,19 @@ export default function OnboardingScreen() {
   const [aiMode, setAiMode] = useState<'local' | 'cloud' | 'skip'>('skip');
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [openRouterKey, setOpenRouterKey] = useState<string>('');
-  const [emailAddress, setEmailAddress] = useState<string>('');
-  const [appPassword, setAppPassword] = useState<string>('');
   const [useSampleData, setUseSampleData] = useState<boolean>(true);
 
-  // Load diagnostics on mount
+  // Load diagnostics and existing workspace name on mount
   useEffect(() => {
     runDiagnostics();
   }, []);
+
+  useEffect(() => {
+    const currentWs = activeWorkspace || (workspaces && workspaces.length > 0 ? workspaces[0] : null);
+    if (currentWs?.name) {
+      setWsName(currentWs.name);
+    }
+  }, [activeWorkspace, workspaces]);
 
   const runDiagnostics = async () => {
     try {
@@ -77,8 +82,13 @@ export default function OnboardingScreen() {
         return;
       }
 
-      // Create local workspace via hook
-      const ws = await createWorkspace(wsName);
+      // Reuse existing workspace or create a new one
+      let ws = activeWorkspace || (workspaces && workspaces.length > 0 ? workspaces[0] : null);
+      if (ws) {
+        ws = await updateWorkspace(ws.id, { name: wsName.trim() });
+      } else {
+        ws = await createWorkspace(wsName.trim());
+      }
 
       // Save credentials if OpenRouter key is provided
       if (aiMode === 'cloud' && openRouterKey) {
@@ -86,14 +96,6 @@ export default function OnboardingScreen() {
           workspaceId: ws.id,
           key: 'openrouter_key',
           value: openRouterKey
-        });
-      }
-
-      // Save email credentials if appPassword is provided
-      if (emailAddress && appPassword) {
-        await window.ipc.invoke('email-accounts:create', {
-          email: emailAddress,
-          password: appPassword
         });
       }
 
@@ -132,34 +134,6 @@ export default function OnboardingScreen() {
       }
     } catch {
       toast.error('Validation failed: Network timeout or connectivity issue.');
-    } finally {
-      setTestingConnection(false);
-    }
-  };
-
-  const testSmtp = async () => {
-    setTestingConnection(true);
-    try {
-      if (!emailAddress || !appPassword) {
-        toast.error('Please fill in both email and app password.');
-        return;
-      }
-
-      // Create email account in the DB
-      const account = await window.ipc.invoke('email-accounts:create', {
-        email: emailAddress,
-        password: appPassword
-      });
-
-      // Test connection using its created ID
-      const res = await window.ipc.invoke('email-accounts:test', account.id);
-      if (res.verified) {
-        toast.success('SMTP Connection established and verified successfully!');
-      } else {
-        toast.error('SMTP Connection failed.');
-      }
-    } catch (err: any) {
-      toast.error(`Connection failed: ${err.message || err}`);
     } finally {
       setTestingConnection(false);
     }
@@ -522,7 +496,7 @@ export default function OnboardingScreen() {
             </motion.div>
           )}
 
-          {/* ── Step 3: Email Connector Setup ────────────────────────────────── */}
+          {/* ── Step 3: Outbound Email Integration ─────────────────────────────── */}
           {step === 3 && (
             <motion.div
               key="step-3"
@@ -533,58 +507,20 @@ export default function OnboardingScreen() {
               className="space-y-5"
             >
               <div className="space-y-1">
-                <h2 className="text-base font-bold text-foreground">Connect Outbound Email</h2>
+                <h2 className="text-base font-bold text-foreground">Outbound Email Integration</h2>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Set up SMTP parameters to run your campaigns. LeadForge supports Google App
-                  Passwords for secured Gmail integrations.
+                  LeadForge OS connects directly to Gmail using official Google OAuth 2.0 authorization.
+                  You can connect your mailbox in Settings anytime without giving out your password.
                 </p>
               </div>
 
-              <div className="bg-surface-3 border border-border-subtle rounded-none p-4 space-y-4 shadow-inner">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="emailInput">Outbound Email Address</Label>
-                    <input
-                      id="emailInput"
-                      placeholder="you@gmail.com"
-                      value={emailAddress}
-                      onChange={(e) => setEmailAddress(e.target.value)}
-                      className="w-full h-8 px-2.5 bg-card border border-border-subtle rounded-none text-xs focus-visible:outline-none font-semibold text-foreground"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="appPassInput">Google App Password</Label>
-                    <input
-                      id="appPassInput"
-                      type="password"
-                      placeholder="xxxx xxxx xxxx xxxx"
-                      value={appPassword}
-                      onChange={(e) => setAppPassword(e.target.value)}
-                      className="w-full h-8 px-2.5 bg-card border border-border-subtle rounded-none text-xs focus-visible:outline-none font-mono"
-                    />
-                  </div>
-                </div>
-
+              <div className="bg-surface-3 border border-border-subtle rounded-none p-4 space-y-3 shadow-inner">
                 <div className="bg-info-muted border border-info/20 rounded-none p-3 text-[10px] leading-relaxed text-info font-medium flex gap-2">
-                  <Info className="w-3.5 h-3.5 text-info shrink-0 mt-0.5" />
+                  <Info className="w-4 h-4 text-info shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold text-info">Gmail Setup Tip:</span> Visit your
-                    Google Account Settings, turn on 2-Step Verification, and search for "App Passwords"
-                    to generate a secure 16-character code specifically for LeadForge.
+                    <span className="font-bold text-info">Secure Google Authorization:</span> Mailboxes are managed in <strong>Settings → Email Accounts</strong>. OAuth consent opens safely in Google Chrome, giving LeadForge OS permission to dispatch campaign emails securely.
                   </div>
                 </div>
-
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="w-full rounded-none text-[10px]"
-                  onClick={testSmtp}
-                  disabled={testingConnection}
-                >
-                  {testingConnection ? 'Verifying connection...' : 'Test SMTP Connection'}
-                </Button>
               </div>
 
               <div className="flex justify-between pt-2 border-t border-border-subtle/50">
@@ -626,10 +562,8 @@ export default function OnboardingScreen() {
                   <span className="font-bold text-foreground uppercase">{aiMode}</span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-border-subtle/50">
-                  <span className="text-muted-foreground">Email Configured:</span>
-                  <span className="font-bold text-foreground">
-                    {emailAddress ? 'Yes' : 'No (Skipped)'}
-                  </span>
+                  <span className="text-muted-foreground">Mailbox Auth:</span>
+                  <span className="font-bold text-foreground">Google OAuth (Settings)</span>
                 </div>
               </div>
 

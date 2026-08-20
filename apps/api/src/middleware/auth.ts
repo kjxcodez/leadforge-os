@@ -55,13 +55,6 @@ export async function workspaceMiddleware(c: Context, next: Next): Promise<void>
       });
       if (existingWorkspace) {
         c.set('workspaceId', existingWorkspace._id.toString());
-      } else {
-        const defaultWorkspace = await workspaceService.createWorkspace({
-          name: `${user.name || 'Default'}'s Workspace`,
-          ownerId: userId,
-          ownerEmail: user.email ?? ''
-        });
-        c.set('workspaceId', defaultWorkspace._id.toString());
       }
     }
   }

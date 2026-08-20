@@ -7,8 +7,6 @@
 
 export type EmailAccountProviderKind =
   | 'gmail_oauth'
-  | 'gmail_smtp'
-  | 'smtp'
   | 'other';
 
 export type EmailAccountStatus =

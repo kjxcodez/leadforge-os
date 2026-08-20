@@ -26,8 +26,6 @@ export enum OutreachChannel {
  */
 export enum EmailAccountProvider {
   GMAIL_OAUTH = 'gmail_oauth',
-  GMAIL_SMTP = 'gmail_smtp',
-  SMTP = 'smtp',
   OTHER = 'other'
 }
 

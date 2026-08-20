@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/
 import { PageHeader } from '../components/common/PageHeader';
 import { Label } from '../components/ui/label';
 import { Sheet, SheetContent } from '../components/ui/sheet';
+import { toast } from 'sonner';
 import {
   Building2,
   X,
@@ -90,10 +91,10 @@ export default function CompaniesScreen() {
       setEnrollOpen(false);
       setEnrollCampaignId('');
       setSelectedIds([]);
-      alert('Successfully enrolled contacts from selected companies into campaign!');
+      toast.success('Successfully enrolled contacts from selected companies into campaign!');
     },
     onError: (err: any) => {
-      alert(`Enrollment failed: ${err.message}`);
+      toast.error(`Enrollment failed: ${err.message}`);
     }
   });
 
@@ -781,7 +782,7 @@ export default function CompaniesScreen() {
                 className="rounded-none"
                 onClick={() => {
                   if (!enrollCampaignId) {
-                    alert('Please select a campaign.');
+                    toast.error('Please select a campaign.');
                     return;
                   }
                   const companyContacts = contacts.filter((c: any) =>
@@ -789,7 +790,7 @@ export default function CompaniesScreen() {
                   );
                   const contactIds = companyContacts.map((c: any) => c.id);
                   if (contactIds.length === 0) {
-                    alert('No contacts found belonging to the selected companies.');
+                    toast.error('No contacts found belonging to the selected companies.');
                     return;
                   }
                   enrollMutation.mutate({ campaignId: enrollCampaignId, contactIds });

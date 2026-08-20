@@ -21,6 +21,7 @@ import { Badge } from '../components/ui/badge';
 import { ContactStatus } from '@leadforge/schema';
 import { PageHeader } from '../components/common/PageHeader';
 import { Sheet, SheetContent } from '../components/ui/sheet';
+import { toast } from 'sonner';
 
 /**
  * ContactsScreen handles contact directory listing, side profile drawer,
@@ -82,10 +83,10 @@ export default function ContactsScreen() {
       setEnrollOpen(false);
       setEnrollCampaignId('');
       setSelectedIds([]);
-      alert('Successfully enrolled selected contact(s) into campaign!');
+      toast.success('Successfully enrolled selected contact(s) into campaign!');
     },
     onError: (err: any) => {
-      alert(`Enrollment failed: ${err.message}`);
+      toast.error(`Enrollment failed: ${err.message}`);
     }
   });
 
@@ -647,7 +648,7 @@ export default function ContactsScreen() {
                 className="rounded-none"
                 onClick={() => {
                   if (!enrollCampaignId) {
-                    alert('Please select a campaign.');
+                    toast.error('Please select a campaign.');
                     return;
                   }
                   enrollMutation.mutate({ campaignId: enrollCampaignId, contactIds: selectedIds });

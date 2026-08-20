@@ -187,8 +187,13 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
     ctx.emitLog(`Opening database connection at: ${dbPath}`, 'info');
     db = new Database(dbPath);
 
-    ctx.emitLog('Launching headless Chromium browser', 'info');
-    browser = await chromium.launch({ headless: true });
+    ctx.emitLog('Launching headless browser...', 'info');
+    try {
+      browser = await chromium.launch({ headless: true });
+    } catch {
+      ctx.emitLog('Playwright binary missing, falling back to system Chrome...', 'info');
+      browser = await chromium.launch({ headless: true, channel: 'chrome' });
+    }
     context = await browser.newContext({
       userAgent:
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

@@ -27,7 +27,7 @@ const emailAccountSchema = new Schema<EmailAccountDocument>(
   {
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, trim: true }, // unique scoped in index
-    provider: { type: String, required: true, default: 'gmail_smtp' },
+    provider: { type: String, required: true, default: 'gmail_oauth' },
     encryptedPassword: { type: String, default: null }, // SMTP app password (AES-256-GCM)
     isDefault: { type: Boolean, default: false },
     status: {

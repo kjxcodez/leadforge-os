@@ -1,7 +1,9 @@
 import React, { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkspace } from '../hooks/useWorkspace';
 import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
@@ -37,7 +39,8 @@ import {
   Layers,
   Archive,
   HelpCircle,
-  Activity
+  Activity,
+  Settings
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { PageHeader } from '../components/common/PageHeader';
@@ -53,6 +56,7 @@ import { PageHeader } from '../components/common/PageHeader';
  *   - Premium Empty States: gorgeous, styled empty states matching CRM list designs.
  */
 export default function CampaignsScreen() {
+  const navigate = useNavigate();
   const { activeWorkspace } = useWorkspace();
   const workspaceId = activeWorkspace?.id || '';
   const queryClient = useQueryClient();
@@ -1340,51 +1344,38 @@ export default function CampaignsScreen() {
         {/* ── SENDER ACCOUNTS TAB ─────────────────────────────────────────── */}
         <TabsContent value="accounts" className="mt-4 space-y-4">
           <div className="flex justify-between items-center">
-            <span className="font-semibold text-foreground text-[11px]">
-              Email Accounts
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={() => setAccountOpen(true)}
-                size="sm"
-                variant="outline"
-                className="flex items-center gap-1 rounded-none"
-              >
-                <Plus className="h-3 w-3" />
-                Add SMTP
-              </Button>
-              <Button
-                onClick={handleConnectGmailOAuth}
-                size="sm"
-                className="flex items-center gap-1 rounded-none"
-                disabled={connectGmailOAuthMutation.isPending}
-              >
-                <Plus className="h-3 w-3" />
-                {connectGmailOAuthMutation.isPending ? 'Connecting…' : 'Connect Gmail'}
-              </Button>
+            <div>
+              <h3 className="font-semibold text-foreground text-xs">Connected Sender Accounts</h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Mailboxes connected to your workspace for outreach campaign dispatch.
+              </p>
             </div>
+            <Button
+              onClick={() => navigate('/settings')}
+              size="sm"
+              variant="outline"
+              className="flex items-center gap-1 rounded-none text-xs"
+            >
+              <Settings className="h-3.5 w-3.5" />
+              Manage Mailboxes in Settings →
+            </Button>
           </div>
 
           {accounts.length === 0 ? (
-            <div className="h-[280px] flex items-center justify-center p-6 bg-card border border-border-subtle border-dashed rounded-none">
-              <div className="max-w-md w-full flex flex-col items-center text-center space-y-4">
-                <div className="w-12 h-12 rounded-none bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
-                  <Mail className="h-6 w-6" />
+            <div className="h-[220px] flex items-center justify-center p-6 bg-card border border-border-subtle border-dashed rounded-none">
+              <div className="max-w-md w-full flex flex-col items-center text-center space-y-3">
+                <div className="w-10 h-10 rounded-none bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                  <Mail className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-xs font-semibold text-foreground">No sender accounts connected</h3>
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Connect a Gmail mailbox via Google authorization, or add SMTP credentials.
+                  <h3 className="text-xs font-semibold text-foreground">No connected mailboxes</h3>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Connect your Gmail account via Google OAuth in Settings to start sending campaigns.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button onClick={handleConnectGmailOAuth} size="sm" className="rounded-none">
-                    + Connect Gmail
-                  </Button>
-                  <Button onClick={() => setAccountOpen(true)} size="sm" variant="outline" className="rounded-none">
-                    Add SMTP
-                  </Button>
-                </div>
+                <Button onClick={() => navigate('/settings')} size="sm" className="rounded-none text-xs">
+                  Go to Settings → Email Accounts
+                </Button>
               </div>
             </div>
           ) : (
@@ -1392,7 +1383,7 @@ export default function CampaignsScreen() {
               {accounts.map((acc: any) => (
                 <div
                   key={acc.id}
-                  className="bg-card border border-border-subtle rounded-none p-4 space-y-3.5 shadow-sm"
+                  className="bg-card border border-border-subtle rounded-none p-4 space-y-3 shadow-sm"
                 >
                   <div className="flex justify-between items-start">
                     <div>
@@ -1401,75 +1392,22 @@ export default function CampaignsScreen() {
                         {acc.email}
                       </span>
                     </div>
-                    <div className="flex gap-1.5">
-                      {acc.provider === 'gmail_oauth' ? (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => sendTestEmailMutation.mutate(acc.id)}
-                            className="h-7 text-[10px] gap-0.5 rounded-none"
-                          >
-                            Test Email
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => reconnectGmailMutation.mutate(acc.id)}
-                            className="h-7 text-[10px] gap-0.5 rounded-none"
-                          >
-                            Reconnect
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => disconnectGmailMutation.mutate(acc.id)}
-                            className="h-7 text-[10px] gap-0.5 rounded-none text-danger hover:text-danger-muted"
-                          >
-                            Disconnect
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => verifyAccountMutation.mutate(acc.id)}
-                          className="h-7 text-[10px] gap-0.5 rounded-none"
-                        >
-                          Verify SMTP
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => deleteAccountMutation.mutate(acc.id)}
-                        className="h-7 w-7 p-0 text-danger hover:text-danger-muted rounded-none"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                    <Badge className="bg-success-muted text-success border border-success/20 text-[9px] font-bold rounded-none">
+                      {acc.status}
+                    </Badge>
                   </div>
 
-                  <div className="flex justify-between items-center text-[10px] pt-2 border-t border-border-subtle/50">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={`h-2 w-2 rounded-none ${
-                          acc.status === 'connected'
-                            ? 'bg-success animate-pulse'
-                            : acc.status === 'reauth_required'
-                              ? 'bg-warning'
-                              : 'bg-danger'
-                        }`}
-                      />
-                      <span className="capitalize font-semibold">
-                        {acc.status === 'connected' ? 'Connected' : acc.status.replace('_', ' ')}
-                      </span>
-                    </div>
-                    <span className="font-mono text-muted-foreground">{`Limits: ${acc.dailySent || 0}/${acc.dailyLimit} daily`}</span>
+                  <div className="flex justify-between items-center text-[10px] pt-2 border-t border-border-subtle/50 font-mono text-muted-foreground">
+                    <span>Daily Limit: {acc.dailyLimit || 200}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => navigate('/settings')}
+                      className="h-6 text-[10px] p-0 hover:underline"
+                    >
+                      Manage in Settings →
+                    </Button>
                   </div>
-                  {acc.status === 'connected' && (
-                    <p className="text-[9px] text-muted-foreground">Ready to send</p>
-                  )}
                 </div>
               ))}
             </div>

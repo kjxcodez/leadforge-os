@@ -27,14 +27,9 @@ interface GmailOAuthAccountRow {
 function injectGmailOAuthSecrets(secrets: Record<string, string>, acc: GmailOAuthAccountRow): void {
   const isOAuth =
     (acc.provider || '').toLowerCase() === 'gmail_oauth' || Boolean(acc.refreshToken);
-  if (!isOAuth || !acc.refreshToken) return;
+  if (!isOAuth) return;
 
   secrets['gmail.provider'] = 'gmail_oauth';
-  secrets['gmail.clientId'] = process.env.GOOGLE_CLIENT_ID || '';
-  secrets['gmail.clientSecret'] = process.env.GOOGLE_CLIENT_SECRET || '';
-  secrets['gmail.refreshToken'] = decryptSecret(acc.refreshToken);
-  secrets['gmail.accessToken'] = acc.accessToken ? decryptSecret(acc.accessToken) : '';
-  secrets['gmail.tokenExpiresAt'] = acc.tokenExpiresAt || '';
   secrets['gmail.user'] = acc.email || '';
 }
 

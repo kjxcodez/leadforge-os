@@ -3,6 +3,7 @@ import { EmailAccountService } from '../../services/email/email-account.service.
 import { EmailService } from '../../services/email/email.service.js';
 import { successResponse } from '../../utils/index.js';
 import { ForbiddenError } from '../../errors/index.js';
+import { logger } from '../../config/index.js';
 
 export const emailRouter = new OpenAPIHono();
 
@@ -96,6 +97,7 @@ emailRouter.get('/accounts/gmail/oauth/callback', async (c) => {
       )
     );
   } catch (err: any) {
+    logger.error({ err, state }, 'Gmail OAuth callback exchange error');
     return c.html(
       htmlShell(
         'Connection Error',

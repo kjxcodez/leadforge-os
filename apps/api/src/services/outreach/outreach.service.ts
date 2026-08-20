@@ -40,7 +40,7 @@ export class OutreachService {
       workspaceId: this.workspaceId as any,
       name: data.name,
       email: data.email,
-      provider: isOAuth ? 'gmail_oauth' : 'gmail_smtp',
+      provider: 'gmail_oauth',
       encryptedPassword: encrypted,
       isDefault: !!data.isDefault,
       dailyLimit: data.dailyLimit || 200,

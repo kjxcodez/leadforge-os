@@ -15,7 +15,8 @@ const GOOGLE_TOKENINFO_URL = 'https://oauth2.googleapis.com/tokeninfo';
 const GMAIL_SEND_API_URL =
  'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
 
-export const GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
+export const GMAIL_SEND_SCOPE =
+  'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email openid';
 
 export interface GoogleOAuthConfig {
   clientId: string;
@@ -122,12 +123,31 @@ export class GoogleOAuthClient {
         res.status === 401 || res.status === 400
       );
     }
+    let email = body.email || '';
+    let sub = body.sub || '';
+
+    // Fallback: If tokeninfo did not return an email, fetch directly from Google userinfo endpoint
+    if (!email) {
+      try {
+        const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (userinfoRes.ok) {
+          const userinfo: any = await userinfoRes.json();
+          email = userinfo.email || '';
+          if (!sub && userinfo.id) sub = userinfo.id;
+        }
+      } catch (err) {
+        logger.warn({ err }, 'Fallback userinfo fetch failed');
+      }
+    }
+
     const info: GoogleTokenInfo = {
-      email: body.email || '',
+      email,
       scope: body.scope || ''
     };
     if (body.expires_in) info.expiresIn = Number(body.expires_in);
-    if (body.sub) info.sub = body.sub;
+    if (sub) info.sub = sub;
     return info;
   }
 
