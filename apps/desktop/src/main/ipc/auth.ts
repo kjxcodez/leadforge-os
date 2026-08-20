@@ -2,6 +2,7 @@ import { safeRegister } from './helper';
 import { SdkClient } from '@leadforge/sdk';
 import { saveSession, loadSession, clearSession } from '../lib/session';
 import { performGoogleOAuth } from '../lib/google-oauth';
+import { detectChrome } from '../lib/chrome-detect';
 import { AppLogger } from '../lib/logger';
 
 /**
@@ -180,18 +181,20 @@ export function registerAuthIpc(
       throw new Error('API URL not configured');
     }
 
-    AppLogger.info('auth', 'Starting Google OAuth flow');
+    AppLogger.info('auth', 'Starting Google OAuth flow via external Chrome');
     const result = await performGoogleOAuth({ apiUrl: apiBaseUrl });
 
     if (!result.ok || !result.token) {
       const message =
-        result.reason === 'cancelled'
-          ? 'Google sign-in was cancelled.'
-          : result.reason === 'timeout'
-            ? 'Google sign-in timed out. Please try again.'
-            : result.reason === 'no-token'
-              ? 'Google sign-in completed but no session was issued. Please try again.'
-              : result.error || 'Google sign-in failed.';
+        result.reason === 'chrome-missing'
+          ? result.error || 'Google Chrome is required for sign-in but was not found on this computer.'
+          : result.reason === 'cancelled'
+            ? 'Google sign-in was cancelled.'
+            : result.reason === 'timeout'
+              ? 'Google sign-in timed out. Please try again.'
+              : result.reason === 'no-token'
+                ? 'Google sign-in completed but no session was established. Please try again.'
+                : result.error || 'Google sign-in failed.';
       throw new Error(message);
     }
 
@@ -258,5 +261,15 @@ export function registerAuthIpc(
     }
 
     return sessionResult;
+  });
+
+  // Runtime health check — used by the renderer to show actionable diagnostics
+  safeRegister('auth:google:check-chrome', async () => {
+    const result = detectChrome();
+    return {
+      chromeAvailable: result.found,
+      chromePath: result.path,
+      error: result.error
+    };
   });
 }

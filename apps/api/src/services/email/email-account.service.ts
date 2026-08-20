@@ -189,6 +189,40 @@ export class EmailAccountService {
   }
 
   /**
+   * Updates only safe metadata fields for an account (name, email, status,
+   * provider, etc.). Credential fields are intentionally excluded. Used by
+   * the desktop client to sync state after a local-only reconnect.
+   */
+  async syncMeta(
+    id: string,
+    meta: {
+      provider?: string;
+      name?: string;
+      email?: string;
+      status?: string;
+      googleAccountId?: string;
+      signature?: string;
+      dailyLimit?: number;
+      hourlyLimit?: number;
+    }
+  ): Promise<SafeEmailAccount> {
+    const account = await this.findAccount(id);
+
+    // Apply only the safe, non-credential fields
+    if (meta.name !== undefined) account.name = meta.name;
+    if (meta.email !== undefined) account.email = meta.email;
+    if (meta.status !== undefined) account.status = meta.status as any;
+    if (meta.provider !== undefined) account.provider = meta.provider as any;
+    if (meta.googleAccountId !== undefined) account.googleAccountId = meta.googleAccountId;
+    if (meta.signature !== undefined) account.signature = meta.signature;
+    if (meta.dailyLimit !== undefined) account.dailyLimit = meta.dailyLimit;
+    if (meta.hourlyLimit !== undefined) account.hourlyLimit = meta.hourlyLimit;
+
+    await account.save();
+    return sanitize(account.toObject());
+  }
+
+  /**
    * Verifies mailbox health and returns an EmailProvider for sending.
    * Used internally by EmailService; not exposed as a route that leaks tokens.
    */

@@ -1,18 +1,32 @@
-import { BrowserWindow, shell } from 'electron';
+import { shell } from 'electron';
+import { randomUUID } from 'crypto';
+import http from 'http';
 import { AppLogger } from './logger';
+import { requireChrome } from './chrome-detect';
 
 export interface GoogleOAuthResult {
   ok: boolean;
-  reason?: 'cancelled' | 'error' | 'timeout' | 'no-token';
+  reason?: 'cancelled' | 'error' | 'timeout' | 'no-token' | 'chrome-missing';
   error?: string;
   token?: string;
 }
 
-interface GoogleOAuthOptions {
+export interface GoogleOAuthOptions {
   apiUrl: string;
 }
 
-const TIMEOUT_MS = 5 * 60 * 1000;
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const LOOPBACK_HOST = '127.0.0.1';
+/** Port the local callback server listens on for Google Login callbacks. */
+const LOGIN_CALLBACK_PORT = 48113; // distinct from Gmail mailbox port (48112)
+
+// ─── Active-flow guard ────────────────────────────────────────────────────────
+
+let activeLoginFlow = false;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 interface InitiateResponse {
   url?: string;
@@ -21,7 +35,14 @@ interface InitiateResponse {
   authorizeUrl?: string;
 }
 
-function extractAuthorizationUrl(headers: Headers, payload: InitiateResponse | null): string | null {
+/**
+ * Extracts the Google authorization URL from Better Auth's sign-in/social
+ * response. Better Auth may return it as a Location header or in the JSON body.
+ */
+function extractAuthorizationUrl(
+  headers: Headers,
+  payload: InitiateResponse | null
+): string | null {
   const locationHeader = headers.get('location') || headers.get('Location');
   if (locationHeader && /^https?:\/\//i.test(locationHeader)) {
     return locationHeader;
@@ -31,26 +52,62 @@ function extractAuthorizationUrl(headers: Headers, payload: InitiateResponse | n
     if (candidate && typeof candidate === 'string' && /^https?:\/\//i.test(candidate)) {
       return candidate;
     }
-    if (payload.redirect && typeof payload.redirect === 'string' && /^https?:\/\//i.test(payload.redirect)) {
+    if (
+      payload.redirect &&
+      typeof payload.redirect === 'string' &&
+      /^https?:\/\//i.test(payload.redirect)
+    ) {
       return payload.redirect;
     }
   }
   return null;
 }
 
+// ─── Main export ─────────────────────────────────────────────────────────────
+
 /**
- * Opens a system-managed Google OAuth window and waits for Better Auth
- * to complete the social sign-in flow.
+ * Performs a Google social sign-in via Better Auth using the user's installed
+ * Google Chrome browser. No Electron BrowserWindow is used.
  *
- * Better Auth's social sign-in endpoint is POST-only, so we first call
- * it from the main process to obtain the Google authorization URL,
- * then navigate the BrowserWindow to that URL. After Google redirects
- * back to Better Auth's callback, the Bearer plugin exposes the raw
- * session token via a `set-auth-token` response header which we
- * intercept from the BrowserWindow's webRequest events.
+ * Flow:
+ *   1. Verify Chrome is installed (Windows registry + filesystem check).
+ *   2. Start a tiny loopback HTTP server on 127.0.0.1:48113.
+ *   3. Ask Better Auth to initiate the Google OAuth flow with
+ *      callbackURL = http://127.0.0.1:48113/auth/callback.
+ *   4. Open the returned Google authorization URL in Chrome.
+ *   5. Google redirects → Better Auth → Better Auth redirects to our loopback.
+ *   6. Loopback server reads `token` from query string.
+ *   7. Return the session token to the IPC caller.
+ *
+ * This is intentionally separate from the Gmail mailbox OAuth flow
+ * (gmail/oauth-flow.ts) which uses port 48112 and requests only gmail.send.
  */
-export async function performGoogleOAuth(options: GoogleOAuthOptions): Promise<GoogleOAuthResult> {
+export async function performGoogleOAuth(
+  options: GoogleOAuthOptions
+): Promise<GoogleOAuthResult> {
   const { apiUrl } = options;
+
+  // ── 0. Chrome guard ──────────────────────────────────────────────────────
+  try {
+    requireChrome();
+  } catch (err: any) {
+    AppLogger.error('auth', 'Chrome not found for Google OAuth', undefined, err);
+    return {
+      ok: false,
+      reason: 'chrome-missing',
+      error: err.message
+    };
+  }
+
+  // ── 1. Active-flow guard ─────────────────────────────────────────────────
+  if (activeLoginFlow) {
+    return {
+      ok: false,
+      reason: 'error',
+      error: 'A Google sign-in is already in progress. Please complete or cancel it first.'
+    };
+  }
+  activeLoginFlow = true;
 
   const apiOrigin = (() => {
     try {
@@ -60,159 +117,164 @@ export async function performGoogleOAuth(options: GoogleOAuthOptions): Promise<G
     }
   })();
 
-  const SIGNIN_PATH = '/api/v1/auth/sign-in/social';
+  const port = LOGIN_CALLBACK_PORT;
+  const callbackUrl = `http://${LOOPBACK_HOST}:${port}/auth/callback`;
 
-  const callbackUrl = `${apiOrigin}/api/v1/auth/session`;
+  // ── 2. Start loopback server ─────────────────────────────────────────────
+  let server: http.Server | null = null;
+  let timeoutHandle: NodeJS.Timeout | null = null;
+  let settled = false;
+  let resolvePromise!: (value: GoogleOAuthResult) => void;
 
-  let authorizationUrl: string | null = null;
+  const promise = new Promise<GoogleOAuthResult>((res) => {
+    resolvePromise = res;
+  });
+
+  const cleanup = () => {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+    try {
+      server?.close();
+    } catch {
+      /* already closed */
+    }
+    activeLoginFlow = false;
+  };
+
+  const settle = (result: GoogleOAuthResult) => {
+    if (settled) return;
+    settled = true;
+    cleanup();
+    setImmediate(() => resolvePromise(result));
+  };
+
   try {
-    const initResponse = await fetch(`${apiOrigin}${SIGNIN_PATH}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        provider: 'google',
-        callbackURL: callbackUrl
-      })
-    });
+    await new Promise<void>((resolveListen, rejectListen) => {
+      server = http.createServer((req, res) => {
+        void handleCallback(req, res);
+      });
 
-    if (!initResponse.ok) {
-      const errorText = await initResponse.text().catch(() => '');
-      AppLogger.error('auth', `Google OAuth initiate failed: ${initResponse.status} ${errorText}`);
-      return {
-        ok: false,
-        reason: 'error',
-        error: `Failed to start Google sign-in (HTTP ${initResponse.status})`
-      };
+      server.once('error', (err: NodeJS.ErrnoException) => {
+        rejectListen(
+          new Error(
+            `Cannot listen on ${callbackUrl}: ${err.message}. ` +
+              `Another application may be using port ${port}.`
+          )
+        );
+      });
+
+      server.listen(port, LOOPBACK_HOST, () => {
+        resolveListen();
+      });
+    });
+  } catch (err) {
+    activeLoginFlow = false;
+    AppLogger.error('auth', 'Failed to start Google login callback server', undefined, err as Error);
+    return { ok: false, reason: 'error', error: (err as Error).message };
+  }
+
+  // ── 3. Build browser entry URL ───────────────────────────────────────────
+  // Open Chrome directly to the API's GET /google/start entry point.
+  // This allows Chrome to receive the `better-auth.state` Set-Cookie header from
+  // Better Auth before following the 302 redirect to accounts.google.com,
+  // guaranteeing state cookie persistence and preventing state_security_mismatch.
+  const authorizationUrl = `${apiOrigin}/api/v1/auth/google/start?callbackURL=${encodeURIComponent(callbackUrl)}`;
+
+  // ── 4. Open Chrome ───────────────────────────────────────────────────────
+  AppLogger.info('auth', `Opening Google sign-in in Chrome: ${authorizationUrl}`);
+
+  try {
+    await shell.openExternal(authorizationUrl);
+  } catch (err) {
+    cleanup();
+    activeLoginFlow = false;
+    AppLogger.error('auth', 'Failed to open Chrome for Google sign-in', undefined, err as Error);
+    return {
+      ok: false,
+      reason: 'error',
+      error: 'Failed to open Google Chrome. Please ensure Chrome is installed and set as a capable browser.'
+    };
+  }
+
+  // ── 5. Timeout guard ─────────────────────────────────────────────────────
+  timeoutHandle = setTimeout(() => {
+    AppLogger.warn('auth', 'Google login timed out after 5 minutes');
+    settle({ ok: false, reason: 'timeout' });
+  }, TIMEOUT_MS);
+
+  // ── 6. Callback handler ──────────────────────────────────────────────────
+
+  const handleCallback = (req: http.IncomingMessage, res: http.ServerResponse): void => {
+    const url = new URL(req.url || '/', `http://${LOOPBACK_HOST}:${port}`);
+
+    if (url.pathname !== '/auth/callback') {
+      res.writeHead(404).end('Not found');
+      return;
     }
 
-    const initResult = (await initResponse.json().catch(() => null)) as InitiateResponse | null;
-    authorizationUrl = extractAuthorizationUrl(initResponse.headers, initResult);
-  } catch (err) {
-    AppLogger.error('auth', 'Failed to initiate Google OAuth flow', undefined, err as Error);
-    return {
-      ok: false,
-      reason: 'error',
-      error: 'Failed to start Google sign-in'
-    };
-  }
+    const errorParam = url.searchParams.get('error');
+    const token = url.searchParams.get('token') || url.searchParams.get('session_token');
 
-  if (!authorizationUrl) {
-    return {
-      ok: false,
-      reason: 'error',
-      error: 'Google sign-in did not return an authorization URL'
-    };
-  }
+    if (errorParam) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(callbackPage('Sign-in failed', `Google returned: ${errorParam}`, false));
+      AppLogger.warn('auth', `Google sign-in callback returned error: ${errorParam}`);
+      settle({ ok: false, reason: 'error', error: `Google sign-in failed: ${errorParam}` });
+      return;
+    }
 
-  return new Promise<GoogleOAuthResult>((resolve) => {
-    let resolved = false;
-    let capturedToken: string | null = null;
-    let timeoutHandle: NodeJS.Timeout | null = null;
-    let oauthSession: Electron.Session | null = null;
+    if (!token) {
+      // Better Auth may redirect without a token if the session is set via cookie.
+      // In that case we must query the session endpoint separately.
+      AppLogger.warn('auth', 'Google sign-in callback received without token param — session may be cookie-based');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(callbackPage('Completing sign-in…', 'Finishing authentication, you can close this tab.', true));
+      settle({ ok: false, reason: 'no-token' });
+      return;
+    }
 
-    const cleanup = (result: GoogleOAuthResult) => {
-      if (resolved) return;
-      resolved = true;
-      if (timeoutHandle) clearTimeout(timeoutHandle);
-      if (oauthSession) {
-        try {
-          oauthSession.webRequest.onHeadersReceived(null);
-        } catch {
-          // listener may already be detached
-        }
-      }
-      if (authWindow && !authWindow.isDestroyed()) {
-        authWindow.removeAllListeners('closed');
-        authWindow.close();
-      }
-      resolve(result);
-    };
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(callbackPage('Signed in', 'You are signed in. Return to LeadForge OS.', true));
 
-    const authWindow = new BrowserWindow({
-      width: 600,
-      height: 720,
-      show: true,
-      title: 'Sign in with Google',
-      backgroundColor: '#0A0A0B',
-      autoHideMenuBar: true,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        sandbox: true
-      }
-    });
+    AppLogger.info('auth', 'Google sign-in callback received session token');
+    settle({ ok: true, token });
+  };
 
-    oauthSession = authWindow.webContents.session;
+  return promise;
+}
 
-    oauthSession.webRequest.onHeadersReceived((details, callback) => {
-      try {
-        if (details.url.startsWith(apiOrigin) && !resolved) {
-          const headerValue = details.responseHeaders?.['set-auth-token'];
-          if (headerValue) {
-            const token = Array.isArray(headerValue) ? headerValue[0] : headerValue;
-            if (token && typeof token === 'string' && token.includes('.')) {
-              capturedToken = token;
-            }
-          }
-        }
-      } catch {
-        // ignore header access errors
-      }
-      callback({});
-    });
+// ─── Page templates ───────────────────────────────────────────────────────────
 
-    authWindow.webContents.on('did-navigate', (_event, url, _httpCode) => {
-      try {
-        const parsed = new URL(url);
-        if (parsed.origin !== apiOrigin) return;
-        const errorParam = parsed.searchParams.get('error');
-        if (errorParam) {
-          AppLogger.warn('auth', `Google OAuth returned error: ${errorParam}`);
-          cleanup({ ok: false, reason: 'error', error: errorParam });
-          return;
-        }
-        if (capturedToken && !url.includes('/sign-in/') && !url.includes('/callback/')) {
-          cleanup({ ok: true, token: capturedToken });
-          return;
-        }
-      } catch {
-        // ignore
-      }
-    });
-
-    authWindow.webContents.on('did-finish-load', () => {
-      if (resolved) return;
-      if (capturedToken) {
-        cleanup({ ok: true, token: capturedToken });
-      }
-    });
-
-    authWindow.on('closed', () => {
-      cleanup({ ok: false, reason: 'cancelled' });
-    });
-
-    authWindow.webContents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith('http://') || url.startsWith('https://')) {
-        void shell.openExternal(url);
-      }
-      return { action: 'deny' };
-    });
-
-    authWindow.webContents.on('render-process-gone', (_event, details) => {
-      AppLogger.error('auth', `OAuth window renderer gone: ${details.reason}`);
-      cleanup({ ok: false, reason: 'error', error: 'Browser window closed unexpectedly' });
-    });
-
-    timeoutHandle = setTimeout(() => {
-      AppLogger.warn('auth', 'Google OAuth window timed out');
-      cleanup({ ok: false, reason: 'timeout' });
-    }, TIMEOUT_MS);
-
-    void authWindow.loadURL(authorizationUrl!).catch((err) => {
-      AppLogger.error('auth', 'Failed to load Google OAuth URL', undefined, err);
-      cleanup({ ok: false, reason: 'error', error: 'Failed to open authentication window' });
-    });
-  });
+function callbackPage(title: string, message: string, success: boolean): string {
+  const icon = success ? '✅' : '⚠️';
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>${title} — LeadForge OS</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0A0A0B;
+      color: #F4F4F5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 16px;
+      text-align: center;
+      padding: 32px;
+    }
+    .icon { font-size: 2.5rem; }
+    h1 { font-size: 1.25rem; font-weight: 600; }
+    p { color: #9ca3af; font-size: 0.875rem; }
+  </style>
+</head>
+<body>
+  <div class="icon">${icon}</div>
+  <h1>${title}</h1>
+  <p>${message}</p>
+</body>
+</html>`;
 }

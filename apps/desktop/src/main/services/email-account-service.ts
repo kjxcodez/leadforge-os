@@ -273,21 +273,23 @@ export async function reconnectGmailAccount(
     );
   }
 
+  // Sync metadata (not credentials) to the API.
+  // The desktop manages its own encrypted credential store (SQLite + AES).
+  // We deliberately do NOT send refreshToken or accessToken over the network.
   try {
-    await sdk.outreach.reconnectAccount(id, {
+    const metaPayload: Parameters<typeof sdk.outreach.syncAccountMeta>[1] = {
       provider: 'gmail_oauth',
       name,
       email,
-      refreshToken: result.tokens.refreshToken,
-      accessToken: result.tokens.accessToken,
-      tokenExpiresAt: result.tokens.tokenExpiresAt,
-      googleAccountId: result.googleAccountId,
-      ...(options.signature !== undefined ? { signature: options.signature } : {}),
-      ...(options.dailyLimit ? { dailyLimit: options.dailyLimit } : {}),
-      ...(options.hourlyLimit ? { hourlyLimit: options.hourlyLimit } : {})
-    });
+      status: 'connected'
+    };
+    if (result.googleAccountId) metaPayload.googleAccountId = result.googleAccountId;
+    if (options.signature !== undefined) metaPayload.signature = options.signature;
+    if (options.dailyLimit) metaPayload.dailyLimit = options.dailyLimit;
+    if (options.hourlyLimit) metaPayload.hourlyLimit = options.hourlyLimit;
+    await sdk.outreach.syncAccountMeta(id, metaPayload);
   } catch (err) {
-    AppLogger.warn('EmailAccount', `Remote reconnect failed (local state kept): ${(err as Error).message}`);
+    AppLogger.warn('EmailAccount', `Remote metadata sync failed (local state kept): ${(err as Error).message}`);
   }
 
   return loadEmailAccount(workspaceId, id) as EmailAccountRow;

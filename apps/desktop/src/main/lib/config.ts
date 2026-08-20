@@ -54,7 +54,9 @@ export function loadConfig(): AppConfig {
   }
 
   // Precedence: process.env.API_URL > config.json's apiUrl > Production fallback URL
-  const apiUrl = process.env.API_URL || localData.apiUrl || 'https://api.leadforge.kapiljangid.pro/api/v1';
+  let rawApiUrl = process.env.API_URL || localData.apiUrl || 'https://api.leadforge.kapiljangid.pro/api/v1';
+  rawApiUrl = rawApiUrl.replace(/\/+$/, '');
+  const apiUrl = rawApiUrl.endsWith('/api/v1') ? rawApiUrl : `${rawApiUrl}/api/v1`;
 
   cachedConfig = {
     ...buildConfig,

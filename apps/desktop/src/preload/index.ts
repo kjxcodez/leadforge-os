@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('ipc', {
       'auth:forgot-password',
       'auth:resend-verification',
       'auth:google:login',
+      'auth:google:check-chrome',
       'workspaces:create',
       'workspaces:list',
       'workspaces:update',

@@ -84,6 +84,32 @@ emailRouter.post('/accounts/:id/disconnect', async (c) => {
   return c.json(successResponse(result));
 });
 
+// Metadata-only sync from desktop after a local reconnect.
+// Deliberately does NOT accept credential fields (refreshToken, accessToken, etc.).
+const metaSyncSchema = z.object({
+  provider: z.string().optional(),
+  name: z.string().optional(),
+  email: z.string().email().optional(),
+  status: z.string().optional(),
+  googleAccountId: z.string().optional(),
+  signature: z.string().optional(),
+  dailyLimit: z.number().optional(),
+  hourlyLimit: z.number().optional()
+});
+
+emailRouter.patch('/accounts/:id/meta', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const raw = metaSyncSchema.parse(await c.req.json());
+  // Strip undefined keys to satisfy exactOptionalPropertyTypes
+  const body = Object.fromEntries(
+    Object.entries(raw).filter(([, v]) => v !== undefined)
+  ) as Parameters<EmailAccountService['syncMeta']>[1];
+  const service = new EmailAccountService(wsId);
+  const account = await service.syncMeta(id, body);
+  return c.json(successResponse(account));
+});
+
 // ── Sending ────────────────────────────────────────────────────────────────
 
 emailRouter.post('/accounts/:id/test', async (c) => {

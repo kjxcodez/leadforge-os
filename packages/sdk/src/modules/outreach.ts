@@ -49,6 +49,27 @@ export class OutreachModule {
     return this.client.post<EmailAccount>(`/outreach/accounts/${id}/reconnect`, dto);
   }
 
+  /**
+   * Syncs safe metadata (name, email, status, provider — NO credentials)
+   * to the API after a local desktop reconnect. Credentials remain in the
+   * desktop's encrypted SQLite store; the API never receives raw tokens.
+   */
+  public async syncAccountMeta(
+    id: string,
+    meta: {
+      provider?: string;
+      name?: string;
+      email?: string;
+      status?: string;
+      googleAccountId?: string;
+      signature?: string;
+      dailyLimit?: number;
+      hourlyLimit?: number;
+    }
+  ): Promise<EmailAccount> {
+    return this.client.patch<EmailAccount>(`/outreach/accounts/${id}/meta`, meta);
+  }
+
   // ── Email Templates Management ──────────────────────────────────────────
 
   public async listTemplates(): Promise<EmailTemplate[]> {

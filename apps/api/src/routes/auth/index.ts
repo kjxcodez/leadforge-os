@@ -611,9 +611,85 @@ router.get('/verify-success', (c) => {
   `));
 });
 
+// GET /google/start — Browser entry point for Google OAuth social sign-in.
+// Passes through Better Auth to generate state cookie, attaches Set-Cookie to the
+// response, and 302 redirects Chrome to accounts.google.com.
+router.get('/google/start', async (c) => {
+  const callbackURL = c.req.query('callbackURL') || 'http://127.0.0.1:48113/auth/callback';
+  try {
+    const res = await auth.api.signInSocial({
+      body: {
+        provider: 'google',
+        callbackURL
+      },
+      headers: c.req.raw.headers,
+      asResponse: true
+    });
+
+    const googleAuthUrl = res.headers.get('location') || (await res.json().catch(() => ({})))?.url;
+    if (!googleAuthUrl) {
+      throw new Error('Google authorization URL not generated');
+    }
+
+    const responseHeaders = new Headers();
+    // Copy all set-cookie headers from Better Auth so Chrome saves the state cookie
+    const setCookie = res.headers.get('set-cookie');
+    if (setCookie) {
+      responseHeaders.set('Set-Cookie', setCookie);
+    }
+    responseHeaders.set('Location', googleAuthUrl);
+
+    return new Response(null, {
+      status: 302,
+      headers: responseHeaders
+    });
+  } catch (err: any) {
+    console.error('[Auth] GET /google/start failed:', err);
+    return c.html(pageShell('Sign-in Error', `
+      <div class="icon-box danger">✕</div>
+      <h1 style="text-align:center;">Sign-in failed</h1>
+      <p class="subtitle" style="text-align:center;">
+        ${err.message || 'Could not start Google sign-in.'}
+      </p>
+    `), 400);
+  }
+});
+
 // Wildcard routing to support direct Better Auth client SDK requests
 router.on(['GET', 'POST'], '/*', async (c) => {
-  return auth.handler(c.req.raw);
+  const res = await auth.handler(c.req.raw);
+
+  // When an OAuth callback (GET /callback/google) redirects to a loopback address
+  // (127.0.0.1:* or localhost:*), extract the session token from Set-Cookie and
+  // append ?token=... to the location redirect so desktop gets the token directly.
+  const location = res.headers.get('location');
+  const setCookie = res.headers.get('set-cookie');
+
+  if (res.status === 302 && location && (location.includes('127.0.0.1') || location.includes('localhost')) && setCookie) {
+    const match = setCookie.match(/better-auth\.session_token=([^;]+)/);
+    if (match && match[1]) {
+      const rawToken = decodeURIComponent(match[1]).split('.')[0];
+      if (rawToken) {
+        try {
+          const url = new URL(location);
+          if (!url.searchParams.has('token')) {
+            url.searchParams.set('token', rawToken);
+            const headers = new Headers(res.headers);
+            headers.set('location', url.toString());
+            return new Response(res.body, {
+              status: res.status,
+              statusText: res.statusText,
+              headers
+            });
+          }
+        } catch {
+          // ignore URL parsing errors
+        }
+      }
+    }
+  }
+
+  return res;
 });
 
 export { router };
