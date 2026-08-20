@@ -71,7 +71,13 @@ apiRouter.use('/campaigns/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/outreach/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/workspaces/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/automation/*', authMiddleware, workspaceMiddleware);
-apiRouter.use('/email/*', authMiddleware, workspaceMiddleware);
+// Protect email endpoints except public OAuth callback from Chrome
+apiRouter.use('/email/*', async (c, next) => {
+  if (c.req.path.endsWith('/email/accounts/gmail/oauth/callback')) {
+    return next();
+  }
+  return authMiddleware(c, async () => workspaceMiddleware(c, next));
+});
 
 // Mount empty placeholder business routers
 apiRouter.route('/companies', companiesRouter);

@@ -3,6 +3,7 @@ import type { ApiResponse } from '@leadforge/schema';
 
 export interface HttpClientConfig {
   baseUrl: string;
+  token?: string;
   headers?: Record<string, string>;
   tokenResolver?: () => string | null | Promise<string | null>;
   onUnauthorized?: () => void | Promise<void>;
@@ -21,7 +22,9 @@ export class HttpClient {
       ...this.config.headers
     };
 
-    if (this.config.tokenResolver) {
+    if (this.config.token) {
+      headers['Authorization'] = `Bearer ${this.config.token}`;
+    } else if (this.config.tokenResolver) {
       const token = await this.config.tokenResolver();
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;

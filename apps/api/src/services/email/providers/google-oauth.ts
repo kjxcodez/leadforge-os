@@ -49,8 +49,8 @@ export class GoogleOAuthError extends Error {
 export class GoogleOAuthClient {
   constructor(private readonly config: GoogleOAuthConfig) {}
 
-  /** Build the user-facing authorization URL (used for web/mobile flows). */
-  buildAuthUrl(state: string, scopes: string = GMAIL_SEND_SCOPE): string {
+  /** Build the user-facing authorization URL with optional PKCE codeChallenge. */
+  buildAuthUrl(state: string, codeChallenge?: string, scopes: string = GMAIL_SEND_SCOPE): string {
     const params = new URLSearchParams({
       client_id: this.config.clientId,
       redirect_uri: this.config.redirectUri,
@@ -60,16 +60,24 @@ export class GoogleOAuthClient {
       prompt: 'consent',
       state
     });
+    if (codeChallenge) {
+      params.set('code_challenge', codeChallenge);
+      params.set('code_challenge_method', 'S256');
+    }
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   }
 
-  /** Exchange an authorization code for tokens. */
-  async exchangeCodeForTokens(code: string): Promise<GoogleTokenResponse> {
-    return this.requestTokens({
+  /** Exchange an authorization code (with optional PKCE codeVerifier) for tokens. */
+  async exchangeCodeForTokens(code: string, codeVerifier?: string): Promise<GoogleTokenResponse> {
+    const form: Record<string, string> = {
       grant_type: 'authorization_code',
       code,
       redirect_uri: this.config.redirectUri
-    });
+    };
+    if (codeVerifier) {
+      form.code_verifier = codeVerifier;
+    }
+    return this.requestTokens(form);
   }
 
   /** Refresh an access token. Marks reauth required on invalid_grant. */
@@ -228,23 +236,45 @@ export class GmailApiClient {
     return body.id || '';
   }
 
-  private async buildRawMime(options: {
+  private buildRawMime(options: {
     from: string;
     to: string;
     subject: string;
     text?: string;
     html?: string;
-  }): Promise<string> {
-    const nodemailer = await import('nodemailer');
-    const transporter = nodemailer.createTransport({ jsonTransport: true });
-    const info = await transporter.sendMail({
-      from: options.from,
-      to: options.to,
-      subject: options.subject,
-      ...(options.html ? { html: options.html } : { text: options.text || '' })
-    });
-    const raw = (info as any).message as string;
-    return Buffer.from(raw).toString('base64url');
+  }): string {
+    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+    const headers = [
+      `From: ${options.from}`,
+      `To: ${options.to}`,
+      `Subject: =?UTF-8?B?${Buffer.from(options.subject, 'utf8').toString('base64')}?=`,
+      'MIME-Version: 1.0'
+    ];
+
+    let body = '';
+    if (options.html) {
+      headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
+      body = [
+        `--${boundary}`,
+        'Content-Type: text/plain; charset=UTF-8',
+        'Content-Transfer-Encoding: 8bit',
+        '',
+        options.text || '',
+        `--${boundary}`,
+        'Content-Type: text/html; charset=UTF-8',
+        'Content-Transfer-Encoding: 8bit',
+        '',
+        options.html,
+        `--${boundary}--`
+      ].join('\r\n');
+    } else {
+      headers.push('Content-Type: text/plain; charset=UTF-8');
+      headers.push('Content-Transfer-Encoding: 8bit');
+      body = options.text || '';
+    }
+
+    const fullMessage = `${headers.join('\r\n')}\r\n\r\n${body}`;
+    return Buffer.from(fullMessage, 'utf8').toString('base64url');
   }
 }
 

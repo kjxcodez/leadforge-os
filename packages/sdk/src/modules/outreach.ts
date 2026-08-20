@@ -4,10 +4,30 @@ import type {
   CreateOutreachDto,
   OutreachFilters,
   EmailAccount,
-  CreateEmailAccountDto,
   EmailTemplate,
   CreateEmailTemplateDto
 } from '@leadforge/schema';
+
+export interface SendEmailPayload {
+  accountId: string;
+  to: string;
+  subject: string;
+  text?: string;
+  html?: string;
+  from?: string;
+}
+
+export interface OAuthConnectResult {
+  transactionId: string;
+  authorizationUrl: string;
+}
+
+export interface OAuthTransactionStatus {
+  status: string;
+  emailAccountId?: string;
+  account?: EmailAccount;
+  error?: string;
+}
 
 export class OutreachModule {
   constructor(private client: HttpClient) {}
@@ -23,36 +43,42 @@ export class OutreachModule {
     return this.client.post<Outreach>('/outreach', dto);
   }
 
-  // ── Email Accounts Management ───────────────────────────────────────────
+  // ── Email Accounts Management (API-owned Gmail OAuth & Mailboxes) ─────────
 
   public async listAccounts(): Promise<EmailAccount[]> {
-    return this.client.get<EmailAccount[]>('/outreach/accounts');
+    return this.client.get<EmailAccount[]>('/email/accounts');
   }
 
-  public async createAccount(dto: CreateEmailAccountDto): Promise<EmailAccount> {
-    return this.client.post<EmailAccount>('/outreach/accounts', dto);
+  public async getAccount(id: string): Promise<EmailAccount> {
+    return this.client.get<EmailAccount>(`/email/accounts/${id}`);
   }
 
-  public async deleteAccount(id: string): Promise<void> {
-    return this.client.delete<void>(`/outreach/accounts/${id}`);
+  public async connectGmail(): Promise<OAuthConnectResult> {
+    return this.client.post<OAuthConnectResult>('/email/accounts/gmail/connect', {});
   }
 
-  public async verifyAccount(id: string): Promise<{ verified: boolean }> {
-    return this.client.post<{ verified: boolean }>(`/outreach/accounts/${id}/verify`, {});
+  public async getOAuthStatus(transactionId: string): Promise<OAuthTransactionStatus> {
+    return this.client.get<OAuthTransactionStatus>(`/email/accounts/gmail/oauth/status/${transactionId}`);
+  }
+
+  public async reconnectGmail(id: string): Promise<OAuthConnectResult> {
+    return this.client.post<OAuthConnectResult>(`/email/accounts/${id}/reconnect`, {});
   }
 
   public async disconnectAccount(id: string): Promise<{ success: boolean }> {
-    return this.client.post<{ success: boolean }>(`/outreach/accounts/${id}/disconnect`, {});
+    return this.client.post<{ success: boolean }>(`/email/accounts/${id}/disconnect`, {});
   }
 
-  public async reconnectAccount(id: string, dto: any): Promise<EmailAccount> {
-    return this.client.post<EmailAccount>(`/outreach/accounts/${id}/reconnect`, dto);
+  public async sendTestEmail(id: string): Promise<{ messageId: string; sentTo: string }> {
+    return this.client.post<{ messageId: string; sentTo: string }>(`/email/accounts/${id}/test`, {});
+  }
+
+  public async sendEmail(payload: SendEmailPayload): Promise<{ messageId: string; accepted: string[] }> {
+    return this.client.post<{ messageId: string; accepted: string[] }>('/email/send', payload);
   }
 
   /**
-   * Syncs safe metadata (name, email, status, provider — NO credentials)
-   * to the API after a local desktop reconnect. Credentials remain in the
-   * desktop's encrypted SQLite store; the API never receives raw tokens.
+   * Syncs safe metadata to the API.
    */
   public async syncAccountMeta(
     id: string,
@@ -67,7 +93,7 @@ export class OutreachModule {
       hourlyLimit?: number;
     }
   ): Promise<EmailAccount> {
-    return this.client.patch<EmailAccount>(`/outreach/accounts/${id}/meta`, meta);
+    return this.client.patch<EmailAccount>(`/email/accounts/${id}/meta`, meta);
   }
 
   // ── Email Templates Management ──────────────────────────────────────────

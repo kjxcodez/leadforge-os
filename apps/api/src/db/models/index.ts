@@ -13,4 +13,5 @@ export {
 } from './sequence-execution.model.js';
 export { SequenceLogModel, type SequenceLogDocument } from './sequence-log.model.js';
 export { BetaApplicantModel, type BetaApplicantDocument } from './beta-applicant.model.js';
+export { OAuthTransactionModel, type OAuthTransactionDocument } from './oauth-transaction.model.js';
 

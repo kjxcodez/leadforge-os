@@ -72,13 +72,6 @@ export default function CampaignsScreen() {
   const [selectedEnrollment, setSelectedEnrollment] = useState<any | null>(null);
 
   // Form field states
-  const [accName, setAccName] = useState('');
-  const [accEmail, setAccEmail] = useState('');
-  const [accPassword, setAccPassword] = useState('');
-  const [accDaily, setAccDaily] = useState(200);
-  const [accHourly, setAccHourly] = useState(50);
-  const [accSig, setAccSig] = useState('');
-
   const [tplName, setTplName] = useState('');
   const [tplSubj, setTplSubj] = useState('');
   const [tplBody, setTplBody] = useState('');
@@ -184,23 +177,6 @@ export default function CampaignsScreen() {
 
   // ── Mutation Hooks ──────────────────────────────────────────────────────
 
-  const createAccountMutation = useMutation({
-    mutationFn: async (payload: any) => {
-      return window.ipc.invoke('email-accounts:create', payload);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['email_accounts', workspaceId] });
-      setAccountOpen(false);
-      setAccName('');
-      setAccEmail('');
-      setAccPassword('');
-      setAccSig('');
-    },
-    onError: (err: any) => {
-      alert(`Connection failed: ${err.message}`);
-    }
-  });
-
   const deleteAccountMutation = useMutation({
     mutationFn: async (id: string) => {
       return window.ipc.invoke('email-accounts:delete', id);
@@ -224,8 +200,8 @@ export default function CampaignsScreen() {
   });
 
   const connectGmailOAuthMutation = useMutation({
-    mutationFn: async (payload: { name?: string; dailyLimit?: number; hourlyLimit?: number }) => {
-      return window.ipc.invoke('email-accounts:gmail:connect', payload);
+    mutationFn: async () => {
+      return window.ipc.invoke('email-accounts:gmail:connect', undefined);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email_accounts', workspaceId] });
@@ -380,25 +356,8 @@ export default function CampaignsScreen() {
   });
 
   // Handlers
-  const handleConnectAccount = (e: React.FormEvent) => {
-    e.preventDefault();
-    createAccountMutation.mutate({
-      name: accName,
-      email: accEmail,
-      password: accPassword,
-      dailyLimit: accDaily,
-      hourlyLimit: accHourly,
-      signature: accSig,
-      provider: 'gmail_smtp'
-    });
-  };
-
   const handleConnectGmailOAuth = () => {
-    setAccountOpen(false);
-    connectGmailOAuthMutation.mutate({
-      dailyLimit: accDaily,
-      hourlyLimit: accHourly
-    });
+    connectGmailOAuthMutation.mutate();
   };
 
   const handleCreateTemplate = (e: React.FormEvent) => {
@@ -1518,97 +1477,7 @@ export default function CampaignsScreen() {
         </TabsContent>
       </Tabs>
 
-      {/* ── Connect Account Dialog ────────────────────────────────────────── */}
-      <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
-        <DialogContent className="max-w-md rounded-none bg-background border border-border-subtle shadow-elevation-2">
-          <DialogHeader>
-            <DialogTitle>Connect Gmail SMTP</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleConnectAccount} className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="accName">Sender Name</Label>
-              <Input
-                id="accName"
-                placeholder="CEO / Sales Manager"
-                value={accName}
-                onChange={(e) => setAccName(e.target.value)}
-                required
-                className="rounded-none bg-card border-border-subtle"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="accEmail">Gmail Email Address</Label>
-              <Input
-                id="accEmail"
-                type="email"
-                placeholder="sales@mycompany.com"
-                value={accEmail}
-                onChange={(e) => setAccEmail(e.target.value)}
-                required
-                className="rounded-none bg-card border-border-subtle font-mono"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="accPassword">Gmail App Password</Label>
-              <Input
-                id="accPassword"
-                type="password"
-                placeholder="xxxx xxxx xxxx xxxx"
-                value={accPassword}
-                onChange={(e) => setAccPassword(e.target.value)}
-                required
-                className="rounded-none bg-card border-border-subtle"
-              />
-              <p className="text-[9px] text-muted-foreground flex items-center gap-0.5 mt-0.5">
-                <HelpCircle className="h-3 w-3" />
-                Must be a 16-character Google App Password (not your primary password).
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label htmlFor="accDaily">Daily Limit</Label>
-                <Input
-                  id="accDaily"
-                  type="number"
-                  value={accDaily}
-                  onChange={(e) => setAccDaily(parseInt(e.target.value))}
-                  required
-                  className="rounded-none bg-card border-border-subtle font-mono"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="accHourly">Hourly Limit</Label>
-                <Input
-                  id="accHourly"
-                  type="number"
-                  value={accHourly}
-                  onChange={(e) => setAccHourly(parseInt(e.target.value))}
-                  required
-                  className="rounded-none bg-card border-border-subtle font-mono"
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="accSig">Signature (Plaintext or HTML)</Label>
-              <Textarea
-                id="accSig"
-                placeholder="Best regards, Sales Team"
-                value={accSig}
-                onChange={(e) => setAccSig(e.target.value)}
-                className="rounded-none bg-card border-border-subtle"
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2 border-t border-border-subtle">
-              <Button type="button" variant="secondary" className="rounded-none" onClick={() => setAccountOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" className="rounded-none" disabled={createAccountMutation.isPending}>
-                {createAccountMutation.isPending ? 'Verifying SMTP...' : 'Verify & Save'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+
 
       {/* ── Create Template Dialog ───────────────────────────────────────── */}
       <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>

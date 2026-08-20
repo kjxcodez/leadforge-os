@@ -2,11 +2,7 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
 import { AIRuntime, PromptsLibrary } from '@leadforge/ai';
 import type { JobContext } from '../../../shared/types/job';
-import {
-  createMailProvider,
-  type MailProvider,
-  type MailProviderResolution
-} from '../../mail';
+import { SdkClient } from '@leadforge/sdk';
 
 function decryptSecretFallback(val: string): string {
   if (!val) return '';
@@ -1840,155 +1836,23 @@ async function handleSendEmailStep(
   const renderedSubject = resolveVariables(tpl.subject, renderCtx);
   const renderedBody = resolveVariables(tpl.body, renderCtx);
 
-  const settings = loadSettings(db, workspaceId);
+  const apiUrl = process.env.API_URL || 'http://localhost:3001/api/v1';
+  const authToken = ctx.payload._secrets?.sessionToken || process.env.SESSION_TOKEN || '';
+  const sdk = new SdkClient({ baseUrl: apiUrl, token: authToken });
 
-  let accountId: string | undefined = undefined;
-  try {
-    const execRow = db
-      .prepare('SELECT campaignId FROM sequence_executions WHERE id = ?')
-      .get(execCtx.execution.id) as { campaignId: string | null } | undefined;
-    if (execRow?.campaignId) {
-      const campaignRow = db
-        .prepare('SELECT sendingAccountId FROM campaigns WHERE id = ? AND deletedAt IS NULL')
-        .get(execRow.campaignId) as { sendingAccountId: string } | undefined;
-      accountId = campaignRow?.sendingAccountId;
-    }
-  } catch {}
+  const accountDoc = db
+    .prepare(
+      `SELECT id FROM email_accounts WHERE workspaceId = ? AND status = 'connected' AND deletedAt IS NULL ORDER BY createdAt ASC LIMIT 1`
+    )
+    .get(execCtx.workspace) as { id: string } | undefined;
 
-  let account: any = undefined;
-  if (accountId) {
-    account = db
-      .prepare(
-        `
-      SELECT id, email, name, smtpHost, smtpPort, smtpSecure, smtpUsername, smtpPassword
-      FROM email_accounts
-      WHERE id = ? AND workspaceId = ? AND status = 'connected' AND deletedAt IS NULL
-    `
-      )
-      .get(accountId, workspaceId);
+  if (!accountDoc) {
+    throw new Error('No connected Gmail account found in workspace for sending email step.');
   }
-
-  if (!account) {
-    account = db
-      .prepare(
-        `
-      SELECT id, email, name, smtpHost, smtpPort, smtpSecure, smtpUsername, smtpPassword
-      FROM email_accounts
-      WHERE workspaceId = ? AND status = 'connected' AND deletedAt IS NULL
-      ORDER BY createdAt ASC LIMIT 1
-    `
-      )
-      .get(workspaceId);
-  }
-
-  let accountPassword = '';
-  if (account?.smtpPassword) {
-    try {
-      accountPassword = decryptSecretFallback(account.smtpPassword);
-    } catch {
-      accountPassword = account.smtpPassword;
-    }
-  }
-
-  let host = resolveSettingValue(ctx.payload._secrets, settings, 'smtp.host', 'smtpHost', 'host') || account?.smtpHost;
-  let portStr = resolveSettingValue(
-    ctx.payload._secrets,
-    settings,
-    'smtp.port',
-    'smtpPort',
-    'port'
-  ) || (account?.smtpPort ? String(account.smtpPort) : undefined);
-  let secureStr = resolveSettingValue(
-    ctx.payload._secrets,
-    settings,
-    'smtp.secure',
-    'smtpSecure',
-    'secure'
-  ) || (account?.smtpSecure ? String(account.smtpSecure) : undefined);
-  let username = resolveSettingValue(
-    ctx.payload._secrets,
-    settings,
-    'smtp.username',
-    'smtp.user',
-    'smtpUsername',
-    'username'
-  ) || account?.smtpUsername;
-  let password = resolveSettingValue(
-    ctx.payload._secrets,
-    settings,
-    'smtp.password',
-    'smtp.pass',
-    'smtpPassword',
-    'password'
-  ) || accountPassword;
-  let senderName =
-    resolveSettingValue(
-      ctx.payload._secrets,
-      settings,
-      'smtp.senderName',
-      'smtpSenderName',
-      'senderName'
-    ) || 'LeadForge OS';
-  let senderEmail =
-    resolveSettingValue(
-      ctx.payload._secrets,
-      settings,
-      'smtp.senderEmail',
-      'smtpSenderEmail',
-      'senderEmail'
-    ) || username;
-
-  if (account) {
-    senderEmail = account.email;
-    senderName = account.name || senderName;
-  }
-
-  const port = portStr ? parseInt(portStr, 10) : 465;
-  const secure = secureStr !== undefined ? secureStr === 'true' : port === 465;
-
-  const gmailRefreshToken = ctx.payload._secrets?.['gmail.refreshToken'];
-
-  let resolution: MailProviderResolution;
-  let providerLabel = 'SMTP';
-
-  if (gmailRefreshToken) {
-    const gmailClientId = ctx.payload._secrets?.['gmail.clientId'] || '';
-    const gmailClientSecret = ctx.payload._secrets?.['gmail.clientSecret'] || '';
-    if (!gmailClientId || !gmailClientSecret) {
-      throw new Error(
-        'Gmail OAuth client credentials are not configured. ' +
-          'Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to apps/desktop/.env.'
-      );
-    }
-    resolution = {
-      kind: 'gmail_oauth',
-      gmail: {
-        user: senderEmail,
-        clientId: gmailClientId,
-        clientSecret: gmailClientSecret,
-        refreshToken: gmailRefreshToken,
-        accessToken: ctx.payload._secrets?.['gmail.accessToken'] || undefined,
-        tokenExpiresAt: ctx.payload._secrets?.['gmail.tokenExpiresAt'] || undefined
-      }
-    };
-    providerLabel = 'Gmail OAuth';
-  } else {
-    if (!host || !username || !password) {
-      throw new Error(
-        'SMTP credentials not found in workspace settings (required: host, username, password).'
-      );
-    }
-    resolution = {
-      kind: 'smtp',
-      smtp: { host, port, secure, username, password }
-    };
-  }
-
-  const provider: MailProvider = createMailProvider(resolution);
 
   try {
-    const sendResult = await provider.send({
-      from: `"${senderName}" <${senderEmail}>`,
+    const sendResult = await sdk.outreach.sendEmail({
+      accountId: accountDoc.id,
       to: contact.email,
       subject: renderedSubject,
       html: renderedBody
@@ -2018,15 +1882,13 @@ async function handleSendEmailStep(
     }
 
     ctx.emitLog(
-      `${providerLabel} send success: messageId=${sentMsgId || 'unknown'}, ` +
+      `Gmail send success: messageId=${sentMsgId || 'unknown'}, ` +
         `recipient=${contact.email}, subject=${renderedSubject}`,
       'info'
     );
     return { status: 'success' };
   } catch (sendErr: any) {
-    throw new Error(`${providerLabel} send failed: ${sendErr.message || sendErr}`);
-  } finally {
-    provider.close();
+    throw new Error(`Gmail send failed: ${sendErr.message || sendErr}`);
   }
 }
 

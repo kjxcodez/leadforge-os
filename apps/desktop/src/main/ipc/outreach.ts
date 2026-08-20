@@ -1,14 +1,14 @@
 import { safeRegister } from './helper';
 import { SdkClient } from '@leadforge/sdk';
+import { shell } from 'electron';
 import { WorkspaceManager } from '../lib/workspace-manager';
 import { LocalCRMRepository } from '../database/repositories/local-crm';
-import { encryptSecret } from '../lib/crypto';
 import {
   connectGmailAccount,
+  getOAuthTransactionStatus,
   disconnectGmailAccount,
   reconnectGmailAccount,
-  sendTestEmail,
-  verifyEmailAccount
+  sendTestEmail
 } from '../services/email-account-service';
 
 /**
@@ -33,94 +33,54 @@ export function registerOutreachIpc(sdk: SdkClient) {
     }
   });
 
-  safeRegister('email-accounts:create', async (_event, dto) => {
-    const runtime = WorkspaceManager.getActiveRuntime();
-    if (!runtime) throw new Error('No active workspace runtime');
-
-    const isOAuth = dto.provider === 'gmail_oauth' || !!dto.refreshToken;
-
-    if (!dto.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dto.email)) {
-      throw new Error('A valid email address is required.');
-    }
-    if (!isOAuth && (!dto.password || dto.password.trim().length < 6)) {
-      throw new Error('A valid SMTP app password is required (minimum 6 characters).');
-    }
-
-    const id = dto.id || require('crypto').randomUUID();
-
-    // Encrypt credentials before storing
-    const cleanDto = { ...dto };
-    delete cleanDto.password;
-
-    const record: any = {
-      ...cleanDto,
-      id,
-      workspaceId: runtime.workspaceId,
-      status: isOAuth ? 'connected' : 'unverified',
-      syncStatus: 'pending'
-    };
-
-    if (isOAuth) {
-      if (dto.refreshToken) record.refreshToken = encryptSecret(dto.refreshToken);
-      if (dto.accessToken) record.accessToken = encryptSecret(dto.accessToken);
-      if (dto.tokenExpiresAt) record.tokenExpiresAt = dto.tokenExpiresAt;
-      if (dto.googleAccountId) record.googleAccountId = dto.googleAccountId;
-    } else {
-      const encryptedPassword = encryptSecret(dto.password);
-      // Store credentials directly on the account record (authoritative configuration)
-      record.smtpHost = 'smtp.gmail.com';
-      record.smtpPort = 465;
-      record.smtpSecure = 'true';
-      record.smtpUsername = dto.email;
-      record.smtpPassword = encryptedPassword;
-
-      record.imapHost = 'imap.gmail.com';
-      record.imapPort = 993;
-      record.imapSecure = 'true';
-      record.imapUsername = dto.email;
-      record.imapPassword = encryptedPassword;
-    }
-
-    await LocalCRMRepository.save('email_accounts', record);
-    return record;
-  });
-
   safeRegister('email-accounts:delete', async (_event, id) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
+    await disconnectGmailAccount(sdk, id);
     await LocalCRMRepository.softDelete('email_accounts', runtime.workspaceId, id);
     return { success: true };
   });
 
-  safeRegister('email-accounts:test', async (_event, id) => {
+  // Initiate Gmail OAuth via API and open external Chrome browser
+  safeRegister('email-accounts:gmail:connect', async () => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    const result = await verifyEmailAccount(runtime.workspaceId, id);
+    const result = await connectGmailAccount(sdk);
+    if (result.authorizationUrl) {
+      console.log(`[IPC] Opening Google OAuth in Chrome: ${result.authorizationUrl}`);
+      await shell.openExternal(result.authorizationUrl);
+    }
     return result;
   });
 
-  safeRegister('email-accounts:gmail:connect', async (_event, options) => {
+  // Poll status of an OAuth transaction
+  safeRegister('email-accounts:gmail:status', async (_event, { transactionId }) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    return connectGmailAccount(sdk, runtime.workspaceId, options || {});
+    return getOAuthTransactionStatus(sdk, transactionId);
   });
 
   safeRegister('email-accounts:gmail:disconnect', async (_event, { id }) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    return disconnectGmailAccount(sdk, runtime.workspaceId, id);
+    return disconnectGmailAccount(sdk, id);
   });
 
-  safeRegister('email-accounts:gmail:reconnect', async (_event, { id, ...options }) => {
+  safeRegister('email-accounts:gmail:reconnect', async (_event, { id }) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    return reconnectGmailAccount(sdk, runtime.workspaceId, id, options || {});
+    const result = await reconnectGmailAccount(sdk, id);
+    if (result.authorizationUrl) {
+      console.log(`[IPC] Opening Google Reconnect OAuth in Chrome: ${result.authorizationUrl}`);
+      await shell.openExternal(result.authorizationUrl);
+    }
+    return result;
   });
 
   safeRegister('email-accounts:send-test', async (_event, { id }) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    return sendTestEmail(runtime.workspaceId, id);
+    return sendTestEmail(sdk, id);
   });
 
   // Templates

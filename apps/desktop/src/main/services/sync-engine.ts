@@ -424,16 +424,9 @@ export class SyncEngine {
     if (entityType === 'sequence_executions') return this.sdk.executions;
     if (entityType === 'email_accounts') {
       return {
-        create: (payload: any) => {
-          const outbound = { ...payload };
-          // Gmail OAuth tokens are stored locally with Electron safeStorage.
-          // Decrypt them so the API can re-encrypt with its own key at rest.
-          if (outbound.refreshToken) outbound.refreshToken = decryptSecret(outbound.refreshToken);
-          if (outbound.accessToken) outbound.accessToken = decryptSecret(outbound.accessToken);
-          return this.sdk.outreach.createAccount(outbound);
-        },
-        update: (id: string, payload: any) => Promise.resolve(),
-        delete: (id: string) => this.sdk.outreach.deleteAccount(id)
+        create: (payload: any) => Promise.resolve(),
+        update: (id: string, payload: any) => this.sdk.outreach.syncAccountMeta(id, payload),
+        delete: (id: string) => this.sdk.outreach.disconnectAccount(id)
       };
     }
     if (entityType === 'templates') {

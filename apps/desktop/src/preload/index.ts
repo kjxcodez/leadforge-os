@@ -89,6 +89,7 @@ contextBridge.exposeInMainWorld('ipc', {
       'email-accounts:delete',
       'email-accounts:test',
       'email-accounts:gmail:connect',
+      'email-accounts:gmail:status',
       'email-accounts:gmail:disconnect',
       'email-accounts:gmail:reconnect',
       'email-accounts:send-test',

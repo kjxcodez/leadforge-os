@@ -1,5 +1,4 @@
-import { OpenAPIHono } from '@hono/zod-openapi';
-import { z } from '@hono/zod-openapi';
+import { OpenAPIHono, z } from '@hono/zod-openapi';
 import { EmailAccountService } from '../../services/email/email-account.service.js';
 import { EmailService } from '../../services/email/email.service.js';
 import { successResponse } from '../../utils/index.js';
@@ -13,24 +12,11 @@ function getWorkspaceId(c: any): string {
   return wsId.toString();
 }
 
-const connectSchema = z.object({
-  code: z.string().min(1),
-  redirectUri: z.string().url(),
-  name: z.string().optional(),
-  signature: z.string().optional(),
-  dailyLimit: z.number().optional(),
-  hourlyLimit: z.number().optional(),
-  isDefault: z.boolean().optional()
-});
-
-const reconnectSchema = z.object({
-  code: z.string().min(1),
-  redirectUri: z.string().url(),
-  name: z.string().optional(),
-  signature: z.string().optional(),
-  dailyLimit: z.number().optional(),
-  hourlyLimit: z.number().optional()
-});
+function getUserId(c: any): string {
+  const user = c.get('user');
+  if (!user || (!user.id && !user._id)) throw new ForbiddenError('User context required.');
+  return (user.id || user._id).toString();
+}
 
 const sendSchema = z.object({
   accountId: z.string().min(1),
@@ -58,22 +44,78 @@ emailRouter.get('/accounts/:id', async (c) => {
   return c.json(successResponse(account));
 });
 
-// Connect Gmail mailbox via authorization code (exchanged server-side).
+// Initiate server-side Gmail OAuth connection transaction.
+// Returns transactionId + authorizationUrl for Chrome.
 emailRouter.post('/accounts/gmail/connect', async (c) => {
   const wsId = getWorkspaceId(c);
-  const body = connectSchema.parse(await c.req.json());
+  const userId = getUserId(c);
   const service = new EmailAccountService(wsId);
-  const account = await service.connectGmail(body);
-  return c.json(successResponse(account));
+  const result = await service.initiateGmailOAuth(userId);
+  return c.json(successResponse(result));
+});
+
+// Poll status of an OAuth transaction.
+emailRouter.get('/accounts/gmail/oauth/status/:transactionId', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const transactionId = c.req.param('transactionId');
+  const service = new EmailAccountService(wsId);
+  const result = await service.getOAuthTransactionStatus(transactionId);
+  return c.json(successResponse(result));
+});
+
+// Public Google OAuth callback endpoint (target of Google's 302 redirect from Chrome).
+emailRouter.get('/accounts/gmail/oauth/callback', async (c) => {
+  const code = c.req.query('code');
+  const state = c.req.query('state');
+  const error = c.req.query('error');
+
+  if (error || !code || !state) {
+    return c.html(
+      htmlShell(
+        'Connection Failed',
+        `<div class="card danger">
+          <h1>Gmail Connection Failed</h1>
+          <p>${error || 'Missing authorization code or state token.'}</p>
+        </div>`
+      ),
+      400
+    );
+  }
+
+  try {
+    const { account } = await EmailAccountService.handleGmailOAuthCallback(code, state);
+    return c.html(
+      htmlShell(
+        'Gmail Connected',
+        `<div class="card success">
+          <div class="icon">✓</div>
+          <h1>Gmail Account Connected</h1>
+          <p>Successfully authorized <strong>${account.email}</strong>.</p>
+          <p class="sub">You can close this tab and return to LeadForge OS.</p>
+        </div>`
+      )
+    );
+  } catch (err: any) {
+    return c.html(
+      htmlShell(
+        'Connection Error',
+        `<div class="card danger">
+          <h1>OAuth Exchange Error</h1>
+          <p>${err.message || String(err)}</p>
+        </div>`
+      ),
+      500
+    );
+  }
 });
 
 emailRouter.post('/accounts/:id/reconnect', async (c) => {
   const wsId = getWorkspaceId(c);
+  const userId = getUserId(c);
   const id = c.req.param('id');
-  const body = reconnectSchema.parse(await c.req.json());
   const service = new EmailAccountService(wsId);
-  const account = await service.reconnectGmail(id, body);
-  return c.json(successResponse(account));
+  const result = await service.initiateGmailReconnect(userId, id);
+  return c.json(successResponse(result));
 });
 
 emailRouter.post('/accounts/:id/disconnect', async (c) => {
@@ -82,32 +124,6 @@ emailRouter.post('/accounts/:id/disconnect', async (c) => {
   const service = new EmailAccountService(wsId);
   const result = await service.disconnect(id);
   return c.json(successResponse(result));
-});
-
-// Metadata-only sync from desktop after a local reconnect.
-// Deliberately does NOT accept credential fields (refreshToken, accessToken, etc.).
-const metaSyncSchema = z.object({
-  provider: z.string().optional(),
-  name: z.string().optional(),
-  email: z.string().email().optional(),
-  status: z.string().optional(),
-  googleAccountId: z.string().optional(),
-  signature: z.string().optional(),
-  dailyLimit: z.number().optional(),
-  hourlyLimit: z.number().optional()
-});
-
-emailRouter.patch('/accounts/:id/meta', async (c) => {
-  const wsId = getWorkspaceId(c);
-  const id = c.req.param('id');
-  const raw = metaSyncSchema.parse(await c.req.json());
-  // Strip undefined keys to satisfy exactOptionalPropertyTypes
-  const body = Object.fromEntries(
-    Object.entries(raw).filter(([, v]) => v !== undefined)
-  ) as Parameters<EmailAccountService['syncMeta']>[1];
-  const service = new EmailAccountService(wsId);
-  const account = await service.syncMeta(id, body);
-  return c.json(successResponse(account));
 });
 
 // ── Sending ────────────────────────────────────────────────────────────────
@@ -127,3 +143,25 @@ emailRouter.post('/send', async (c) => {
   const result = await service.send(body);
   return c.json(successResponse(result));
 });
+
+function htmlShell(title: string, content: string): string {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${title} — LeadForge OS</title>
+  <style>
+    body { background: #09090b; color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+    .card { background: #18181b; border: 1px solid #27272a; border-radius: 12px; padding: 40px; text-align: center; max-width: 420px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    .card.success .icon { background: #10b981; color: #000; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin: 0 auto 20px; }
+    .card.danger { border-color: #ef4444; }
+    h1 { font-size: 22px; font-weight: 600; margin: 0 0 10px; color: #fff; }
+    p { font-size: 14px; color: #a1a1aa; margin: 0 0 10px; line-height: 1.5; }
+    p.sub { font-size: 13px; color: #71717a; margin-top: 15px; }
+  </style>
+</head>
+<body>
+  ${content}
+</body>
+</html>`;
+}

@@ -11,7 +11,7 @@ import {
  * or SMTP APIs directly.
  */
 export interface EmailProvider {
-  readonly kind: 'gmail_oauth' | 'smtp';
+  readonly kind: 'gmail_oauth';
 
   /** Lightweight health check (e.g. token validity, mailer login). */
   verify(): Promise<EmailProviderHealth>;

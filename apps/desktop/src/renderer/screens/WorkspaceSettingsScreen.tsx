@@ -27,7 +27,8 @@ import {
   AlertCircle,
   RefreshCw,
   Linkedin,
-  Sparkles
+  Sparkles,
+  Mail
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '../components/common/PageHeader';
@@ -231,6 +232,9 @@ export default function WorkspaceSettingsScreen() {
           </div>
         )}
       </div>
+
+      {/* ── SECTION 2.5: Email Accounts ─────────────────────────────────── */}
+      <EmailAccountsSection />
 
       {/* ── SECTION 3: LinkedIn Integration ─────────────────────────────── */}
       <LinkedInIntegrationCard workspaceId={activeWorkspace.id || ''} />
@@ -723,3 +727,202 @@ function AutoUpdateSection() {
     </div>
   );
 }
+
+function EmailAccountsSection() {
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [connecting, setConnecting] = useState(false);
+  const [actionId, setActionId] = useState<string | null>(null);
+
+  const fetchAccounts = React.useCallback(async () => {
+    try {
+      const list = await window.ipc.invoke('email-accounts:list', undefined);
+      setAccounts(list || []);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchAccounts();
+  }, [fetchAccounts]);
+
+  const pollTransaction = (transactionId: string) => {
+    setConnecting(true);
+    const interval = setInterval(async () => {
+      try {
+        const res = await window.ipc.invoke('email-accounts:gmail:status', { transactionId });
+        if (res.status === 'completed') {
+          clearInterval(interval);
+          setConnecting(false);
+          toast.success('Gmail account connected successfully!');
+          fetchAccounts();
+        } else if (res.status === 'failed') {
+          clearInterval(interval);
+          setConnecting(false);
+          toast.error(`Gmail connection failed: ${res.error || 'Unknown error'}`);
+        }
+      } catch {
+        // continue polling
+      }
+    }, 2000);
+
+    setTimeout(() => {
+      clearInterval(interval);
+      setConnecting(false);
+    }, 180000);
+  };
+
+  const handleConnect = async () => {
+    try {
+      const res = await window.ipc.invoke('email-accounts:gmail:connect', undefined);
+      if (res.transactionId) {
+        toast.info('Google sign-in opened in Chrome. Waiting for authorization...');
+        pollTransaction(res.transactionId);
+      }
+    } catch (err: any) {
+      toast.error(`Could not start Gmail sign-in: ${err.message || err}`);
+    }
+  };
+
+  const handleReconnect = async (id: string) => {
+    try {
+      const res = await window.ipc.invoke('email-accounts:gmail:reconnect', { id });
+      if (res.transactionId) {
+        toast.info('Google sign-in opened in Chrome. Waiting for re-authorization...');
+        pollTransaction(res.transactionId);
+      }
+    } catch (err: any) {
+      toast.error(`Could not start Gmail reconnect: ${err.message || err}`);
+    }
+  };
+
+  const handleDisconnect = async (id: string) => {
+    if (!confirm('Are you sure you want to disconnect this Gmail account?')) return;
+    setActionId(id);
+    try {
+      await window.ipc.invoke('email-accounts:gmail:disconnect', { id });
+      toast.success('Gmail account disconnected.');
+      fetchAccounts();
+    } catch (err: any) {
+      toast.error(`Failed to disconnect: ${err.message || err}`);
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleSendTest = async (id: string) => {
+    setActionId(id);
+    try {
+      await window.ipc.invoke('email-accounts:send-test', { id });
+      toast.success('Test email sent successfully! Check your inbox.');
+    } catch (err: any) {
+      toast.error(`Test email failed: ${err.message || err}`);
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  return (
+    <div className="bg-card border border-border-subtle rounded-none p-5 space-y-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Mail className="w-4 h-4 text-primary" />
+            <span>Email Accounts & Mailboxes</span>
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Connect your Gmail mailbox to send outreach campaigns securely via Google APIs.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          onClick={handleConnect}
+          disabled={connecting}
+          className="gap-1.5 rounded-none h-8 text-[11px] font-semibold"
+        >
+          {connecting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+          <span>{connecting ? 'Waiting for Google...' : 'Connect Gmail'}</span>
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="py-4 text-center text-xs text-muted-foreground">Loading email accounts...</div>
+      ) : accounts.length === 0 ? (
+        <div className="p-6 text-center border border-dashed border-border-subtle rounded-none bg-surface-3/30 space-y-2">
+          <p className="text-xs font-semibold text-foreground">No Gmail Accounts Connected</p>
+          <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
+            Click <strong>Connect Gmail</strong> to authorize your mailbox in Chrome. LeadForge OS never sees your password.
+          </p>
+        </div>
+      ) : (
+        <div className="divide-y divide-border-subtle">
+          {accounts.map((acc) => (
+            <div key={acc.id} className="flex items-center justify-between py-3.5 first:pt-0 last:pb-0">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-foreground">{acc.email}</span>
+                  {acc.status === 'connected' && (
+                    <Badge className="bg-success-muted text-success border border-success/20 text-[9px] font-bold rounded-none">
+                      Healthy
+                    </Badge>
+                  )}
+                  {acc.status === 'reauth_required' && (
+                    <Badge className="bg-warning-muted text-warning border border-warning/20 text-[9px] font-bold rounded-none">
+                      Re-auth Required
+                    </Badge>
+                  )}
+                  {acc.status === 'disconnected' && (
+                    <Badge className="bg-muted text-muted-foreground border border-border-subtle text-[9px] font-bold rounded-none">
+                      Disconnected
+                    </Badge>
+                  )}
+                </div>
+                <div className="text-[10px] text-muted-foreground font-mono flex items-center gap-3">
+                  <span>Name: {acc.name}</span>
+                  <span>Daily limit: {acc.dailyLimit || 200}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {acc.status === 'reauth_required' ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleReconnect(acc.id)}
+                    className="rounded-none h-7 text-[10px] font-semibold text-warning border-warning/30"
+                  >
+                    Reconnect Gmail
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleSendTest(acc.id)}
+                    disabled={actionId === acc.id || acc.status !== 'connected'}
+                    className="rounded-none h-7 text-[10px] font-semibold"
+                  >
+                    {actionId === acc.id ? 'Sending...' : 'Send Test'}
+                  </Button>
+                )}
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleDisconnect(acc.id)}
+                  disabled={actionId === acc.id}
+                  className="rounded-none h-7 text-[10px] text-danger hover:bg-danger-muted"
+                >
+                  Disconnect
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+

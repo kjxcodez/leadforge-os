@@ -1,4 +1,6 @@
+import { randomUUID, randomBytes, createHash } from 'crypto';
 import { EmailAccountModel } from '../../db/models/email-account.model.js';
+import { OAuthTransactionModel } from '../../db/models/oauth-transaction.model.js';
 import { encrypt, decrypt } from '../../utils/encryption.js';
 import { env } from '../../config/index.js';
 import { EmailDomainError, type SafeEmailAccount } from './types.js';
@@ -10,14 +12,13 @@ import {
   GmailProvider,
   type GmailProviderConfig
 } from './providers/gmail-provider.js';
-import { SMTPProvider } from './providers/smtp-provider.js';
 import type { EmailProvider } from './providers/types.js';
 
 /**
  * EmailAccountService owns mailbox lifecycle and OAuth credential handling:
- * connect (authorization-code exchange), reconnect, disconnect, lookup, list,
- * and health. It never exposes raw tokens — it returns only `SafeEmailAccount`
- * objects.
+ * server-side OAuth transactions (PKCE state/code exchange), reconnect, disconnect,
+ * lookup, list, and health. It never exposes raw tokens — it returns only
+ * `SafeEmailAccount` objects.
  */
 export class EmailAccountService {
   constructor(private readonly workspaceId: string) {}
@@ -36,132 +37,165 @@ export class EmailAccountService {
     return sanitize(account.toObject());
   }
 
-  // ── Lifecycle ────────────────────────────────────────────────────────────
+  // ── Server-Side OAuth Transaction Lifecycle ──────────────────────────────
 
   /**
-   * Completes a Gmail OAuth authorization-code exchange on the server, encrypts
-   * the resulting tokens, and creates an EmailAccount. The desktop/web/mobile
-   * client only ever supplies the code and redirect URI — never tokens.
+   * Initiates a short-lived Gmail OAuth transaction on the server.
+   * Generates state & codeVerifier PKCE tokens, creates an OAuthTransaction record,
+   * builds the Google authorization URL, and returns transactionId + authorizationUrl.
    */
-  async connectGmail(input: {
-    code: string;
-    redirectUri: string;
-    name?: string | undefined;
-    signature?: string | undefined;
-    dailyLimit?: number | undefined;
-    hourlyLimit?: number | undefined;
-    isDefault?: boolean | undefined;
-  }): Promise<SafeEmailAccount> {
-    const oauth = this.buildOAuthClient(input.redirectUri);
-    const tokens = await oauth.exchangeCodeForTokens(input.code);
-    if (!tokens.refreshToken) {
-      throw new EmailDomainError(
-        'GMAIL_OAUTH_CALLBACK_FAILED',
-        'Google did not return a refresh token. Please re-consent.'
-      );
-    }
+  async initiateGmailOAuth(
+    userId: string,
+    callbackRedirectUri?: string
+  ): Promise<{ transactionId: string; authorizationUrl: string }> {
+    const transactionId = randomUUID();
+    const state = randomBytes(32).toString('hex');
+    const codeVerifier = randomBytes(32).toString('hex');
+    const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
 
-    let email = '';
-    let googleAccountId: string | null = null;
-    try {
-      const info = await oauth.getTokenInfo(tokens.accessToken);
-      email = info.email || '';
-      googleAccountId = info.sub || null;
-    } catch (err) {
-      throw new EmailDomainError(
-        'GMAIL_OAUTH_CALLBACK_FAILED',
-        'Could not resolve the authorized Gmail account.'
-      );
-    }
-    if (!email) {
-      throw new EmailDomainError(
-        'GMAIL_OAUTH_CALLBACK_FAILED',
-        'Google did not return the authorized email address.'
-      );
-    }
+    const baseUrl = env.BETTER_AUTH_URL.replace(/\/auth\/?$/, '');
+    const redirectUri = callbackRedirectUri || `${baseUrl}/email/accounts/gmail/oauth/callback`;
 
-    const name = input.name || email.split('@')[0] || 'Gmail';
-    if (input.isDefault) {
-      await EmailAccountModel.updateMany(
-        { workspaceId: this.workspaceId } as any,
-        { isDefault: false }
-      );
-    }
+    const oauth = this.buildOAuthClient(redirectUri);
+    const authorizationUrl = oauth.buildAuthUrl(state, codeChallenge);
 
-    const tokenExpiresAt = new Date(
-      Date.now() + tokens.expiresIn * 1000
-    ).toISOString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minute TTL
 
-    const account = await EmailAccountModel.create({
-      workspaceId: this.workspaceId as any,
-      name,
-      email,
-      provider: 'gmail_oauth',
-      status: 'connected',
-      isDefault: !!input.isDefault,
-      dailyLimit: input.dailyLimit || 200,
-      hourlyLimit: input.hourlyLimit || 50,
-      signature: input.signature || '',
-      lastVerifiedAt: new Date(),
-      googleAccountId,
-      encryptedRefreshToken: encrypt(tokens.refreshToken),
-      encryptedAccessToken: encrypt(tokens.accessToken),
-      tokenExpiresAt
+    await OAuthTransactionModel.create({
+      transactionId,
+      workspaceId: this.workspaceId,
+      userId,
+      state,
+      codeVerifier,
+      provider: 'gmail',
+      status: 'pending',
+      expiresAt
     });
 
-    return sanitize(account.toObject());
+    return { transactionId, authorizationUrl };
   }
 
   /**
-   * Re-runs the authorization-code exchange and updates an existing account
-   * with fresh encrypted credentials, restoring it to 'connected'.
+   * Handles the Google OAuth redirect callback on the API.
+   * Exchanges the authorization code for tokens using server-side client credentials,
+   * encrypts & saves the tokens in MongoDB, and marks the transaction completed.
    */
-  async reconnectGmail(
-    id: string,
-    input: {
-      code: string;
-      redirectUri: string;
-      name?: string | undefined;
-      signature?: string | undefined;
-      dailyLimit?: number | undefined;
-      hourlyLimit?: number | undefined;
+  static async handleGmailOAuthCallback(
+    code: string,
+    state: string
+  ): Promise<{ transactionId: string; account: SafeEmailAccount }> {
+    const transaction = await OAuthTransactionModel.findOne({ state });
+    if (!transaction) {
+      throw new EmailDomainError('GMAIL_OAUTH_FAILED', 'Invalid or expired OAuth state token.');
     }
-  ): Promise<SafeEmailAccount> {
-    const account = await this.findAccount(id);
-    const oauth = this.buildOAuthClient(input.redirectUri);
-    const tokens = await oauth.exchangeCodeForTokens(input.code);
-    if (!tokens.refreshToken) {
-      throw new EmailDomainError(
-        'GMAIL_OAUTH_CALLBACK_FAILED',
-        'Google did not return a refresh token. Please re-consent.'
-      );
+    if (transaction.status === 'completed' && transaction.emailAccountId) {
+      const accountService = new EmailAccountService(transaction.workspaceId);
+      const account = await accountService.getAccount(transaction.emailAccountId);
+      return { transactionId: transaction.transactionId, account };
     }
 
-    let googleAccountId: string | null = account.googleAccountId;
+    const baseUrl = env.BETTER_AUTH_URL.replace(/\/auth\/?$/, '');
+    const redirectUri = `${baseUrl}/email/accounts/gmail/oauth/callback`;
+
+    const accountService = new EmailAccountService(transaction.workspaceId);
+    const oauth = accountService.buildOAuthClient(redirectUri);
+
     try {
+      const tokens = await oauth.exchangeCodeForTokens(code, transaction.codeVerifier);
+      if (!tokens.refreshToken) {
+        throw new EmailDomainError(
+          'GMAIL_OAUTH_FAILED',
+          'Google did not return a refresh token. Please re-consent.'
+        );
+      }
+
       const info = await oauth.getTokenInfo(tokens.accessToken);
-      googleAccountId = info.sub || googleAccountId;
-    } catch {
-      // best-effort
+      const email = info.email;
+      if (!email) {
+        throw new EmailDomainError('GMAIL_OAUTH_FAILED', 'Google did not return the authorized email address.');
+      }
+
+      const tokenExpiresAt = new Date(Date.now() + tokens.expiresIn * 1000);
+      const existing = await EmailAccountModel.findOne({
+        workspaceId: transaction.workspaceId,
+        email: email.toLowerCase()
+      } as any);
+
+      let accountDoc: any;
+      if (existing) {
+        existing.provider = 'gmail_oauth';
+        existing.status = 'connected';
+        existing.encryptedRefreshToken = encrypt(tokens.refreshToken);
+        existing.encryptedAccessToken = encrypt(tokens.accessToken);
+        existing.tokenExpiresAt = tokenExpiresAt;
+        existing.googleAccountId = info.sub || existing.googleAccountId || null;
+        existing.lastVerifiedAt = new Date();
+        existing.lastError = null;
+        await existing.save();
+        accountDoc = existing;
+      } else {
+        accountDoc = await EmailAccountModel.create({
+          workspaceId: transaction.workspaceId as any,
+          name: email.split('@')[0] || 'Gmail',
+          email: email.toLowerCase(),
+          provider: 'gmail_oauth',
+          status: 'connected',
+          isDefault: false,
+          dailyLimit: 200,
+          hourlyLimit: 50,
+          encryptedRefreshToken: encrypt(tokens.refreshToken),
+          encryptedAccessToken: encrypt(tokens.accessToken),
+          tokenExpiresAt,
+          googleAccountId: info.sub || null,
+          lastVerifiedAt: new Date()
+        });
+      }
+
+      transaction.status = 'completed';
+      transaction.emailAccountId = accountDoc._id.toString();
+      await transaction.save();
+
+      return { transactionId: transaction.transactionId, account: sanitize(accountDoc.toObject()) };
+    } catch (err: any) {
+      transaction.status = 'failed';
+      transaction.error = err.message || String(err);
+      await transaction.save();
+      throw err;
     }
+  }
 
-    account.provider = 'gmail_oauth';
-    account.encryptedRefreshToken = encrypt(tokens.refreshToken);
-    account.encryptedAccessToken = encrypt(tokens.accessToken);
-    account.tokenExpiresAt = new Date(
-      Date.now() + tokens.expiresIn * 1000
-    );
-    account.googleAccountId = googleAccountId;
-    account.status = 'connected';
-    account.lastVerifiedAt = new Date();
-    account.lastError = null;
-    if (input.name) account.name = input.name;
-    if (input.signature !== undefined) account.signature = input.signature;
-    if (input.dailyLimit) account.dailyLimit = input.dailyLimit;
-    if (input.hourlyLimit) account.hourlyLimit = input.hourlyLimit;
-    await account.save();
+  /**
+   * Polls the status of a server-side OAuth transaction.
+   */
+  async getOAuthTransactionStatus(
+    transactionId: string
+  ): Promise<{ status: string; emailAccountId?: string; account?: SafeEmailAccount; error?: string }> {
+    const transaction = await OAuthTransactionModel.findOne({
+      transactionId,
+      workspaceId: this.workspaceId
+    });
+    if (!transaction) {
+      throw new EmailDomainError('TRANSACTION_NOT_FOUND', 'OAuth transaction not found or expired.');
+    }
+    if (transaction.status === 'completed' && transaction.emailAccountId) {
+      const account = await this.getAccount(transaction.emailAccountId);
+      return { status: 'completed', emailAccountId: transaction.emailAccountId, account };
+    }
+    return {
+      status: transaction.status,
+      ...(transaction.error ? { error: transaction.error } : {})
+    };
+  }
 
-    return sanitize(account.toObject());
+  /**
+   * Re-runs authorization for an existing account.
+   */
+  async initiateGmailReconnect(
+    userId: string,
+    id: string
+  ): Promise<{ transactionId: string; authorizationUrl: string }> {
+    await this.findAccount(id);
+    return this.initiateGmailOAuth(userId);
   }
 
   /**
@@ -189,9 +223,7 @@ export class EmailAccountService {
   }
 
   /**
-   * Updates only safe metadata fields for an account (name, email, status,
-   * provider, etc.). Credential fields are intentionally excluded. Used by
-   * the desktop client to sync state after a local-only reconnect.
+   * Updates safe metadata fields for an account.
    */
   async syncMeta(
     id: string,
@@ -208,7 +240,6 @@ export class EmailAccountService {
   ): Promise<SafeEmailAccount> {
     const account = await this.findAccount(id);
 
-    // Apply only the safe, non-credential fields
     if (meta.name !== undefined) account.name = meta.name;
     if (meta.email !== undefined) account.email = meta.email;
     if (meta.status !== undefined) account.status = meta.status as any;
@@ -224,7 +255,6 @@ export class EmailAccountService {
 
   /**
    * Verifies mailbox health and returns an EmailProvider for sending.
-   * Used internally by EmailService; not exposed as a route that leaks tokens.
    */
   async buildProvider(id: string): Promise<EmailProvider> {
     const account = await this.findAccount(id);
@@ -260,25 +290,10 @@ export class EmailAccountService {
       return new GmailProvider(config);
     }
 
-    // SMTP / legacy gmail_smtp fallback
-    if (!account.encryptedPassword) {
-      throw new EmailDomainError(
-        'MAILBOX_NOT_AUTHORIZED',
-        'SMTP mailbox is missing credentials.'
-      );
-    }
-    return new SMTPProvider({
-      host: (account as any).smtpHost || 'smtp.gmail.com',
-      port: (account as any).smtpPort || 465,
-      secure:
-        (account as any).smtpSecure !== undefined
-          ? (account as any).smtpSecure === 'true'
-          : true,
-      username: (account as any).smtpUsername || account.email,
-      encryptedPassword: account.encryptedPassword,
-      senderName: account.name,
-      senderEmail: account.email
-    });
+    throw new EmailDomainError(
+      'MAILBOX_NOT_SUPPORTED',
+      `Unsupported email account provider: ${account.provider}`
+    );
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────

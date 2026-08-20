@@ -68,6 +68,9 @@ export interface EmailProviderErrorShape {
     | 'EMAIL_RATE_LIMITED'
     | 'GMAIL_OAUTH_NOT_CONFIGURED'
     | 'GMAIL_OAUTH_CALLBACK_FAILED'
+    | 'GMAIL_OAUTH_FAILED'
+    | 'TRANSACTION_NOT_FOUND'
+    | 'MAILBOX_NOT_SUPPORTED'
     | 'GMAIL_TOKEN_REFRESH_FAILED'
     | 'GMAIL_AUTH_REVOKED';
   message: string;
