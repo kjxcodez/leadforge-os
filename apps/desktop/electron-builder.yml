@@ -28,6 +28,7 @@ win:
   target:
     - nsis
   icon: resources/icon.png
+  sign: null
 
 nsis:
   oneClick: false
