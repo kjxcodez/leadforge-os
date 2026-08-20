@@ -92,7 +92,6 @@ export function saveConfig(updates: Partial<AppConfig>): void {
     const configPath = getLocalConfigPath();
     const toSave = {
       apiUrl: updated.apiUrl,
-      openRouterKey: updated.openRouterKey,
       aiProvider: updated.aiProvider,
       settings: updated.settings
     };

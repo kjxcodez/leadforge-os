@@ -41,6 +41,7 @@ win:
 
 nsis:
   oneClick: false
+  allowOneInstallerInstance: false
   allowElevation: true
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false

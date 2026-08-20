@@ -69,7 +69,10 @@ export async function installPlaywrightBrowsers(
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const playwrightCorePkg = require.resolve('playwright-core/package.json');
-    const cliPath = join(dirname(playwrightCorePkg), 'cli.js');
+    let cliPath = join(dirname(playwrightCorePkg), 'cli.js');
+    if (cliPath.includes('app.asar')) {
+      cliPath = cliPath.replace('app.asar', 'app.asar.unpacked');
+    }
 
     AppLogger.info(
       'PlaywrightSetup',

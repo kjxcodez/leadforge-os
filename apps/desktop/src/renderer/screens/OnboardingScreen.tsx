@@ -42,11 +42,10 @@ export default function OnboardingScreen() {
   const [diagnostics, setDiagnostics] = useState<any>(null);
 
   // Form States
-  const [wsName, setWsName] = useState<string>('My Leads Workspace');
+  const [wsName, setWsName] = useState<string>('');
   const [aiMode, setAiMode] = useState<'local' | 'cloud' | 'skip'>('skip');
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [openRouterKey, setOpenRouterKey] = useState<string>('');
-  const [useSampleData, setUseSampleData] = useState<boolean>(true);
 
   // Load diagnostics and existing workspace name on mount
   useEffect(() => {
@@ -57,6 +56,8 @@ export default function OnboardingScreen() {
     const currentWs = activeWorkspace || (workspaces && workspaces.length > 0 ? workspaces[0] : null);
     if (currentWs?.name) {
       setWsName(currentWs.name);
+    } else if (!wsName) {
+      setWsName('LeadForge Workspace');
     }
   }, [activeWorkspace, workspaces]);
 
@@ -76,32 +77,25 @@ export default function OnboardingScreen() {
   const handleCreateWorkspace = async () => {
     setLoading(true);
     try {
-      if (!wsName.trim()) {
-        toast.error('Workspace name is required.');
-        setLoading(false);
-        return;
-      }
+      const targetName = wsName.trim() || 'LeadForge Workspace';
 
-      // Reuse existing workspace or create a new one
+      // Reuse existing workspace or create a new one only if none exists
       let ws = activeWorkspace || (workspaces && workspaces.length > 0 ? workspaces[0] : null);
       if (ws) {
-        ws = await updateWorkspace(ws.id, { name: wsName.trim() });
+        if (ws.name !== targetName) {
+          ws = await updateWorkspace(ws.id, { name: targetName });
+        }
       } else {
-        ws = await createWorkspace(wsName.trim());
+        ws = await createWorkspace(targetName);
       }
 
       // Save credentials if OpenRouter key is provided
-      if (aiMode === 'cloud' && openRouterKey) {
+      if (aiMode === 'cloud' && openRouterKey && ws?.id) {
         await window.ipc.invoke('onboarding:save-setting', {
           workspaceId: ws.id,
           key: 'openrouter_key',
           value: openRouterKey
         });
-      }
-
-      // Generate sample data if selected
-      if (useSampleData) {
-        await window.ipc.invoke('onboarding:generate-sample-data', { workspaceId: ws.id });
       }
 
       localStorage.setItem('onboarding_completed', 'true');
@@ -111,7 +105,7 @@ export default function OnboardingScreen() {
       // Navigate to dashboard
       navigate('/');
     } catch (err: any) {
-      toast.error(`Workspace creation failed: ${err.message || err}`);
+      toast.error(`Workspace initialization failed: ${err.message || err}`);
     } finally {
       setLoading(false);
     }
@@ -566,25 +560,6 @@ export default function OnboardingScreen() {
                   <span className="font-bold text-foreground">Google OAuth (Settings)</span>
                 </div>
               </div>
-
-              {/* Sample data check */}
-              <label className="flex items-center gap-3 cursor-pointer p-3.5 border border-primary/20 bg-primary/[0.02] rounded-none select-none">
-                <input
-                  type="checkbox"
-                  checked={useSampleData}
-                  onChange={() => setUseSampleData(!useSampleData)}
-                  className="rounded-none border-border-subtle text-primary focus:ring-0 w-4 h-4 cursor-pointer"
-                />
-                <div>
-                  <span className="text-xs font-bold text-foreground block">
-                    Start with Sample Workspace Data
-                  </span>
-                  <span className="text-[9px] text-muted-foreground block mt-0.5 font-medium leading-normal">
-                    Pre-populate companies, campaigns, sequences, and opportunity scores to test
-                    features instantly.
-                  </span>
-                </div>
-              </label>
 
               <div className="flex justify-between pt-2 border-t border-border-subtle/50">
                 <Button type="button" size="sm" variant="ghost" className="rounded-none text-[10px]" onClick={() => setStep(3)} disabled={loading}>

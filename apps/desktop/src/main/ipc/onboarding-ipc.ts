@@ -71,282 +71,13 @@ export function registerOnboardingIpc() {
     return diagnostics;
   });
 
-  // ── Sample Workspace Data Generation IPC ────────────────────────────────
-  safeRegister('onboarding:generate-sample-data', async (_event, { workspaceId }) => {
-    if (!workspaceId) throw new Error('workspaceId is required.');
-
-    const db = getDatabase(workspaceId);
-
-    // Mock Sample Data definitions
-    const sampleCompanies = [
-      {
-        id: 'sc-01',
-        name: 'Acme SaaS Corp',
-        domain: 'acmesaas.com',
-        industry: 'Software',
-        status: 'QUALIFIED',
-        location: 'San Francisco, CA'
-      },
-      {
-        id: 'sc-02',
-        name: 'Apex Growth Marketing',
-        domain: 'apexgrowth.agency',
-        industry: 'Marketing',
-        status: 'NEW',
-        location: 'New York, NY'
-      },
-      {
-        id: 'sc-03',
-        name: 'Summit Retailers',
-        domain: 'summitretail.com',
-        industry: 'Retail',
-        status: 'CUSTOMER',
-        location: 'Austin, TX'
-      }
-    ];
-
-    const sampleContacts = [
-      {
-        id: 'sct-01',
-        companyId: 'sc-01',
-        firstName: 'Sarah',
-        lastName: 'Connor',
-        email: 'sarah@acmesaas.com',
-        title: 'CEO & Founder',
-        status: 'NEW'
-      },
-      {
-        id: 'sct-02',
-        companyId: 'sc-01',
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'john.doe@acmesaas.com',
-        title: 'VP of Marketing',
-        status: 'NEW'
-      },
-      {
-        id: 'sct-03',
-        companyId: 'sc-02',
-        firstName: 'David',
-        lastName: 'Miller',
-        email: 'david@apexgrowth.agency',
-        title: 'Marketing Director',
-        status: 'NEW'
-      },
-      {
-        id: 'sct-04',
-        companyId: 'sc-03',
-        firstName: 'Emily',
-        lastName: 'Watson',
-        email: 'emily@summitretail.com',
-        title: 'Operations Lead',
-        status: 'NEW'
-      }
-    ];
-
-    const sampleCampaign = {
-      id: 'scamp-01',
-      name: 'Sample SaaS Outreach Campaign',
-      status: 'Paused',
-      description:
-        'A fully initialized campaign loaded with pre-configured templates and analytics.',
-      sequenceId: 'sseq-01',
-      sendingAccountId: 'sacc-01',
-      schedule: '0 9 * * 1-5',
-      timezone: 'America/New_York',
-      dailyLimit: 50
-    };
-
-    const sampleSequence = {
-      id: 'sseq-01',
-      name: 'Standard SaaS Sequence',
-      description: 'A pre-configured outreach sequence for SaaS leads.',
-      status: 'active',
-      trigger: JSON.stringify({ type: 'MANUAL', config: {} }),
-      steps: JSON.stringify([
-        {
-          name: 'Initial Introduction',
-          delayDays: 0,
-          subject: 'Collaboration Idea',
-          body: 'Hi {{firstName}}, noticed you guys are building at {{companyName}}...'
-        },
-        {
-          name: 'Value Proposition Followup',
-          delayDays: 3,
-          subject: 'Quick question regarding your growth tech stack',
-          body: 'Hey {{firstName}}, just following up on our conversation...'
-        }
-      ])
-    };
-
-    const sampleAccount = {
-      id: 'sacc-01',
-      name: 'Onboarding Demo Account',
-      email: 'onboarding@leadforge-demo.com',
-      provider: 'gmail_smtp',
-      smtpHost: 'smtp.gmail.com',
-      smtpPort: 465,
-      smtpSecure: 'true',
-      smtpUsername: 'onboarding@leadforge-demo.com',
-      smtpPassword: '_enc_base64:onboarding_demo_password',
-      imapHost: 'imap.gmail.com',
-      imapPort: 993,
-      imapSecure: 'true',
-      imapUsername: 'onboarding@leadforge-demo.com',
-      imapPassword: '_enc_base64:onboarding_demo_password',
-      status: 'active'
-    };
-
-    const transaction = db.transaction(() => {
-      // 1. Clear existing sample data if conflicting
-      db.prepare("DELETE FROM companies WHERE id LIKE 'sc-%'").run();
-      db.prepare("DELETE FROM contacts WHERE id LIKE 'sct-%'").run();
-      db.prepare("DELETE FROM campaigns WHERE id = 'scamp-01'").run();
-      db.prepare("DELETE FROM sequences WHERE id = 'sseq-01'").run();
-      db.prepare("DELETE FROM email_accounts WHERE id = 'sacc-01'").run();
-      db.prepare("DELETE FROM company_intelligence WHERE companyId LIKE 'sc-%'").run();
-      db.prepare("DELETE FROM website_intelligence WHERE companyId LIKE 'sc-%'").run();
-      db.prepare("DELETE FROM contact_intelligence WHERE contactId LIKE 'sct-%'").run();
-      db.prepare("DELETE FROM opportunity_scores WHERE companyId LIKE 'sc-%'").run();
-
-      // 2. Insert Core Entities
-      for (const c of sampleCompanies) {
-        db.prepare(
-          `
-          INSERT INTO companies (id, workspaceId, name, domain, industry, status, location, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-        `
-        ).run(c.id, workspaceId, c.name, c.domain, c.industry, c.status, c.location);
-      }
-
-      for (const ct of sampleContacts) {
-        db.prepare(
-          `
-          INSERT INTO contacts (id, workspaceId, companyId, firstName, lastName, email, title, status, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-        `
-        ).run(
-          ct.id,
-          workspaceId,
-          ct.companyId,
-          ct.firstName,
-          ct.lastName,
-          ct.email,
-          ct.title,
-          ct.status
-        );
-      }
-
-      db.prepare(
-        `
-        INSERT INTO email_accounts (id, workspaceId, name, email, provider, smtpHost, smtpPort, smtpSecure, smtpUsername, smtpPassword, imapHost, imapPort, imapSecure, imapUsername, imapPassword, status, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-      `
-      ).run(
-        sampleAccount.id,
-        workspaceId,
-        sampleAccount.name,
-        sampleAccount.email,
-        sampleAccount.provider,
-        sampleAccount.smtpHost,
-        sampleAccount.smtpPort,
-        sampleAccount.smtpSecure,
-        sampleAccount.smtpUsername,
-        sampleAccount.smtpPassword,
-        sampleAccount.imapHost,
-        sampleAccount.imapPort,
-        sampleAccount.imapSecure,
-        sampleAccount.imapUsername,
-        sampleAccount.imapPassword,
-        sampleAccount.status
-      );
-
-      db.prepare(
-        `
-        INSERT INTO sequences (id, workspaceId, name, description, status, trigger, steps, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-      `
-      ).run(
-        sampleSequence.id,
-        workspaceId,
-        sampleSequence.name,
-        sampleSequence.description,
-        sampleSequence.status,
-        sampleSequence.trigger,
-        sampleSequence.steps
-      );
-
-      db.prepare(
-        `
-        INSERT INTO campaigns (id, workspaceId, name, status, description, sequenceId, sendingAccountId, schedule, timezone, dailyLimit, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-      `
-      ).run(
-        sampleCampaign.id,
-        workspaceId,
-        sampleCampaign.name,
-        sampleCampaign.status,
-        sampleCampaign.description,
-        sampleCampaign.sequenceId,
-        sampleCampaign.sendingAccountId,
-        sampleCampaign.schedule,
-        sampleCampaign.timezone,
-        sampleCampaign.dailyLimit
-      );
-
-      // 3. Pre-Calculate Opportunity Scores & Intelligence for Premium presentation
-      // Company 1: Acme SaaS (Hot Lead)
-      db.prepare(
-        `
-        INSERT INTO company_intelligence (companyId, summary, techStack, businessModel, estimatedRevenue, growthSignals, hiringSignals, decisionMakerLikelihood, leadConfidence, missingInformation)
-        VALUES ('sc-01', 'Acme SaaS is a leading software provider building developer platforms.', '["React", "Next.js", "Ollama"]', 'B2B', '$5M - $10M', '["Modern tech stack", "Expanding executive team"]', '[]', 0.95, 'High', '[]')
-      `
-      ).run();
-      db.prepare(
-        `
-        INSERT INTO website_intelligence (companyId, brandVoice, contentQuality, buyingSignals, seoSignals, technicalIssues, productsServices, testimonialsCaseStudies)
-        VALUES ('sc-01', 'Professional / Tech', 'High', '["Active Sales CTA detected"]', '{}', '[]', '["Developer platform", "Analytics API"]', '[]')
-      `
-      ).run();
-      db.prepare(
-        `
-        INSERT INTO opportunity_scores (companyId, overallScore, fitScore, sizeScore, intentScore, urgencyScore, explanation)
-        VALUES ('sc-01', 92, 95, 90, 90, 85, '+35: Direct Industry Match (Software Sector)\n+25: Multiple executives identified\n+20: Active pricing page call-to-actions')
-      `
-      ).run();
-
-      // Company 2: Apex Growth (Warm Lead)
-      db.prepare(
-        `
-        INSERT INTO company_intelligence (companyId, summary, techStack, businessModel, estimatedRevenue, growthSignals, hiringSignals, decisionMakerLikelihood, leadConfidence, missingInformation)
-        VALUES ('sc-02', 'Apex Growth Marketing is a full-service acquisition agency.', '["WordPress", "Google Analytics"]', 'B2B', '$1M - $5M', '[]', '[]', 0.70, 'Medium', '["Phone number"]')
-      `
-      ).run();
-      db.prepare(
-        `
-        INSERT INTO website_intelligence (companyId, brandVoice, contentQuality, buyingSignals, seoSignals, technicalIssues, productsServices, testimonialsCaseStudies)
-        VALUES ('sc-02', 'Creative', 'Medium', '[]', '{}', '[]', '["SEO audit", "PPC optimization"]', '[]')
-      `
-      ).run();
-      db.prepare(
-        `
-        INSERT INTO opportunity_scores (companyId, overallScore, fitScore, sizeScore, intentScore, urgencyScore, explanation)
-        VALUES ('sc-02', 65, 70, 60, 50, 40, '+20: Service company match\n+15: Operations manager identified')
-      `
-      ).run();
-    });
-
-    transaction();
-    return { success: true };
-  });
-
   safeRegister('onboarding:save-setting', async (_event, { workspaceId, key, value }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     if (!key) throw new Error('key is required.');
 
     const db = getDatabase(workspaceId);
     const encryptedValue =
-      key === 'openrouter_key' || key.includes('password') ? encryptSecret(value) : value;
+      key === 'openrouter_key' || key.includes('password') || key.includes('li_at') ? encryptSecret(value) : value;
 
     db.prepare(
       `
@@ -369,9 +100,20 @@ export function registerOnboardingIpc() {
     for (const row of rows) {
       try {
         const isSecret = row.key === 'openrouter_key' || row.key.includes('password') || row.key.includes('li_at');
-        settings[row.key] = isSecret ? decryptSecret(row.value) : row.value;
+        if (isSecret) {
+          const raw = decryptSecret(row.value);
+          if (!raw) {
+            settings[row.key] = '';
+          } else if (raw.length > 8) {
+            settings[row.key] = `${raw.substring(0, 4)}...${raw.substring(raw.length - 4)}`;
+          } else {
+            settings[row.key] = '••••••••';
+          }
+        } else {
+          settings[row.key] = row.value;
+        }
       } catch {
-        settings[row.key] = row.value; // Fallback to raw if decryption fails
+        settings[row.key] = '••••••••'; // Fallback mask if decryption fails
       }
     }
 

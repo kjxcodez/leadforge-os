@@ -192,11 +192,11 @@ export default function CampaignsScreen() {
 
   const verifyAccountMutation = useMutation({
     mutationFn: async (id: string) => {
-      return window.ipc.invoke('email-accounts:test', id);
+      return window.ipc.invoke('email-accounts:send-test', { id });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email_accounts', workspaceId] });
-      alert('SMTP Connection Verified successfully!');
+      alert('Email Connection Verified successfully!');
     },
     onError: (err: any) => {
       alert(`Verification failed: ${err.message}`);
