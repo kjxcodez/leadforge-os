@@ -1,8 +1,12 @@
 import Database from 'better-sqlite3';
-import nodemailer from 'nodemailer';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import type { JobContext } from '../../../shared/types/job';
+import {
+  createMailProvider,
+  type MailProvider,
+  type MailProviderResolution
+} from '../../mail';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -184,7 +188,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
       'smtpPassword',
       'password'
     );
-    const senderName =
+    let senderName =
       resolveSettingValue(
         ctx.payload._secrets,
         settings,
@@ -192,7 +196,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
         'smtpSenderName',
         'senderName'
       ) || 'LeadForge OS';
-    const senderEmail =
+    let senderEmail =
       resolveSettingValue(
         ctx.payload._secrets,
         settings,
@@ -201,32 +205,77 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
         'senderEmail'
       ) || username;
 
-    // Validate required credentials
-    if (!host || !username || !password) {
-      throw new Error(
-        'Incomplete SMTP configuration in workspace settings. ' +
-          'Required keys: smtp.host, smtp.username, smtp.password. ' +
-          'Cannot dispatch outreach campaign without valid SMTP credentials.'
-      );
-    }
+    const gmailRefreshToken = ctx.payload._secrets?.['gmail.refreshToken'];
 
     const port = portStr ? parseInt(portStr, 10) : 465;
     const secure = secureStr !== undefined ? secureStr === 'true' : port === 465;
 
+    let providerResolution: MailProviderResolution;
+
+    if (gmailRefreshToken) {
+      // Gmail OAuth mailbox — tokens already decrypted and injected by the scheduler.
+      const gmailClientId = ctx.payload._secrets?.['gmail.clientId'] || '';
+      const gmailClientSecret = ctx.payload._secrets?.['gmail.clientSecret'] || '';
+      if (!gmailClientId || !gmailClientSecret) {
+        throw new Error(
+          'Gmail OAuth client credentials are not configured. ' +
+            'Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to apps/desktop/.env.'
+        );
+      }
+
+      const gmailUser = ctx.payload._secrets?.['gmail.user'] || senderEmail || username;
+      providerResolution = {
+        kind: 'gmail_oauth',
+        gmail: {
+          user: gmailUser,
+          clientId: gmailClientId,
+          clientSecret: gmailClientSecret,
+          refreshToken: gmailRefreshToken,
+          accessToken: ctx.payload._secrets?.['gmail.accessToken'] || undefined,
+          tokenExpiresAt: ctx.payload._secrets?.['gmail.tokenExpiresAt'] || undefined
+        }
+      };
+
+      // Prefer the OAuth mailbox email for the sender address.
+      if (gmailUser && !senderEmail) senderEmail = gmailUser;
+
+      ctx.emitLog(`Gmail OAuth mailbox resolved for sending as ${gmailUser}`, 'info');
+    } else {
+      // Validate required SMTP credentials
+      if (!host || !username || !password) {
+        throw new Error(
+          'Incomplete SMTP configuration in workspace settings. ' +
+            'Required keys: smtp.host, smtp.username, smtp.password. ' +
+            'Cannot dispatch outreach campaign without valid SMTP credentials.'
+        );
+      }
+
+      providerResolution = {
+        kind: 'smtp',
+        smtp: {
+          host,
+          port,
+          secure,
+          username,
+          password
+        }
+      };
+
+      ctx.emitLog(
+        `SMTP configuration resolved: ${host}:${port} (secure=${secure}) as ${senderEmail}`,
+        'info'
+      );
+    }
+
     const smtpCredentials: SmtpCredentials = {
-      host,
+      host: host || '',
       port,
       secure,
-      username,
-      password,
-      senderName,
-      senderEmail: senderEmail || username
+      username: username || '',
+      password: password || '',
+      senderName: senderName || 'LeadForge OS',
+      senderEmail: senderEmail || username || ''
     };
-
-    ctx.emitLog(
-      `SMTP configuration resolved: ${host}:${port} (secure=${secure}) as ${senderEmail}`,
-      'info'
-    );
 
     // ── 2. Load email account for rate limiting ───────────────────────────
 
@@ -371,29 +420,25 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
       );
     }
 
-    // ── 7. Build Nodemailer transporter ───────────────────────────────────
+    // ── 7. Build mail provider (SMTP or Gmail OAuth) ──────────────────────
 
-    const transporter = nodemailer.createTransport({
-      host: smtpCredentials.host,
-      port: smtpCredentials.port,
-      secure: smtpCredentials.secure,
-      auth: {
-        user: smtpCredentials.username,
-        pass: smtpCredentials.password
-      },
-      connectionTimeout: 10000,
-      greetingTimeout: 5000,
-      socketTimeout: 15000
-    } as any);
+    const provider: MailProvider = createMailProvider(providerResolution);
 
-    // Verify transporter before starting the loop
+    // Verify the provider before starting the loop
     try {
-      await transporter.verify();
-      ctx.emitLog('SMTP connection verified successfully.', 'info');
+      await provider.verify();
+      ctx.emitLog(
+        `${provider.kind === 'gmail_oauth' ? 'Gmail OAuth' : 'SMTP'} connection verified successfully.`,
+        'info'
+      );
     } catch (verifyErr: any) {
-      transporter.close();
+      provider.close();
       db.close();
-      throw new Error(`SMTP connection verification failed: ${verifyErr.message || verifyErr}`);
+      throw new Error(
+        `${provider.kind === 'gmail_oauth' ? 'Gmail OAuth' : 'SMTP'} connection verification failed: ${
+          verifyErr.message || verifyErr
+        }`
+      );
     }
 
     // ── 8. Dispatch loop ──────────────────────────────────────────────────
@@ -420,7 +465,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
           skippedCount,
           currentIndex: i
         } satisfies OutreachCheckpoint);
-        transporter.close();
+        provider.close();
         db.close();
         return { status: 'paused', dispatchedCount, failureCount, skippedCount, resumeIndex: i };
       }
@@ -461,7 +506,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
       let sendError = '';
 
       try {
-        const info = await transporter.sendMail({
+        const info = await provider.send({
           from: `"${smtpCredentials.senderName}" <${smtpCredentials.senderEmail}>`,
           to: contact.email,
           subject: renderedSubject,
@@ -575,7 +620,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
 
     // ── 10. Cleanup ───────────────────────────────────────────────────────
 
-    transporter.close();
+    provider.close();
 
     ctx.emitLog(
       `Campaign dispatch complete — Sent: ${dispatchedCount} | Failed: ${failureCount} | Skipped: ${skippedCount}`,

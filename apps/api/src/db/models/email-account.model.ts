@@ -5,9 +5,9 @@ export interface EmailAccountDocument extends mongoose.Document, WorkspaceScoped
   name: string;
   email: string;
   provider: string;
-  encryptedPassword: string;
+  encryptedPassword?: string | null;
   isDefault: boolean;
-  status: 'connected' | 'failed' | 'disabled';
+  status: 'connected' | 'reauth_required' | 'disconnected' | 'failed' | 'disabled';
   dailyLimit: number;
   hourlyLimit: number;
   dailySent: number;
@@ -15,6 +15,10 @@ export interface EmailAccountDocument extends mongoose.Document, WorkspaceScoped
   signature?: string | null;
   lastVerifiedAt?: Date | null;
   lastError?: string | null;
+  googleAccountId?: string | null;
+  encryptedRefreshToken?: string | null;
+  encryptedAccessToken?: string | null;
+  tokenExpiresAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,11 +28,11 @@ const emailAccountSchema = new Schema<EmailAccountDocument>(
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, trim: true }, // unique scoped in index
     provider: { type: String, required: true, default: 'gmail_smtp' },
-    encryptedPassword: { type: String, required: true },
+    encryptedPassword: { type: String, default: null }, // SMTP app password (AES-256-GCM)
     isDefault: { type: Boolean, default: false },
     status: {
       type: String,
-      enum: ['connected', 'failed', 'disabled'],
+      enum: ['connected', 'reauth_required', 'disconnected', 'failed', 'disabled'],
       default: 'connected'
     },
     dailyLimit: { type: Number, default: 200 },
@@ -37,7 +41,11 @@ const emailAccountSchema = new Schema<EmailAccountDocument>(
     hourlySent: { type: Number, default: 0 },
     signature: { type: String, default: null },
     lastVerifiedAt: { type: Date, default: null },
-    lastError: { type: String, default: null }
+    lastError: { type: String, default: null },
+    googleAccountId: { type: String, default: null }, // Gmail OAuth subject identifier
+    encryptedRefreshToken: { type: String, default: null }, // Gmail OAuth refresh token (AES-256-GCM)
+    encryptedAccessToken: { type: String, default: null }, // Gmail OAuth access token (AES-256-GCM)
+    tokenExpiresAt: { type: Date, default: null } // access token expiry
   },
   {
     timestamps: true,

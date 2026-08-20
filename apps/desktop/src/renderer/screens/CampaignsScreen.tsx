@@ -223,6 +223,54 @@ export default function CampaignsScreen() {
     }
   });
 
+  const connectGmailOAuthMutation = useMutation({
+    mutationFn: async (payload: { name?: string; dailyLimit?: number; hourlyLimit?: number }) => {
+      return window.ipc.invoke('email-accounts:gmail:connect', payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['email_accounts', workspaceId] });
+    },
+    onError: (err: any) => {
+      alert(`Google authorization failed.\n\n${err.message || 'Please try again.'}`);
+    }
+  });
+
+  const reconnectGmailMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return window.ipc.invoke('email-accounts:gmail:reconnect', { id });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['email_accounts', workspaceId] });
+    },
+    onError: (err: any) => {
+      alert(`Google authorization failed.\n\n${err.message || 'Please try again.'}`);
+    }
+  });
+
+  const disconnectGmailMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return window.ipc.invoke('email-accounts:gmail:disconnect', { id });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['email_accounts', workspaceId] });
+    },
+    onError: (err: any) => {
+      alert(`Disconnect failed: ${err.message}`);
+    }
+  });
+
+  const sendTestEmailMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return window.ipc.invoke('email-accounts:send-test', { id });
+    },
+    onSuccess: (data: any) => {
+      alert(`Test email sent to ${data?.sentTo || 'mailbox'}.`);
+    },
+    onError: (err: any) => {
+      alert(`Test email failed: ${err.message}`);
+    }
+  });
+
   const createTemplateMutation = useMutation({
     mutationFn: async (payload: any) => {
       return window.ipc.invoke('templates:create', payload);
@@ -342,6 +390,14 @@ export default function CampaignsScreen() {
       hourlyLimit: accHourly,
       signature: accSig,
       provider: 'gmail_smtp'
+    });
+  };
+
+  const handleConnectGmailOAuth = () => {
+    setAccountOpen(false);
+    connectGmailOAuthMutation.mutate({
+      dailyLimit: accDaily,
+      hourlyLimit: accHourly
     });
   };
 
@@ -1326,16 +1382,28 @@ export default function CampaignsScreen() {
         <TabsContent value="accounts" className="mt-4 space-y-4">
           <div className="flex justify-between items-center">
             <span className="font-semibold text-foreground text-[11px]">
-              Gmail Outbound Senders
+              Email Accounts
             </span>
-            <Button
-              onClick={() => setAccountOpen(true)}
-              size="sm"
-              className="flex items-center gap-1 rounded-none"
-            >
-              <Plus className="h-3 w-3" />
-              Connect Gmail
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => setAccountOpen(true)}
+                size="sm"
+                variant="outline"
+                className="flex items-center gap-1 rounded-none"
+              >
+                <Plus className="h-3 w-3" />
+                Add SMTP
+              </Button>
+              <Button
+                onClick={handleConnectGmailOAuth}
+                size="sm"
+                className="flex items-center gap-1 rounded-none"
+                disabled={connectGmailOAuthMutation.isPending}
+              >
+                <Plus className="h-3 w-3" />
+                {connectGmailOAuthMutation.isPending ? 'Connecting…' : 'Connect Gmail'}
+              </Button>
+            </div>
           </div>
 
           {accounts.length === 0 ? (
@@ -1347,12 +1415,17 @@ export default function CampaignsScreen() {
                 <div>
                   <h3 className="text-xs font-semibold text-foreground">No sender accounts connected</h3>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    Connect outbound Gmail SMTP credentials to execute outbound campaigns.
+                    Connect a Gmail mailbox via Google authorization, or add SMTP credentials.
                   </p>
                 </div>
-                <Button onClick={() => setAccountOpen(true)} size="sm" className="rounded-none">
-                  + Connect Gmail
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button onClick={handleConnectGmailOAuth} size="sm" className="rounded-none">
+                    + Connect Gmail
+                  </Button>
+                  <Button onClick={() => setAccountOpen(true)} size="sm" variant="outline" className="rounded-none">
+                    Add SMTP
+                  </Button>
+                </div>
               </div>
             </div>
           ) : (
@@ -1370,14 +1443,43 @@ export default function CampaignsScreen() {
                       </span>
                     </div>
                     <div className="flex gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => verifyAccountMutation.mutate(acc.id)}
-                        className="h-7 text-[10px] gap-0.5 rounded-none"
-                      >
-                        Verify SMTP
-                      </Button>
+                      {acc.provider === 'gmail_oauth' ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => sendTestEmailMutation.mutate(acc.id)}
+                            className="h-7 text-[10px] gap-0.5 rounded-none"
+                          >
+                            Test Email
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => reconnectGmailMutation.mutate(acc.id)}
+                            className="h-7 text-[10px] gap-0.5 rounded-none"
+                          >
+                            Reconnect
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => disconnectGmailMutation.mutate(acc.id)}
+                            className="h-7 text-[10px] gap-0.5 rounded-none text-danger hover:text-danger-muted"
+                          >
+                            Disconnect
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => verifyAccountMutation.mutate(acc.id)}
+                          className="h-7 text-[10px] gap-0.5 rounded-none"
+                        >
+                          Verify SMTP
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="outline"
@@ -1392,12 +1494,23 @@ export default function CampaignsScreen() {
                   <div className="flex justify-between items-center text-[10px] pt-2 border-t border-border-subtle/50">
                     <div className="flex items-center gap-1.5">
                       <span
-                        className={`h-2 w-2 rounded-none ${acc.status === 'connected' ? 'bg-success animate-pulse' : 'bg-danger'}`}
+                        className={`h-2 w-2 rounded-none ${
+                          acc.status === 'connected'
+                            ? 'bg-success animate-pulse'
+                            : acc.status === 'reauth_required'
+                              ? 'bg-warning'
+                              : 'bg-danger'
+                        }`}
                       />
-                      <span className="capitalize font-semibold">{acc.status}</span>
+                      <span className="capitalize font-semibold">
+                        {acc.status === 'connected' ? 'Connected' : acc.status.replace('_', ' ')}
+                      </span>
                     </div>
                     <span className="font-mono text-muted-foreground">{`Limits: ${acc.dailySent || 0}/${acc.dailyLimit} daily`}</span>
                   </div>
+                  {acc.status === 'connected' && (
+                    <p className="text-[9px] text-muted-foreground">Ready to send</p>
+                  )}
                 </div>
               ))}
             </div>

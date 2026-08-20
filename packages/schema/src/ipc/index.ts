@@ -329,6 +329,33 @@ export interface IpcChannelMap {
     input: string;
     output: { verified: boolean };
   };
+  'email-accounts:gmail:connect': {
+    input: {
+      name?: string;
+      dailyLimit?: number;
+      hourlyLimit?: number;
+      signature?: string;
+    };
+    output: any;
+  };
+  'email-accounts:gmail:disconnect': {
+    input: { id: string };
+    output: { success: boolean };
+  };
+  'email-accounts:gmail:reconnect': {
+    input: {
+      id: string;
+      name?: string;
+      dailyLimit?: number;
+      hourlyLimit?: number;
+      signature?: string;
+    };
+    output: any;
+  };
+  'email-accounts:send-test': {
+    input: { id: string };
+    output: { sent: boolean; messageId?: string };
+  };
   'templates:list': {
     input: void;
     output: any[];

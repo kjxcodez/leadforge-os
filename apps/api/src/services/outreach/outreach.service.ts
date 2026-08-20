@@ -13,11 +13,21 @@ export class OutreachService {
   // ── Email Accounts Management ───────────────────────────────────────────
 
   /**
-   * Encrypts SMTP App Password and saves the email account to the workspace database.
+   * Creates an email account. SMTP accounts store an encrypted App Password;
+   * Gmail OAuth accounts (provider 'gmail_oauth') store encrypted refresh and
+   * access tokens. Raw tokens never leave this method in plaintext.
    */
   public async createEmailAccount(data: any): Promise<EmailAccountDocument> {
+    const isOAuth = data.provider === 'gmail_oauth' || !!data.refreshToken;
+
     const rawPassword = data.password || data.smtpPassword || data.imapPassword || '';
-    const encrypted = encrypt(rawPassword);
+    const encrypted = rawPassword ? encrypt(rawPassword) : null;
+
+    const encryptedRefreshToken = data.refreshToken
+      ? encrypt(data.refreshToken)
+      : null;
+    const encryptedAccessToken = data.accessToken ? encrypt(data.accessToken) : null;
+    const tokenExpiresAt = data.tokenExpiresAt ? new Date(data.tokenExpiresAt) : null;
 
     if (data.isDefault) {
       await EmailAccountModel.updateMany({ workspaceId: this.workspaceId } as any, {
@@ -30,14 +40,18 @@ export class OutreachService {
       workspaceId: this.workspaceId as any,
       name: data.name,
       email: data.email,
-      provider: 'gmail_smtp',
+      provider: isOAuth ? 'gmail_oauth' : 'gmail_smtp',
       encryptedPassword: encrypted,
       isDefault: !!data.isDefault,
       dailyLimit: data.dailyLimit || 200,
       hourlyLimit: data.hourlyLimit || 50,
       signature: data.signature || '',
       status: 'connected',
-      lastVerifiedAt: new Date()
+      lastVerifiedAt: new Date(),
+      googleAccountId: data.googleAccountId || null,
+      encryptedRefreshToken,
+      encryptedAccessToken,
+      tokenExpiresAt
     });
 
     await account.save();
@@ -53,6 +67,8 @@ export class OutreachService {
     return list.map((acc) => {
       const obj = acc.toObject();
       delete (obj as any).encryptedPassword;
+      delete (obj as any).encryptedRefreshToken;
+      delete (obj as any).encryptedAccessToken;
       return obj;
     });
   }
@@ -65,7 +81,68 @@ export class OutreachService {
   }
 
   /**
-   * Simulates SMTP credential validation.
+   * Marks an account disconnected. Desktop clients should additionally revoke
+   * any Google OAuth refresh tokens.
+   */
+  public async disconnectEmailAccount(id: string): Promise<void> {
+    const acc = await EmailAccountModel.findOne({
+      _id: id,
+      workspaceId: this.workspaceId
+    } as any);
+
+    if (!acc) throw new Error('Email Account not found.');
+
+    acc.status = 'disconnected';
+    acc.lastError = null;
+    acc.encryptedAccessToken = null;
+    acc.tokenExpiresAt = null;
+    await acc.save();
+  }
+
+  /**
+   * Updates an existing account with freshly obtained OAuth credentials
+   * (or re-verifies an SMTP account), restoring it to 'connected'.
+   */
+  public async reconnectEmailAccount(id: string, data: any): Promise<any> {
+    const acc = await EmailAccountModel.findOne({
+      _id: id,
+      workspaceId: this.workspaceId
+    } as any);
+
+    if (!acc) throw new Error('Email Account not found.');
+
+    if (data.refreshToken) {
+      acc.provider = 'gmail_oauth';
+      acc.encryptedRefreshToken = encrypt(data.refreshToken);
+    }
+    if (data.accessToken) {
+      acc.encryptedAccessToken = encrypt(data.accessToken);
+    }
+    if (data.tokenExpiresAt) {
+      acc.tokenExpiresAt = new Date(data.tokenExpiresAt);
+    }
+    if (data.googleAccountId) {
+      acc.googleAccountId = data.googleAccountId;
+    }
+    if (data.name) acc.name = data.name;
+    if (data.signature !== undefined) acc.signature = data.signature;
+    if (data.dailyLimit) acc.dailyLimit = data.dailyLimit;
+    if (data.hourlyLimit) acc.hourlyLimit = data.hourlyLimit;
+
+    acc.status = 'connected';
+    acc.lastVerifiedAt = new Date();
+    acc.lastError = null;
+    await acc.save();
+
+    const obj = acc.toObject();
+    delete (obj as any).encryptedPassword;
+    delete (obj as any).encryptedRefreshToken;
+    delete (obj as any).encryptedAccessToken;
+    return obj;
+  }
+
+  /**
+   * Simulates SMTP credential validation (or refreshes a Gmail OAuth account).
    */
   public async testConnection(id: string): Promise<boolean> {
     const acc = await EmailAccountModel.findOne({

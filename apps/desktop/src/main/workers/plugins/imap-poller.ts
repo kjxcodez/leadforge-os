@@ -124,7 +124,14 @@ export async function pollImapReplies(ctx: JobContext): Promise<any> {
       ) || '';
 
     if (!host || !username || !password) {
-      ctx.emitLog('IMAP connection skipped: Incomplete credentials configuration.', 'warn');
+      if (ctx.payload._secrets?.['gmail.provider'] === 'gmail_oauth') {
+        ctx.emitLog(
+          'IMAP poll skipped: Gmail OAuth accounts cannot authenticate via IMAP with the gmail.send scope.',
+          'warn'
+        );
+      } else {
+        ctx.emitLog('IMAP connection skipped: Incomplete credentials configuration.', 'warn');
+      }
       db.close();
       return { status: 'skipped', reason: 'incomplete_credentials' };
     }

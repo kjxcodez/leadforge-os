@@ -20,6 +20,34 @@ export enum OutreachChannel {
   CALL = 'CALL'
 }
 
+/**
+ * Email account provider identifiers. `gmail_oauth` represents a Gmail
+ * mailbox connected through Google OAuth 2.0 (Gmail API, gmail.send scope).
+ */
+export enum EmailAccountProvider {
+  GMAIL_OAUTH = 'gmail_oauth',
+  GMAIL_SMTP = 'gmail_smtp',
+  SMTP = 'smtp',
+  OTHER = 'other'
+}
+
+/**
+ * Mailbox connection states.
+ * - CONNECTED: OAuth tokens valid and sending is permitted.
+ * - REAUTH_REQUIRED: access/refresh token expired, revoked, or invalid —
+ *   the user must re-authorize the mailbox.
+ * - DISCONNECTED: the mailbox was intentionally disconnected/revoked.
+ * - FAILED: last verification/send attempt failed.
+ * - DISABLED: account administratively disabled.
+ */
+export enum EmailAccountStatus {
+  CONNECTED = 'connected',
+  REAUTH_REQUIRED = 'reauth_required',
+  DISCONNECTED = 'disconnected',
+  FAILED = 'failed',
+  DISABLED = 'disabled'
+}
+
 export enum UserRole {
   OWNER = 'OWNER',
   ADMIN = 'ADMIN',

@@ -9,6 +9,7 @@ import {
   workspacesRouter
 } from './business.js';
 import { automationRouter } from './automation.js';
+import { emailRouter } from './email/index.js';
 
 import { authMiddleware, workspaceMiddleware, rateLimiter } from '../middleware/index.js';
 import { BetaApplicantModel } from '../db/models/index.js';
@@ -70,6 +71,7 @@ apiRouter.use('/campaigns/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/outreach/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/workspaces/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/automation/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/email/*', authMiddleware, workspaceMiddleware);
 
 // Mount empty placeholder business routers
 apiRouter.route('/companies', companiesRouter);
@@ -78,6 +80,7 @@ apiRouter.route('/campaigns', campaignsRouter);
 apiRouter.route('/outreach', outreachRouter);
 apiRouter.route('/workspaces', workspacesRouter);
 apiRouter.route('/automation', automationRouter);
+apiRouter.route('/email', emailRouter);
 
 export { apiRouter };
 export { healthRouter, authRouter };

@@ -1,8 +1,12 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
-import nodemailer from 'nodemailer';
 import { AIRuntime, PromptsLibrary } from '@leadforge/ai';
 import type { JobContext } from '../../../shared/types/job';
+import {
+  createMailProvider,
+  type MailProvider,
+  type MailProviderResolution
+} from '../../mail';
 
 function decryptSecretFallback(val: string): string {
   if (!val) return '';
@@ -1939,27 +1943,51 @@ async function handleSendEmailStep(
     senderName = account.name || senderName;
   }
 
-  if (!host || !username || !password) {
-    throw new Error(
-      'SMTP credentials not found in workspace settings (required: host, username, password).'
-    );
-  }
-
   const port = portStr ? parseInt(portStr, 10) : 465;
   const secure = secureStr !== undefined ? secureStr === 'true' : port === 465;
 
-  const transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user: username, pass: password },
-    connectionTimeout: 10000,
-    greetingTimeout: 5000,
-    socketTimeout: 15000
-  } as any);
+  const gmailRefreshToken = ctx.payload._secrets?.['gmail.refreshToken'];
+
+  let resolution: MailProviderResolution;
+  let providerLabel = 'SMTP';
+
+  if (gmailRefreshToken) {
+    const gmailClientId = ctx.payload._secrets?.['gmail.clientId'] || '';
+    const gmailClientSecret = ctx.payload._secrets?.['gmail.clientSecret'] || '';
+    if (!gmailClientId || !gmailClientSecret) {
+      throw new Error(
+        'Gmail OAuth client credentials are not configured. ' +
+          'Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to apps/desktop/.env.'
+      );
+    }
+    resolution = {
+      kind: 'gmail_oauth',
+      gmail: {
+        user: senderEmail,
+        clientId: gmailClientId,
+        clientSecret: gmailClientSecret,
+        refreshToken: gmailRefreshToken,
+        accessToken: ctx.payload._secrets?.['gmail.accessToken'] || undefined,
+        tokenExpiresAt: ctx.payload._secrets?.['gmail.tokenExpiresAt'] || undefined
+      }
+    };
+    providerLabel = 'Gmail OAuth';
+  } else {
+    if (!host || !username || !password) {
+      throw new Error(
+        'SMTP credentials not found in workspace settings (required: host, username, password).'
+      );
+    }
+    resolution = {
+      kind: 'smtp',
+      smtp: { host, port, secure, username, password }
+    };
+  }
+
+  const provider: MailProvider = createMailProvider(resolution);
 
   try {
-    const sendResult = await transporter.sendMail({
+    const sendResult = await provider.send({
       from: `"${senderName}" <${senderEmail}>`,
       to: contact.email,
       subject: renderedSubject,
@@ -1990,15 +2018,15 @@ async function handleSendEmailStep(
     }
 
     ctx.emitLog(
-      `SMTP send success: messageId=${sentMsgId || 'unknown'}, ` +
+      `${providerLabel} send success: messageId=${sentMsgId || 'unknown'}, ` +
         `recipient=${contact.email}, subject=${renderedSubject}`,
       'info'
     );
     return { status: 'success' };
   } catch (sendErr: any) {
-    throw new Error(`SMTP send failed: ${sendErr.message || sendErr}`);
+    throw new Error(`${providerLabel} send failed: ${sendErr.message || sendErr}`);
   } finally {
-    transporter.close();
+    provider.close();
   }
 }
 

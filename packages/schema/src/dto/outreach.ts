@@ -32,12 +32,23 @@ export const createEmailAccountDtoSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   provider: z.string(),
-  password: z.string().min(1), // raw App Password for connect verification
+  password: z.string().min(1).optional(), // raw App Password for SMTP connect verification
   dailyLimit: z.number().int().optional(),
   hourlyLimit: z.number().int().optional(),
-  signature: z.string().optional()
+  signature: z.string().optional(),
+  // Gmail OAuth fields (provider === 'gmail_oauth'). Sent over an
+  // authenticated connection and encrypted at rest by the API.
+  refreshToken: z.string().optional(),
+  accessToken: z.string().optional(),
+  tokenExpiresAt: z.string().optional(),
+  googleAccountId: z.string().optional()
 });
 export type CreateEmailAccountDto = z.infer<typeof createEmailAccountDtoSchema>;
+
+export const reconnectEmailAccountDtoSchema = createEmailAccountDtoSchema.partial().omit({
+  email: true
+});
+export type ReconnectEmailAccountDto = z.infer<typeof reconnectEmailAccountDtoSchema>;
 
 export const createEmailTemplateDtoSchema = z.object({
   name: z.string().min(1),

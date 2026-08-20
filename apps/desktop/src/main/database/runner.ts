@@ -669,6 +669,15 @@ export const MIGRATIONS: Migration[] = [
     up: `
       ALTER TABLE contacts ADD COLUMN tags TEXT;
     `
+  },
+  {
+    name: '026_email_accounts_gmail_oauth',
+    up: `
+      ALTER TABLE email_accounts ADD COLUMN refreshToken TEXT;
+      ALTER TABLE email_accounts ADD COLUMN accessToken TEXT;
+      ALTER TABLE email_accounts ADD COLUMN tokenExpiresAt TEXT;
+      ALTER TABLE email_accounts ADD COLUMN googleAccountId TEXT;
+    `
   }
 ];
 

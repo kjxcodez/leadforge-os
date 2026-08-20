@@ -41,6 +41,14 @@ export class OutreachModule {
     return this.client.post<{ verified: boolean }>(`/outreach/accounts/${id}/verify`, {});
   }
 
+  public async disconnectAccount(id: string): Promise<{ success: boolean }> {
+    return this.client.post<{ success: boolean }>(`/outreach/accounts/${id}/disconnect`, {});
+  }
+
+  public async reconnectAccount(id: string, dto: any): Promise<EmailAccount> {
+    return this.client.post<EmailAccount>(`/outreach/accounts/${id}/reconnect`, dto);
+  }
+
   // ── Email Templates Management ──────────────────────────────────────────
 
   public async listTemplates(): Promise<EmailTemplate[]> {

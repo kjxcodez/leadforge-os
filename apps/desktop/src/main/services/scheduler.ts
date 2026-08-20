@@ -10,6 +10,34 @@ import { decryptSecret } from '../lib/crypto';
 import type { JobPayload, SchedulerConfig } from '../../shared/types/job';
 import type { MainToWorkerMsg, WorkerToMainMsg } from '../../shared/types/ipc';
 
+interface GmailOAuthAccountRow {
+  provider?: string | null;
+  refreshToken?: string | null;
+  accessToken?: string | null;
+  tokenExpiresAt?: string | null;
+  email?: string | null;
+}
+
+/**
+ * Injects decrypted Gmail OAuth credentials into a worker job's `_secrets`.
+ * Only gmail_oauth accounts receive these secrets (least privilege).
+ * Client credentials come from the main process env and are forwarded so
+ * forked workers can refresh expired access tokens at send time.
+ */
+function injectGmailOAuthSecrets(secrets: Record<string, string>, acc: GmailOAuthAccountRow): void {
+  const isOAuth =
+    (acc.provider || '').toLowerCase() === 'gmail_oauth' || Boolean(acc.refreshToken);
+  if (!isOAuth || !acc.refreshToken) return;
+
+  secrets['gmail.provider'] = 'gmail_oauth';
+  secrets['gmail.clientId'] = process.env.GOOGLE_CLIENT_ID || '';
+  secrets['gmail.clientSecret'] = process.env.GOOGLE_CLIENT_SECRET || '';
+  secrets['gmail.refreshToken'] = decryptSecret(acc.refreshToken);
+  secrets['gmail.accessToken'] = acc.accessToken ? decryptSecret(acc.accessToken) : '';
+  secrets['gmail.tokenExpiresAt'] = acc.tokenExpiresAt || '';
+  secrets['gmail.user'] = acc.email || '';
+}
+
 /**
  * JobScheduler ticks periodically to select queued background tasks from SQLite
  * and execute them in sandboxed child processes.
@@ -770,11 +798,21 @@ export class JobScheduler {
               const accRow = this.db
                 .prepare(
                   `
-                SELECT smtpPassword, imapPassword FROM email_accounts WHERE id = ?
+                SELECT smtpPassword, imapPassword, provider, refreshToken, accessToken, tokenExpiresAt, email
+                FROM email_accounts WHERE id = ?
               `
                 )
                 .get(campRow.sendingAccountId) as
-                { smtpPassword: string | null; imapPassword: string | null } | undefined;
+                | {
+                    smtpPassword: string | null;
+                    imapPassword: string | null;
+                    provider: string | null;
+                    refreshToken: string | null;
+                    accessToken: string | null;
+                    tokenExpiresAt: string | null;
+                    email: string | null;
+                  }
+                | undefined;
 
               if (accRow) {
                 if (accRow.smtpPassword) {
@@ -783,6 +821,7 @@ export class JobScheduler {
                 if (accRow.imapPassword) {
                   secrets['imap.password'] = decryptSecret(accRow.imapPassword);
                 }
+                injectGmailOAuthSecrets(secrets, accRow);
               }
             }
           }
@@ -837,7 +876,8 @@ export class JobScheduler {
               .prepare(
                 `
               SELECT smtpHost, smtpPort, smtpSecure, smtpUsername, smtpPassword,
-                     imapHost, imapPort, imapSecure, imapUsername, imapPassword
+                     imapHost, imapPort, imapSecure, imapUsername, imapPassword,
+                     provider, refreshToken, accessToken, tokenExpiresAt, email
               FROM email_accounts WHERE id = ?
             `
               )
@@ -855,6 +895,8 @@ export class JobScheduler {
               secrets['imap.secure'] = accRow.imapSecure || 'true';
               secrets['imap.username'] = accRow.imapUsername || '';
               secrets['imap.password'] = decryptSecret(accRow.imapPassword || '');
+
+              injectGmailOAuthSecrets(secrets, accRow);
             }
           }
         }
@@ -863,14 +905,19 @@ export class JobScheduler {
           .prepare(
             `
           SELECT smtpHost, smtpPort, smtpSecure, smtpUsername, smtpPassword,
-                 imapHost, imapPort, imapSecure, imapUsername, imapPassword
+                 imapHost, imapPort, imapSecure, imapUsername, imapPassword,
+                 provider, refreshToken
           FROM email_accounts WHERE workspaceId = ? AND deletedAt IS NULL
         `
           )
           .all(this.workspaceId) as any[];
 
         if (accounts.length > 0) {
-          let target = accounts[0];
+          // Prefer an account with actual IMAP credentials (Gmail OAuth
+          // accounts with only gmail.send scope cannot authenticate via IMAP).
+          let target = accounts.find(
+            (a) => a.imapUsername && a.imapPassword && !a.refreshToken
+          ) || accounts[0];
           if (parsedPayload.accountId) {
             const match = accounts.find((a) => a.id === parsedPayload.accountId);
             if (match) target = match;

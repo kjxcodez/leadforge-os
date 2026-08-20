@@ -43,7 +43,13 @@ export const emailAccountSchema = z.object({
   name: nameField,
   email: z.string().email(),
   provider: z.string(),
-  status: z.enum(['connected', 'failed', 'disabled']),
+  status: z.enum([
+    'connected',
+    'reauth_required',
+    'disconnected',
+    'failed',
+    'disabled'
+  ]),
   dailyLimit: z.number().int().default(200),
   hourlyLimit: z.number().int().default(50),
   dailySent: z.number().int().default(0),
@@ -51,6 +57,8 @@ export const emailAccountSchema = z.object({
   signature: z.string().nullable().optional(),
   lastVerifiedAt: z.date().nullable().optional(),
   lastError: z.string().nullable().optional(),
+  googleAccountId: z.string().nullable().optional(),
+  tokenExpiresAt: z.date().nullable().optional(),
   createdAt: z.date(),
   updatedAt: z.date()
 });

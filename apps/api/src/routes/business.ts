@@ -581,6 +581,23 @@ outreachRouter.post('/accounts/:id/verify', async (c) => {
   return c.json(successResponse({ verified }));
 });
 
+outreachRouter.post('/accounts/:id/disconnect', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const service = new OutreachService(wsId);
+  await service.disconnectEmailAccount(id);
+  return c.json(successResponse({ success: true }));
+});
+
+outreachRouter.post('/accounts/:id/reconnect', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const service = new OutreachService(wsId);
+  const account = await service.reconnectEmailAccount(id, body);
+  return c.json(successResponse(account));
+});
+
 outreachRouter.get('/templates', async (c) => {
   const wsId = getWorkspaceId(c);
   const service = new OutreachService(wsId);
