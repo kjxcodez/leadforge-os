@@ -403,8 +403,19 @@ export interface IpcChannelMap {
     output: { transactionId: string; authorizationUrl: string };
   };
   'email-accounts:send-test': {
-    input: { id: string };
-    output: { sent: boolean; messageId?: string };
+    input: {
+      id: string;
+      to: string;
+      useSignature?: boolean;
+      attachments?: Array<{
+        filename: string;
+        path?: string;
+        contentBase64?: string;
+        contentType?: string;
+        size?: number;
+      }>;
+    };
+    output: { sent: boolean; messageId?: string; sentTo?: string; error?: string };
   };
   'templates:list': {
     input: void;

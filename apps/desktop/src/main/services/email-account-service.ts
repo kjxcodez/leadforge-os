@@ -72,13 +72,42 @@ export async function disconnectGmailAccount(
   return sdk.outreach.disconnectAccount(id);
 }
 
-/**
- * Sends a test email through the server-side API EmailService.
- */
 export async function sendTestEmail(
   sdk: SdkClient,
-  id: string
-): Promise<{ sent: boolean; messageId?: string }> {
-  const res = await sdk.outreach.sendTestEmail(id);
-  return { sent: true, messageId: res.messageId };
+  payload: {
+    id: string;
+    to: string;
+    useSignature?: boolean;
+    attachments?: Array<{
+      filename: string;
+      contentBase64?: string;
+      path?: string;
+      contentType?: string;
+      size?: number;
+    }>;
+  }
+): Promise<{ sent: boolean; messageId?: string; sentTo?: string }> {
+  const processedAttachments = [];
+  if (Array.isArray(payload.attachments)) {
+    const fs = await import('fs');
+    for (const att of payload.attachments) {
+      let contentBase64 = att.contentBase64 || '';
+      if (!contentBase64 && att.path && fs.existsSync(att.path)) {
+        contentBase64 = fs.readFileSync(att.path).toString('base64');
+      }
+      processedAttachments.push({
+        filename: att.filename,
+        contentBase64,
+        contentType: att.contentType,
+        size: att.size
+      });
+    }
+  }
+
+  const res = await sdk.outreach.sendTestEmail(payload.id, {
+    to: payload.to,
+    useSignature: payload.useSignature,
+    attachments: processedAttachments
+  });
+  return { sent: true, messageId: res.messageId, sentTo: res.sentTo };
 }

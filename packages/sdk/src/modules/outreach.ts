@@ -69,8 +69,21 @@ export class OutreachModule {
     return this.client.post<{ success: boolean }>(`/email/accounts/${id}/disconnect`, {});
   }
 
-  public async sendTestEmail(id: string): Promise<{ messageId: string; sentTo: string }> {
-    return this.client.post<{ messageId: string; sentTo: string }>(`/email/accounts/${id}/test`, {});
+  public async sendTestEmail(
+    id: string,
+    payload: {
+      to: string;
+      useSignature?: boolean;
+      attachments?: Array<{
+        filename: string;
+        contentBase64?: string;
+        path?: string;
+        contentType?: string;
+        size?: number;
+      }>;
+    }
+  ): Promise<{ messageId: string; sentTo: string }> {
+    return this.client.post<{ messageId: string; sentTo: string }>(`/email/accounts/${id}/test`, payload);
   }
 
   public async sendEmail(payload: SendEmailPayload): Promise<{ messageId: string; accepted: string[] }> {

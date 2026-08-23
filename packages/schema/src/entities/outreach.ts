@@ -37,12 +37,18 @@ export const outreachSchema = z.object({
 });
 export type Outreach = z.infer<typeof outreachSchema>;
 
-export const emailAccountSchema = z.object({
-  id: objectIdField,
-  workspaceId: objectIdField,
-  name: nameField,
+export const testRecipientSchema = z.object({
   email: z.string().email(),
-  provider: z.string(),
+  firstUsedAt: z.union([z.date(), z.string()]).optional(),
+  lastUsedAt: z.union([z.date(), z.string()]).optional()
+});
+export type TestRecipient = z.infer<typeof testRecipientSchema>;
+
+export const emailAccountSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string().email(),
+  provider: z.enum(['gmail_oauth', 'other']),
   status: z.enum([
     'connected',
     'reauth_required',
@@ -55,11 +61,12 @@ export const emailAccountSchema = z.object({
   dailySent: z.number().int().default(0),
   hourlySent: z.number().int().default(0),
   signature: z.string().nullable().optional(),
-  lastVerifiedAt: z.date().nullable().optional(),
+  testRecipients: z.array(testRecipientSchema).optional(),
+  lastVerifiedAt: z.union([z.date(), z.string()]).nullable().optional(),
   lastError: z.string().nullable().optional(),
   googleAccountId: z.string().nullable().optional(),
-  tokenExpiresAt: z.date().nullable().optional(),
-  createdAt: z.date(),
-  updatedAt: z.date()
+  tokenExpiresAt: z.union([z.date(), z.string()]).nullable().optional(),
+  createdAt: z.union([z.date(), z.string()]),
+  updatedAt: z.union([z.date(), z.string()])
 });
 export type EmailAccount = z.infer<typeof emailAccountSchema>;

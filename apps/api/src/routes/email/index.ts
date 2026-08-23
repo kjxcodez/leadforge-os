@@ -133,8 +133,9 @@ emailRouter.post('/accounts/:id/disconnect', async (c) => {
 emailRouter.post('/accounts/:id/test', async (c) => {
   const wsId = getWorkspaceId(c);
   const id = c.req.param('id');
+  const body = await c.req.json().catch(() => ({}));
   const service = new EmailService(wsId);
-  const result = await service.sendTest(id);
+  const result = await service.sendTest(id, body);
   return c.json(successResponse(result));
 });
 

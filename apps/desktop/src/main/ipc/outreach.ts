@@ -77,10 +77,10 @@ export function registerOutreachIpc(sdk: SdkClient) {
     return result;
   });
 
-  safeRegister('email-accounts:send-test', async (_event, { id }) => {
+  safeRegister('email-accounts:send-test', async (_event, payload) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    return sendTestEmail(sdk, id);
+    return sendTestEmail(sdk, payload);
   });
 
   // Templates

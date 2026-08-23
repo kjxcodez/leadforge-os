@@ -1,6 +1,12 @@
 import mongoose, { Schema } from 'mongoose';
 import { workspacePlugin, type WorkspaceScopedDocument } from '../plugins/index.js';
 
+export interface TestRecipientEntry {
+  email: string;
+  firstUsedAt: Date;
+  lastUsedAt: Date;
+}
+
 export interface EmailAccountDocument extends mongoose.Document, WorkspaceScopedDocument {
   name: string;
   email: string;
@@ -13,6 +19,7 @@ export interface EmailAccountDocument extends mongoose.Document, WorkspaceScoped
   dailySent: number;
   hourlySent: number;
   signature?: string | null;
+  testRecipients?: TestRecipientEntry[];
   lastVerifiedAt?: Date | null;
   lastError?: string | null;
   googleAccountId?: string | null;
@@ -40,6 +47,13 @@ const emailAccountSchema = new Schema<EmailAccountDocument>(
     dailySent: { type: Number, default: 0 },
     hourlySent: { type: Number, default: 0 },
     signature: { type: String, default: null },
+    testRecipients: [
+      {
+        email: { type: String, required: true, lowercase: true, trim: true },
+        firstUsedAt: { type: Date, default: Date.now },
+        lastUsedAt: { type: Date, default: Date.now }
+      }
+    ],
     lastVerifiedAt: { type: Date, default: null },
     lastError: { type: String, default: null },
     googleAccountId: { type: String, default: null }, // Gmail OAuth subject identifier
