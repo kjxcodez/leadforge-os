@@ -4,7 +4,7 @@ import {
   Users,
   Megaphone,
   Search,
-  GitBranch,
+  Layers,
   BarChart3,
   Settings,
   Activity
@@ -20,11 +20,11 @@ import logoLight from '../../assets/app-icon-light.png';
 
 const NAV_ITEMS = [
   { to: '/dashboard',   label: 'Dashboard',         icon: LayoutDashboard },
+  { to: '/discovery',   label: 'Discover',          icon: Search },
   { to: '/companies',   label: 'Companies',          icon: Building2 },
   { to: '/contacts',    label: 'Contacts',           icon: Users },
-  { to: '/campaigns',   label: 'Campaigns',          icon: Megaphone },
-  { to: '/discovery',   label: 'Discovery',          icon: Search },
-  { to: '/automation',  label: 'Automation',         icon: GitBranch },
+  { to: '/audiences',   label: 'Audiences',          icon: Layers },
+  { to: '/campaigns',   label: 'Outreach',           icon: Megaphone },
   { to: '/reports',     label: 'Reports',            icon: BarChart3 },
   { to: '/settings',    label: 'Settings',           icon: Settings },
   { to: '/operations',  label: 'Operations Center',  icon: Activity }

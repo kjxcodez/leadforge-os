@@ -38,8 +38,9 @@ export function EntityToolbar({
   onBulkStatusChange,
   bulkStatusOptions = [],
   onBulkEnroll,
+  onBulkSaveAudience,
   children
-}: EntityToolbarProps & { children?: React.ReactNode }) {
+}: EntityToolbarProps & { onBulkSaveAudience?: () => void; children?: React.ReactNode }) {
   const [localSearch, setLocalSearch] = useState(search);
 
   // Debounce search input
@@ -112,6 +113,18 @@ export function EntityToolbar({
                   </option>
                 ))}
               </select>
+            )}
+
+            {onBulkSaveAudience && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onBulkSaveAudience}
+                className="h-7 text-[10px] gap-1 border-primary/30 text-primary hover:bg-primary/10"
+              >
+                <Plus className="w-3 h-3" />
+                Save as Audience
+              </Button>
             )}
 
             {onBulkEnroll && (

@@ -72,6 +72,9 @@ export default function DiscoveryScreen() {
 
   const [jobName, setJobName] = useState('');
   const [jobQuery, setJobQuery] = useState('');
+  const [country, setCountry] = useState('');
+  const [stateName, setStateName] = useState('');
+  const [city, setCity] = useState('');
   const [maxResults, setMaxResults] = useState(20);
 
   // Pagination states
@@ -104,6 +107,16 @@ export default function DiscoveryScreen() {
     refetchInterval: 1500
   });
 
+  const discoveryRunsQuery = useQuery({
+    queryKey: ['discovery_runs', 'list', workspaceId],
+    queryFn: async () => {
+      if (!workspaceId) return [];
+      return window.ipc.invoke('discovery:run:list', { workspaceId });
+    },
+    enabled: !!workspaceId,
+    refetchInterval: 2000
+  });
+
   const companiesQuery = useQuery({
     queryKey: ['companies', 'list', workspaceId],
     queryFn: async () => {
@@ -124,23 +137,30 @@ export default function DiscoveryScreen() {
     refetchInterval: 2000
   });
 
-  const createJobMutation = useMutation({
-    mutationFn: async (payload: { name: string; query: string; maxResults: number }) => {
-      return window.ipc.invoke('scheduler:jobs:submit', {
+  const createRunMutation = useMutation({
+    mutationFn: async (payload: { name?: string; query: string; country?: string; state?: string; city?: string; maxResults: number }) => {
+      const reqPayload: any = {
         workspaceId,
-        type: 'scraper:maps',
-        payload: { name: payload.name, query: payload.query, maxResults: payload.maxResults }
-      });
+        query: payload.query,
+        maxResults: payload.maxResults
+      };
+      if (payload.name) reqPayload.name = payload.name;
+      if (payload.country) reqPayload.country = payload.country;
+      if (payload.state) reqPayload.state = payload.state;
+      if (payload.city) reqPayload.city = payload.city;
+      return window.ipc.invoke('discovery:run:create', reqPayload);
     },
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scheduler_jobs', 'list', workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ['discovery_runs', 'list', workspaceId] });
       queryClient.invalidateQueries({ queryKey: ['companies', 'list', workspaceId] });
-      queryClient.invalidateQueries({ queryKey: ['contacts', 'list', workspaceId] });
       setCreateOpen(false);
       setJobName('');
       setJobQuery('');
+      setCountry('');
+      setStateName('');
+      setCity('');
       setMaxResults(20);
-      if (data?.id) setSelectedJobId(data.id);
     }
   });
 
@@ -187,9 +207,16 @@ export default function DiscoveryScreen() {
 
   const handleCreateJob = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    if (!jobName.trim() || !jobQuery.trim()) return;
-    createJobMutation.mutate({ name: jobName, query: jobQuery, maxResults });
-  }, [jobName, jobQuery, maxResults, createJobMutation]);
+    if (!jobQuery.trim()) return;
+    createRunMutation.mutate({
+      name: jobName,
+      query: jobQuery,
+      country,
+      state: stateName,
+      city,
+      maxResults
+    });
+  }, [jobName, jobQuery, country, stateName, city, maxResults, createRunMutation]);
 
   const allJobs = (jobsQuery.data || []) as any[];
   const existingCompanies = (companiesQuery.data || []) as any[];
@@ -786,37 +813,74 @@ export default function DiscoveryScreen() {
               Launch Discovery Run
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreateJob} className="space-y-4">
-            <div className="space-y-1">
-              <Label htmlFor="jobName" className="text-xs font-semibold">
-                Run Name
-              </Label>
-              <Input
-                id="jobName"
-                placeholder="Q4 HVAC Leads — Miami"
-                value={jobName}
-                onChange={(e) => setJobName(e.target.value)}
-                required
-                className="rounded-none bg-card border-border-subtle"
-              />
-            </div>
+          <form onSubmit={handleCreateJob} className="space-y-3">
             <div className="space-y-1">
               <Label htmlFor="jobQuery" className="text-xs font-semibold">
-                Google Maps Search Query
+                What are you looking for? <span className="text-danger">*</span>
               </Label>
               <Input
                 id="jobQuery"
-                placeholder="HVAC Contractors New York"
+                placeholder="e.g. HVAC Contractors, Plumbing Companies"
                 value={jobQuery}
                 onChange={(e) => setJobQuery(e.target.value)}
                 required
                 className="rounded-none bg-card border-border-subtle font-mono text-xs"
               />
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                Enter a keyword query exactly as you would type it into Google Maps.
-              </p>
             </div>
-            <div className="space-y-2">
+            
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="city" className="text-xs font-semibold">
+                  City
+                </Label>
+                <Input
+                  id="city"
+                  placeholder="Miami"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className="rounded-none bg-card border-border-subtle text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="stateName" className="text-xs font-semibold">
+                  State / Region
+                </Label>
+                <Input
+                  id="stateName"
+                  placeholder="Florida"
+                  value={stateName}
+                  onChange={(e) => setStateName(e.target.value)}
+                  className="rounded-none bg-card border-border-subtle text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="country" className="text-xs font-semibold">
+                  Country
+                </Label>
+                <Input
+                  id="country"
+                  placeholder="United States"
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  className="rounded-none bg-card border-border-subtle text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="jobName" className="text-xs font-semibold">
+                Discovery Run Name <span className="text-muted-foreground font-normal">(Optional)</span>
+              </Label>
+              <Input
+                id="jobName"
+                placeholder="Auto-derived if empty (e.g. HVAC Contractors in Miami)"
+                value={jobName}
+                onChange={(e) => setJobName(e.target.value)}
+                className="rounded-none bg-card border-border-subtle"
+              />
+            </div>
+
+            <div className="space-y-2 pt-1">
               <Label
                 htmlFor="maxResults"
                 className="text-xs font-semibold flex items-center justify-between"
@@ -840,6 +904,7 @@ export default function DiscoveryScreen() {
                 <span>100 (deep)</span>
               </div>
             </div>
+
             <div className="bg-surface-3 border border-border-subtle rounded-none p-3 text-[10px] text-muted-foreground space-y-1">
               <div className="font-semibold text-foreground">What happens next</div>
               <div>
@@ -847,8 +912,9 @@ export default function DiscoveryScreen() {
                 <strong className="text-foreground">{maxResults}</strong> matching businesses
               </div>
               <div>② Each company website is auto-crawled for email contacts</div>
-              <div>③ All leads are saved directly to your CRM — no import needed</div>
+              <div>③ All leads are saved directly to your CRM with provenance linked</div>
             </div>
+
             <div className="flex justify-end gap-2 pt-2 border-t border-border-subtle">
               <Button
                 type="button"
@@ -861,12 +927,12 @@ export default function DiscoveryScreen() {
               </Button>
               <Button
                 type="submit"
-                disabled={createJobMutation.isPending}
+                disabled={createRunMutation.isPending}
                 size="sm"
                 className="gap-1.5 rounded-none"
               >
                 <Compass className="w-3.5 h-3.5" />
-                {createJobMutation.isPending ? 'Launching...' : 'Start Discovery'}
+                {createRunMutation.isPending ? 'Launching...' : 'Start Discovery'}
               </Button>
             </div>
           </form>

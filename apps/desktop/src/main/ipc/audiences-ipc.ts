@@ -1,0 +1,137 @@
+import { safeRegister } from './helper';
+import { LocalCRMRepository } from '../database/repositories/local-crm';
+import { getDatabase } from '../database/connection';
+
+export function resolveAudienceLocally(workspaceId: string, filterDefinition: any) {
+  const db = getDatabase(workspaceId);
+  const filter = filterDefinition || {};
+
+  let companyQuery = 'SELECT id FROM companies WHERE workspaceId = ? AND deletedAt IS NULL';
+  const companyParams: any[] = [workspaceId];
+
+  let contactQuery = 'SELECT id FROM contacts WHERE workspaceId = ? AND deletedAt IS NULL';
+  const contactParams: any[] = [workspaceId];
+
+  if (filter.search) {
+    companyQuery += ' AND (name LIKE ? OR domain LIKE ? OR industry LIKE ?)';
+    const term = `%${filter.search}%`;
+    companyParams.push(term, term, term);
+
+    contactQuery += ' AND (firstName LIKE ? OR lastName LIKE ? OR email LIKE ? OR title LIKE ?)';
+    contactParams.push(term, term, term, term);
+  }
+
+  if (filter.status) {
+    companyQuery += ' AND status = ?';
+    companyParams.push(filter.status);
+
+    contactQuery += ' AND status = ?';
+    contactParams.push(filter.status);
+  }
+
+  if (filter.industry) {
+    companyQuery += ' AND industry LIKE ?';
+    companyParams.push(`%${filter.industry}%`);
+  }
+
+  if (filter.discoveryRunId) {
+    companyQuery += ' AND id IN (SELECT companyId FROM company_discovery_runs WHERE workspaceId = ? AND discoveryRunId = ?)';
+    companyParams.push(workspaceId, filter.discoveryRunId);
+
+    contactQuery += ' AND companyId IN (SELECT companyId FROM company_discovery_runs WHERE workspaceId = ? AND discoveryRunId = ?)';
+    contactParams.push(workspaceId, filter.discoveryRunId);
+  }
+
+  const companyRows = db.prepare(companyQuery).all(...companyParams) as Array<{ id: string }>;
+  const companyIds = companyRows.map((r) => r.id);
+
+  if (companyIds.length > 0 && !filter.discoveryRunId) {
+    contactQuery += ` AND companyId IN (${companyIds.map(() => '?').join(', ')})`;
+    contactParams.push(...companyIds);
+  }
+
+  const contactRows = db.prepare(contactQuery).all(...contactParams) as Array<{ id: string }>;
+  const contactIds = contactRows.map((r) => r.id);
+
+  return { contactIds, companyIds };
+}
+
+export function registerAudiencesIpc() {
+  safeRegister('audiences:list', async (_event, { workspaceId }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    const audiences = await LocalCRMRepository.findMany('audiences', workspaceId);
+    
+    // Enrich with current matching count
+    return audiences.map((audience) => {
+      let filterDef = audience.filterDefinition;
+      if (typeof filterDef === 'string') {
+        try {
+          filterDef = JSON.parse(filterDef);
+        } catch {
+          filterDef = {};
+        }
+      }
+      const { contactIds, companyIds } = resolveAudienceLocally(workspaceId, filterDef);
+      return {
+        ...audience,
+        contactCount: contactIds.length,
+        companyCount: companyIds.length
+      };
+    });
+  });
+
+  safeRegister('audiences:create', async (_event, record) => {
+    if (!record.workspaceId) throw new Error('workspaceId is required.');
+    if (!record.name) throw new Error('name is required.');
+    return LocalCRMRepository.save('audiences', record);
+  });
+
+  safeRegister('audiences:get', async (_event, { workspaceId, id }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    if (!id) throw new Error('id is required.');
+    const audience = await LocalCRMRepository.findById('audiences', workspaceId, id);
+    if (!audience) return null;
+
+    let filterDef = audience.filterDefinition;
+    if (typeof filterDef === 'string') {
+      try {
+        filterDef = JSON.parse(filterDef);
+      } catch {
+        filterDef = {};
+      }
+    }
+    const { contactIds, companyIds } = resolveAudienceLocally(workspaceId, filterDef);
+    return {
+      ...audience,
+      contactCount: contactIds.length,
+      companyCount: companyIds.length,
+      resolvedContactIds: contactIds,
+      resolvedCompanyIds: companyIds
+    };
+  });
+
+  safeRegister('audiences:update', async (_event, { id, dto }) => {
+    if (!dto.workspaceId) throw new Error('workspaceId is required.');
+    return LocalCRMRepository.save('audiences', { ...dto, id });
+  });
+
+  safeRegister('audiences:delete', async (_event, { workspaceId, id }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    if (!id) throw new Error('id is required.');
+    return LocalCRMRepository.softDelete('audiences', workspaceId, id);
+  });
+
+  safeRegister('audiences:resolve', async (_event, { workspaceId, id, filterDefinition }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    let filterDef = filterDefinition;
+    if (id && !filterDef) {
+      const audience = await LocalCRMRepository.findById('audiences', workspaceId, id);
+      if (audience) {
+        filterDef = typeof audience.filterDefinition === 'string'
+          ? JSON.parse(audience.filterDefinition)
+          : audience.filterDefinition;
+      }
+    }
+    return resolveAudienceLocally(workspaceId, filterDef || {});
+  });
+}

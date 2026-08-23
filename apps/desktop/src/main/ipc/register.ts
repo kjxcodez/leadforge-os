@@ -13,6 +13,8 @@ import { registerCampaignsIpc } from './campaigns-ipc';
 import { registerOnboardingIpc } from './onboarding-ipc';
 import { registerObservabilityIpc } from './observability-ipc';
 import { registerAgentIPCHandlers } from './agent-ipc';
+import { registerDiscoveryIpc } from './discovery-ipc';
+import { registerAudiencesIpc } from './audiences-ipc';
 import { WorkspaceManager } from '../lib/workspace-manager';
 
 /**
@@ -63,4 +65,6 @@ export function registerAllIpc(
   registerOnboardingIpc();
   registerObservabilityIpc();
   registerAgentIPCHandlers();
+  registerDiscoveryIpc();
+  registerAudiencesIpc();
 }

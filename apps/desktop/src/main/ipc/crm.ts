@@ -14,6 +14,47 @@ export function registerCrmIpc() {
     return LocalCRMRepository.findMany('companies', workspaceId, filter);
   });
 
+  safeRegister('companies:query', async (_event, { workspaceId, search, status, industry, discoveryRunId, location }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    const db = getDatabase(workspaceId);
+
+    let query = 'SELECT DISTINCT c.* FROM companies c';
+    const params: any[] = [];
+    const conditions: string[] = ['c.workspaceId = ?', 'c.deletedAt IS NULL'];
+    params.push(workspaceId);
+
+    if (discoveryRunId) {
+      query += ' INNER JOIN company_discovery_runs cdr ON c.id = cdr.companyId';
+      conditions.push('cdr.discoveryRunId = ?');
+      params.push(discoveryRunId);
+    }
+
+    if (search) {
+      conditions.push('(c.name LIKE ? OR c.domain LIKE ? OR c.industry LIKE ? OR c.notes LIKE ?)');
+      const term = `%${search}%`;
+      params.push(term, term, term, term);
+    }
+
+    if (status) {
+      conditions.push('c.status = ?');
+      params.push(status);
+    }
+
+    if (industry) {
+      conditions.push('c.industry LIKE ?');
+      params.push(`%${industry}%`);
+    }
+
+    if (location) {
+      conditions.push('c.location LIKE ?');
+      params.push(`%${location}%`);
+    }
+
+    query += ' WHERE ' + conditions.join(' AND ') + ' ORDER BY c.createdAt DESC';
+
+    return db.prepare(query).all(...params) as any[];
+  });
+
   safeRegister('companies:get', async (_event, { workspaceId, id }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     if (!id) throw new Error('id is required.');

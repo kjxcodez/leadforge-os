@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkspace } from '../hooks/useWorkspace';
 import { motion } from 'framer-motion';
@@ -57,6 +57,9 @@ import { PageHeader } from '../components/common/PageHeader';
  */
 export default function CampaignsScreen() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialAudienceId = searchParams.get('audienceId') || '';
+
   const { activeWorkspace } = useWorkspace();
   const workspaceId = activeWorkspace?.id || '';
   const queryClient = useQueryClient();
@@ -69,7 +72,7 @@ export default function CampaignsScreen() {
   // Modal Dialog states
   const [accountOpen, setAccountOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
-  const [campaignOpen, setCampaignOpen] = useState(false);
+  const [campaignOpen, setCampaignOpen] = useState(!!initialAudienceId);
   const [previewOpen, setPreviewOpen] = useState(false);
 
   // Selected Enrollment for stepper timeline panel
@@ -87,6 +90,12 @@ export default function CampaignsScreen() {
   const [campAccId, setCampAccId] = useState('');
   const [campLimit, setCampLimit] = useState(200);
   const [campTimezone, setCampTimezone] = useState('UTC');
+
+  const [selectedAudienceId, setSelectedAudienceId] = useState(initialAudienceId);
+  const [inlineSubject, setInlineSubject] = useState('');
+  const [inlineBody, setInlineBody] = useState('');
+  const [followUpWaitDays, setFollowUpWaitDays] = useState(3);
+  const [followUpBody, setFollowUpBody] = useState('');
 
   const [previewTemplateId, setPreviewTemplateId] = useState('');
   const [previewContactId, setPreviewContactId] = useState('');
@@ -135,6 +144,14 @@ export default function CampaignsScreen() {
     queryKey: ['sequences', workspaceId],
     queryFn: async () => {
       return window.ipc.invoke('sequence:list', undefined);
+    },
+    enabled: !!workspaceId
+  });
+
+  const audiencesQuery = useQuery({
+    queryKey: ['audiences', workspaceId],
+    queryFn: async () => {
+      return window.ipc.invoke('audiences:list', { workspaceId });
     },
     enabled: !!workspaceId
   });
@@ -373,22 +390,104 @@ export default function CampaignsScreen() {
     });
   };
 
-  const handleCreateCampaign = (e: React.FormEvent) => {
+  const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!campSeqId || !campAccId) {
-      alert('Please connect/select a Sequence and Sender Account first.');
+    if (!campName.trim()) {
+      alert('Please enter a Campaign Name.');
       return;
     }
-    createCampaignMutation.mutate({
-      name: campName,
-      description: campDesc,
-      sequenceId: campSeqId,
-      sendingAccountId: campAccId,
-      dailyLimit: campLimit,
-      timezone: campTimezone,
-      status: 'Draft',
-      workspaceId
-    });
+    if (!campAccId) {
+      alert('Please select a Sender Account first.');
+      return;
+    }
+
+    try {
+      let targetSeqId = campSeqId;
+
+      // 1. If inline message is specified and no sequence selected, build sequence dynamically
+      if (!targetSeqId && inlineSubject && inlineBody) {
+        const steps: any[] = [
+          {
+            id: 'step_1',
+            type: 'SEND_EMAIL',
+            config: { subject: inlineSubject, body: inlineBody }
+          }
+        ];
+        if (followUpBody && followUpWaitDays > 0) {
+          steps.push({
+            id: 'step_2',
+            type: 'WAIT',
+            config: { delaySeconds: followUpWaitDays * 86400 }
+          });
+          steps.push({
+            id: 'step_3',
+            type: 'SEND_EMAIL',
+            config: { subject: `Re: ${inlineSubject}`, body: followUpBody }
+          });
+        }
+
+        const seq = await window.ipc.invoke('sequence:create', {
+          name: `Sequence: ${campName.trim()}`,
+          status: 'ACTIVE',
+          trigger: { type: 'MANUAL', config: {} },
+          steps
+        });
+        targetSeqId = seq.id;
+      }
+
+      if (!targetSeqId && sequences.length > 0) {
+        targetSeqId = sequences[0].id;
+      }
+
+      if (!targetSeqId) {
+        alert('Please create a sequence message or select a sequence first.');
+        return;
+      }
+
+      // 2. Create Campaign
+      const campaign = await window.ipc.invoke('campaigns:create', {
+        workspaceId,
+        name: campName.trim(),
+        description: campDesc.trim() || undefined,
+        sequenceId: targetSeqId,
+        sendingAccountId: campAccId,
+        dailyLimit: campLimit,
+        timezone: campTimezone,
+        status: 'Active'
+      });
+
+      // 3. Resolve Audience & Enroll Contacts
+      if (selectedAudienceId) {
+        const resolved = await window.ipc.invoke('audiences:resolve', {
+          workspaceId,
+          id: selectedAudienceId
+        });
+        if (resolved.contactIds && resolved.contactIds.length > 0) {
+          await window.ipc.invoke('campaigns:enroll', {
+            campaignId: campaign.id,
+            contactIds: resolved.contactIds
+          });
+        }
+      }
+
+      // 4. Trigger Scheduler
+      await window.ipc.invoke('campaigns:schedule', campaign.id);
+
+      queryClient.invalidateQueries({ queryKey: ['campaigns', workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ['sequences', workspaceId] });
+      setCampaignOpen(false);
+      setCampName('');
+      setCampDesc('');
+      setCampSeqId('');
+      setCampAccId('');
+      setSelectedAudienceId('');
+      setInlineSubject('');
+      setInlineBody('');
+      setFollowUpBody('');
+      toast.success(`Outreach campaign "${campName.trim()}" launched successfully!`);
+    } catch (err: any) {
+      alert(`Failed to launch campaign: ${err.message || err}`);
+    }
   };
 
   const accounts = accountsQuery.data || [];
@@ -1479,44 +1578,80 @@ export default function CampaignsScreen() {
 
       {/* ── Launch Campaign Dialog ───────────────────────────────────────── */}
       <Dialog open={campaignOpen} onOpenChange={setCampaignOpen}>
-        <DialogContent className="max-w-md rounded-none bg-background border border-border-subtle shadow-elevation-2">
+        <DialogContent className="max-w-lg rounded-none bg-background border border-border-subtle shadow-elevation-2 max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Launch Outbound Campaign</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Megaphone className="w-4 h-4 text-primary" />
+              Launch Outreach Campaign
+            </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreateCampaign} className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="campName">Campaign Name</Label>
-              <Input
-                id="campName"
-                placeholder="Q4 SaaS Leads Hunt"
-                value={campName}
-                onChange={(e) => setCampName(e.target.value)}
-                required
-                className="rounded-none bg-card border-border-subtle"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="campDesc">Description</Label>
-              <Textarea
-                id="campDesc"
-                placeholder="Brief summary of target audience and goals..."
-                value={campDesc}
-                onChange={(e) => setCampDesc(e.target.value)}
-                rows={2}
-                className="rounded-none bg-card border-border-subtle"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
+
+          <form onSubmit={handleCreateCampaign} className="space-y-4">
+            {/* Step 1: Campaign Metadata */}
+            <div className="space-y-2">
+              <div className="text-xs font-bold text-foreground border-b border-border-subtle pb-1">
+                1. Campaign Details
+              </div>
               <div className="space-y-1">
-                <Label htmlFor="campSeq">Outbound Sequence</Label>
+                <Label htmlFor="campName">Campaign Name <span className="text-danger">*</span></Label>
+                <Input
+                  id="campName"
+                  placeholder="e.g. Q4 SaaS Leads Outreach"
+                  value={campName}
+                  onChange={(e) => setCampName(e.target.value)}
+                  required
+                  className="rounded-none bg-card border-border-subtle"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="campDesc">Description</Label>
+                <Input
+                  id="campDesc"
+                  placeholder="Target audience and campaign goals..."
+                  value={campDesc}
+                  onChange={(e) => setCampDesc(e.target.value)}
+                  className="rounded-none bg-card border-border-subtle text-xs"
+                />
+              </div>
+            </div>
+
+            {/* Step 2: Target Audience */}
+            <div className="space-y-2">
+              <div className="text-xs font-bold text-foreground border-b border-border-subtle pb-1">
+                2. Target Audience
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="campAudience">Select Audience Segment</Label>
+                <select
+                  id="campAudience"
+                  value={selectedAudienceId}
+                  onChange={(e) => setSelectedAudienceId(e.target.value)}
+                  className="w-full h-8 px-2 bg-card border border-border-subtle rounded-none text-xs focus-visible:outline-none"
+                >
+                  <option value="">-- All Active Contacts --</option>
+                  {((audiencesQuery.data || []) as any[]).map((aud: any) => (
+                    <option key={aud.id} value={aud.id}>
+                      {`${aud.name} (${aud.contactCount || 0} contacts)`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Step 3: Message & Sequence */}
+            <div className="space-y-2">
+              <div className="text-xs font-bold text-foreground border-b border-border-subtle pb-1">
+                3. Outreach Message & Sequence
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="campSeq">Existing Sequence <span className="text-muted-foreground font-normal">(Optional if writing inline)</span></Label>
                 <select
                   id="campSeq"
                   value={campSeqId}
                   onChange={(e) => setCampSeqId(e.target.value)}
-                  className="w-full h-8 px-2 bg-background border border-border-subtle rounded-none text-xs focus-visible:outline-none"
-                  required
+                  className="w-full h-8 px-2 bg-card border border-border-subtle rounded-none text-xs focus-visible:outline-none"
                 >
-                  <option value="">-- Select Sequence --</option>
+                  <option value="">-- Build Inline Message Below --</option>
                   {sequences.map((seq: any) => (
                     <option key={seq.id} value={seq.id}>
                       {seq.name}
@@ -1524,16 +1659,63 @@ export default function CampaignsScreen() {
                   ))}
                 </select>
               </div>
+
+              {!campSeqId && (
+                <div className="space-y-2 bg-surface-3 p-3 border border-border-subtle">
+                  <div className="space-y-1">
+                    <Label htmlFor="inlineSubject" className="text-xs font-semibold">Email Subject</Label>
+                    <Input
+                      id="inlineSubject"
+                      placeholder="Quick question regarding {{company}}"
+                      value={inlineSubject}
+                      onChange={(e) => setInlineSubject(e.target.value)}
+                      className="rounded-none bg-card border-border-subtle text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="inlineBody" className="text-xs font-semibold">Initial Message</Label>
+                    <Textarea
+                      id="inlineBody"
+                      rows={3}
+                      placeholder="Hi {{firstName}}, I saw your company {{company}}..."
+                      value={inlineBody}
+                      onChange={(e) => setInlineBody(e.target.value)}
+                      className="rounded-none bg-card border-border-subtle text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1 pt-1">
+                    <Label htmlFor="followUpBody" className="text-xs font-semibold flex items-center justify-between">
+                      <span>Follow-up Message (Optional)</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">Wait {followUpWaitDays} days</span>
+                    </Label>
+                    <Textarea
+                      id="followUpBody"
+                      rows={2}
+                      placeholder="Following up on my previous note..."
+                      value={followUpBody}
+                      onChange={(e) => setFollowUpBody(e.target.value)}
+                      className="rounded-none bg-card border-border-subtle text-xs"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Step 4: Sender & Schedule Settings */}
+            <div className="space-y-2">
+              <div className="text-xs font-bold text-foreground border-b border-border-subtle pb-1">
+                4. Sender & Schedule Settings
+              </div>
               <div className="space-y-1">
-                <Label htmlFor="campAcc">Sender Email Account</Label>
+                <Label htmlFor="campAcc">Sender Email Account <span className="text-danger">*</span></Label>
                 <select
                   id="campAcc"
                   value={campAccId}
                   onChange={(e) => setCampAccId(e.target.value)}
-                  className="w-full h-8 px-2 bg-background border border-border-subtle rounded-none text-xs focus-visible:outline-none"
+                  className="w-full h-8 px-2 bg-card border border-border-subtle rounded-none text-xs focus-visible:outline-none"
                   required
                 >
-                  <option value="">-- Select Account --</option>
+                  <option value="">-- Select Sender Account --</option>
                   {accounts.map((acc: any) => (
                     <option key={acc.id} value={acc.id}>
                       {`${acc.name} (${acc.email})`}
@@ -1541,36 +1723,39 @@ export default function CampaignsScreen() {
                   ))}
                 </select>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label htmlFor="campLimit">Daily Send Limit</Label>
-                <Input
-                  id="campLimit"
-                  type="number"
-                  value={campLimit}
-                  onChange={(e) => setCampLimit(parseInt(e.target.value))}
-                  required
-                  className="rounded-none bg-card border-border-subtle font-mono text-xs"
-                />
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="campLimit">Daily Limit</Label>
+                  <Input
+                    id="campLimit"
+                    type="number"
+                    value={campLimit}
+                    onChange={(e) => setCampLimit(parseInt(e.target.value) || 200)}
+                    required
+                    className="rounded-none bg-card border-border-subtle font-mono text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="campTz">Timezone</Label>
+                  <Input
+                    id="campTz"
+                    value={campTimezone}
+                    onChange={(e) => setCampTimezone(e.target.value)}
+                    required
+                    className="rounded-none bg-card border-border-subtle text-xs"
+                  />
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="campTz">Timezone</Label>
-                <Input
-                  id="campTz"
-                  value={campTimezone}
-                  onChange={(e) => setCampTimezone(e.target.value)}
-                  required
-                  className="rounded-none bg-card border-border-subtle text-xs"
-                />
-              </div>
             </div>
-            <div className="flex justify-end gap-2 pt-2 border-t border-border-subtle">
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-border-subtle">
               <Button type="button" variant="secondary" className="rounded-none" onClick={() => setCampaignOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" className="rounded-none" disabled={createCampaignMutation.isPending}>
-                Create Draft Campaign
+              <Button type="submit" className="rounded-none gap-1.5">
+                <Megaphone className="w-3.5 h-3.5" />
+                Launch Outreach
               </Button>
             </div>
           </form>

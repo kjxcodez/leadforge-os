@@ -678,6 +678,64 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE email_accounts ADD COLUMN tokenExpiresAt TEXT;
       ALTER TABLE email_accounts ADD COLUMN googleAccountId TEXT;
     `
+  },
+  {
+    name: '027_discovery_provenance',
+    up: `
+      CREATE TABLE IF NOT EXISTS discovery_runs (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        name TEXT NOT NULL,
+        query TEXT NOT NULL,
+        country TEXT,
+        state TEXT,
+        city TEXT,
+        provider TEXT NOT NULL DEFAULT 'google_maps',
+        status TEXT NOT NULL DEFAULT 'pending',
+        resultCount INTEGER DEFAULT 0,
+        error TEXT,
+        startedAt DATETIME,
+        finishedAt DATETIME,
+        syncStatus TEXT DEFAULT 'pending',
+        version INTEGER DEFAULT 1,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        deletedAt DATETIME DEFAULT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS company_discovery_runs (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        companyId TEXT NOT NULL,
+        discoveryRunId TEXT NOT NULL,
+        requiresReview INTEGER DEFAULT 0,
+        syncStatus TEXT DEFAULT 'pending',
+        version INTEGER DEFAULT 1,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS audiences (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        entityType TEXT NOT NULL DEFAULT 'contacts',
+        filterDefinition TEXT NOT NULL DEFAULT '{}',
+        syncStatus TEXT DEFAULT 'pending',
+        version INTEGER DEFAULT 1,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        deletedAt DATETIME DEFAULT NULL
+      );
+
+      ALTER TABLE companies ADD COLUMN requiresReview INTEGER DEFAULT 0;
+
+      CREATE INDEX IF NOT EXISTS idx_discovery_runs_workspaceId ON discovery_runs(workspaceId);
+      CREATE INDEX IF NOT EXISTS idx_company_discovery_runs_companyId ON company_discovery_runs(companyId);
+      CREATE INDEX IF NOT EXISTS idx_company_discovery_runs_runId ON company_discovery_runs(discoveryRunId);
+      CREATE INDEX IF NOT EXISTS idx_audiences_workspaceId ON audiences(workspaceId);
+    `
   }
 ];
 

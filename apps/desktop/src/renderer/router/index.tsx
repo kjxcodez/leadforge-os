@@ -40,6 +40,7 @@ const OperationsCenterScreen = lazy(() =>
   import('../screens/OperationsCenterScreen').then((m) => ({ default: m.OperationsCenterScreen }))
 );
 const ReportsScreen = lazy(() => import('../screens/ReportsScreen'));
+const AudiencesScreen = lazy(() => import('../screens/AudiencesScreen'));
 const OnboardingScreen = lazy(() => import('../screens/OnboardingScreen'));
 const PreferencesScreen = lazy(() => import('../screens/PreferencesScreen'));
 
@@ -167,6 +168,7 @@ const router = createHashRouter([
           },
           { path: '/companies', element: <CompaniesScreen /> },
           { path: '/contacts', element: <ContactsScreen /> },
+          { path: '/audiences', element: <AudiencesScreen /> },
           { path: '/campaigns', element: <CampaignsScreen /> },
           { path: '/discovery', element: <DiscoveryScreen /> },
           { path: '/automation', element: <AutomationScreen /> },

@@ -5,3 +5,6 @@ export { CompanyRepository } from './company/company.repository.js';
 export { ContactRepository } from './contact/contact.repository.js';
 export { CampaignRepository } from './campaign/campaign.repository.js';
 export { OutreachRepository } from './outreach/outreach.repository.js';
+export { DiscoveryRunRepository } from './discovery-run/discovery-run.repository.js';
+export { CompanyDiscoveryRunRepository } from './company-discovery-run/company-discovery-run.repository.js';
+export { AudienceRepository } from './audience/audience.repository.js';

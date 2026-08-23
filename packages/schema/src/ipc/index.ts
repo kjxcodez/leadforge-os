@@ -285,6 +285,63 @@ export interface IpcChannelMap {
     output: void;
   };
 
+  'discovery:run:create': {
+    input: {
+      workspaceId: string;
+      name?: string;
+      query: string;
+      country?: string;
+      state?: string;
+      city?: string;
+      maxResults?: number;
+      provider?: string;
+    };
+    output: any;
+  };
+  'discovery:run:list': {
+    input: { workspaceId: string };
+    output: any[];
+  };
+  'discovery:run:get': {
+    input: { workspaceId: string; id: string };
+    output: any;
+  };
+  'audiences:list': {
+    input: { workspaceId: string };
+    output: any[];
+  };
+  'audiences:create': {
+    input: any;
+    output: any;
+  };
+  'audiences:get': {
+    input: { workspaceId: string; id: string };
+    output: any;
+  };
+  'audiences:update': {
+    input: { id: string; dto: any };
+    output: any;
+  };
+  'audiences:delete': {
+    input: { workspaceId: string; id: string };
+    output: void;
+  };
+  'audiences:resolve': {
+    input: { workspaceId: string; id?: string; filterDefinition?: any };
+    output: { contactIds: string[]; companyIds: string[] };
+  };
+  'companies:query': {
+    input: {
+      workspaceId: string;
+      search?: string;
+      status?: string;
+      industry?: string;
+      discoveryRunId?: string;
+      location?: string;
+    };
+    output: any[];
+  };
+
   'activities:list': {
     input: any;
     output: any[];

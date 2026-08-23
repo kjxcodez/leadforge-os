@@ -6,7 +6,9 @@ import {
   contactsRouter,
   campaignsRouter,
   outreachRouter,
-  workspacesRouter
+  workspacesRouter,
+  discoveryRunsRouter,
+  audiencesRouter
 } from './business.js';
 import { automationRouter } from './automation.js';
 import { emailRouter } from './email/index.js';
@@ -71,6 +73,8 @@ apiRouter.use('/campaigns/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/outreach/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/workspaces/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/automation/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/discovery-runs/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/audiences/*', authMiddleware, workspaceMiddleware);
 // Protect email endpoints except public OAuth callback from Chrome
 apiRouter.use('/email/*', async (c, next) => {
   if (c.req.path.endsWith('/email/accounts/gmail/oauth/callback')) {
@@ -87,6 +91,8 @@ apiRouter.route('/outreach', outreachRouter);
 apiRouter.route('/workspaces', workspacesRouter);
 apiRouter.route('/automation', automationRouter);
 apiRouter.route('/email', emailRouter);
+apiRouter.route('/discovery-runs', discoveryRunsRouter);
+apiRouter.route('/audiences', audiencesRouter);
 
 export { apiRouter };
 export { healthRouter, authRouter };

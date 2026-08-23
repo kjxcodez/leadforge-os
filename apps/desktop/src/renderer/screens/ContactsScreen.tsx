@@ -184,6 +184,25 @@ export default function ContactsScreen() {
     }
   };
 
+  const handleSaveAudience = async () => {
+    const defaultName = search || statusFilter ? `Contacts (${search || statusFilter})` : 'Selected Contacts Segment';
+    const audName = prompt('Enter a name for this Audience segment:', defaultName);
+    if (!audName || !audName.trim()) return;
+
+    await window.ipc.invoke('audiences:create', {
+      workspaceId,
+      name: audName.trim(),
+      entityType: 'contacts',
+      filterDefinition: {
+        search: search || undefined,
+        status: statusFilter || undefined
+      }
+    });
+
+    toast.success(`Saved audience segment "${audName.trim()}"!`);
+    setSelectedIds([]);
+  };
+
   return (
     <div className="flex h-full gap-4 text-xs font-sans">
       <div className="flex-1 space-y-4 overflow-y-auto pr-1">
@@ -202,6 +221,7 @@ export default function ContactsScreen() {
           onCreateTrigger={() => setCreateOpen(true)}
           selectedCount={selectedIds.length}
           onBulkDelete={handleBulkDelete}
+          onBulkSaveAudience={handleSaveAudience}
           onBulkStatusChange={handleBulkStatusChange}
           bulkStatusOptions={Object.values(ContactStatus)}
           onBulkEnroll={() => setEnrollOpen(true)}

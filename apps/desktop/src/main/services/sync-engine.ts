@@ -16,7 +16,10 @@ interface QueueItem {
     | 'sequences'
     | 'sequence_executions'
     | 'email_accounts'
-    | 'templates';
+    | 'templates'
+    | 'discovery_runs'
+    | 'company_discovery_runs'
+    | 'audiences';
   entityId: string;
   operation: 'CREATE' | 'UPDATE' | 'DELETE';
   payload: string;
@@ -207,6 +210,36 @@ export class SyncEngine {
         }
       } catch (e) {
         AppLogger.warn('SyncEngine', 'Failed to pull templates', this.workspaceId, e);
+      }
+
+      // H. Pull discovery_runs
+      try {
+        const runs = await this.sdk.discovery.listRuns();
+        if (runs && runs.length) {
+          const records = runs.map((r: any) => ({
+            ...r,
+            workspaceId: this.workspaceId,
+            syncStatus: 'synced'
+          }));
+          await LocalCRMRepository.saveMany('discovery_runs', records, true);
+        }
+      } catch (e) {
+        AppLogger.warn('SyncEngine', 'Failed to pull discovery_runs', this.workspaceId, e);
+      }
+
+      // I. Pull audiences
+      try {
+        const audiences = await this.sdk.audiences.list();
+        if (audiences && audiences.length) {
+          const records = audiences.map((a: any) => ({
+            ...a,
+            workspaceId: this.workspaceId,
+            syncStatus: 'synced'
+          }));
+          await LocalCRMRepository.saveMany('audiences', records, true);
+        }
+      } catch (e) {
+        AppLogger.warn('SyncEngine', 'Failed to pull audiences', this.workspaceId, e);
       }
 
       AppLogger.info(
@@ -434,6 +467,15 @@ export class SyncEngine {
         create: (payload: any) => this.sdk.outreach.createTemplate(payload),
         update: (id: string, payload: any) => Promise.resolve(),
         delete: (id: string) => this.sdk.outreach.deleteTemplate(id)
+      };
+    }
+    if (entityType === 'discovery_runs') return this.sdk.discovery;
+    if (entityType === 'audiences') return this.sdk.audiences;
+    if (entityType === 'company_discovery_runs') {
+      return {
+        create: (payload: any) => Promise.resolve(),
+        update: (id: string, payload: any) => Promise.resolve(),
+        delete: (id: string) => Promise.resolve()
       };
     }
     return null;

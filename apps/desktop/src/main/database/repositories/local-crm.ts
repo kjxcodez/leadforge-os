@@ -155,7 +155,10 @@ export const LocalCRMRepository = {
         'sequences',
         'sequence_executions',
         'email_accounts',
-        'templates'
+        'templates',
+        'discovery_runs',
+        'company_discovery_runs',
+        'audiences'
       ];
       if (!skipQueue && syncableTables.includes(tableName)) {
         db.prepare(
@@ -251,7 +254,10 @@ export const LocalCRMRepository = {
       'sequences',
       'sequence_executions',
       'email_accounts',
-      'templates'
+      'templates',
+      'discovery_runs',
+      'company_discovery_runs',
+      'audiences'
     ];
 
     const transaction = db.transaction((list: any[]) => {
@@ -331,7 +337,15 @@ export const LocalCRMRepository = {
     const db = getDatabase(workspaceId);
     if (!/^[a-zA-Z0-9_]+$/.test(tableName)) throw new Error(`Invalid table: ${tableName}`);
 
-    const syncableTables = ['companies', 'contacts', 'campaigns', 'email_accounts', 'templates'];
+    const syncableTables = [
+      'companies',
+      'contacts',
+      'campaigns',
+      'email_accounts',
+      'templates',
+      'discovery_runs',
+      'audiences'
+    ];
 
     const transaction = db.transaction(() => {
       // 1. Mark soft delete locally

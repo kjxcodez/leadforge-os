@@ -8,3 +8,5 @@ export * from './workspaces';
 export * from './discovery';
 export * from './activities';
 export * from './automation';
+export * from './audiences';
+

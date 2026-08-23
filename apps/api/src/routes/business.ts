@@ -18,6 +18,8 @@ import { CompanyService } from '../services/company/company.service.js';
 import { ContactService } from '../services/contact/contact.service.js';
 import { CampaignService } from '../services/campaign/campaign.service.js';
 import { OutreachService } from '../services/outreach/outreach.service.js';
+import { DiscoveryRunService } from '../services/discovery-run/discovery-run.service.js';
+import { AudienceService } from '../services/audience/audience.service.js';
 import { successResponse } from '../utils/index.js';
 import { ForbiddenError } from '../errors/index.js';
 
@@ -26,6 +28,8 @@ export const contactsRouter = new OpenAPIHono();
 export const campaignsRouter = new OpenAPIHono();
 export const outreachRouter = new OpenAPIHono();
 export const workspacesRouter = new OpenAPIHono();
+export const discoveryRunsRouter = new OpenAPIHono();
+export const audiencesRouter = new OpenAPIHono();
 
 const workspaceService = new WorkspaceService();
 
@@ -629,3 +633,92 @@ outreachRouter.get('/templates/:id/preview', async (c) => {
   const preview = await service.previewTemplate(id, contactId);
   return c.json(successResponse(preview));
 });
+
+// ── Discovery Runs Router ──────────────────────────────────────────────────
+
+discoveryRunsRouter.get('/', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const page = parseInt(c.req.query('page') || '1');
+  const limit = parseInt(c.req.query('limit') || '100');
+  const service = new DiscoveryRunService(wsId);
+  const result = await service.listRuns(page, limit);
+  return c.json(successResponse(result.data));
+});
+
+discoveryRunsRouter.get('/:id', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const service = new DiscoveryRunService(wsId);
+  const run = await service.getRunById(id);
+  return c.json(successResponse(run));
+});
+
+discoveryRunsRouter.post('/', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const body = await c.req.json();
+  const service = new DiscoveryRunService(wsId);
+  const run = await service.createRun({ ...body, workspaceId: wsId });
+  return c.json(successResponse(run));
+});
+
+discoveryRunsRouter.patch('/:id', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const service = new DiscoveryRunService(wsId);
+  const run = await service.updateRun(id, body);
+  return c.json(successResponse(run));
+});
+
+// ── Audiences Router ────────────────────────────────────────────────────────
+
+audiencesRouter.get('/', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const page = parseInt(c.req.query('page') || '1');
+  const limit = parseInt(c.req.query('limit') || '100');
+  const service = new AudienceService(wsId);
+  const result = await service.listAudiences(page, limit);
+  return c.json(successResponse(result.data));
+});
+
+audiencesRouter.get('/:id', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const service = new AudienceService(wsId);
+  const audience = await service.getAudienceById(id);
+  return c.json(successResponse(audience));
+});
+
+audiencesRouter.post('/', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const body = await c.req.json();
+  const service = new AudienceService(wsId);
+  const audience = await service.createAudience({ ...body, workspaceId: wsId });
+  return c.json(successResponse(audience));
+});
+
+audiencesRouter.patch('/:id', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const service = new AudienceService(wsId);
+  const audience = await service.updateAudience(id, body);
+  return c.json(successResponse(audience));
+});
+
+audiencesRouter.delete('/:id', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const service = new AudienceService(wsId);
+  await service.deleteAudience(id);
+  return c.json(successResponse({ success: true }));
+});
+
+audiencesRouter.post('/:id/resolve', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const service = new AudienceService(wsId);
+  const resolved = await service.resolveAudience(id);
+  return c.json(successResponse(resolved));
+});
+

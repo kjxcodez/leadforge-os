@@ -143,7 +143,18 @@ function normalizePhone(raw: string | null): string | null {
  * Queries maps listings using Playwright and populates the companies SQLite table.
  */
 export async function scrapeMaps(ctx: JobContext): Promise<any> {
-  const query = ctx.payload.query || '';
+  const rawQuery = ctx.payload.query || '';
+  const country = ctx.payload.country;
+  const state = ctx.payload.state;
+  const city = ctx.payload.city;
+  const discoveryRunId = ctx.payload.discoveryRunId;
+
+  const locParts = [city, state, country].filter(Boolean);
+  let effectiveQuery = rawQuery;
+  if (locParts.length > 0 && !rawQuery.toLowerCase().includes(locParts[0].toLowerCase())) {
+    effectiveQuery = `${rawQuery} in ${locParts.join(', ')}`;
+  }
+
   const maxResults =
     ctx.payload.maxResults !== undefined
       ? Number(ctx.payload.maxResults)
@@ -152,7 +163,7 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
         : 100;
 
   ctx.emitLog(
-    `Initializing Google Maps Playwright scraper. Query: "${query}" | Limit: ${maxResults}`,
+    `Initializing Google Maps Playwright scraper. Query: "${effectiveQuery}" | Limit: ${maxResults}`,
     'info'
   );
 
@@ -201,7 +212,7 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
     });
 
     const page = await context.newPage();
-    const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
+    const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(effectiveQuery)}`;
 
     ctx.emitLog(`Navigating to Google Maps search page: ${searchUrl}`, 'info');
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -444,10 +455,19 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
     const domain = website ? extractDomain(website) : null;
 
     if (domain) {
-      const duplicate = db.prepare('SELECT id FROM companies WHERE domain = ?').get(domain);
+      const duplicate = db.prepare('SELECT id FROM companies WHERE workspaceId = ? AND domain = ?').get(ctx.workspaceId, domain) as any;
       if (duplicate) {
         duplicatesCount++;
         ctx.emitLog(`Skipped duplicate domain: "${domain}" (Company: "${name}")`, 'info');
+        if (discoveryRunId) {
+          const provId = randomUUID();
+          try {
+            db.prepare(`
+              INSERT INTO company_discovery_runs (id, workspaceId, companyId, discoveryRunId, requiresReview, syncStatus, createdAt, updatedAt)
+              VALUES (?, ?, ?, ?, 0, 'pending', datetime('now'), datetime('now'))
+            `).run(provId, ctx.workspaceId, duplicate.id, discoveryRunId);
+          } catch {}
+        }
         return;
       }
     }
@@ -493,6 +513,34 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
         })
       );
 
+      if (discoveryRunId) {
+        const provId = randomUUID();
+        db.prepare(
+          `
+          INSERT INTO company_discovery_runs (id, workspaceId, companyId, discoveryRunId, requiresReview, syncStatus, createdAt, updatedAt)
+          VALUES (?, ?, ?, ?, 0, 'pending', datetime('now'), datetime('now'))
+        `
+        ).run(provId, ctx.workspaceId, companyId, discoveryRunId);
+
+        db.prepare(
+          `
+          INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
+          VALUES (?, ?, ?, ?, 'CREATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
+        `
+        ).run(
+          randomUUID(),
+          ctx.workspaceId,
+          'company_discovery_runs',
+          provId,
+          JSON.stringify({
+            id: provId,
+            workspaceId: ctx.workspaceId,
+            companyId,
+            discoveryRunId
+          })
+        );
+      }
+
       // Auto-generate primary contact record for the company if phone is available.
       // Deduplication guard: skip if a contact for this company already exists (prevents re-scrape duplicates).
       if (phone) {
@@ -536,6 +584,29 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
         `Stored company: "${name}" | Website: ${website || 'N/A'} | Phone: ${phone || 'N/A'} | Rating: ${rating || 'N/A'}`,
         'info'
       );
+
+      if (discoveryRunId) {
+        db.prepare(
+          `
+          UPDATE discovery_runs
+          SET resultCount = resultCount + 1, updatedAt = datetime('now')
+          WHERE id = ? AND workspaceId = ?
+        `
+        ).run(discoveryRunId, ctx.workspaceId);
+      }
     })();
+  }
+
+  // Update discovery run status on completion
+  if (discoveryRunId && db) {
+    try {
+      (db as Database.Database).prepare(
+        `
+        UPDATE discovery_runs
+        SET status = 'completed', finishedAt = datetime('now'), updatedAt = datetime('now')
+        WHERE id = ? AND workspaceId = ?
+      `
+      ).run(discoveryRunId, ctx.workspaceId);
+    } catch {}
   }
 }

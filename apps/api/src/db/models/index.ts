@@ -14,4 +14,10 @@ export {
 export { SequenceLogModel, type SequenceLogDocument } from './sequence-log.model.js';
 export { BetaApplicantModel, type BetaApplicantDocument } from './beta-applicant.model.js';
 export { OAuthTransactionModel, type OAuthTransactionDocument } from './oauth-transaction.model.js';
+export { DiscoveryRunModel, type DiscoveryRunDocument } from './discovery-run.model.js';
+export {
+  CompanyDiscoveryRunModel,
+  type CompanyDiscoveryRunDocument
+} from './company-discovery-run.model.js';
+export { AudienceModel, type AudienceDocument } from './audience.model.js';
 

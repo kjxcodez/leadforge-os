@@ -18,7 +18,7 @@ export interface CompanyDocument
     TimestampDocument,
     WorkspaceScopedDocument {
   name: string;
-  domain: string;
+  domain?: string | null;
   website?: string | null;
   industry?: string | null;
   size?: string | null; // Employee range e.g. "11-50"
@@ -41,7 +41,7 @@ const companySchema = new Schema<CompanyDocument>(
     },
     domain: {
       type: String,
-      required: true,
+      default: null,
       trim: true,
       lowercase: true
     },

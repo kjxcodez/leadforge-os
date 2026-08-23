@@ -38,8 +38,58 @@ export interface DiscoveryResult {
   }>;
 }
 
+export interface DiscoveryRun {
+  id: string;
+  workspaceId: string;
+  name: string;
+  query: string;
+  country?: string | null;
+  state?: string | null;
+  city?: string | null;
+  provider: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  resultCount: number;
+  error?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export class DiscoveryModule {
   constructor(private client: HttpClient) {}
+
+  /**
+   * Retrieves workspace-wide discovery runs list.
+   */
+  public async listRuns(): Promise<DiscoveryRun[]> {
+    return this.client.get<DiscoveryRun[]>('/discovery-runs');
+  }
+
+  public async createRun(payload: Partial<DiscoveryRun>): Promise<DiscoveryRun> {
+    return this.client.post<DiscoveryRun>('/discovery-runs', payload);
+  }
+
+  public async getRun(id: string): Promise<DiscoveryRun> {
+    return this.client.get<DiscoveryRun>(`/discovery-runs/${id}`);
+  }
+
+  public async updateRun(id: string, payload: Partial<DiscoveryRun>): Promise<DiscoveryRun> {
+    return this.client.patch<DiscoveryRun>(`/discovery-runs/${id}`, payload);
+  }
+
+  // Alias helpers for SyncEngine compatibility
+  public async list(): Promise<DiscoveryRun[]> {
+    return this.listRuns();
+  }
+
+  public async create(payload: Partial<DiscoveryRun>): Promise<DiscoveryRun> {
+    return this.createRun(payload);
+  }
+
+  public async update(id: string, payload: Partial<DiscoveryRun>): Promise<DiscoveryRun> {
+    return this.updateRun(id, payload);
+  }
 
   /**
    * Retrieves workspace-wide discovery jobs list.
