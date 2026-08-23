@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '../components/common/PageHeader';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -207,7 +208,10 @@ export default function DiscoveryScreen() {
 
   const handleCreateJob = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    if (!jobQuery.trim()) return;
+    if (!jobQuery.trim()) {
+      toast.error('Please enter a target business keyword or category (e.g. HVAC contractors).');
+      return;
+    }
     createRunMutation.mutate({
       name: jobName,
       query: jobQuery,

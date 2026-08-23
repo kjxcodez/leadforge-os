@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '../components/common/PageHeader';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -92,7 +93,10 @@ export default function AudiencesScreen() {
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      toast.error('Please enter an Audience Name.');
+      return;
+    }
 
     const filterDefinition: any = {};
     if (searchTerm.trim()) filterDefinition.search = searchTerm.trim();
@@ -108,6 +112,11 @@ export default function AudiencesScreen() {
   };
 
   const handleCreateOutreach = (audience: any) => {
+    if (audience.contactCount === 0) {
+      toast.warning(`Audience "${audience.name}" currently has 0 contacts. Setup outreach now or discover more leads.`);
+    } else {
+      toast.info(`Preparing outreach campaign for audience "${audience.name}" (${audience.contactCount} contacts).`);
+    }
     navigate(`/campaigns?audienceId=${audience.id}`);
   };
 
