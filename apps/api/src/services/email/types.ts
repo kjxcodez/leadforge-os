@@ -44,9 +44,10 @@ export interface SafeEmailAccount {
 
 export interface EmailAttachmentInput {
   filename: string;
-  contentBase64?: string;
-  path?: string;
-  contentType?: string;
+  contentBase64?: string | undefined;
+  path?: string | undefined;
+  contentType?: string | undefined;
+  size?: number | undefined;
 }
 
 export interface SendEmailInput {

@@ -156,11 +156,11 @@ export class EmailService {
         lastUsedAt: new Date()
       });
     } else {
-      const idx = existingRecipients.findIndex(
+      const match = existingRecipients.find(
         (r) => r.email.trim().toLowerCase() === normalizedTo
       );
-      if (idx !== -1) {
-        existingRecipients[idx].lastUsedAt = new Date();
+      if (match) {
+        match.lastUsedAt = new Date();
       }
     }
 

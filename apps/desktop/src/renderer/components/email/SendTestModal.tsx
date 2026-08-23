@@ -101,7 +101,7 @@ export const SendTestModal = ({ isOpen, onClose, account }: SendTestModalProps) 
 
     setIsSending(true);
     try {
-      const result = await window.ipc.invoke('email-accounts:send-test', {
+      const result: any = await (window.ipc.invoke as any)('email-accounts:send-test', {
         id: account.id,
         to: targetEmail,
         useSignature,

@@ -20,18 +20,19 @@ export const GMAIL_SEND_SCOPE =
 
 export interface EmailAttachmentInput {
   filename: string;
-  contentBase64?: string;
-  path?: string;
-  contentType?: string;
+  contentBase64?: string | undefined;
+  path?: string | undefined;
+  contentType?: string | undefined;
+  size?: number | undefined;
 }
 
 export interface SendMessageOptions {
   from: string;
   to: string;
   subject: string;
-  text?: string;
-  html?: string;
-  attachments?: EmailAttachmentInput[];
+  text?: string | undefined;
+  html?: string | undefined;
+  attachments?: EmailAttachmentInput[] | undefined;
 }
 
 export interface GoogleOAuthConfig {

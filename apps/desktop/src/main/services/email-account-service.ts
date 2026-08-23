@@ -87,7 +87,13 @@ export async function sendTestEmail(
     }>;
   }
 ): Promise<{ sent: boolean; messageId?: string; sentTo?: string }> {
-  const processedAttachments = [];
+  const processedAttachments: Array<{
+    filename: string;
+    contentBase64?: string;
+    path?: string;
+    contentType?: string;
+    size?: number;
+  }> = [];
   if (Array.isArray(payload.attachments)) {
     const fs = await import('fs');
     for (const att of payload.attachments) {
@@ -95,19 +101,22 @@ export async function sendTestEmail(
       if (!contentBase64 && att.path && fs.existsSync(att.path)) {
         contentBase64 = fs.readFileSync(att.path).toString('base64');
       }
-      processedAttachments.push({
-        filename: att.filename,
-        contentBase64,
-        contentType: att.contentType,
-        size: att.size
-      });
+      const item: any = { filename: att.filename };
+      if (contentBase64) item.contentBase64 = contentBase64;
+      if (att.contentType) item.contentType = att.contentType;
+      if (att.size) item.size = att.size;
+      processedAttachments.push(item);
     }
   }
 
-  const res = await sdk.outreach.sendTestEmail(payload.id, {
+  const sendOpts: any = {
     to: payload.to,
-    useSignature: payload.useSignature,
     attachments: processedAttachments
-  });
+  };
+  if (payload.useSignature !== undefined) {
+    sendOpts.useSignature = payload.useSignature;
+  }
+
+  const res = await sdk.outreach.sendTestEmail(payload.id, sendOpts);
   return { sent: true, messageId: res.messageId, sentTo: res.sentTo };
 }

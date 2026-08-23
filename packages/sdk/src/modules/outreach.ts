@@ -15,6 +15,14 @@ export interface SendEmailPayload {
   text?: string;
   html?: string;
   from?: string;
+  useSignature?: boolean;
+  attachments?: Array<{
+    filename: string;
+    contentBase64?: string;
+    path?: string;
+    contentType?: string;
+    size?: number;
+  }>;
 }
 
 export interface OAuthConnectResult {
