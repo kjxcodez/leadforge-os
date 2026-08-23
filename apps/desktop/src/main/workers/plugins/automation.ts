@@ -1790,9 +1790,27 @@ async function handleSendEmailStep(
   execCtx: ExecutionContext
 ): Promise<{ status: 'success' }> {
   const templateId = step.config?.templateId;
-  if (!templateId) {
+  let rawSubject = step.config?.subject || '';
+  let rawBody = step.config?.body || '';
+
+  if (templateId) {
+    const tpl = db
+      .prepare(
+        `
+      SELECT subject, body FROM templates
+      WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
+    `
+      )
+      .get(templateId, workspaceId) as { subject: string; body: string } | undefined;
+    if (tpl) {
+      rawSubject = tpl.subject;
+      rawBody = tpl.body;
+    }
+  }
+
+  if (!rawSubject || !rawBody) {
     throw new Error(
-      'Automation workflow: SEND_EMAIL step config missing required parameter: templateId.'
+      'Automation workflow: SEND_EMAIL step config missing required subject/body or valid templateId.'
     );
   }
 
@@ -1817,24 +1835,13 @@ async function handleSendEmailStep(
   if (!contact) throw new Error(`Contact not found: ${entityId}`);
   if (!contact.email) throw new Error(`Contact ${entityId} has no valid email address.`);
 
-  const tpl = db
-    .prepare(
-      `
-    SELECT subject, body FROM templates
-    WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-  `
-    )
-    .get(templateId, workspaceId) as { subject: string; body: string } | undefined;
-
-  if (!tpl) throw new Error(`Template not found: ${templateId}`);
-
   // Merge fresh DB snapshot into context for accurate rendering
   const renderCtx: ExecutionContext = {
     ...execCtx,
     contact: { ...execCtx.contact, ...contact }
   };
-  const renderedSubject = resolveVariables(tpl.subject, renderCtx);
-  const renderedBody = resolveVariables(tpl.body, renderCtx);
+  const renderedSubject = resolveVariables(rawSubject, renderCtx);
+  const renderedBody = resolveVariables(rawBody, renderCtx);
 
   const apiUrl = process.env.API_URL || 'http://localhost:3001/api/v1';
   const authToken = ctx.payload._secrets?.sessionToken || process.env.SESSION_TOKEN || '';
@@ -2424,7 +2431,9 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     },
     validate: (step) => {
       const errors: string[] = [];
-      if (!step.config?.templateId) errors.push('missing templateId');
+      if (!step.config?.templateId && (!step.config?.subject || !step.config?.body)) {
+        errors.push('missing templateId or inline subject/body');
+      }
       return errors;
     },
     supportsRetry: () => true
