@@ -29,6 +29,7 @@ export const campaignsRouter = new OpenAPIHono();
 export const outreachRouter = new OpenAPIHono();
 export const workspacesRouter = new OpenAPIHono();
 export const discoveryRunsRouter = new OpenAPIHono();
+export const companyDiscoveryRunsRouter = new OpenAPIHono();
 export const audiencesRouter = new OpenAPIHono();
 
 const workspaceService = new WorkspaceService();
@@ -668,6 +669,44 @@ discoveryRunsRouter.patch('/:id', async (c) => {
   const service = new DiscoveryRunService(wsId);
   const run = await service.updateRun(id, body);
   return c.json(successResponse(run));
+});
+
+discoveryRunsRouter.delete('/:id', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const service = new DiscoveryRunService(wsId);
+  await service.deleteRun(id);
+  return c.json(successResponse({ success: true }));
+});
+
+// ── Company Discovery Runs (Provenance) Router ──────────────────────────────
+
+companyDiscoveryRunsRouter.post('/', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const body = await c.req.json();
+  const service = new DiscoveryRunService(wsId);
+  const prov = await service.recordCompanyProvenance(
+    body.companyId,
+    body.discoveryRunId,
+    body.requiresReview
+  );
+  return c.json(successResponse(prov));
+});
+
+companyDiscoveryRunsRouter.patch('/:id', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const body = await c.req.json();
+  const service = new DiscoveryRunService(wsId);
+  const prov = await service.recordCompanyProvenance(
+    body.companyId,
+    body.discoveryRunId,
+    body.requiresReview
+  );
+  return c.json(successResponse(prov));
+});
+
+companyDiscoveryRunsRouter.delete('/:id', async (c) => {
+  return c.json(successResponse({ success: true }));
 });
 
 // ── Audiences Router ────────────────────────────────────────────────────────

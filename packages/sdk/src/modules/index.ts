@@ -9,4 +9,6 @@ export * from './discovery';
 export * from './activities';
 export * from './automation';
 export * from './audiences';
+export * from './company-discovery-runs';
+
 

@@ -72,6 +72,28 @@ export function registerCampaignsIpc(): void {
           now
         );
 
+        // Queue mutation to sync sequence execution to MongoDB
+        db.prepare(
+          `
+          INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
+          VALUES (?, ?, 'sequence_executions', ?, 'CREATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
+        `
+        ).run(
+          randomUUID(),
+          runtime.workspaceId,
+          enrollmentId,
+          JSON.stringify({
+            id: enrollmentId,
+            sequenceId: campaign.sequenceId,
+            campaignId,
+            workspaceId: runtime.workspaceId,
+            contactId,
+            currentStep: 0,
+            status: campaign.status === 'Active' ? 'RUNNING' : 'PAUSED',
+            startedAt: now
+          })
+        );
+
         // If the campaign is already active, spawn the workflow job in the queue immediately
         if (campaign.status === 'Active') {
           const jobId = randomUUID();

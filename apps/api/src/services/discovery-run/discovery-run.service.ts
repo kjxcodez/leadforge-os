@@ -30,6 +30,10 @@ export class DiscoveryRunService {
     return this.discoveryRunRepository.update(id, data);
   }
 
+  public async deleteRun(id: string): Promise<boolean> {
+    return this.discoveryRunRepository.delete(id);
+  }
+
   public async recordCompanyProvenance(
     companyId: string,
     discoveryRunId: string,

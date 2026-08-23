@@ -12,7 +12,8 @@ import {
   ActivitiesModule,
   SequencesModule,
   ExecutionsModule,
-  AudiencesModule
+  AudiencesModule,
+  CompanyDiscoveryRunsModule
 } from '../modules';
 
 export class SdkClient {
@@ -30,6 +31,7 @@ export class SdkClient {
   public readonly sequences: SequencesModule;
   public readonly executions: ExecutionsModule;
   public readonly audiences: AudiencesModule;
+  public readonly companyDiscoveryRuns: CompanyDiscoveryRunsModule;
 
   constructor(config: HttpClientConfig) {
     this.httpClient = new HttpClient(config);
@@ -46,5 +48,6 @@ export class SdkClient {
     this.sequences = new SequencesModule(this.httpClient);
     this.executions = new ExecutionsModule(this.httpClient);
     this.audiences = new AudiencesModule(this.httpClient);
+    this.companyDiscoveryRuns = new CompanyDiscoveryRunsModule(this.httpClient);
   }
 }

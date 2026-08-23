@@ -471,13 +471,7 @@ export class SyncEngine {
     }
     if (entityType === 'discovery_runs') return this.sdk.discovery;
     if (entityType === 'audiences') return this.sdk.audiences;
-    if (entityType === 'company_discovery_runs') {
-      return {
-        create: (payload: any) => Promise.resolve(),
-        update: (id: string, payload: any) => Promise.resolve(),
-        delete: (id: string) => Promise.resolve()
-      };
-    }
+    if (entityType === 'company_discovery_runs') return this.sdk.companyDiscoveryRuns;
     return null;
   }
 

@@ -78,6 +78,10 @@ export class DiscoveryModule {
     return this.client.patch<DiscoveryRun>(`/discovery-runs/${id}`, payload);
   }
 
+  public async deleteRun(id: string): Promise<void> {
+    return this.client.delete<void>(`/discovery-runs/${id}`);
+  }
+
   // Alias helpers for SyncEngine compatibility
   public async list(): Promise<DiscoveryRun[]> {
     return this.listRuns();
@@ -89,6 +93,10 @@ export class DiscoveryModule {
 
   public async update(id: string, payload: Partial<DiscoveryRun>): Promise<DiscoveryRun> {
     return this.updateRun(id, payload);
+  }
+
+  public async delete(id: string): Promise<void> {
+    return this.deleteRun(id);
   }
 
   /**
