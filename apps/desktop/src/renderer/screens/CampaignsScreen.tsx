@@ -208,8 +208,8 @@ export default function CampaignsScreen() {
   });
 
   const verifyAccountMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return window.ipc.invoke('email-accounts:send-test', { id });
+    mutationFn: async (payload: { id: string; to: string; useSignature?: boolean }) => {
+      return window.ipc.invoke('email-accounts:send-test', payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email_accounts', workspaceId] });
@@ -257,8 +257,8 @@ export default function CampaignsScreen() {
   });
 
   const sendTestEmailMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return window.ipc.invoke('email-accounts:send-test', { id });
+    mutationFn: async (payload: { id: string; to: string; useSignature?: boolean }) => {
+      return window.ipc.invoke('email-accounts:send-test', payload);
     },
     onSuccess: (data: any) => {
       alert(`Test email sent to ${data?.sentTo || 'mailbox'}.`);

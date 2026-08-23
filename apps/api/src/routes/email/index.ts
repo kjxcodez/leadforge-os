@@ -25,7 +25,19 @@ const sendSchema = z.object({
   subject: z.string().min(1),
   text: z.string().optional(),
   html: z.string().optional(),
-  from: z.string().optional()
+  from: z.string().optional(),
+  useSignature: z.boolean().optional(),
+  attachments: z
+    .array(
+      z.object({
+        filename: z.string(),
+        contentBase64: z.string().optional(),
+        path: z.string().optional(),
+        contentType: z.string().optional(),
+        size: z.number().optional()
+      })
+    )
+    .optional()
 });
 
 // ── Accounts ──────────────────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import { SendTestModal } from '../components/email/SendTestModal';
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useWorkspace } from '../hooks/useWorkspace';
@@ -892,6 +893,8 @@ function EmailAccountsSection() {
     }
   };
 
+  const [testModalAccount, setTestModalAccount] = useState<any | null>(null);
+
   const handleDisconnect = async (id: string) => {
     if (!confirm('Are you sure you want to disconnect this Gmail account?')) return;
     setActionId(id);
@@ -906,16 +909,8 @@ function EmailAccountsSection() {
     }
   };
 
-  const handleSendTest = async (id: string) => {
-    setActionId(id);
-    try {
-      await window.ipc.invoke('email-accounts:send-test', { id });
-      toast.success('Test email sent successfully! Check your inbox.');
-    } catch (err: any) {
-      toast.error(`Test email failed: ${err.message || err}`);
-    } finally {
-      setActionId(null);
-    }
+  const handleSendTest = (account: any) => {
+    setTestModalAccount(account);
   };
 
   return (
@@ -993,11 +988,11 @@ function EmailAccountsSection() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleSendTest(acc.id)}
+                    onClick={() => handleSendTest(acc)}
                     disabled={actionId === acc.id || acc.status !== 'connected'}
                     className="rounded-none h-7 text-[10px] font-semibold"
                   >
-                    {actionId === acc.id ? 'Sending...' : 'Send Test'}
+                    Send Test
                   </Button>
                 )}
 
@@ -1014,6 +1009,17 @@ function EmailAccountsSection() {
             </div>
           ))}
         </div>
+      )}
+
+      {testModalAccount && (
+        <SendTestModal
+          isOpen={!!testModalAccount}
+          onClose={() => {
+            setTestModalAccount(null);
+            fetchAccounts();
+          }}
+          account={testModalAccount}
+        />
       )}
     </div>
   );

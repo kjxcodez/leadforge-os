@@ -83,6 +83,42 @@ export function registerOutreachIpc(sdk: SdkClient) {
     return sendTestEmail(sdk, payload);
   });
 
+  safeRegister('attachments:save', async (_event, { filePath, filename }) => {
+    const runtime = WorkspaceManager.getActiveRuntime();
+    if (!runtime) throw new Error('No active workspace runtime');
+
+    const fs = await import('fs');
+    const path = await import('path');
+    const { app } = await import('electron');
+
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File does not exist at path: ${filePath}`);
+    }
+
+    const stat = fs.statSync(filePath);
+    if (stat.size > 25 * 1024 * 1024) {
+      throw new Error(`File size (${(stat.size / 1024 / 1024).toFixed(1)} MB) exceeds 25 MB limit.`);
+    }
+
+    const attachmentsDir = path.join(app.getPath('userData'), 'attachments', runtime.workspaceId);
+    if (!fs.existsSync(attachmentsDir)) {
+      fs.mkdirSync(attachmentsDir, { recursive: true });
+    }
+
+    const fileId = require('crypto').randomUUID();
+    const safeName = (filename || path.basename(filePath)).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const managedPath = path.join(attachmentsDir, `${fileId}_${safeName}`);
+
+    fs.copyFileSync(filePath, managedPath);
+
+    return {
+      id: fileId,
+      filename: filename || path.basename(filePath),
+      size: stat.size,
+      storagePath: managedPath
+    };
+  });
+
   // Templates
   safeRegister('templates:list', async () => {
     const runtime = WorkspaceManager.getActiveRuntime();

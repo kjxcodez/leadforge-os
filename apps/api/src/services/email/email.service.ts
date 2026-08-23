@@ -49,9 +49,35 @@ export class EmailService {
       );
     }
 
+    // Attachment size validation (25 MB max limit)
+    if (Array.isArray(input.attachments)) {
+      let totalSize = 0;
+      for (const att of input.attachments) {
+        if (att.size) totalSize += att.size;
+        else if (att.contentBase64) totalSize += Math.round((att.contentBase64.length * 3) / 4);
+      }
+      if (totalSize > 25 * 1024 * 1024) {
+        throw new EmailDomainError(
+          'ATTACHMENT_SIZE_EXCEEDED',
+          'Total attachment size exceeds the 25 MB LeadForge limit.'
+        );
+      }
+    }
+
+    // Signature resolution if useSignature is true/default and HTML body is provided
+    let finalHtml = input.html;
+    if (input.useSignature !== false && input.html && account.signature) {
+      if (!input.html.includes('class="gmail_signature"')) {
+        finalHtml = `${input.html}<br/><hr style="border: 0; border-top: 1px solid #e4e4e7; margin: 16px 0;" /><div class="gmail_signature">${account.signature}</div>`;
+      }
+    }
+
     const provider = await this.accounts.buildProvider(input.accountId);
     try {
-      const result = await provider.send(input);
+      const result = await provider.send({
+        ...input,
+        html: finalHtml
+      });
       await EmailAccountModel.updateOne(
         { _id: input.accountId } as any,
         {

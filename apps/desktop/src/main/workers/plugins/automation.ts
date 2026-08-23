@@ -1857,12 +1857,45 @@ async function handleSendEmailStep(
     throw new Error('No connected Gmail account found in workspace for sending email step.');
   }
 
+  const useSignature = step.config?.useGmailSignature !== false;
+  const rawAttachments = step.config?.attachments || [];
+  const processedAttachments = [];
+
+  if (Array.isArray(rawAttachments) && rawAttachments.length > 0) {
+    const fs = await import('fs');
+    for (const att of rawAttachments) {
+      const filePath = att.storagePath || att.path;
+      if (filePath && !fs.existsSync(filePath)) {
+        throw new Error(
+          `Campaign execution failed: Attachment "${att.filename || filePath}" is unavailable on disk.`
+        );
+      }
+      let contentBase64 = att.contentBase64 || '';
+      if (!contentBase64 && filePath && fs.existsSync(filePath)) {
+        contentBase64 = fs.readFileSync(filePath).toString('base64');
+      }
+      if (!contentBase64) {
+        throw new Error(
+          `Campaign execution failed: Attachment "${att.filename || filePath}" has no readable data.`
+        );
+      }
+      processedAttachments.push({
+        filename: att.filename || 'attachment',
+        contentBase64,
+        contentType: att.contentType,
+        size: att.size
+      });
+    }
+  }
+
   try {
     const sendResult = await sdk.outreach.sendEmail({
       accountId: accountDoc.id,
       to: contact.email,
       subject: renderedSubject,
-      html: renderedBody
+      html: renderedBody,
+      useSignature,
+      attachments: processedAttachments
     });
     const sentMsgId = sendResult.messageId;
     if (sentMsgId) {
