@@ -14,11 +14,9 @@ files:
   - "!src"
   - "!electron.vite.config.*"
   - "!**/*.map"
+  - "!**/.turbo"
 
 asar: true
-asarUnpack:
-  - "**/*.node"
-  - "node_modules/playwright-core/**"
 
 compression: maximum
 
