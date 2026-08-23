@@ -393,11 +393,11 @@ export default function CampaignsScreen() {
   const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!campName.trim()) {
-      alert('Please enter a Campaign Name.');
+      toast.error('Please enter a valid Campaign Name before launching.');
       return;
     }
     if (!campAccId) {
-      alert('Please select a Sender Account first.');
+      toast.error('Please select a connected Sender Email Account for outreach.');
       return;
     }
 
@@ -440,7 +440,7 @@ export default function CampaignsScreen() {
       }
 
       if (!targetSeqId) {
-        alert('Please create a sequence message or select a sequence first.');
+        toast.error('Please create an outreach email message or select an existing sequence.');
         return;
       }
 
@@ -457,6 +457,7 @@ export default function CampaignsScreen() {
       });
 
       // 3. Resolve Audience & Enroll Contacts
+      let enrolledCount = 0;
       if (selectedAudienceId) {
         const resolved = await window.ipc.invoke('audiences:resolve', {
           workspaceId,
@@ -467,6 +468,9 @@ export default function CampaignsScreen() {
             campaignId: campaign.id,
             contactIds: resolved.contactIds
           });
+          enrolledCount = resolved.contactIds.length;
+        } else {
+          toast.warning('Selected Audience resolved 0 active contacts. Campaign created as empty draft.');
         }
       }
 
@@ -484,9 +488,13 @@ export default function CampaignsScreen() {
       setInlineSubject('');
       setInlineBody('');
       setFollowUpBody('');
-      toast.success(`Outreach campaign "${campName.trim()}" launched successfully!`);
+      toast.success(
+        enrolledCount > 0
+          ? `Outreach campaign "${campName.trim()}" launched successfully with ${enrolledCount} contacts!`
+          : `Outreach campaign "${campName.trim()}" created successfully!`
+      );
     } catch (err: any) {
-      alert(`Failed to launch campaign: ${err.message || err}`);
+      toast.error(`Failed to launch campaign: ${err.message || err}`);
     }
   };
 
