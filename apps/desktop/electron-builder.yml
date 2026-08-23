@@ -16,6 +16,9 @@ files:
   - "!**/*.map"
 
 asar: true
+asarUnpack:
+  - "**/*.node"
+  - "node_modules/playwright-core/**"
 
 compression: maximum
 
