@@ -305,11 +305,134 @@ export default function WorkspaceSettingsScreen() {
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       )}
-              </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
-      </div>
+      )}
+
+      {/* ── SECTION 3: Integrations (Email/Gmail & LinkedIn) ───────────── */}
+      {activeSection === 'integrations' && (
+        <div className="space-y-6">
+          <EmailAccountsSection />
+          <LinkedInIntegrationCard workspaceId={activeWorkspace.id || ''} />
+        </div>
+      )}
+
+      {/* ── SECTION 4: Application Updates ─────────────────────────────── */}
+      {activeSection === 'updates' && <AutoUpdateSection />}
+
+      {/* ── SECTION 5: Onboarding & Interactive Guides ──────────────── */}
+      {activeSection === 'onboarding' && (
+        <div className="bg-card border border-border-subtle rounded-none p-5 space-y-4 shadow-sm">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <span>Interactive Guides & Onboarding</span>
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Replay app tours or reset workspace initialization configuration.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+            <div className="flex items-center justify-between border border-border-subtle rounded-none p-3 bg-surface-3/30">
+              <div>
+                <p className="text-xs font-semibold text-foreground">Interactive Product Tour</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Highlights discovery, CRM, and campaigns navigation.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="rounded-none text-[10px] h-8 font-semibold"
+                onClick={() => {
+                  localStorage.setItem('product_tour_active', 'true');
+                  navigate('/');
+                }}
+              >
+                Start Tour
+              </Button>
+            </div>
+
+            <div className="flex items-center justify-between border border-border-subtle rounded-none p-3 bg-surface-3/30">
+              <div>
+                <p className="text-xs font-semibold text-foreground">Workspace Setup Wizard</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Rerun the health check diagnostics and setup steps.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="rounded-none text-[10px] h-8 font-semibold"
+                onClick={() => {
+                  localStorage.removeItem('onboarding_completed');
+                  navigate('/onboarding');
+                }}
+              >
+                Reset Setup
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SECTION 6: Danger Zone ────────────────────────────────────── */}
+      {activeSection === 'danger' && (
+        <div className="bg-card border border-danger/20 rounded-none p-5 space-y-4 shadow-sm">
+          <div>
+            <h2 className="text-sm font-semibold text-danger flex items-center gap-1.5">
+              <ShieldAlert className="w-4 h-4 text-danger animate-pulse" />
+              <span>Danger Zone</span>
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Irreversible workspace settings.</p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-between">
+            {!isOwner && (
+              <div className="flex items-center justify-between w-full border border-border-subtle rounded-none p-3 bg-surface-3/45">
+                <div>
+                  <p className="text-xs font-semibold text-foreground">Leave Workspace</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    You will lose access to all campaigns in this workspace.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setLeaveOpen(true)}
+                  className="gap-1 rounded-none h-8 text-[11px]"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Leave</span>
+                </Button>
+              </div>
+            )}
+
+            {isOwner && (
+              <div className="flex items-center justify-between w-full border border-danger/25 rounded-none p-3 bg-danger/[0.02]">
+                <div>
+                  <p className="text-xs font-semibold text-danger">Delete Workspace</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 font-medium leading-normal">
+                    Permanently delete this workspace and all associated CRM data.
+                  </p>
+                </div>
+                <Button type="button" variant="destructive" size="sm" onClick={() => setDeleteOpen(true)} className="rounded-none h-8 text-[11px]">
+                  Delete Workspace
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Dialogs */}
       {isAdmin && (
