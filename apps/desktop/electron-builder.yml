@@ -29,6 +29,7 @@ win:
   target:
     - nsis
   icon: resources/icon.png
+  forceCodeSigning: false
   sign: null
 
 nsis:
