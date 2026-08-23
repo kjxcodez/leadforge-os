@@ -34,6 +34,17 @@ const AppHeader = ({ onOpenNotifications }: AppHeaderProps) => {
       setUpdateStatus(status);
     });
 
+    // 3. Check unread notifications indicator
+    const checkUnread = () => {
+      try {
+        const stored = localStorage.getItem('product_notifications_read');
+        setHasUnread(!stored || JSON.parse(stored).length === 0);
+      } catch {
+        setHasUnread(false);
+      }
+    };
+    checkUnread();
+
     return () => {
       if (typeof unsub === 'function') unsub();
     };
@@ -69,10 +80,13 @@ const AppHeader = ({ onOpenNotifications }: AppHeaderProps) => {
         {/* Toggle Notification Drawer */}
         <button
           onClick={onOpenNotifications}
-          title="Notification History"
+          title="Notifications"
           className="relative h-7 w-7 flex items-center justify-center border border-transparent hover:border-border-subtle bg-transparent hover:bg-surface-3 transition-all duration-[--duration-instant] cursor-pointer"
         >
           <Bell className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+          {hasUnread && (
+            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary" />
+          )}
         </button>
 
         <Separator orientation="vertical" className="h-4 bg-border-subtle" />
