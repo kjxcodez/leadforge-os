@@ -12,6 +12,7 @@ import { CreateWorkspaceForm } from '../components/workspace/CreateWorkspaceForm
 import ProductTour from '../components/onboarding/ProductTour';
 import { CommandPalette } from '../components/common/CommandPalette';
 import { NotificationCenter } from '../components/common/NotificationCenter';
+import { WhatsNewDialog } from '../components/common/WhatsNewDialog';
 
 /**
  * AppLayout — the authenticated application shell.
@@ -114,6 +115,7 @@ export function AppLayout() {
       <ProductTour />
       <CommandPalette />
       <NotificationCenter isOpen={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
+      <WhatsNewDialog />
     </SidebarProvider>
   );
 }

@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '../components/common/PageHeader';
+import { WhatsNewDialog } from '../components/common/WhatsNewDialog';
 
 export default function WorkspaceSettingsScreen() {
   const { activeWorkspace } = useWorkspace();
@@ -540,6 +541,7 @@ function AutoUpdateSection() {
   });
   const [checking, setChecking] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false);
 
   const fetchStatus = async () => {
     try {
@@ -686,7 +688,12 @@ function AutoUpdateSection() {
         <Button type="button" variant="outline" size="sm" className="rounded-none h-8 font-semibold text-[11px]" onClick={handleCheck} disabled={checking}>
           {checking ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Check for Updates'}
         </Button>
+        <Button type="button" variant="outline" size="sm" className="rounded-none h-8 font-semibold text-[11px] gap-1.5" onClick={() => setWhatsNewOpen(true)}>
+          <Sparkles className="w-3.5 h-3.5 text-primary" />
+          <span>View Release Notes</span>
+        </Button>
       </div>
+      <WhatsNewDialog isOpen={whatsNewOpen} onClose={() => setWhatsNewOpen(false)} />
     </div>
   );
 }

@@ -1,7 +1,10 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Separator } from '../components/ui/separator';
 import { SidebarTrigger } from '../components/ui/sidebar';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
-import { Bell } from 'lucide-react';
+import { Bell, RefreshCw, Sparkles } from 'lucide-react';
+import { Button } from '../components/ui/button';
 
 interface AppHeaderProps {
   onOpenNotifications: () => void;
@@ -15,6 +18,32 @@ interface AppHeaderProps {
  * Border: border-b border-border-subtle (hairline).
  */
 const AppHeader = ({ onOpenNotifications }: AppHeaderProps) => {
+  const navigate = useNavigate();
+  const [updateStatus, setUpdateStatus] = useState<any>(null);
+  const [hasUnread, setHasUnread] = useState(false);
+
+  useEffect(() => {
+    // 1. Fetch initial updater status
+    window.ipc
+      .invoke('updater:get-status' as any, undefined)
+      .then((res: any) => setUpdateStatus(res))
+      .catch(() => {});
+
+    // 2. Subscribe to updater status events
+    const unsub = window.ipc.on('updater:status-changed' as any, (status: any) => {
+      setUpdateStatus(status);
+    });
+
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, []);
+
+  const isUpdateAvailable =
+    updateStatus?.status === 'available' ||
+    updateStatus?.status === 'ready' ||
+    updateStatus?.updateAvailable;
+
   return (
     <header className="h-11 flex items-center justify-between px-4 border-b border-border-subtle bg-background/92 backdrop-blur-sm shrink-0 sticky top-0 z-10 select-none">
       <div className="flex items-center gap-2">
@@ -22,12 +51,26 @@ const AppHeader = ({ onOpenNotifications }: AppHeaderProps) => {
         <Separator orientation="vertical" className="h-4 bg-border-subtle" />
       </div>
 
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2">
+        {/* Top-Level Update Available Shell Indicator */}
+        {isUpdateAvailable && (
+          <Button
+            size="sm"
+            onClick={() => navigate('/settings?section=updates')}
+            className="h-7 text-[10px] font-semibold gap-1.5 bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30 rounded-none cursor-pointer"
+          >
+            <RefreshCw className="w-3 h-3 animate-spin text-primary" />
+            <span>
+              {updateStatus?.status === 'ready' ? 'Update Ready to Install' : 'Update Available'}
+            </span>
+          </Button>
+        )}
+
         {/* Toggle Notification Drawer */}
         <button
           onClick={onOpenNotifications}
           title="Notification History"
-          className="h-7 w-7 flex items-center justify-center border border-transparent hover:border-border-subtle bg-transparent hover:bg-surface-3 transition-all duration-[--duration-instant] cursor-pointer"
+          className="relative h-7 w-7 flex items-center justify-center border border-transparent hover:border-border-subtle bg-transparent hover:bg-surface-3 transition-all duration-[--duration-instant] cursor-pointer"
         >
           <Bell className="w-4 h-4 text-muted-foreground hover:text-foreground" />
         </button>
@@ -40,3 +83,4 @@ const AppHeader = ({ onOpenNotifications }: AppHeaderProps) => {
 };
 
 export default AppHeader;
+
