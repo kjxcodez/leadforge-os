@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useWorkspace } from '../hooks/useWorkspace';
 import {
   useWorkspaceMembers,
@@ -28,24 +28,21 @@ import {
   RefreshCw,
   Linkedin,
   Sparkles,
-  Mail
+  Mail,
+  Building2,
+  Users,
+  Plug,
+  BookOpen
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '../components/common/PageHeader';
 
-/**
- * WorkspaceSettingsScreen enables team management, invitation oversight,
- * role adjustments, ownership transfer, and workspace settings updates.
- *
- * Design updates:
- *   - Unified PageHeader integration.
- *   - Squared borders (rounded-none on cards, dialogs, inputs, buttons, and badges).
- *   - Theme variables synchronization (primary, success, warning, danger).
- *   - Removed raw alert calls, substituted with premium sonner toasts.
- */
 export default function WorkspaceSettingsScreen() {
   const { activeWorkspace } = useWorkspace();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeSection = searchParams.get('section') || 'general';
+
   const { role, isOwner, isAdmin } = usePermissions();
 
   const membersQuery = useWorkspaceMembers(activeWorkspace?.id || '');
@@ -69,6 +66,10 @@ export default function WorkspaceSettingsScreen() {
       </div>
     );
   }
+
+  const setSection = (section: string) => {
+    setSearchParams({ section }, { replace: true });
+  };
 
   const handleRoleChange = async (memberId: string, newRole: string) => {
     try {
@@ -96,251 +97,213 @@ export default function WorkspaceSettingsScreen() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 p-6 font-sans text-xs h-full overflow-y-auto pr-1 select-none">
+    <div className="max-w-4xl mx-auto space-y-6 p-6 font-sans text-xs h-full overflow-y-auto pr-1 select-none">
       <PageHeader
         title="Workspace Settings"
-        description="Manage your workspace details, invites, and team permissions."
+        description="Manage your workspace details, integrations, team permissions, and updates."
       />
 
-      {/* ── SECTION 1: General Details ──────────────────────────────────── */}
-      <div className="bg-card border border-border-subtle rounded-none p-5 space-y-4 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">General</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Basic details for this workspace.
-            </p>
-          </div>
-          {isAdmin && (
-            <Button variant="outline" size="sm" onClick={() => setRenameOpen(true)} className="rounded-none h-8 text-[11px] font-semibold">
-              Rename
-            </Button>
-          )}
-        </div>
+      {/* ── Sub-Navigation Section Tabs ─────────────────────────────────── */}
+      <div className="flex items-center gap-1.5 border-b border-border-subtle pb-3 overflow-x-auto shrink-0">
+        <button
+          onClick={() => setSection('general')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 font-semibold text-xs transition-colors cursor-pointer border rounded-none ${
+            activeSection === 'general'
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'bg-surface-3 text-muted-foreground border-border-subtle hover:text-foreground'
+          }`}
+        >
+          <Building2 className="w-3.5 h-3.5" />
+          <span>General</span>
+        </button>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-          <div className="space-y-1">
-            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-              Workspace Name
-            </span>
-            <p className="text-xs font-semibold text-foreground">{activeWorkspace.name}</p>
-          </div>
-          <div className="space-y-1">
-            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-              Unique URL Slug
-            </span>
-            <p className="text-xs font-mono text-muted-foreground">/{activeWorkspace.slug}</p>
-          </div>
-        </div>
+        <button
+          onClick={() => setSection('team')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 font-semibold text-xs transition-colors cursor-pointer border rounded-none ${
+            activeSection === 'team'
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'bg-surface-3 text-muted-foreground border-border-subtle hover:text-foreground'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />
+          <span>Team & Workspace</span>
+        </button>
+
+        <button
+          onClick={() => setSection('integrations')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 font-semibold text-xs transition-colors cursor-pointer border rounded-none ${
+            activeSection === 'integrations'
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'bg-surface-3 text-muted-foreground border-border-subtle hover:text-foreground'
+          }`}
+        >
+          <Plug className="w-3.5 h-3.5" />
+          <span>Integrations</span>
+        </button>
+
+        <button
+          onClick={() => setSection('updates')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 font-semibold text-xs transition-colors cursor-pointer border rounded-none ${
+            activeSection === 'updates'
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'bg-surface-3 text-muted-foreground border-border-subtle hover:text-foreground'
+          }`}
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          <span>Updates</span>
+        </button>
+
+        <button
+          onClick={() => setSection('onboarding')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 font-semibold text-xs transition-colors cursor-pointer border rounded-none ${
+            activeSection === 'onboarding'
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'bg-surface-3 text-muted-foreground border-border-subtle hover:text-foreground'
+          }`}
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>Onboarding</span>
+        </button>
+
+        <button
+          onClick={() => setSection('danger')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 font-semibold text-xs transition-colors cursor-pointer border rounded-none ${
+            activeSection === 'danger'
+              ? 'bg-danger text-danger-foreground border-danger'
+              : 'bg-surface-3 text-muted-foreground border-border-subtle hover:text-danger'
+          }`}
+        >
+          <ShieldAlert className="w-3.5 h-3.5" />
+          <span>Danger Zone</span>
+        </button>
       </div>
 
-      {/* ── SECTION 2: Workspace Members ──────────────────────────────── */}
-      <div className="bg-card border border-border-subtle rounded-none p-5 space-y-4 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Workspace Members</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Collaborators in this workspace.</p>
+      {/* ── SECTION 1: General Details ──────────────────────────────────── */}
+      {activeSection === 'general' && (
+        <div className="bg-card border border-border-subtle rounded-none p-5 space-y-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">General</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Basic details for this workspace.
+              </p>
+            </div>
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => setRenameOpen(true)} className="rounded-none h-8 text-[11px] font-semibold">
+                Rename
+              </Button>
+            )}
           </div>
-          {isAdmin && (
-            <Button size="sm" onClick={() => setInviteOpen(true)} className="gap-1 rounded-none h-8 text-[11px] font-semibold">
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>Invite Member</span>
-            </Button>
-          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div className="space-y-1">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+                Workspace Name
+              </span>
+              <p className="text-xs font-semibold text-foreground">{activeWorkspace.name}</p>
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+                Unique URL Slug
+              </span>
+              <p className="text-xs font-mono text-muted-foreground">/{activeWorkspace.slug}</p>
+            </div>
+          </div>
         </div>
+      )}
 
-        {/* Member list */}
-        {membersQuery.isLoading ? (
-          <div className="py-4 text-center text-xs text-muted-foreground">Loading members...</div>
-        ) : (
-          <div className="divide-y divide-border-subtle">
-            {((membersQuery.data as WorkspaceMember[]) || []).map((m) => {
-              const emailStr = m.email || '';
-              const memberName = emailStr.split('@')[0] || 'User';
+      {/* ── SECTION 2: Workspace Members ──────────────────────────────── */}
+      {activeSection === 'team' && (
+        <div className="bg-card border border-border-subtle rounded-none p-5 space-y-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Workspace Members</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Collaborators in this workspace.</p>
+            </div>
+            {isAdmin && (
+              <Button size="sm" onClick={() => setInviteOpen(true)} className="gap-1 rounded-none h-8 text-[11px] font-semibold">
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Invite Member</span>
+              </Button>
+            )}
+          </div>
 
-              return (
-                <div
-                  key={m.id || m.userId || m.email}
-                  className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
-                >
-                  <div className="flex items-center gap-3">
-                    <UserAvatar initials={memberName.substring(0, 2).toUpperCase()} size="sm" />
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-semibold text-foreground">{m.email}</span>
-                        {m.status === WorkspaceMemberStatus.PENDING && (
-                          <Badge className="bg-warning-muted text-warning border border-warning/20 text-[9px] font-bold rounded-none">
-                            Pending
-                          </Badge>
-                        )}
+          {/* Member list */}
+          {membersQuery.isLoading ? (
+            <div className="py-4 text-center text-xs text-muted-foreground">Loading members...</div>
+          ) : (
+            <div className="divide-y divide-border-subtle">
+              {((membersQuery.data as WorkspaceMember[]) || []).map((m) => {
+                const emailStr = m.email || '';
+                const memberName = emailStr.split('@')[0] || 'User';
+
+                return (
+                  <div
+                    key={m.id || m.userId || m.email}
+                    className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
+                  >
+                    <div className="flex items-center gap-3">
+                      <UserAvatar initials={memberName.substring(0, 2).toUpperCase()} size="sm" />
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-semibold text-foreground">{m.email}</span>
+                          {m.status === WorkspaceMemberStatus.PENDING && (
+                            <Badge className="bg-warning-muted text-warning border border-warning/20 text-[9px] font-bold rounded-none">
+                              Pending
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground mt-0.5 block font-mono">
+                          Joined {m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : '—'}
+                        </span>
                       </div>
-                      <span className="text-[10px] text-muted-foreground mt-0.5 block font-mono">
-                        Joined {m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : '—'}
-                      </span>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-2">
-                    {/* Role selector */}
-                    {isAdmin && m.role !== WorkspaceRole.OWNER ? (
-                      <select
-                        value={m.role}
-                        onChange={(e) => handleRoleChange(m.userId || m.id || '', e.target.value)}
-                        className="bg-surface-3 border border-border-subtle rounded-none px-2 py-1 h-8 text-[11px] text-foreground focus-visible:outline-none font-semibold"
-                      >
-                        <option value={WorkspaceRole.MEMBER}>Member</option>
-                        <option value={WorkspaceRole.ADMIN}>Admin</option>
-                        <option value={WorkspaceRole.READ_ONLY}>Read Only</option>
-                        <option value={WorkspaceRole.BILLING}>Billing</option>
-                      </select>
-                    ) : (
-                      <span className="text-[10px] font-bold text-muted-foreground px-2.5 py-1 border border-border-subtle rounded-none bg-surface-3 font-mono">
-                        {m.role}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {/* Role selector */}
+                      {isAdmin && m.role !== WorkspaceRole.OWNER ? (
+                        <select
+                          value={m.role}
+                          onChange={(e) => handleRoleChange(m.userId || m.id || '', e.target.value)}
+                          className="bg-surface-3 border border-border-subtle rounded-none px-2 py-1 h-8 text-[11px] text-foreground focus-visible:outline-none font-semibold"
+                        >
+                          <option value={WorkspaceRole.MEMBER}>Member</option>
+                          <option value={WorkspaceRole.ADMIN}>Admin</option>
+                          <option value={WorkspaceRole.READ_ONLY}>Read Only</option>
+                          <option value={WorkspaceRole.BILLING}>Billing</option>
+                        </select>
+                      ) : (
+                        <span className="text-[10px] font-bold text-muted-foreground px-2.5 py-1 border border-border-subtle rounded-none bg-surface-3 font-mono">
+                          {m.role}
+                        </span>
+                      )}
 
-                    {/* Ownership transfer */}
-                    {isOwner &&
-                      m.role !== WorkspaceRole.OWNER &&
-                      m.status === WorkspaceMemberStatus.ACTIVE && (
+                      {/* Ownership transfer */}
+                      {isOwner &&
+                        m.role !== WorkspaceRole.OWNER &&
+                        m.status === WorkspaceMemberStatus.ACTIVE && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 rounded-none text-muted-foreground hover:text-foreground"
+                            title="Transfer Ownership"
+                            onClick={() => startTransfer(m.userId || '', m.email)}
+                          >
+                            <ArrowLeftRight className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+
+                      {/* Remove member button */}
+                      {isAdmin && m.role !== WorkspaceRole.OWNER && (
                         <Button
                           type="button"
                           variant="ghost"
-                          className="h-8 w-8 p-0 rounded-none text-muted-foreground hover:text-foreground"
-                          title="Transfer Ownership"
-                          onClick={() => startTransfer(m.userId || '', m.email)}
+                          className="h-8 w-8 p-0 rounded-none text-danger hover:bg-danger-muted"
+                          onClick={() => handleRemove(m.userId || m.id || '')}
                         >
-                          <ArrowLeftRight className="w-3.5 h-3.5" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       )}
-
-                    {/* Remove member button */}
-                    {isAdmin && m.role !== WorkspaceRole.OWNER && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="h-8 w-8 p-0 rounded-none text-danger hover:bg-danger-muted"
-                        onClick={() => handleRemove(m.userId || m.id || '')}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* ── SECTION 2.5: Email Accounts ─────────────────────────────────── */}
-      <EmailAccountsSection />
-
-      {/* ── SECTION 3: LinkedIn Integration ─────────────────────────────── */}
-      <LinkedInIntegrationCard workspaceId={activeWorkspace.id || ''} />
-
-      {/* ── SECTION 3.5: Auto Updates ───────────────────────────────────── */}
-      <AutoUpdateSection />
-
-      {/* ── SECTION 3.6: Onboarding & Interactive Guides ──────────────── */}
-      <div className="bg-card border border-border-subtle rounded-none p-5 space-y-4 shadow-sm">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span>Interactive Guides & Onboarding</span>
-          </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Replay app tours or reset workspace initialization configuration.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-          <div className="flex items-center justify-between border border-border-subtle rounded-none p-3 bg-surface-3/30">
-            <div>
-              <p className="text-xs font-semibold text-foreground">Interactive Product Tour</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                Highlights discovery, CRM, and campaigns navigation.
-              </p>
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="rounded-none text-[10px] h-8 font-semibold"
-              onClick={() => {
-                localStorage.setItem('product_tour_active', 'true');
-                navigate('/');
-              }}
-            >
-              Start Tour
-            </Button>
-          </div>
-
-          <div className="flex items-center justify-between border border-border-subtle rounded-none p-3 bg-surface-3/30">
-            <div>
-              <p className="text-xs font-semibold text-foreground">Workspace Setup Wizard</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                Rerun the health check diagnostics and setup steps.
-              </p>
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="rounded-none text-[10px] h-8 font-semibold"
-              onClick={() => {
-                localStorage.removeItem('onboarding_completed');
-                navigate('/onboarding');
-              }}
-            >
-              Reset Setup
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── SECTION 4: Danger Zone ────────────────────────────────────── */}
-      <div className="bg-card border border-danger/20 rounded-none p-5 space-y-4 shadow-sm">
-        <div>
-          <h2 className="text-sm font-semibold text-danger flex items-center gap-1.5">
-            <ShieldAlert className="w-4 h-4 text-danger animate-pulse" />
-            <span>Danger Zone</span>
-          </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Irreversible workspace settings.</p>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-between">
-          {!isOwner && (
-            <div className="flex items-center justify-between w-full border border-border-subtle rounded-none p-3 bg-surface-3/45">
-              <div>
-                <p className="text-xs font-semibold text-foreground">Leave Workspace</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  You will lose access to all campaigns in this workspace.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                onClick={() => setLeaveOpen(true)}
-                className="gap-1 rounded-none h-8 text-[11px]"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Leave</span>
-              </Button>
-            </div>
-          )}
-
-          {isOwner && (
-            <div className="flex items-center justify-between w-full border border-danger/25 rounded-none p-3 bg-danger/[0.02]">
-              <div>
-                <p className="text-xs font-semibold text-danger">Delete Workspace</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5 font-medium leading-normal">
-                  Permanently delete this workspace and all associated CRM data.
-                </p>
-              </div>
-              <Button type="button" variant="destructive" size="sm" onClick={() => setDeleteOpen(true)} className="rounded-none h-8 text-[11px]">
-                Delete Workspace
               </Button>
             </div>
           )}
