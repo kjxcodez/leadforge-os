@@ -42,6 +42,13 @@ export interface SafeEmailAccount {
   updatedAt?: string | null;
 }
 
+export interface EmailAttachmentInput {
+  filename: string;
+  contentBase64?: string;
+  path?: string;
+  contentType?: string;
+}
+
 export interface SendEmailInput {
   accountId: string;
   to: string;
@@ -49,6 +56,8 @@ export interface SendEmailInput {
   text?: string | undefined;
   html?: string | undefined;
   from?: string | undefined;
+  useSignature?: boolean | undefined;
+  attachments?: EmailAttachmentInput[] | undefined;
 }
 
 export interface SendEmailResult {
@@ -70,7 +79,10 @@ export interface EmailProviderErrorShape {
     | 'TRANSACTION_NOT_FOUND'
     | 'MAILBOX_NOT_SUPPORTED'
     | 'GMAIL_TOKEN_REFRESH_FAILED'
-    | 'GMAIL_AUTH_REVOKED';
+    | 'GMAIL_AUTH_REVOKED'
+    | 'TEST_RECIPIENT_LIMIT_REACHED'
+    | 'ATTACHMENT_SIZE_EXCEEDED'
+    | 'ATTACHMENT_TYPE_NOT_ALLOWED';
   message: string;
   reauthRequired?: boolean;
 }

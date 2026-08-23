@@ -16,7 +16,23 @@ const GMAIL_SEND_API_URL =
  'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
 
 export const GMAIL_SEND_SCOPE =
-  'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email openid';
+  'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.settings.basic https://www.googleapis.com/auth/userinfo.email openid';
+
+export interface EmailAttachmentInput {
+  filename: string;
+  contentBase64?: string;
+  path?: string;
+  contentType?: string;
+}
+
+export interface SendMessageOptions {
+  from: string;
+  to: string;
+  subject: string;
+  text?: string;
+  html?: string;
+  attachments?: EmailAttachmentInput[];
+}
 
 export interface GoogleOAuthConfig {
   clientId: string;
@@ -222,13 +238,26 @@ export class GmailApiClient {
     return { email: info.email };
   }
 
-  async sendMessage(options: {
-    from: string;
-    to: string;
-    subject: string;
-    text?: string;
-    html?: string;
-  }): Promise<string> {
+  /**
+   * Fetches the user's configured web HTML signature for the given sendAs email address.
+   * Returns null if missing or if authorization requires scope reauth.
+   */
+  async getSendAsSignature(sendAsEmail: string): Promise<string | null> {
+    try {
+      const { accessToken } = await this.getAccessToken();
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs/${encodeURIComponent(sendAsEmail)}`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (!res.ok) return null;
+      const data: any = await res.json().catch(() => ({}));
+      return data?.signature || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async sendMessage(options: SendMessageOptions): Promise<string> {
     const raw = await this.buildRawMime(options);
     const { accessToken } = await this.getAccessToken();
     const res = await fetch(GMAIL_SEND_API_URL, {
@@ -256,14 +285,11 @@ export class GmailApiClient {
     return body.id || '';
   }
 
-  private buildRawMime(options: {
-    from: string;
-    to: string;
-    subject: string;
-    text?: string;
-    html?: string;
-  }): string {
-    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+  private async buildRawMime(options: SendMessageOptions): Promise<string> {
+    const hasAttachments = Array.isArray(options.attachments) && options.attachments.length > 0;
+    const mixedBoundary = `----=_Part_Mixed_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+    const altBoundary = `----=_Part_Alt_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+
     const headers = [
       `From: ${options.from}`,
       `To: ${options.to}`,
@@ -271,29 +297,86 @@ export class GmailApiClient {
       'MIME-Version: 1.0'
     ];
 
-    let body = '';
+    if (hasAttachments) {
+      headers.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`);
+      const parts: string[] = [];
+
+      // Part 1: multipart/alternative (text + html)
+      parts.push(`--${mixedBoundary}`);
+      parts.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
+      parts.push('');
+      parts.push(`--${altBoundary}`);
+      parts.push('Content-Type: text/plain; charset=UTF-8');
+      parts.push('Content-Transfer-Encoding: 8bit');
+      parts.push('');
+      parts.push(options.text || '');
+      if (options.html) {
+        parts.push(`--${altBoundary}`);
+        parts.push('Content-Type: text/html; charset=UTF-8');
+        parts.push('Content-Transfer-Encoding: 8bit');
+        parts.push('');
+        parts.push(options.html);
+      }
+      parts.push(`--${altBoundary}--`);
+
+      // Attachment parts
+      for (const att of options.attachments!) {
+        let base64Data = att.contentBase64 || '';
+        if (!base64Data && att.path) {
+          try {
+            const fs = await import('fs');
+            if (fs.existsSync(att.path)) {
+              base64Data = fs.readFileSync(att.path).toString('base64');
+            }
+          } catch {
+            // ignore
+          }
+        }
+        if (!base64Data) {
+          throw new Error(`Attachment file missing or unreadable: ${att.filename || att.path}`);
+        }
+
+        const contentType = att.contentType || 'application/octet-stream';
+        const filename = att.filename || 'attachment';
+        const safeFilename = filename.replace(/"/g, '');
+
+        parts.push(`--${mixedBoundary}`);
+        parts.push(`Content-Type: ${contentType}; name="${safeFilename}"`);
+        parts.push(`Content-Disposition: attachment; filename="${safeFilename}"`);
+        parts.push('Content-Transfer-Encoding: base64');
+        parts.push('');
+        // Break base64 lines into 76 chars per RFC 2045
+        const chunks = base64Data.match(/.{1,76}/g) || [base64Data];
+        parts.push(chunks.join('\r\n'));
+      }
+      parts.push(`--${mixedBoundary}--`);
+
+      const fullMessage = `${headers.join('\r\n')}\r\n\r\n${parts.join('\r\n')}`;
+      return Buffer.from(fullMessage, 'utf8').toString('base64url');
+    }
+
     if (options.html) {
-      headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
-      body = [
-        `--${boundary}`,
+      headers.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
+      const body = [
+        `--${altBoundary}`,
         'Content-Type: text/plain; charset=UTF-8',
         'Content-Transfer-Encoding: 8bit',
         '',
         options.text || '',
-        `--${boundary}`,
+        `--${altBoundary}`,
         'Content-Type: text/html; charset=UTF-8',
         'Content-Transfer-Encoding: 8bit',
         '',
         options.html,
-        `--${boundary}--`
+        `--${altBoundary}--`
       ].join('\r\n');
-    } else {
-      headers.push('Content-Type: text/plain; charset=UTF-8');
-      headers.push('Content-Transfer-Encoding: 8bit');
-      body = options.text || '';
+      const fullMessage = `${headers.join('\r\n')}\r\n\r\n${body}`;
+      return Buffer.from(fullMessage, 'utf8').toString('base64url');
     }
 
-    const fullMessage = `${headers.join('\r\n')}\r\n\r\n${body}`;
+    headers.push('Content-Type: text/plain; charset=UTF-8');
+    headers.push('Content-Transfer-Encoding: 8bit');
+    const fullMessage = `${headers.join('\r\n')}\r\n\r\n${options.text || ''}`;
     return Buffer.from(fullMessage, 'utf8').toString('base64url');
   }
 }

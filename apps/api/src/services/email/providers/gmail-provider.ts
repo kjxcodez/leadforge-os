@@ -73,6 +73,10 @@ export class GmailProvider implements EmailProvider {
     }
   }
 
+  async fetchSignature(): Promise<string | null> {
+    return this.client.getSendAsSignature(this.config.email);
+  }
+
   async send(input: SendEmailInput): Promise<SendEmailResult> {
     try {
       const from = input.from || this.config.email;
@@ -81,7 +85,8 @@ export class GmailProvider implements EmailProvider {
         to: input.to,
         subject: input.subject,
         ...(input.html !== undefined ? { html: input.html } : {}),
-        ...(input.text !== undefined ? { text: input.text } : {})
+        ...(input.text !== undefined ? { text: input.text } : {}),
+        ...(input.attachments !== undefined ? { attachments: input.attachments } : {})
       });
       return { messageId, accepted: [input.to] };
     } catch (err: any) {
