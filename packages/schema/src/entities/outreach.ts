@@ -70,3 +70,22 @@ export const emailAccountSchema = z.object({
   updatedAt: z.union([z.date(), z.string()])
 });
 export type EmailAccount = z.infer<typeof emailAccountSchema>;
+
+export const audienceSchema = z.object({
+  id: objectIdField,
+  workspaceId: objectIdField,
+  name: nameField,
+  description: z.string().nullable().optional(),
+  entityType: z.enum(['companies', 'contacts', 'both']).default('contacts'),
+  mode: z.enum(['dynamic', 'static']).default('dynamic'),
+  filterDefinition: z.record(z.any()).default({}),
+  staticMemberIds: z.array(z.string()).optional(),
+  contactCount: z.number().optional(),
+  companyCount: z.number().optional(),
+  resolvedContactIds: z.array(z.string()).optional(),
+  resolvedCompanyIds: z.array(z.string()).optional(),
+  createdAt: z.union([z.date(), z.string()]).optional(),
+  updatedAt: z.union([z.date(), z.string()]).optional()
+});
+export type Audience = z.infer<typeof audienceSchema>;
+

@@ -341,6 +341,27 @@ export interface IpcChannelMap {
     };
     output: any[];
   };
+  'contacts:query': {
+    input: {
+      workspaceId: string;
+      search?: string;
+      status?: string;
+      companyId?: string;
+      title?: string;
+      source?: string;
+      discoveryRunId?: string;
+    };
+    output: any[];
+  };
+  'companies:distinct-values': {
+    input: { workspaceId: string };
+    output: { industries: string[]; locations: string[] };
+  };
+  'contacts:distinct-values': {
+    input: { workspaceId: string };
+    output: { titles: string[]; sources: string[] };
+  };
+
 
   'activities:list': {
     input: any;

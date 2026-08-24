@@ -17,7 +17,9 @@ export interface AudienceDocument
   name: string;
   description?: string | null;
   entityType: 'companies' | 'contacts' | 'both';
+  mode: 'dynamic' | 'static';
   filterDefinition: Record<string, any>;
+  staticMemberIds?: string[];
 }
 
 const audienceSchema = new Schema<AudienceDocument>(
@@ -41,12 +43,22 @@ const audienceSchema = new Schema<AudienceDocument>(
       enum: ['companies', 'contacts', 'both'],
       default: 'contacts'
     },
+    mode: {
+      type: String,
+      enum: ['dynamic', 'static'],
+      default: 'dynamic'
+    },
     filterDefinition: {
       type: Schema.Types.Mixed,
       required: true,
       default: {}
+    },
+    staticMemberIds: {
+      type: [String],
+      default: undefined
     }
   },
+
   {
     strict: true,
     timestamps: true

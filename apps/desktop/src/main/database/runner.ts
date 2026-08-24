@@ -736,8 +736,16 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_company_discovery_runs_runId ON company_discovery_runs(discoveryRunId);
       CREATE INDEX IF NOT EXISTS idx_audiences_workspaceId ON audiences(workspaceId);
     `
+  },
+  {
+    name: '028_static_audiences',
+    up: `
+      ALTER TABLE audiences ADD COLUMN mode TEXT NOT NULL DEFAULT 'dynamic';
+      ALTER TABLE audiences ADD COLUMN staticMemberIds TEXT;
+    `
   }
 ];
+
 
 class MigrationError extends Error {
   public statement: string;

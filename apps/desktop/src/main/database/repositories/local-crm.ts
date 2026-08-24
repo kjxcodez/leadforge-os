@@ -14,7 +14,9 @@ const JSON_COLUMNS = new Set([
   'contactsJson',
   'statisticsJson',
   'executionContext',
-  'metadata'
+  'metadata',
+  'filterDefinition',
+  'staticMemberIds'
 ]);
 
 /**
