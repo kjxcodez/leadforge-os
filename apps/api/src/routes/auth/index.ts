@@ -374,7 +374,7 @@ function pageShell(title: string, body: string): string {
       max-width: 420px;
       background-color: var(--bg-surface-1);
       border: 1px solid var(--border-default);
-      border-radius: 12px;
+      border-radius: 0px;
       padding: 40px;
     }
 
@@ -411,7 +411,7 @@ function pageShell(title: string, body: string): string {
       padding: 0 14px;
       background-color: var(--bg-base);
       border: 1px solid var(--border-default);
-      border-radius: 8px;
+      border-radius: 0px;
       color: var(--text-primary);
       font-family: var(--font);
       font-size: 14px;
@@ -431,7 +431,7 @@ function pageShell(title: string, body: string): string {
       background-color: var(--accent);
       color: var(--text-on-accent);
       border: none;
-      border-radius: 8px;
+      border-radius: 0px;
       font-family: var(--font);
       font-size: 14px;
       font-weight: 600;
@@ -463,7 +463,7 @@ function pageShell(title: string, body: string): string {
     .icon-box {
       width: 48px;
       height: 48px;
-      border-radius: 8px;
+      border-radius: 0px;
       display: flex;
       align-items: center;
       justify-content: center;
