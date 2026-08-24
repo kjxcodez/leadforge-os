@@ -149,7 +149,21 @@ contextBridge.exposeInMainWorld('ipc', {
       'campaigns:bulk-pause-enrollments',
       'campaigns:bulk-resume-enrollments',
       'campaigns:bulk-remove-enrollments',
-      'scheduler:queue:list'
+      'scheduler:queue:list',
+      'companies:query',
+      'contacts:query',
+      'companies:distinct-values',
+      'contacts:distinct-values',
+      'discovery:run:create',
+      'discovery:run:list',
+      'discovery:run:get',
+      'audiences:list',
+      'audiences:create',
+      'audiences:get',
+      'audiences:update',
+      'audiences:delete',
+      'audiences:resolve',
+      'onboarding:generate-sample-data'
     ];
     if (validChannels.includes(channel as string)) {
       return ipcRenderer.invoke(channel, payload);
