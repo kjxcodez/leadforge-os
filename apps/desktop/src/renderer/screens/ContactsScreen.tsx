@@ -336,24 +336,6 @@ export default function ContactsScreen() {
             </div>
           )}
 
-          {distinctValues.sources.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono">Source</span>
-              <select
-                value={sourceFilter}
-                onChange={(e) => setSourceFilter(e.target.value)}
-                className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[120px]"
-              >
-                <option value="">All Sources</option>
-                {distinctValues.sources.map((s: string) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
           {discoveryRuns.length > 0 && (
             <div className="flex flex-col gap-1">
               <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono">Discovery Run</span>
@@ -372,17 +354,20 @@ export default function ContactsScreen() {
             </div>
           )}
 
-          <select
-            value={sourcePlatformFilter}
-            onChange={(e) => handleSourcePlatformFilterChange(e.target.value)}
-            className="bg-card border border-border-subtle rounded-none px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring min-w-[110px] h-9"
-          >
-            <option value="">All Sources</option>
-            <option value="google_maps">Google Maps</option>
-            <option value="linkedin">LinkedIn</option>
-            <option value="crawler">Web Crawler</option>
-            <option value="manual">Manual</option>
-          </select>
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono">Source Platform</span>
+            <select
+              value={sourcePlatformFilter}
+              onChange={(e) => handleSourcePlatformFilterChange(e.target.value)}
+              className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[120px]"
+            >
+              <option value="">All Sources</option>
+              <option value="google_maps">Google Maps</option>
+              <option value="linkedin">LinkedIn</option>
+              <option value="crawler">Web Crawler</option>
+              <option value="manual">Manual</option>
+            </select>
+          </div>
         </EntityToolbar>
 
         {contactsQuery.isLoading ? (
