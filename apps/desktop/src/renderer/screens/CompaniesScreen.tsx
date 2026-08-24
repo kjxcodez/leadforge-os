@@ -184,30 +184,18 @@ export default function CompaniesScreen() {
     setDiscoveryRunFilter('');
   };
 
-  // Selected Contacts for Static Audience creation
+  // Selected Contacts for Static Audience creation (all contacts belonging to selected companies)
   const selectedContactsForAudience: PreloadedContact[] = React.useMemo(() => {
     if (selectedIds.length === 0) return [];
     const matchedContacts = contacts.filter((ct: any) => selectedIds.includes(ct.companyId));
-    if (matchedContacts.length > 0) {
-      return matchedContacts.map((ct: any) => ({
-        id: ct.id,
-        firstName: ct.firstName,
-        lastName: ct.lastName,
-        email: ct.email,
-        title: ct.title,
-        companyName: companies.find((comp: any) => comp.id === ct.companyId)?.name
-      }));
-    }
-    // Fallback: create representative contact targets for companies without explicit contact rows
-    return selectedIds.map((cId) => {
-      const comp = companies.find((c: any) => c.id === cId);
-      return {
-        id: cId,
-        firstName: comp?.name || 'Company Target',
-        email: comp?.website ? `info@${comp.website.replace(/^https?:\/\//, '')}` : undefined,
-        companyName: comp?.name
-      };
-    });
+    return matchedContacts.map((ct: any) => ({
+      id: ct.id,
+      firstName: ct.firstName,
+      lastName: ct.lastName,
+      email: ct.email,
+      title: ct.title,
+      companyName: companies.find((comp: any) => comp.id === ct.companyId)?.name
+    }));
   }, [selectedIds, contacts, companies]);
 
   // Pagination calculation
@@ -284,48 +272,57 @@ export default function CompaniesScreen() {
           onClearAllFilters={handleClearAllFilters}
         >
           {distinctValues.industries.length > 0 && (
-            <select
-              value={industryFilter}
-              onChange={(e) => setIndustryFilter(e.target.value)}
-              className="bg-card border border-border-subtle rounded px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-accent/20 min-w-[120px] h-9"
-            >
-              <option value="">All Industries</option>
-              {distinctValues.industries.map((ind: string) => (
-                <option key={ind} value={ind}>
-                  {ind}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono">Industry</span>
+              <select
+                value={industryFilter}
+                onChange={(e) => setIndustryFilter(e.target.value)}
+                className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[120px]"
+              >
+                <option value="">All Industries</option>
+                {distinctValues.industries.map((ind: string) => (
+                  <option key={ind} value={ind}>
+                    {ind}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
 
           {distinctValues.locations.length > 0 && (
-            <select
-              value={locationFilter}
-              onChange={(e) => setLocationFilter(e.target.value)}
-              className="bg-card border border-border-subtle rounded px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-accent/20 min-w-[120px] h-9"
-            >
-              <option value="">All Locations</option>
-              {distinctValues.locations.map((loc: string) => (
-                <option key={loc} value={loc}>
-                  {loc}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono font-mono">Location</span>
+              <select
+                value={locationFilter}
+                onChange={(e) => setLocationFilter(e.target.value)}
+                className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[120px]"
+              >
+                <option value="">All Locations</option>
+                {distinctValues.locations.map((loc: string) => (
+                  <option key={loc} value={loc}>
+                    {loc}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
 
           {discoveryRuns.length > 0 && (
-            <select
-              value={discoveryRunFilter}
-              onChange={(e) => setDiscoveryRunFilter(e.target.value)}
-              className="bg-card border border-border-subtle rounded px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-accent/20 min-w-[130px] h-9"
-            >
-              <option value="">All Discovery Runs</option>
-              {discoveryRuns.map((run: any) => (
-                <option key={run.id} value={run.id}>
-                  {run.name || run.query}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono">Discovery Run</span>
+              <select
+                value={discoveryRunFilter}
+                onChange={(e) => setDiscoveryRunFilter(e.target.value)}
+                className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[130px]"
+              >
+                <option value="">All Discovery Runs</option>
+                {discoveryRuns.map((run: any) => (
+                  <option key={run.id} value={run.id}>
+                    {run.name || run.query}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
         </EntityToolbar>
 

@@ -89,7 +89,7 @@ export default function AudiencesScreen() {
             type="button"
             onClick={() => setCreateModalOpen(true)}
             size="sm"
-            className="h-8 font-semibold gap-1.5 shrink-0 bg-indigo-600 hover:bg-indigo-500 text-white rounded-none"
+            className="h-8 font-semibold gap-1.5 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-none"
           >
             <Plus className="w-3.5 h-3.5" />
             New Audience
@@ -138,7 +138,7 @@ export default function AudiencesScreen() {
           variants={cardVariants}
           className="bg-card border border-border-subtle rounded-none p-3 flex items-start gap-2.5 shadow-sm"
         >
-          <div className="mt-0.5 text-indigo-400">
+          <div className="mt-0.5 text-primary">
             <Sparkles className="w-3.5 h-3.5" />
           </div>
           <div>
@@ -154,7 +154,7 @@ export default function AudiencesScreen() {
       <div className="bg-card border border-border-subtle rounded-none shadow-sm flex-1 flex flex-col min-h-0">
         <div className="px-4 py-3 border-b border-border-subtle flex items-center justify-between">
           <h3 className="font-semibold text-foreground text-xs flex items-center gap-2">
-            <Layers className="w-3.5 h-3.5 text-indigo-400" />
+            <Layers className="w-3.5 h-3.5 text-primary" />
             Saved Recipient Segments ({audiences.length})
           </h3>
         </div>
@@ -164,19 +164,19 @@ export default function AudiencesScreen() {
         ) : audiences.length === 0 ? (
           <div className="p-12 text-center text-muted-foreground flex flex-col items-center gap-2">
             <Layers className="w-8 h-8 stroke-1 text-muted-foreground/40" />
-            <p className="font-medium text-foreground">No audiences saved yet</p>
-            <p className="text-[11px] max-w-sm">
-              Create audiences by selecting contacts or filtering companies in CRM, or click "New Audience" to create one.
+            <p className="font-medium text-foreground text-xs">There are no saved audiences yet.</p>
+            <p className="text-[11px] max-w-sm text-muted-foreground">
+              Create one from CRM filters or selected contacts.
             </p>
             <Button
               type="button"
-              variant="outline"
+              variant="default"
               size="sm"
               onClick={() => setCreateModalOpen(true)}
-              className="mt-2 rounded-none gap-1.5 bg-indigo-600/20 text-indigo-300 border-indigo-500/40"
+              className="mt-2 rounded-none gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
             >
               <Plus className="w-3.5 h-3.5" />
-              Build First Audience
+              Create Audience
             </Button>
           </div>
         ) : (
@@ -191,17 +191,17 @@ export default function AudiencesScreen() {
               return (
                 <div
                   key={audience.id}
-                  className="bg-background border border-border-subtle rounded-none p-3.5 flex flex-col justify-between gap-3 hover:border-indigo-500/50 transition-colors"
+                  className="bg-background border border-border-subtle rounded-none p-3.5 flex flex-col justify-between gap-3 hover:border-primary/50 transition-colors"
                 >
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="flex items-center space-x-1.5">
                           <span
-                            className={`px-1.5 py-0.5 text-[9px] font-bold uppercase rounded tracking-wider border ${
+                            className={`px-1.5 py-0.5 text-[9px] font-bold uppercase rounded-none tracking-wider border ${
                               isStatic
-                                ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30'
-                                : 'bg-sky-500/10 text-sky-400 border-sky-500/30'
+                                ? 'bg-surface-3 text-foreground border-border-subtle font-mono'
+                                : 'bg-primary/10 text-primary border-primary/30 font-mono'
                             }`}
                           >
                             {isStatic ? 'STATIC' : 'DYNAMIC'}
@@ -209,7 +209,7 @@ export default function AudiencesScreen() {
                           <h4 className="font-bold text-foreground text-sm leading-snug">{audience.name}</h4>
                         </div>
                       </div>
-                      <Badge variant="outline" className="text-[9px] uppercase font-mono rounded-none border-indigo-500/30 text-indigo-300 shrink-0">
+                      <Badge variant="outline" className="text-[9px] uppercase font-mono rounded-none border-border-subtle text-foreground shrink-0">
                         {audience.contactCount || 0} Contacts
                       </Badge>
                     </div>
@@ -220,28 +220,33 @@ export default function AudiencesScreen() {
 
                     <div className="pt-1 flex flex-wrap gap-1">
                       {isStatic ? (
-                        <span className="bg-indigo-950/40 border border-indigo-500/30 text-indigo-300 text-[10px] px-1.5 py-0.5 rounded-none font-mono">
+                        <span className="bg-surface-3 border border-border-subtle text-foreground text-[10px] px-1.5 py-0.5 rounded-none font-mono">
                           {Array.isArray(audience.staticMemberIds) ? audience.staticMemberIds.length : 0} Explicit Member IDs
                         </span>
                       ) : (
                         <>
                           {filterDef.search && (
-                            <span className="bg-surface-3 border border-border-subtle text-[10px] px-1.5 py-0.5 rounded-none font-mono">
+                            <span className="bg-surface-3 border border-border-subtle text-[10px] px-1.5 py-0.5 rounded-none font-mono text-foreground">
                               Search: "{filterDef.search}"
                             </span>
                           )}
                           {filterDef.status && (
-                            <span className="bg-surface-3 border border-border-subtle text-[10px] px-1.5 py-0.5 rounded-none font-mono">
+                            <span className="bg-surface-3 border border-border-subtle text-[10px] px-1.5 py-0.5 rounded-none font-mono text-foreground">
                               Status: {filterDef.status}
                             </span>
                           )}
                           {filterDef.industry && (
-                            <span className="bg-surface-3 border border-border-subtle text-[10px] px-1.5 py-0.5 rounded-none font-mono">
+                            <span className="bg-surface-3 border border-border-subtle text-[10px] px-1.5 py-0.5 rounded-none font-mono text-foreground">
                               Industry: {filterDef.industry}
                             </span>
                           )}
+                          {filterDef.location && (
+                            <span className="bg-surface-3 border border-border-subtle text-[10px] px-1.5 py-0.5 rounded-none font-mono text-foreground">
+                              Location: {filterDef.location}
+                            </span>
+                          )}
                           {filterDef.discoveryRunId && (
-                            <span className="bg-sky-950/40 border border-sky-500/30 text-sky-300 text-[10px] px-1.5 py-0.5 rounded-none font-mono">
+                            <span className="bg-primary/10 border border-primary/30 text-primary text-[10px] px-1.5 py-0.5 rounded-none font-mono">
                               Linked Discovery Run
                             </span>
                           )}
@@ -260,7 +265,7 @@ export default function AudiencesScreen() {
                           deleteAudienceMutation.mutate(audience.id);
                         }
                       }}
-                      className="text-muted-foreground hover:text-rose-400 p-1 transition-colors"
+                      className="text-muted-foreground hover:text-danger p-1 transition-colors"
                       title="Delete audience"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -270,7 +275,7 @@ export default function AudiencesScreen() {
                       type="button"
                       size="sm"
                       onClick={() => handleCreateOutreach(audience)}
-                      className="h-7 text-[11px] font-semibold gap-1.5 rounded-none bg-indigo-600 hover:bg-indigo-500 text-white"
+                      className="h-7 text-[11px] font-semibold gap-1.5 rounded-none bg-primary text-primary-foreground hover:bg-primary/90"
                     >
                       <Send className="w-3 h-3" />
                       Create Outreach
@@ -294,4 +299,3 @@ export default function AudiencesScreen() {
     </div>
   );
 }
-

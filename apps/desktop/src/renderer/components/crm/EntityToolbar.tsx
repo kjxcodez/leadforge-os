@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { Search, Filter, Plus, Trash2, Tag, Archive } from 'lucide-react';
+import { Search, Filter, Plus, Trash2, Tag, Archive, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface EntityToolbarProps {
   search: string;
@@ -24,7 +24,8 @@ interface EntityToolbarProps {
 }
 
 /**
- * EntityToolbar renders a unified debounced search, filtering, and bulk actions toolbar.
+ * EntityToolbar renders a unified debounced search, collapsible filtering, and bulk actions toolbar
+ * aligned strictly with the LeadForge design system.
  */
 export function EntityToolbar({
   search,
@@ -48,6 +49,7 @@ export function EntityToolbar({
   children
 }: EntityToolbarProps & { onBulkSaveAudience?: () => void; children?: React.ReactNode }) {
   const [localSearch, setLocalSearch] = useState(search);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Synchronize local search if external search changes
   useEffect(() => {
@@ -64,10 +66,11 @@ export function EntityToolbar({
   }, [localSearch, onSearchChange]);
 
   const handleCreateAudience = onBulkCreateAudience || onBulkSaveAudience;
+  const hasExtraFilters = !!children || (onStatusChange && statusOptions.length > 0);
 
   return (
-    <div className="flex flex-col gap-3 pb-2">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-col gap-2.5 pb-1 select-none">
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex items-center gap-2 flex-1 min-w-[240px]">
           <div className="relative w-full max-w-sm">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground opacity-60" />
@@ -75,50 +78,85 @@ export function EntityToolbar({
               placeholder="Search by keyword..."
               value={localSearch}
               onChange={(e) => setLocalSearch(e.target.value)}
-              className="pl-8 text-xs h-9 bg-card border-border-subtle"
+              className="pl-8 text-xs h-8 bg-card border-border-subtle rounded-none text-foreground placeholder:text-muted-foreground"
             />
           </div>
 
-          {onStatusChange && statusOptions.length > 0 && (
-            <select
-              value={filterStatus || ''}
-              onChange={(e) => onStatusChange(e.target.value)}
-              className="bg-card border border-border-subtle rounded px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-accent/20 min-w-[110px] h-9"
+          {hasExtraFilters && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setFiltersOpen((prev) => !prev)}
+              className={`h-8 text-xs font-semibold gap-1.5 rounded-none border-border-subtle ${
+                filtersOpen || activeFilters.length > 0
+                  ? 'bg-primary/10 text-primary border-primary/30'
+                  : 'bg-card text-foreground hover:bg-surface-3'
+              }`}
             >
-              <option value="">All Statuses</option>
-              {statusOptions.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
+              <Filter className="w-3.5 h-3.5" />
+              <span>Filters</span>
+              {activeFilters.length > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.2 bg-primary text-primary-foreground rounded-none text-[10px] font-mono font-bold">
+                  {activeFilters.length}
+                </span>
+              )}
+              {filtersOpen ? <ChevronUp className="w-3 h-3 ml-0.5" /> : <ChevronDown className="w-3 h-3 ml-0.5" />}
+            </Button>
           )}
-
-          {children}
         </div>
 
-        <Button onClick={onCreateTrigger} size="sm" className="h-9 text-xs font-semibold gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white">
+        <Button
+          onClick={onCreateTrigger}
+          size="sm"
+          className="h-8 text-xs font-semibold gap-1.5 rounded-none bg-primary text-primary-foreground hover:bg-primary/90"
+        >
           <Plus className="w-3.5 h-3.5" />
           {createLabel}
         </Button>
       </div>
 
+      {/* Collapsible Structured Filters Bar */}
+      {filtersOpen && hasExtraFilters && (
+        <div className="p-3 bg-card border border-border-subtle rounded-none flex flex-wrap items-center gap-2.5 animate-in slide-in-from-top-1 duration-150">
+          {onStatusChange && statusOptions.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Status</span>
+              <select
+                value={filterStatus || ''}
+                onChange={(e) => onStatusChange(e.target.value)}
+                className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[120px]"
+              >
+                <option value="">All Statuses</option>
+                {statusOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {children}
+        </div>
+      )}
+
       {/* Active Filter Chips */}
       {activeFilters.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 pt-1">
-          <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mr-1">
-            Active Filters:
+        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mr-1 font-mono">
+            Active:
           </span>
           {activeFilters.map((chip, idx) => (
             <span
               key={idx}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-indigo-500/10 text-indigo-300 border border-indigo-500/20"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-none text-[11px] font-medium bg-surface-3 text-foreground border border-border-subtle"
             >
-              <span>{chip.label}:</span>
-              <span className="font-semibold text-indigo-200">{chip.value}</span>
+              <span className="text-muted-foreground">{chip.label}:</span>
+              <span className="font-semibold">{chip.value}</span>
               <button
                 onClick={chip.onRemove}
-                className="ml-1 hover:text-rose-400 text-indigo-400/80 transition-colors"
+                className="ml-1 text-muted-foreground hover:text-danger transition-colors font-bold"
                 title="Remove filter"
               >
                 ×
@@ -128,7 +166,7 @@ export function EntityToolbar({
           {onClearAllFilters && (
             <button
               onClick={onClearAllFilters}
-              className="text-xs text-slate-400 hover:text-slate-200 underline ml-2 transition-colors"
+              className="text-[11px] text-muted-foreground hover:text-foreground underline ml-1.5 transition-colors font-mono"
             >
               Clear all
             </button>
@@ -138,8 +176,8 @@ export function EntityToolbar({
 
       {/* Bulk actions banner */}
       {selectedCount > 0 && (
-        <div className="flex items-center justify-between p-2.5 bg-indigo-950/40 border border-indigo-500/20 rounded-lg text-xs animate-in slide-in-from-top-1 duration-150">
-          <span className="font-semibold text-indigo-200">{selectedCount} items selected</span>
+        <div className="flex flex-wrap items-center justify-between p-2.5 bg-surface-3 border border-border-subtle rounded-none text-xs animate-in slide-in-from-top-1 duration-150 gap-2">
+          <span className="font-bold text-foreground font-mono">{selectedCount} items selected</span>
 
           <div className="flex items-center gap-2">
             {onBulkStatusChange && bulkStatusOptions.length > 0 && (
@@ -150,7 +188,7 @@ export function EntityToolbar({
                     e.target.value = '';
                   }
                 }}
-                className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[11px] outline-none text-slate-200 focus:ring-1 focus:ring-indigo-500 h-7"
+                className="bg-card border border-border-subtle rounded-none px-2 py-1 text-[11px] outline-none text-foreground focus:ring-1 focus:ring-ring h-7"
               >
                 <option value="">Update Status...</option>
                 {bulkStatusOptions.map((opt) => (
@@ -163,12 +201,12 @@ export function EntityToolbar({
 
             {handleCreateAudience && (
               <Button
-                variant="outline"
+                variant="default"
                 size="sm"
                 onClick={handleCreateAudience}
-                className="h-7 text-[11px] gap-1 bg-indigo-600/20 border-indigo-500/40 text-indigo-300 hover:bg-indigo-600/30"
+                className="h-7 text-[11px] gap-1 rounded-none bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
               >
-                <Plus className="w-3.5 h-3.5 text-indigo-400" />
+                <Plus className="w-3.5 h-3.5" />
                 Create Audience
               </Button>
             )}
@@ -178,7 +216,7 @@ export function EntityToolbar({
                 variant="outline"
                 size="sm"
                 onClick={onBulkEnroll}
-                className="h-7 text-[11px] gap-1 border-slate-700 text-slate-200 hover:bg-slate-800"
+                className="h-7 text-[11px] gap-1 rounded-none border-border-subtle text-foreground hover:bg-surface-3"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Enroll in Campaign
@@ -190,9 +228,9 @@ export function EntityToolbar({
                 variant="outline"
                 size="sm"
                 onClick={onBulkAddTag}
-                className="h-7 text-[11px] gap-1 border-slate-700 text-slate-200 hover:bg-slate-800"
+                className="h-7 text-[11px] gap-1 rounded-none border-border-subtle text-foreground hover:bg-surface-3"
               >
-                <Tag className="w-3.5 h-3.5 text-indigo-400" />
+                <Tag className="w-3.5 h-3.5 text-primary" />
                 Add Tag
               </Button>
             )}
@@ -202,9 +240,9 @@ export function EntityToolbar({
                 variant="outline"
                 size="sm"
                 onClick={onBulkArchive}
-                className="h-7 text-[11px] gap-1 border-slate-700 text-amber-400 hover:bg-amber-950/30"
+                className="h-7 text-[11px] gap-1 rounded-none border-border-subtle text-warning hover:bg-warning-muted/20"
               >
-                <Archive className="w-3.5 h-3.5 text-amber-400" />
+                <Archive className="w-3.5 h-3.5" />
                 Archive
               </Button>
             )}
@@ -214,9 +252,9 @@ export function EntityToolbar({
                 variant="outline"
                 size="sm"
                 onClick={onBulkDelete}
-                className="h-7 text-[11px] gap-1 border-slate-700 text-rose-400 hover:bg-rose-950/30"
+                className="h-7 text-[11px] gap-1 rounded-none border-border-subtle text-danger hover:bg-danger-muted/20"
               >
-                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                <Trash2 className="w-3.5 h-3.5" />
                 Delete
               </Button>
             )}

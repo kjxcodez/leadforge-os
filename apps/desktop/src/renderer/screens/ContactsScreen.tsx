@@ -301,63 +301,75 @@ export default function ContactsScreen() {
           onClearAllFilters={handleClearAllFilters}
         >
           {companies.length > 0 && (
-            <select
-              value={companyFilter}
-              onChange={(e) => setCompanyFilter(e.target.value)}
-              className="bg-card border border-border-subtle rounded px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-accent/20 min-w-[130px] h-9"
-            >
-              <option value="">All Companies</option>
-              {companies.map((comp: any) => (
-                <option key={comp.id} value={comp.id}>
-                  {comp.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono">Company</span>
+              <select
+                value={companyFilter}
+                onChange={(e) => setCompanyFilter(e.target.value)}
+                className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[130px]"
+              >
+                <option value="">All Companies</option>
+                {companies.map((comp: any) => (
+                  <option key={comp.id} value={comp.id}>
+                    {comp.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
 
           {distinctValues.titles.length > 0 && (
-            <select
-              value={titleFilter}
-              onChange={(e) => setTitleFilter(e.target.value)}
-              className="bg-card border border-border-subtle rounded px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-accent/20 min-w-[120px] h-9"
-            >
-              <option value="">All Job Titles</option>
-              {distinctValues.titles.map((t: string) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono">Job Title</span>
+              <select
+                value={titleFilter}
+                onChange={(e) => setTitleFilter(e.target.value)}
+                className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[120px]"
+              >
+                <option value="">All Job Titles</option>
+                {distinctValues.titles.map((t: string) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
 
           {distinctValues.sources.length > 0 && (
-            <select
-              value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value)}
-              className="bg-card border border-border-subtle rounded px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-accent/20 min-w-[120px] h-9"
-            >
-              <option value="">All Sources</option>
-              {distinctValues.sources.map((s: string) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono">Source</span>
+              <select
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value)}
+                className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[120px]"
+              >
+                <option value="">All Sources</option>
+                {distinctValues.sources.map((s: string) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
 
           {discoveryRuns.length > 0 && (
-            <select
-              value={discoveryRunFilter}
-              onChange={(e) => setDiscoveryRunFilter(e.target.value)}
-              className="bg-card border border-border-subtle rounded px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-accent/20 min-w-[130px] h-9"
-            >
-              <option value="">All Discovery Runs</option>
-              {discoveryRuns.map((run: any) => (
-                <option key={run.id} value={run.id}>
-                  {run.name || run.query}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono">Discovery Run</span>
+              <select
+                value={discoveryRunFilter}
+                onChange={(e) => setDiscoveryRunFilter(e.target.value)}
+                className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[130px]"
+              >
+                <option value="">All Discovery Runs</option>
+                {discoveryRuns.map((run: any) => (
+                  <option key={run.id} value={run.id}>
+                    {run.name || run.query}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
 
           <select
