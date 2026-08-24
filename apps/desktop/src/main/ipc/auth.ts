@@ -112,26 +112,24 @@ export function registerAuthIpc(
         return null;
       }
     } catch (err: any) {
-      // Check if it's a network error
+      const isServerError = err.status >= 500 || err.code === 'INTERNAL_SERVER_ERROR';
       const isNetworkError =
         err.code === 'NETWORK_ERROR' ||
         err.message?.includes('fetch') ||
         err.message?.includes('network') ||
         err.status === null;
-      if (isNetworkError) {
-        AppLogger.info('auth', 'Offline session restored');
-        // Let's load the locally saved session
+
+      if (isNetworkError || isServerError) {
+        AppLogger.info('auth', `Server/Network error (${err.status || err.code}), attempting local session restore`);
         const session = loadSession();
         if (session && session.user) {
-          // Verify expiration (if expiresAt exists)
           if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
-            AppLogger.warn('auth', 'Offline session expired');
+            AppLogger.warn('auth', 'Local session expired during server outage');
             clearSession();
             setToken(null);
             setWorkspaceHeader(null);
             return null;
           }
-          // Restore token and workspace headers in Main memory
           setToken(session.accessToken);
           if (session.activeWorkspaceId) {
             setWorkspaceHeader(session.activeWorkspaceId);
@@ -143,8 +141,8 @@ export function registerAuthIpc(
         }
       }
 
-      // If it's another error (like 401), clear the session!
-      AppLogger.error('auth', 'Session validation failed with error', undefined, err);
+      // Explicit authentication failure (401 / 403) or missing session
+      AppLogger.error('auth', 'Session validation failed with authentication error', undefined, err);
       clearSession();
       setToken(null);
       setWorkspaceHeader(null);
