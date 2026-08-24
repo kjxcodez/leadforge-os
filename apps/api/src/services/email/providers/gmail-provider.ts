@@ -19,6 +19,11 @@ export interface GmailProviderConfig {
   encryptedRefreshToken: string;
   encryptedAccessToken?: string | null;
   tokenExpiresAt?: string | null;
+  onTokenRefresh?: (tokens: {
+    accessToken: string;
+    tokenExpiresAt: string;
+    refreshToken?: string;
+  }) => Promise<void>;
 }
 
 /**
@@ -53,7 +58,7 @@ export class GmailProvider implements EmailProvider {
     if (config.tokenExpiresAt) {
       tokens.tokenExpiresAt = config.tokenExpiresAt;
     }
-    this.client = new GmailApiClient(this.oauth, tokens);
+    this.client = new GmailApiClient(this.oauth, tokens, config.onTokenRefresh);
   }
 
   async verify(): Promise<EmailProviderHealth> {

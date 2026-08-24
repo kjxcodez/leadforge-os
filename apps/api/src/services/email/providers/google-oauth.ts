@@ -211,32 +211,68 @@ export class GoogleOAuthClient {
 }
 
 export class GmailApiClient {
+  private refreshPromise: Promise<{ accessToken: string; tokenExpiresAt: string }> | null = null;
+
   constructor(
     private readonly oauth: GoogleOAuthClient,
     private tokens: {
       refreshToken: string;
       accessToken?: string;
       tokenExpiresAt?: string;
-    }
+    },
+    private readonly onTokenRefresh?: (tokens: {
+      accessToken: string;
+      tokenExpiresAt: string;
+      refreshToken?: string;
+    }) => Promise<void>
   ) {}
 
-  /** Returns a valid access token, refreshing if expired or missing. */
+  /** Returns a valid access token, refreshing if expired or missing. Prevents concurrent refresh stampedes. */
   async getAccessToken(): Promise<{ accessToken: string; tokenExpiresAt: string | null }> {
     const now = Date.now();
     const expiresAt = this.tokens.tokenExpiresAt
       ? new Date(this.tokens.tokenExpiresAt).getTime()
       : 0;
+
     if (this.tokens.accessToken && (expiresAt === 0 || expiresAt - now > 60_000)) {
       return {
         accessToken: this.tokens.accessToken,
         tokenExpiresAt: this.tokens.tokenExpiresAt || null
       };
     }
-    const refreshed = await this.oauth.refreshAccessToken(this.tokens.refreshToken);
-    const newExpiresAt = new Date(Date.now() + refreshed.expiresIn * 1000).toISOString();
-    this.tokens.accessToken = refreshed.accessToken;
-    this.tokens.tokenExpiresAt = newExpiresAt;
-    return { accessToken: refreshed.accessToken, tokenExpiresAt: newExpiresAt };
+
+    if (this.refreshPromise) {
+      return await this.refreshPromise;
+    }
+
+    this.refreshPromise = (async () => {
+      try {
+        const refreshed = await this.oauth.refreshAccessToken(this.tokens.refreshToken);
+        const newExpiresAt = new Date(Date.now() + refreshed.expiresIn * 1000).toISOString();
+
+        this.tokens.accessToken = refreshed.accessToken;
+        this.tokens.tokenExpiresAt = newExpiresAt;
+        if (refreshed.refreshToken) {
+          this.tokens.refreshToken = refreshed.refreshToken;
+        }
+
+        if (this.onTokenRefresh) {
+          await this.onTokenRefresh({
+            accessToken: refreshed.accessToken,
+            tokenExpiresAt: newExpiresAt,
+            ...(refreshed.refreshToken ? { refreshToken: refreshed.refreshToken } : {})
+          }).catch((err) => {
+            logger.warn({ err }, 'Failed to persist refreshed Google tokens to database');
+          });
+        }
+
+        return { accessToken: refreshed.accessToken, tokenExpiresAt: newExpiresAt };
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return await this.refreshPromise;
   }
 
   async verify(): Promise<{ email: string }> {

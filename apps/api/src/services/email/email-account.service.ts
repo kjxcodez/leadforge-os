@@ -279,7 +279,19 @@ export class EmailAccountService {
         clientSecret: env.GOOGLE_CLIENT_SECRET || '',
         encryptedRefreshToken: account.encryptedRefreshToken,
         encryptedAccessToken: account.encryptedAccessToken,
-        tokenExpiresAt: account.tokenExpiresAt?.toISOString()
+        tokenExpiresAt: account.tokenExpiresAt?.toISOString(),
+        onTokenRefresh: async (refreshed) => {
+          const updates: any = {
+            encryptedAccessToken: encrypt(refreshed.accessToken),
+            tokenExpiresAt: new Date(refreshed.tokenExpiresAt),
+            status: 'connected',
+            lastError: null
+          };
+          if (refreshed.refreshToken) {
+            updates.encryptedRefreshToken = encrypt(refreshed.refreshToken);
+          }
+          await EmailAccountModel.updateOne({ _id: id } as any, updates);
+        }
       };
       if (!config.clientId || !config.clientSecret) {
         throw new EmailDomainError(
