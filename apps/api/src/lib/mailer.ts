@@ -203,269 +203,47 @@ export class MailerService {
     }
   }
 
+  public async sendTextMail(to: string, subject: string, text: string): Promise<void> {
+    if (this.transporter) {
+      try {
+        await this.transporter.sendMail({ from: this.fromAddress, to, subject, text });
+        logger.info(`Mailer: Sent Text → ${to} [${subject}]`);
+      } catch (err: any) {
+        logger.error(err, `Mailer: Failed Text → ${to}`);
+        throw err;
+      }
+    } else {
+      logger.info(`[DEV TEXT MAIL] To: ${to}\nSubject: ${subject}\n\n${text}\n`);
+    }
+  }
+
   // ──────────────────────────────────────────────────────────────────────────
-  // Template: Verify Email
+  // Template: Verify Email (Text-only for beta)
   // ──────────────────────────────────────────────────────────────────────────
   public async sendVerificationEmail(to: string, verificationUrl: string): Promise<void> {
     const subject = 'Verify your email — LeadForge OS';
     const text = `Welcome to LeadForge OS.\n\nVerify your email address by opening this link:\n${verificationUrl}\n\nIf you did not create an account, ignore this email.`;
 
-    const content = `
-      <!-- Icon -->
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-        <tr>
-          <td align="center" style="padding-bottom: 28px;">
-            <div style="width: 48px; height: 48px; border-radius: 8px;
-                        background-color: ${DS.bgSurface2}; border: 1px solid ${DS.borderDefault};
-                        display: inline-flex; align-items: center; justify-content: center;">
-              <!-- Mail icon (SVG inline) -->
-              <img src="https://em-content.zobj.net/source/noto/386/envelope_2709-fe0f.png"
-                   width="24" height="24" alt="" style="display: block;" />
-            </div>
-          </td>
-        </tr>
-
-        <!-- Heading -->
-        <tr>
-          <td align="center" style="padding-bottom: 12px;">
-            <h1 style="font-family: ${DS.fontStack}; font-size: 20px; font-weight: 600;
-                        line-height: 28px; color: ${DS.textPrimary}; margin: 0;
-                        letter-spacing: -0.02em;">
-              Verify your email address
-            </h1>
-          </td>
-        </tr>
-
-        <!-- Body -->
-        <tr>
-          <td align="center" style="padding-bottom: 32px;">
-            <p style="font-family: ${DS.fontStack}; font-size: 15px; line-height: 24px;
-                       color: ${DS.textSecondary}; margin: 0; max-width: 400px;">
-              You created an account on LeadForge OS. Click the button below to verify your
-              email address and activate your account.
-            </p>
-          </td>
-        </tr>
-
-        <!-- CTA -->
-        <tr>
-          <td align="center" style="padding-bottom: 32px;">
-            ${primaryButton(verificationUrl, 'Verify Email Address')}
-          </td>
-        </tr>
-
-        <!-- Divider -->
-        <tr>
-          <td style="padding-bottom: 20px;">
-            <div style="height: 1px; background-color: ${DS.borderSubtle};"></div>
-          </td>
-        </tr>
-
-        <!-- Fallback URL -->
-        <tr>
-          <td style="padding-bottom: 8px;">
-            <p style="font-family: ${DS.fontStack}; font-size: 12px; line-height: 18px;
-                       color: ${DS.textTertiary}; margin: 0 0 8px 0;">
-              Button not working? Copy this link into your browser:
-            </p>
-            ${fallbackUrl(verificationUrl)}
-          </td>
-        </tr>
-
-        <!-- Security note -->
-        <tr>
-          <td style="padding-top: 20px;">
-            <p style="font-family: ${DS.fontStack}; font-size: 12px; line-height: 18px;
-                       color: ${DS.textTertiary}; margin: 0;">
-              This link expires in 24 hours. If you did not create an account on LeadForge OS,
-              you can safely ignore this email.
-            </p>
-          </td>
-        </tr>
-      </table>`;
-
-    await this.sendMail(to, subject, emailShell(content), text);
+    await this.sendTextMail(to, subject, text);
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Template: Reset Password
+  // Template: Reset Password (Text-only for beta)
   // ──────────────────────────────────────────────────────────────────────────
   public async sendResetPasswordEmail(to: string, resetUrl: string): Promise<void> {
     const subject = 'Reset your password — LeadForge OS';
     const text = `You requested a password reset for your LeadForge OS account.\n\nReset your password here:\n${resetUrl}\n\nThis link expires in 1 hour. If you did not request this, ignore this email — your password has not been changed.`;
 
-    const content = `
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-
-        <!-- Accent bar at top -->
-        <tr>
-          <td style="padding-bottom: 28px;">
-            <div style="height: 3px; border-radius: 2px; background-color: ${DS.accent};
-                        width: 48px; margin: 0 auto;"></div>
-          </td>
-        </tr>
-
-        <!-- Heading -->
-        <tr>
-          <td align="center" style="padding-bottom: 12px;">
-            <h1 style="font-family: ${DS.fontStack}; font-size: 20px; font-weight: 600;
-                        line-height: 28px; color: ${DS.textPrimary}; margin: 0;
-                        letter-spacing: -0.02em;">
-              Reset your password
-            </h1>
-          </td>
-        </tr>
-
-        <!-- Body -->
-        <tr>
-          <td align="center" style="padding-bottom: 32px;">
-            <p style="font-family: ${DS.fontStack}; font-size: 15px; line-height: 24px;
-                       color: ${DS.textSecondary}; margin: 0; max-width: 400px;">
-              We received a request to reset the password for your LeadForge OS account.
-              Click the button below to choose a new password. This link expires in
-              <strong style="color: ${DS.textPrimary}; font-weight: 500;">1 hour</strong>.
-            </p>
-          </td>
-        </tr>
-
-        <!-- CTA -->
-        <tr>
-          <td align="center" style="padding-bottom: 32px;">
-            ${primaryButton(resetUrl, 'Reset Password')}
-          </td>
-        </tr>
-
-        <!-- Warning box -->
-        <tr>
-          <td style="padding-bottom: 24px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                   style="background-color: ${DS.bgSurface2}; border: 1px solid ${DS.borderDefault};
-                          border-left: 3px solid ${DS.textTertiary}; border-radius: 8px;">
-              <tr>
-                <td style="padding: 14px 16px;">
-                  <p style="font-family: ${DS.fontStack}; font-size: 13px; line-height: 20px;
-                             color: ${DS.textTertiary}; margin: 0;">
-                    If you did not request a password reset, your account is secure.
-                    No changes have been made. You can safely ignore this email.
-                  </p>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-
-        <!-- Divider -->
-        <tr>
-          <td style="padding-bottom: 20px;">
-            <div style="height: 1px; background-color: ${DS.borderSubtle};"></div>
-          </td>
-        </tr>
-
-        <!-- Fallback URL -->
-        <tr>
-          <td style="padding-bottom: 8px;">
-            <p style="font-family: ${DS.fontStack}; font-size: 12px; line-height: 18px;
-                       color: ${DS.textTertiary}; margin: 0 0 8px 0;">
-              Button not working? Copy this link into your browser:
-            </p>
-            ${fallbackUrl(resetUrl)}
-          </td>
-        </tr>
-
-      </table>`;
-
-    await this.sendMail(to, subject, emailShell(content), text);
+    await this.sendTextMail(to, subject, text);
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Template: Welcome (post-verification)
+  // Template: Welcome (post-verification, Text-only for beta)
   // ──────────────────────────────────────────────────────────────────────────
   public async sendWelcomeEmail(to: string, name: string): Promise<void> {
     const subject = 'Welcome to LeadForge OS';
     const text = `Hi ${name},\n\nYour email has been verified. Your LeadForge OS account is active.\n\nOpen the desktop app and sign in to get started.`;
 
-    const content = `
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-
-        <!-- Success bar -->
-        <tr>
-          <td align="center" style="padding-bottom: 28px;">
-            <div style="width: 48px; height: 48px; border-radius: 8px;
-                        background-color: rgba(63, 178, 127, 0.12);
-                        border: 1px solid rgba(63, 178, 127, 0.3);
-                        line-height: 48px; text-align: center; font-size: 22px;">
-              ✓
-            </div>
-          </td>
-        </tr>
-
-        <!-- Heading -->
-        <tr>
-          <td align="center" style="padding-bottom: 12px;">
-            <h1 style="font-family: ${DS.fontStack}; font-size: 20px; font-weight: 600;
-                        line-height: 28px; color: ${DS.textPrimary}; margin: 0;
-                        letter-spacing: -0.02em;">
-              You're in.
-            </h1>
-          </td>
-        </tr>
-
-        <!-- Body -->
-        <tr>
-          <td align="center" style="padding-bottom: 32px;">
-            <p style="font-family: ${DS.fontStack}; font-size: 15px; line-height: 24px;
-                       color: ${DS.textSecondary}; margin: 0; max-width: 400px;">
-              Your email is verified and your LeadForge OS account is active.
-              Open the desktop app to sign in and get started.
-            </p>
-          </td>
-        </tr>
-
-        <!-- Divider -->
-        <tr>
-          <td style="padding-bottom: 20px;">
-            <div style="height: 1px; background-color: ${DS.borderSubtle};"></div>
-          </td>
-        </tr>
-
-        <!-- What's next — 3 items -->
-        <tr>
-          <td style="padding-bottom: 8px;">
-            <p style="font-family: ${DS.fontStack}; font-size: 12px; font-weight: 600;
-                       letter-spacing: 0.06em; text-transform: uppercase; color: ${DS.textTertiary};
-                       margin: 0 0 16px 0;">
-              What to do next
-            </p>
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-              ${[
-                ['01', 'Sign in', 'Open the desktop app and authenticate with your credentials.'],
-                ['02', 'Create a workspace', 'Workspaces keep your leads, campaigns, and settings organized.'],
-                ['03', 'Run your first discovery', 'Find and enrich leads from LinkedIn and web sources.']
-              ].map(([num, title, desc]) => `
-              <tr>
-                <td style="padding-bottom: 16px;">
-                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                    <tr>
-                      <td width="32" valign="top" style="padding-top: 1px;">
-                        <span style="font-family: ${DS.monoStack}; font-size: 11px; font-weight: 400;
-                                     color: ${DS.accent}; line-height: 20px;">${num}</span>
-                      </td>
-                      <td valign="top">
-                        <p style="font-family: ${DS.fontStack}; font-size: 13px; font-weight: 600;
-                                   color: ${DS.textPrimary}; margin: 0 0 2px 0; line-height: 20px;">${title}</p>
-                        <p style="font-family: ${DS.fontStack}; font-size: 13px; color: ${DS.textSecondary};
-                                   margin: 0; line-height: 20px;">${desc}</p>
-                      </td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>`).join('')}
-            </table>
-          </td>
-        </tr>
-
-      </table>`;
-
-    await this.sendMail(to, subject, emailShell(content), text);
+    await this.sendTextMail(to, subject, text);
   }
 }
