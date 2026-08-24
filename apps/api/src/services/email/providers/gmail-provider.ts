@@ -73,7 +73,7 @@ export class GmailProvider implements EmailProvider {
     }
   }
 
-  async fetchSignature(): Promise<string | null> {
+  async fetchSignature(): Promise<import('./google-oauth.js').SignatureFetchResult> {
     return this.client.getSendAsSignature(this.config.email);
   }
 

@@ -1,4 +1,6 @@
 import { EmailAccountModel } from '../../db/models/email-account.model.js';
+import { UserTestRecipientModel } from '../../db/models/user-test-recipient.model.js';
+import { logger } from '../../config/index.js';
 import {
   EmailDomainError,
   type SendEmailInput,
@@ -11,16 +13,25 @@ import type { EmailProvider } from './providers/types.js';
  * EmailService owns email operations (send / sendTest / verify) on top of the
  * EmailProvider abstraction. It resolves the mailbox, checks limits, delegates
  * to the correct provider, and increments send counters.
- *
- * This is the single entry point used by:
- *   - the Hono /email/* routes (web/mobile + desktop API)
- *   - the desktop worker (via the shared provider abstraction, not an HTTP call)
  */
 export class EmailService {
   private readonly accounts: EmailAccountService;
 
-  constructor(private readonly workspaceId: string) {
+  constructor(
+    private readonly workspaceId: string,
+    private readonly userId?: string
+  ) {
     this.accounts = new EmailAccountService(workspaceId);
+  }
+
+  static async getGlobalTestRecipients(userId: string): Promise<Array<{ email: string; firstUsedAt: Date; lastUsedAt: Date }>> {
+    if (!userId) return [];
+    const docs = await UserTestRecipientModel.find({ userId }).sort({ lastUsedAt: -1 }).limit(3);
+    return docs.map((d) => ({
+      email: d.email,
+      firstUsedAt: d.firstUsedAt,
+      lastUsedAt: d.lastUsedAt
+    }));
   }
 
   async send(input: SendEmailInput): Promise<SendEmailResult> {
@@ -102,7 +113,7 @@ export class EmailService {
   /**
    * Sends a test message to a user-specified recipient address while enforcing:
    * 1. Recipient normalization & validation.
-   * 2. Server-side limit of 3 unique test recipients per sender account.
+   * 2. Global user-scoped limit of 3 unique test recipients per LeadForge user.
    * 3. Gmail signature resolution (if useSignature is true/default).
    * 4. Optional attachment processing with 25 MB max size check.
    */
@@ -119,7 +130,7 @@ export class EmailService {
         size?: number;
       }>;
     }
-  ): Promise<{ messageId: string; sentTo: string }> {
+  ): Promise<{ messageId: string; sentTo: string; signatureNotice?: string }> {
     const rawTo = options?.to || '';
     const normalizedTo = rawTo.trim().toLowerCase();
 
@@ -137,52 +148,82 @@ export class EmailService {
       throw new EmailDomainError('MAILBOX_NOT_FOUND', 'Email Account not found.');
     }
 
-    // Check unique test recipients
-    const existingRecipients = accountDoc.testRecipients || [];
-    const isKnown = existingRecipients.some(
+    // Resolve global LeadForge User ID for quota boundary
+    const targetUserId = this.userId || this.workspaceId;
+
+    // Check global test recipients for targetUserId
+    let userRecipients = await UserTestRecipientModel.find({ userId: targetUserId });
+
+    // Legacy Migration fallback: If UserTestRecipient records are empty, migrate existing EmailAccount.testRecipients
+    if (userRecipients.length === 0) {
+      const legacyAccounts = await EmailAccountModel.find({ workspaceId: this.workspaceId });
+      const migrated: string[] = [];
+      for (const acc of legacyAccounts) {
+        if (Array.isArray(acc.testRecipients)) {
+          for (const r of acc.testRecipients) {
+            const norm = (r.email || '').trim().toLowerCase();
+            if (norm && !migrated.includes(norm) && migrated.length < 3) {
+              migrated.push(norm);
+              await UserTestRecipientModel.create({
+                userId: targetUserId,
+                email: norm,
+                firstUsedAt: r.firstUsedAt || new Date(),
+                lastUsedAt: r.lastUsedAt || new Date()
+              }).catch(() => {});
+            }
+          }
+        }
+      }
+      userRecipients = await UserTestRecipientModel.find({ userId: targetUserId });
+    }
+
+    const isKnown = userRecipients.some(
       (r) => r.email.trim().toLowerCase() === normalizedTo
     );
 
     if (!isKnown) {
-      if (existingRecipients.length >= 3) {
+      if (userRecipients.length >= 3) {
         throw new EmailDomainError(
           'TEST_RECIPIENT_LIMIT_REACHED',
-          'Limit reached: You can test this sender with up to 3 different recipient addresses. You can reuse one of your previous test addresses.'
+          'You can use up to 3 different test recipients across your LeadForge account. Reuse one of your existing test addresses to continue.'
         );
       }
-      existingRecipients.push({
+      await UserTestRecipientModel.create({
+        userId: targetUserId,
         email: normalizedTo,
         firstUsedAt: new Date(),
         lastUsedAt: new Date()
+      }).catch((err: any) => {
+        // Handle race condition cleanly if concurrent request inserted same email
+        if (err?.code !== 11000) throw err;
       });
     } else {
-      const match = existingRecipients.find(
-        (r) => r.email.trim().toLowerCase() === normalizedTo
+      await UserTestRecipientModel.updateOne(
+        { userId: targetUserId, email: normalizedTo },
+        { $set: { lastUsedAt: new Date() } }
       );
-      if (match) {
-        match.lastUsedAt = new Date();
-      }
     }
 
-    await EmailAccountModel.updateOne(
-      { _id: accountId } as any,
-      { testRecipients: existingRecipients }
-    );
-
-    // Signature resolution
+    // Signature resolution with explicit status handling
     let signatureHtml = '';
+    let signatureNotice: string | undefined = undefined;
+
     const useSignature = options.useSignature !== false;
     if (useSignature) {
       try {
         const provider: any = await this.accounts.buildProvider(accountId);
         if (provider && typeof provider.fetchSignature === 'function') {
-          const fetchedSig = await provider.fetchSignature();
-          if (fetchedSig) {
-            signatureHtml = fetchedSig;
+          const sigResult = await provider.fetchSignature();
+          if (sigResult.status === 'success') {
+            signatureHtml = sigResult.signature;
             await EmailAccountModel.updateOne(
               { _id: accountId } as any,
               { signature: signatureHtml }
             );
+          } else if (sigResult.status === 'insufficient_scope') {
+            signatureNotice = sigResult.message;
+            logger.warn({ accountId, message: sigResult.message }, 'Gmail signature unavailable: scope reauth required');
+            if (accountDoc.signature) signatureHtml = accountDoc.signature;
           } else if (accountDoc.signature) {
             signatureHtml = accountDoc.signature;
           }
@@ -230,7 +271,11 @@ export class EmailService {
       attachments
     });
 
-    return { messageId: result.messageId, sentTo: normalizedTo };
+    return {
+      messageId: result.messageId,
+      sentTo: normalizedTo,
+      ...(signatureNotice ? { signatureNotice } : {})
+    };
   }
 
   /** Lightweight mailbox health check through the resolved provider. */

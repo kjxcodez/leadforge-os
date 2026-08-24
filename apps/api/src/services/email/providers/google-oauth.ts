@@ -35,6 +35,12 @@ export interface SendMessageOptions {
   attachments?: EmailAttachmentInput[] | undefined;
 }
 
+export type SignatureFetchResult =
+  | { status: 'success'; signature: string }
+  | { status: 'empty' }
+  | { status: 'insufficient_scope'; message: string }
+  | { status: 'error'; message: string };
+
 export interface GoogleOAuthConfig {
   clientId: string;
   clientSecret: string;
@@ -241,20 +247,32 @@ export class GmailApiClient {
 
   /**
    * Fetches the user's configured web HTML signature for the given sendAs email address.
-   * Returns null if missing or if authorization requires scope reauth.
+   * Returns explicit SignatureFetchResult covering success, empty signature, 403 scope issues, or API errors.
    */
-  async getSendAsSignature(sendAsEmail: string): Promise<string | null> {
+  async getSendAsSignature(sendAsEmail: string): Promise<SignatureFetchResult> {
     try {
       const { accessToken } = await this.getAccessToken();
       const url = `https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs/${encodeURIComponent(sendAsEmail)}`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
-      if (!res.ok) return null;
+      if (res.status === 403 || res.status === 401) {
+        return {
+          status: 'insufficient_scope',
+          message: 'Gmail authorization requires updated permissions. Reconnect Gmail to enable signature sync.'
+        };
+      }
+      if (!res.ok) {
+        return { status: 'error', message: `Gmail API request failed (HTTP ${res.status})` };
+      }
       const data: any = await res.json().catch(() => ({}));
-      return data?.signature || null;
-    } catch {
-      return null;
+      const signature = data?.signature ? String(data.signature).trim() : '';
+      if (signature) {
+        return { status: 'success', signature };
+      }
+      return { status: 'empty' };
+    } catch (err: any) {
+      return { status: 'error', message: err?.message || 'Failed to fetch signature from Gmail.' };
     }
   }
 
