@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/
 import { Label } from '../components/ui/label';
 import { Users, X, Mail, Phone, Briefcase, Linkedin } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
+import { CreateAudienceModal, type PreloadedContact } from '../components/crm/CreateAudienceModal';
 import { ContactStatus } from '@leadforge/schema';
 import { PageHeader } from '../components/common/PageHeader';
 import { Sheet, SheetContent } from '../components/ui/sheet';
@@ -26,11 +27,6 @@ import { toast } from 'sonner';
 /**
  * ContactsScreen handles contact directory listing, side profile drawer,
  * and CRUD actions.
- *
- * Design updates:
- *   - Squared corners: all buttons, dialog contents, panels, badges, select boxes have rounded-none.
- *   - Correct Palette: uses semantic design tokens (primary, info, success, warning, danger).
- *   - Pagination: client-side pagination with controls and info readout.
  */
 export default function ContactsScreen() {
   const { activeWorkspace } = useWorkspace();
@@ -38,9 +34,17 @@ export default function ContactsScreen() {
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [companyFilter, setCompanyFilter] = useState('');
+  const [titleFilter, setTitleFilter] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
+  const [discoveryRunFilter, setDiscoveryRunFilter] = useState('');
   const [sourcePlatformFilter, setSourcePlatformFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedContact, setSelectedContact] = useState<any | null>(null);
+
+  // Audience Modal State
+  const [audienceModalOpen, setAudienceModalOpen] = useState(false);
+
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -105,6 +109,27 @@ export default function ContactsScreen() {
   const contacts = contactsQuery.data || [];
   const companies = companiesQuery.data || [];
 
+  // Distinct values query for contact dropdowns
+  const distinctQuery = useQuery({
+    queryKey: ['contacts', 'distinct-values', workspaceId],
+    queryFn: async () => {
+      return window.ipc.invoke('contacts:distinct-values', { workspaceId });
+    },
+    enabled: !!workspaceId
+  });
+
+  // Discovery runs query for filter
+  const discoveryRunsQuery = useQuery({
+    queryKey: ['discovery-runs', workspaceId],
+    queryFn: async () => {
+      return window.ipc.invoke('discovery:run:list', { workspaceId });
+    },
+    enabled: !!workspaceId
+  });
+
+  const distinctValues = distinctQuery.data || { titles: [], sources: [] };
+  const discoveryRuns = discoveryRunsQuery.data || [];
+
   // Filter & Search logic
   const filtered = contacts.filter((c: any) => {
     const fullName = `${c.firstName || ''} ${c.lastName || ''}`.toLowerCase();
@@ -113,13 +138,60 @@ export default function ContactsScreen() {
     const searchLower = search.toLowerCase();
 
     const matchesSearch =
+      !search ||
       fullName.includes(searchLower) ||
       emailStr.includes(searchLower) ||
       titleStr.includes(searchLower);
     const matchesStatus = !statusFilter || c.status === statusFilter;
+    const matchesCompany = !companyFilter || c.companyId === companyFilter;
+    const matchesTitle = !titleFilter || (c.title && c.title.toLowerCase().includes(titleFilter.toLowerCase()));
+    const matchesSource = !sourceFilter || (c.source && c.source.toLowerCase().includes(sourceFilter.toLowerCase())) || (c.sourcePlatform && c.sourcePlatform.toLowerCase().includes(sourceFilter.toLowerCase()));
     const matchesPlatform = !sourcePlatformFilter || c.sourcePlatform === sourcePlatformFilter;
-    return matchesSearch && matchesStatus && matchesPlatform;
+
+    return matchesSearch && matchesStatus && matchesCompany && matchesTitle && matchesSource && matchesPlatform;
   });
+
+  // Build active filter chips
+  const activeFilterChips = [
+    statusFilter ? { label: 'Status', value: statusFilter, onRemove: () => setStatusFilter('') } : null,
+    companyFilter ? {
+      label: 'Company',
+      value: companies.find((comp: any) => comp.id === companyFilter)?.name || 'Company',
+      onRemove: () => setCompanyFilter('')
+    } : null,
+    titleFilter ? { label: 'Title', value: titleFilter, onRemove: () => setTitleFilter('') } : null,
+    sourceFilter ? { label: 'Source', value: sourceFilter, onRemove: () => setSourceFilter('') } : null,
+    discoveryRunFilter ? {
+      label: 'Discovery',
+      value: discoveryRuns.find((r: any) => r.id === discoveryRunFilter)?.name || 'Run',
+      onRemove: () => setDiscoveryRunFilter('')
+    } : null
+  ].filter(Boolean) as Array<{ label: string; value: string; onRemove: () => void }>;
+
+  const handleClearAllFilters = () => {
+    setSearch('');
+    setStatusFilter('');
+    setCompanyFilter('');
+    setTitleFilter('');
+    setSourceFilter('');
+    setDiscoveryRunFilter('');
+    setSourcePlatformFilter('');
+  };
+
+  // Selected Contacts for Static Audience creation
+  const selectedContactsForAudience: PreloadedContact[] = React.useMemo(() => {
+    if (selectedIds.length === 0) return [];
+    return contacts
+      .filter((ct: any) => selectedIds.includes(ct.id))
+      .map((ct: any) => ({
+        id: ct.id,
+        firstName: ct.firstName,
+        lastName: ct.lastName,
+        email: ct.email,
+        title: ct.title,
+        companyName: companies.find((comp: any) => comp.id === ct.companyId)?.name
+      }));
+  }, [selectedIds, contacts, companies]);
 
   // Pagination calculation
   const totalItems = filtered.length;
@@ -221,11 +293,73 @@ export default function ContactsScreen() {
           onCreateTrigger={() => setCreateOpen(true)}
           selectedCount={selectedIds.length}
           onBulkDelete={handleBulkDelete}
-          onBulkSaveAudience={handleSaveAudience}
           onBulkStatusChange={handleBulkStatusChange}
           bulkStatusOptions={Object.values(ContactStatus)}
+          onBulkCreateAudience={() => setAudienceModalOpen(true)}
           onBulkEnroll={() => setEnrollOpen(true)}
+          activeFilters={activeFilterChips}
+          onClearAllFilters={handleClearAllFilters}
         >
+          {companies.length > 0 && (
+            <select
+              value={companyFilter}
+              onChange={(e) => setCompanyFilter(e.target.value)}
+              className="bg-card border border-border-subtle rounded px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-accent/20 min-w-[130px] h-9"
+            >
+              <option value="">All Companies</option>
+              {companies.map((comp: any) => (
+                <option key={comp.id} value={comp.id}>
+                  {comp.name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {distinctValues.titles.length > 0 && (
+            <select
+              value={titleFilter}
+              onChange={(e) => setTitleFilter(e.target.value)}
+              className="bg-card border border-border-subtle rounded px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-accent/20 min-w-[120px] h-9"
+            >
+              <option value="">All Job Titles</option>
+              {distinctValues.titles.map((t: string) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {distinctValues.sources.length > 0 && (
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              className="bg-card border border-border-subtle rounded px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-accent/20 min-w-[120px] h-9"
+            >
+              <option value="">All Sources</option>
+              {distinctValues.sources.map((s: string) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {discoveryRuns.length > 0 && (
+            <select
+              value={discoveryRunFilter}
+              onChange={(e) => setDiscoveryRunFilter(e.target.value)}
+              className="bg-card border border-border-subtle rounded px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-accent/20 min-w-[130px] h-9"
+            >
+              <option value="">All Discovery Runs</option>
+              {discoveryRuns.map((run: any) => (
+                <option key={run.id} value={run.id}>
+                  {run.name || run.query}
+                </option>
+              ))}
+            </select>
+          )}
+
           <select
             value={sourcePlatformFilter}
             onChange={(e) => handleSourcePlatformFilterChange(e.target.value)}
@@ -681,6 +815,28 @@ export default function ContactsScreen() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Create Audience Modal ────────────────────────────────────────── */}
+      <CreateAudienceModal
+        isOpen={audienceModalOpen}
+        onClose={() => setAudienceModalOpen(false)}
+        onSuccess={() => {
+          toast.success('Audience saved successfully!');
+          setSelectedIds([]);
+          contactsQuery.refetch();
+        }}
+        initialMode={selectedIds.length > 0 ? 'static' : 'dynamic'}
+        initialSelectedContacts={selectedContactsForAudience}
+        initialFilters={{
+          search: search || undefined,
+          status: statusFilter || undefined,
+          companyId: companyFilter || undefined,
+          title: titleFilter || undefined,
+          source: sourceFilter || undefined,
+          discoveryRunId: discoveryRunFilter || undefined
+        }}
+      />
     </div>
   );
 }
+

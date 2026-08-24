@@ -32,6 +32,7 @@ import {
   Cpu
 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
+import { CreateAudienceModal, type PreloadedContact } from '../components/crm/CreateAudienceModal';
 import { CompanyStatus, ContactStatus } from '@leadforge/schema';
 import { useWorkspace } from '../hooks/useWorkspace';
 import { motion } from 'framer-motion';
@@ -39,11 +40,6 @@ import { motion } from 'framer-motion';
 /**
  * CompaniesScreen presents a list of target organizations, a details panel,
  * and handles workspace CRUD.
- *
- * Design updates:
- *   - Squared corners: all buttons, dialog contents, panels, badges, select boxes have rounded-none.
- *   - Correct Palette: uses semantic design tokens (primary, info, success, warning, danger).
- *   - Pagination: client-side pagination with controls and info readout.
  */
 export default function CompaniesScreen() {
   const { activeWorkspace } = useWorkspace();
@@ -51,13 +47,38 @@ export default function CompaniesScreen() {
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [industryFilter, setIndustryFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
+  const [discoveryRunFilter, setDiscoveryRunFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<any | null>(null);
   const [detailTab, setDetailTab] = useState<'overview' | 'intelligence'>('overview');
 
+  // Create Audience Modal state
+  const [audienceModalOpen, setAudienceModalOpen] = useState(false);
+
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+
+  // Distinct values query for dropdowns
+  const distinctQuery = useQuery({
+    queryKey: ['companies', 'distinct-values', workspaceId],
+    queryFn: async () => {
+      return window.ipc.invoke('companies:distinct-values', { workspaceId });
+    },
+    enabled: !!workspaceId
+  });
+
+  // Discovery runs query for filter
+  const discoveryRunsQuery = useQuery({
+    queryKey: ['discovery-runs', workspaceId],
+    queryFn: async () => {
+      return window.ipc.invoke('discovery:run:list', { workspaceId });
+    },
+    enabled: !!workspaceId
+  });
+
 
   const handleSearchChange = useCallback((val: string) => {
     setSearch(val);
@@ -113,6 +134,9 @@ export default function CompaniesScreen() {
   const companies = companiesQuery.data || [];
   const contacts = contactsQuery.data || [];
 
+  const distinctValues = distinctQuery.data || { industries: [], locations: [] };
+  const discoveryRuns = discoveryRunsQuery.data || [];
+
   // Filter & Search logic
   const filtered = companies.filter((c: any) => {
     const nameStr = c.name || '';
@@ -128,13 +152,63 @@ export default function CompaniesScreen() {
     }
     const searchLower = search.toLowerCase();
     const matchesSearch =
+      !search ||
       nameStr.toLowerCase().includes(searchLower) ||
       domainStr.toLowerCase().includes(searchLower) ||
       tagsStr.toLowerCase().includes(searchLower) ||
       notesStr.toLowerCase().includes(searchLower);
     const matchesStatus = !statusFilter || c.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesIndustry = !industryFilter || (c.industry && c.industry.toLowerCase().includes(industryFilter.toLowerCase()));
+    const matchesLocation = !locationFilter || (c.location && c.location.toLowerCase().includes(locationFilter.toLowerCase()));
+
+    return matchesSearch && matchesStatus && matchesIndustry && matchesLocation;
   });
+
+  // Build active filter chips
+  const activeFilterChips = [
+    statusFilter ? { label: 'Status', value: statusFilter, onRemove: () => setStatusFilter('') } : null,
+    industryFilter ? { label: 'Industry', value: industryFilter, onRemove: () => setIndustryFilter('') } : null,
+    locationFilter ? { label: 'Location', value: locationFilter, onRemove: () => setLocationFilter('') } : null,
+    discoveryRunFilter ? {
+      label: 'Discovery',
+      value: discoveryRuns.find((r: any) => r.id === discoveryRunFilter)?.name || 'Run',
+      onRemove: () => setDiscoveryRunFilter('')
+    } : null
+  ].filter(Boolean) as Array<{ label: string; value: string; onRemove: () => void }>;
+
+  const handleClearAllFilters = () => {
+    setSearch('');
+    setStatusFilter('');
+    setIndustryFilter('');
+    setLocationFilter('');
+    setDiscoveryRunFilter('');
+  };
+
+  // Selected Contacts for Static Audience creation
+  const selectedContactsForAudience: PreloadedContact[] = React.useMemo(() => {
+    if (selectedIds.length === 0) return [];
+    const matchedContacts = contacts.filter((ct: any) => selectedIds.includes(ct.companyId));
+    if (matchedContacts.length > 0) {
+      return matchedContacts.map((ct: any) => ({
+        id: ct.id,
+        firstName: ct.firstName,
+        lastName: ct.lastName,
+        email: ct.email,
+        title: ct.title,
+        companyName: companies.find((comp: any) => comp.id === ct.companyId)?.name
+      }));
+    }
+    // Fallback: create representative contact targets for companies without explicit contact rows
+    return selectedIds.map((cId) => {
+      const comp = companies.find((c: any) => c.id === cId);
+      return {
+        id: cId,
+        firstName: comp?.name || 'Company Target',
+        email: comp?.website ? `info@${comp.website.replace(/^https?:\/\//, '')}` : undefined,
+        companyName: comp?.name
+      };
+    });
+  }, [selectedIds, contacts, companies]);
 
   // Pagination calculation
   const totalItems = filtered.length;
@@ -186,25 +260,6 @@ export default function CompaniesScreen() {
     }
   };
 
-  const handleSaveAudience = async () => {
-    const defaultName = search || statusFilter ? `Companies (${search || statusFilter})` : 'Selected Companies Segment';
-    const audName = prompt('Enter a name for this Audience segment:', defaultName);
-    if (!audName || !audName.trim()) return;
-
-    await window.ipc.invoke('audiences:create', {
-      workspaceId,
-      name: audName.trim(),
-      entityType: 'companies',
-      filterDefinition: {
-        search: search || undefined,
-        status: statusFilter || undefined
-      }
-    });
-
-    toast.success(`Saved audience segment "${audName.trim()}"!`);
-    setSelectedIds([]);
-  };
-
   return (
     <div className="flex h-full gap-4 text-xs font-sans">
       <div className="flex-1 space-y-4 overflow-y-auto pr-1">
@@ -223,9 +278,57 @@ export default function CompaniesScreen() {
           onCreateTrigger={() => setCreateOpen(true)}
           selectedCount={selectedIds.length}
           onBulkDelete={handleBulkDelete}
-          onBulkSaveAudience={handleSaveAudience}
+          onBulkCreateAudience={() => setAudienceModalOpen(true)}
           onBulkEnroll={() => setEnrollOpen(true)}
-        />
+          activeFilters={activeFilterChips}
+          onClearAllFilters={handleClearAllFilters}
+        >
+          {distinctValues.industries.length > 0 && (
+            <select
+              value={industryFilter}
+              onChange={(e) => setIndustryFilter(e.target.value)}
+              className="bg-card border border-border-subtle rounded px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-accent/20 min-w-[120px] h-9"
+            >
+              <option value="">All Industries</option>
+              {distinctValues.industries.map((ind: string) => (
+                <option key={ind} value={ind}>
+                  {ind}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {distinctValues.locations.length > 0 && (
+            <select
+              value={locationFilter}
+              onChange={(e) => setLocationFilter(e.target.value)}
+              className="bg-card border border-border-subtle rounded px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-accent/20 min-w-[120px] h-9"
+            >
+              <option value="">All Locations</option>
+              {distinctValues.locations.map((loc: string) => (
+                <option key={loc} value={loc}>
+                  {loc}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {discoveryRuns.length > 0 && (
+            <select
+              value={discoveryRunFilter}
+              onChange={(e) => setDiscoveryRunFilter(e.target.value)}
+              className="bg-card border border-border-subtle rounded px-2.5 py-1.5 text-xs outline-none text-foreground focus:ring-1 focus:ring-accent/20 min-w-[130px] h-9"
+            >
+              <option value="">All Discovery Runs</option>
+              {discoveryRuns.map((run: any) => (
+                <option key={run.id} value={run.id}>
+                  {run.name || run.query}
+                </option>
+              ))}
+            </select>
+          )}
+        </EntityToolbar>
+
 
         {companiesQuery.isLoading ? (
           <div className="h-[300px] flex items-center justify-center text-muted-foreground">
@@ -823,6 +926,27 @@ export default function CompaniesScreen() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Create Audience Modal ────────────────────────────────────────── */}
+      <CreateAudienceModal
+        isOpen={audienceModalOpen}
+        onClose={() => setAudienceModalOpen(false)}
+        onSuccess={() => {
+          toast.success('Audience saved successfully!');
+          setSelectedIds([]);
+          companiesQuery.refetch();
+        }}
+        initialMode={selectedIds.length > 0 ? 'static' : 'dynamic'}
+        initialSelectedContacts={selectedContactsForAudience}
+        initialFilters={{
+          search: search || undefined,
+          status: statusFilter || undefined,
+          industry: industryFilter || undefined,
+          location: locationFilter || undefined,
+          discoveryRunId: discoveryRunFilter || undefined
+        }}
+      />
     </div>
   );
 }
+
