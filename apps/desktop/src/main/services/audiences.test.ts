@@ -205,6 +205,24 @@ export async function runAudiencesTests() {
   }
   console.log('✅ IPC preload authorization contract verified for all Phase 10A CRM & Audience channels.');
 
+  // 9. Test Location Filter String/LIKE Match Contract
+  const locationSearchQuery = 'SELECT * FROM companies WHERE workspaceId = ? AND location LIKE ?';
+  const fullAddress = '3rd Floor, Mokhhali DOHS Mosque, House-198 Road No. 1, Dhaka 1206, Bangladesh';
+
+  db.prepare(`
+    INSERT INTO companies (id, workspaceId, name, domain, industry, location, status, createdAt, updatedAt)
+    VALUES (?, ?, 'Dhaka Branch', 'dhaka.com', 'IT', ?, 'PROSPECT', datetime('now'), datetime('now'))
+  `).run(randomUUID(), wsA, fullAddress);
+
+  const exactMatch = db.prepare(locationSearchQuery).all(wsA, `%${fullAddress}%`) as any[];
+  assert.strictEqual(exactMatch.length, 1);
+  assert.strictEqual(exactMatch[0].name, 'Dhaka Branch');
+
+  const substringMatch = db.prepare(locationSearchQuery).all(wsA, '%Dhaka%') as any[];
+  assert.strictEqual(substringMatch.length, 1);
+  assert.strictEqual(substringMatch[0].name, 'Dhaka Branch');
+  console.log('✅ Location filter exact string and LIKE substring query matching contract verified.');
+
   console.log('--- ALL AUDIENCES & CRM FOUNDATION TESTS PASSED ---');
 }
 
