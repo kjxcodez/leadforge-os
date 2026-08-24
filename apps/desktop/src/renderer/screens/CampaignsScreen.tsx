@@ -1498,10 +1498,35 @@ export default function CampaignsScreen() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="tplSubj">Subject Line</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="tplSubj">Subject Line</Label>
+                <select
+                  className="h-6 text-[10px] bg-surface-3 border border-border-subtle rounded-none px-1 text-foreground focus:outline-none"
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setTplSubj((prev) => prev + ` {{${e.target.value}}}`);
+                      e.target.value = '';
+                    }
+                  }}
+                >
+                  <option value="">+ Insert Variable</option>
+                  <optgroup label="Contact">
+                    <option value="contact.firstName">Contact First Name</option>
+                    <option value="contact.lastName">Contact Last Name</option>
+                    <option value="contact.email">Contact Email</option>
+                    <option value="contact.title">Contact Job Title</option>
+                  </optgroup>
+                  <optgroup label="Company">
+                    <option value="company.name">Company Name</option>
+                    <option value="company.domain">Company Website</option>
+                    <option value="company.industry">Company Industry</option>
+                    <option value="company.location">Company Location</option>
+                  </optgroup>
+                </select>
+              </div>
               <Input
                 id="tplSubj"
-                placeholder="Quick question for {{firstName}} at {{company}}"
+                placeholder="Quick question for {{contact.firstName}} at {{company.name}}"
                 value={tplSubj}
                 onChange={(e) => setTplSubj(e.target.value)}
                 required
@@ -1509,11 +1534,36 @@ export default function CampaignsScreen() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="tplBody">Email Body (HTML supported)</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="tplBody">Email Body (HTML supported)</Label>
+                <select
+                  className="h-6 text-[10px] bg-surface-3 border border-border-subtle rounded-none px-1 text-foreground focus:outline-none"
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setTplBody((prev) => prev + ` {{${e.target.value}}}`);
+                      e.target.value = '';
+                    }
+                  }}
+                >
+                  <option value="">+ Insert Variable</option>
+                  <optgroup label="Contact">
+                    <option value="contact.firstName">Contact First Name</option>
+                    <option value="contact.lastName">Contact Last Name</option>
+                    <option value="contact.email">Contact Email</option>
+                    <option value="contact.title">Contact Job Title</option>
+                  </optgroup>
+                  <optgroup label="Company">
+                    <option value="company.name">Company Name</option>
+                    <option value="company.domain">Company Website</option>
+                    <option value="company.industry">Company Industry</option>
+                    <option value="company.location">Company Location</option>
+                  </optgroup>
+                </select>
+              </div>
               <Textarea
                 id="tplBody"
                 rows={6}
-                placeholder="Hi {{firstName}}, I saw {{website}}..."
+                placeholder="Hi {{contact.firstName}}, I noticed {{company.name}} is in {{company.industry}}..."
                 value={tplBody}
                 onChange={(e) => setTplBody(e.target.value)}
                 required
@@ -1521,10 +1571,10 @@ export default function CampaignsScreen() {
               />
               <p className="text-[9px] text-muted-foreground mt-0.5">
                 Merge variables:{' '}
-                <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{firstName}}`}</code>,{' '}
-                <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{lastName}}`}</code>,{' '}
-                <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{company}}`}</code>,{' '}
-                <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{website}}`}</code>
+                <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{contact.firstName}}`}</code>,{' '}
+                <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{contact.lastName}}`}</code>,{' '}
+                <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{company.name}}`}</code>,{' '}
+                <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{company.domain}}`}</code>
               </p>
             </div>
             <div className="flex justify-end gap-2 pt-2 border-t border-border-subtle">
