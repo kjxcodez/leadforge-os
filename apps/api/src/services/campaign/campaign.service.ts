@@ -27,7 +27,9 @@ export class CampaignService {
 
   public async createCampaign(dto: CreateCampaignDto): Promise<CampaignDocument> {
     const validated = createCampaignDtoSchema.parse(dto);
+    const clientRecord: any = dto;
     return this.campaignRepository.create({
+      ...(clientRecord.id || clientRecord._id ? { _id: clientRecord.id || clientRecord._id } : {}),
       name: validated.name,
       steps: validated.steps || [],
       status: validated.status || 'draft',
