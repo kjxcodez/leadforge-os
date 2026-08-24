@@ -1,6 +1,6 @@
 import { SendTestModal } from '../components/email/SendTestModal';
 import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useWorkspace } from '../hooks/useWorkspace';
 import {
   useWorkspaceMembers,
@@ -42,7 +42,8 @@ import { WhatsNewDialog } from '../components/common/WhatsNewDialog';
 export default function WorkspaceSettingsScreen() {
   const { activeWorkspace } = useWorkspace();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
   const activeSection = searchParams.get('section') || 'general';
 
   const { role, isOwner, isAdmin } = usePermissions();
@@ -70,7 +71,7 @@ export default function WorkspaceSettingsScreen() {
   }
 
   const setSection = (section: string) => {
-    setSearchParams({ section }, { replace: true });
+    navigate(`/settings?section=${section}`, { replace: true });
   };
 
   const handleRoleChange = async (memberId: string, newRole: string) => {

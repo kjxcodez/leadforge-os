@@ -35,8 +35,25 @@ export const SendTestModal = ({ isOpen, onClose, account }: SendTestModalProps) 
   const [attachments, setAttachments] = useState<Array<{ name: string; path?: string; size: number }>>([]);
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [globalRecipients, setGlobalRecipients] = useState<Array<{ email: string }>>([]);
 
-  const testRecipients = account.testRecipients || [];
+  React.useEffect(() => {
+    if (isOpen) {
+      (window.ipc.invoke as any)('email-accounts:test-recipients', undefined)
+        .then((res: any) => {
+          if (Array.isArray(res) && res.length > 0) {
+            setGlobalRecipients(res);
+          } else if (account.testRecipients) {
+            setGlobalRecipients(account.testRecipients);
+          }
+        })
+        .catch(() => {
+          if (account.testRecipients) setGlobalRecipients(account.testRecipients);
+        });
+    }
+  }, [isOpen, account]);
+
+  const testRecipients = globalRecipients.length > 0 ? globalRecipients : (account.testRecipients || []);
   const uniqueCount = testRecipients.length;
 
   const isKnownRecipient = testRecipients.some(
@@ -94,7 +111,7 @@ export const SendTestModal = ({ isOpen, onClose, account }: SendTestModalProps) 
 
     if (!isKnownRecipient && uniqueCount >= 3) {
       setErrorMessage(
-        'Limit reached: You can test this sender with up to 3 different recipient addresses. You can reuse one of your previous test addresses.'
+        'You can use up to 3 different test recipients across your LeadForge account. Reuse one of your existing test addresses to continue.'
       );
       return;
     }
@@ -114,6 +131,9 @@ export const SendTestModal = ({ isOpen, onClose, account }: SendTestModalProps) 
 
       if (result.sent) {
         toast.success(`Test email sent successfully to ${result.sentTo || targetEmail}!`);
+        if (result.signatureNotice) {
+          toast.warning(result.signatureNotice);
+        }
         onClose();
       } else {
         setErrorMessage(result.error || 'Failed to send test email.');
