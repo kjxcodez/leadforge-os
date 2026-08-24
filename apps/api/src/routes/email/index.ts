@@ -140,21 +140,31 @@ emailRouter.post('/accounts/:id/disconnect', async (c) => {
   return c.json(successResponse(result));
 });
 
+// ── Global Test Recipients ───────────────────────────────────────────────
+
+emailRouter.get('/test-recipients', async (c) => {
+  const userId = getUserId(c);
+  const recipients = await EmailService.getGlobalTestRecipients(userId);
+  return c.json(successResponse(recipients));
+});
+
 // ── Sending ────────────────────────────────────────────────────────────────
 
 emailRouter.post('/accounts/:id/test', async (c) => {
   const wsId = getWorkspaceId(c);
+  const userId = getUserId(c);
   const id = c.req.param('id');
   const body = await c.req.json().catch(() => ({}));
-  const service = new EmailService(wsId);
+  const service = new EmailService(wsId, userId);
   const result = await service.sendTest(id, body);
   return c.json(successResponse(result));
 });
 
 emailRouter.post('/send', async (c) => {
   const wsId = getWorkspaceId(c);
+  const userId = getUserId(c);
   const body = sendSchema.parse(await c.req.json());
-  const service = new EmailService(wsId);
+  const service = new EmailService(wsId, userId);
   const result = await service.send(body);
   return c.json(successResponse(result));
 });
