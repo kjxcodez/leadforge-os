@@ -472,13 +472,38 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
       }
     }
 
+    // Parse location components into structured city, state, country
+    let companyCity: string | null = city || null;
+    let companyState: string | null = state || null;
+    let companyCountry: string | null = country || null;
+
+    if (location && (!companyCity || !companyState)) {
+      const tokens = location.split(',').map((t) => t.trim());
+      if (tokens.length >= 2) {
+        const lastToken = tokens[tokens.length - 1] || '';
+        const secondLastToken = tokens[tokens.length - 2] || '';
+        const stateZipMatch = secondLastToken.match(/^([A-Z]{2})\s*(\d{5})?/i);
+        if (stateZipMatch && stateZipMatch[1]) {
+          if (!companyState) companyState = stateZipMatch[1].toUpperCase();
+          if (!companyCity && tokens.length >= 3) {
+            companyCity = tokens[tokens.length - 3] || null;
+          }
+        } else if (!companyCity) {
+          companyCity = secondLastToken;
+        }
+        if (!companyCountry && lastToken) {
+          companyCountry = lastToken;
+        }
+      }
+    }
+
     // Store in database in atomic transaction
     db.transaction(() => {
       const companyId = randomUUID();
       db.prepare(
         `
-        INSERT INTO companies (id, workspaceId, name, domain, website, location, phone, rating, status, syncStatus, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'LEAD', 'pending', datetime('now'), datetime('now'))
+        INSERT INTO companies (id, workspaceId, name, domain, website, location, city, state, country, phone, rating, status, syncStatus, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'LEAD', 'pending', datetime('now'), datetime('now'))
       `
       ).run(
         companyId,
@@ -487,6 +512,9 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
         domain || null,
         website || null,
         location || null,
+        companyCity,
+        companyState,
+        companyCountry,
         phone || null,
         rating || null
       );
@@ -508,6 +536,9 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
           domain,
           website,
           location,
+          city: companyCity,
+          state: companyState,
+          country: companyCountry,
           phone,
           status: 'LEAD'
         })

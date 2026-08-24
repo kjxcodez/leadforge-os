@@ -27,6 +27,9 @@ export interface CompanyDocument
   linkedin?: string | null;
   linkedinUrl?: string | null;
   location?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
   status: 'LEAD' | 'QUALIFIED' | 'CUSTOMER' | 'ARCHIVED';
   tags: string[];
   notes?: string | null;
@@ -78,6 +81,21 @@ const companySchema = new Schema<CompanyDocument>(
       trim: true
     },
     location: {
+      type: String,
+      default: null,
+      trim: true
+    },
+    city: {
+      type: String,
+      default: null,
+      trim: true
+    },
+    state: {
+      type: String,
+      default: null,
+      trim: true
+    },
+    country: {
       type: String,
       default: null,
       trim: true
