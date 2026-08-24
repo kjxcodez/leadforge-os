@@ -5,6 +5,7 @@ import { CampaignModel } from '../../db/models/campaign.model.js';
 import { ContactModel } from '../../db/models/contact.model.js';
 import { CompanyModel } from '../../db/models/company.model.js';
 import { encrypt } from '../../utils/encryption.js';
+import { renderCanonicalVariables } from '@leadforge/sdk';
 import mongoose from 'mongoose';
 
 export class OutreachService {
@@ -220,27 +221,40 @@ export class OutreachService {
       company = { name: 'Acme Corp', website: 'acme.com' };
     }
 
-    const mergeFields = {
-      firstName: contact?.firstName || '',
-      lastName: contact?.lastName || '',
-      email: contact?.email || '',
-      company: company?.name || 'Your Company',
-      website: company?.website || 'example.com',
-      senderName: 'Sales Director',
-      workspaceName: 'Workspace CRM'
-    };
-
-    const render = (text: string) => {
-      let result = text;
-      for (const [key, val] of Object.entries(mergeFields)) {
-        result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val);
+    const renderCtx = {
+      contact: contact ? {
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        email: contact.email,
+        title: contact.title,
+        phone: contact.phone
+      } : {
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john@example.com'
+      },
+      company: company ? {
+        name: company.name,
+        domain: company.domain || company.website,
+        industry: company.industry,
+        location: company.location
+      } : {
+        name: 'Acme Corp',
+        domain: 'acme.com'
+      },
+      sender: {
+        name: 'Sales Director',
+        email: 'sales@workspace.com'
+      },
+      workspace: {
+        id: this.workspaceId,
+        name: 'Workspace CRM'
       }
-      return result.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, '');
     };
 
     return {
-      subject: render(template.subject),
-      body: render(template.body)
+      subject: renderCanonicalVariables(template.subject, renderCtx),
+      body: renderCanonicalVariables(template.body, renderCtx)
     };
   }
 
