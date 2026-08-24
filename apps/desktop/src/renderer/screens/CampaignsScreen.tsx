@@ -1628,21 +1628,50 @@ export default function CampaignsScreen() {
                 4. Sender & Schedule Settings
               </div>
               <div className="space-y-1">
-                <Label htmlFor="campAcc" className="text-xs">Sender Email Account <span className="text-danger">*</span></Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="campAcc" className="text-xs">Sender Email Account <span className="text-danger">*</span></Label>
+                  {accountsQuery.isError && (
+                    <button
+                      type="button"
+                      onClick={() => accountsQuery.refetch()}
+                      className="text-[10px] text-danger hover:underline font-mono"
+                    >
+                      Retry Loading
+                    </button>
+                  )}
+                </div>
+
                 <select
                   id="campAcc"
                   value={campAccId}
                   onChange={(e) => setCampAccId(e.target.value)}
                   className="w-full h-8 px-2 bg-surface-3 border border-border-subtle rounded-none text-xs text-foreground focus-visible:outline-none"
                   required
+                  disabled={accountsQuery.isLoading}
                 >
-                  <option value="">-- Select Sender Account --</option>
-                  {accounts.map((acc: any) => (
-                    <option key={acc.id} value={acc.id}>
-                      {`${acc.name} (${acc.email})`}
-                    </option>
-                  ))}
+                  {accountsQuery.isLoading ? (
+                    <option value="">Loading sender accounts...</option>
+                  ) : accountsQuery.isError ? (
+                    <option value="">Unable to load sender accounts. Retry above.</option>
+                  ) : accounts.length === 0 ? (
+                    <option value="">No sender accounts connected. Connect Gmail in Settings → Integrations.</option>
+                  ) : (
+                    <>
+                      <option value="">-- Select Sender Account --</option>
+                      {accounts.map((acc: any) => (
+                        <option key={acc.id} value={acc.id}>
+                          {`${acc.name || 'Gmail Account'} (${acc.email || acc.id})`}
+                        </option>
+                      ))}
+                    </>
+                  )}
                 </select>
+
+                {!accountsQuery.isLoading && accounts.length === 0 && (
+                  <p className="text-[10px] text-warning mt-1 flex items-center gap-1 font-mono">
+                    ⚠️ No connected senders. Go to Settings → Integrations to link a Gmail account.
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2">

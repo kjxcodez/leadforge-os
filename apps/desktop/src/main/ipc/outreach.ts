@@ -19,18 +19,28 @@ export function registerOutreachIpc(sdk: SdkClient) {
   safeRegister('email-accounts:list', async () => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
+
+    const localAccounts = await LocalCRMRepository.findMany('email_accounts', runtime.workspaceId);
+
     try {
-      const list = await sdk.outreach.listAccounts();
-      await LocalCRMRepository.saveMany(
-        'email_accounts',
-        list.map((item) => ({ ...item, workspaceId: runtime.workspaceId })),
-        true
-      );
-      return list;
+      const remoteList = await sdk.outreach.listAccounts();
+      if (Array.isArray(remoteList) && remoteList.length > 0) {
+        await LocalCRMRepository.saveMany(
+          'email_accounts',
+          remoteList.map((item) => ({ ...item, workspaceId: runtime.workspaceId })),
+          true
+        );
+        // Merge local and remote by unique ID
+        const map = new Map<string, any>();
+        localAccounts.forEach((acc: any) => map.set(acc.id, acc));
+        remoteList.forEach((acc: any) => map.set(acc.id, { ...map.get(acc.id), ...acc }));
+        return Array.from(map.values());
+      }
     } catch (err) {
       console.warn('[IPC] Failed to list accounts from remote, falling back to local cache:', err);
-      return LocalCRMRepository.findMany('email_accounts', runtime.workspaceId);
     }
+
+    return localAccounts;
   });
 
   safeRegister('email-accounts:delete', async (_event, id) => {
