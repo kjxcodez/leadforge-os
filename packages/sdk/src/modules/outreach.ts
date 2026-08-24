@@ -90,8 +90,12 @@ export class OutreachModule {
         size?: number;
       }>;
     }
-  ): Promise<{ messageId: string; sentTo: string }> {
-    return this.client.post<{ messageId: string; sentTo: string }>(`/email/accounts/${id}/test`, payload);
+  ): Promise<{ messageId: string; sentTo: string; signatureNotice?: string }> {
+    return this.client.post<{ messageId: string; sentTo: string; signatureNotice?: string }>(`/email/accounts/${id}/test`, payload);
+  }
+
+  public async getTestRecipients(): Promise<Array<{ email: string; firstUsedAt?: string; lastUsedAt?: string }>> {
+    return this.client.get<Array<{ email: string; firstUsedAt?: string; lastUsedAt?: string }>>('/email/test-recipients');
   }
 
   public async sendEmail(payload: SendEmailPayload): Promise<{ messageId: string; accepted: string[] }> {

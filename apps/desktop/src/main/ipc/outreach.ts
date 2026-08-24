@@ -83,6 +83,16 @@ export function registerOutreachIpc(sdk: SdkClient) {
     return sendTestEmail(sdk, payload);
   });
 
+  safeRegister('email-accounts:test-recipients', async () => {
+    const runtime = WorkspaceManager.getActiveRuntime();
+    if (!runtime) throw new Error('No active workspace runtime');
+    try {
+      return await sdk.outreach.getTestRecipients();
+    } catch {
+      return [];
+    }
+  });
+
   safeRegister('attachments:save', async (_event, { filePath, filename }) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');

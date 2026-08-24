@@ -91,6 +91,7 @@ contextBridge.exposeInMainWorld('ipc', {
       'email-accounts:gmail:disconnect',
       'email-accounts:gmail:reconnect',
       'email-accounts:send-test',
+      'email-accounts:test-recipients',
       'attachments:save',
       'templates:list',
       'templates:create',

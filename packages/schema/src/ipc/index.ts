@@ -415,7 +415,11 @@ export interface IpcChannelMap {
         size?: number;
       }>;
     };
-    output: { sent: boolean; messageId?: string; sentTo?: string; error?: string };
+    output: { sent: boolean; messageId?: string; sentTo?: string; error?: string; signatureNotice?: string };
+  };
+  'email-accounts:test-recipients': {
+    input: void;
+    output: Array<{ email: string; firstUsedAt?: string | Date; lastUsedAt?: string | Date }>;
   };
   'templates:list': {
     input: void;

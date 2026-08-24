@@ -20,4 +20,8 @@ export {
   type CompanyDiscoveryRunDocument
 } from './company-discovery-run.model.js';
 export { AudienceModel, type AudienceDocument } from './audience.model.js';
+export {
+  UserTestRecipientModel,
+  type UserTestRecipientDocument
+} from './user-test-recipient.model.js';
 
