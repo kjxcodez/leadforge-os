@@ -11,7 +11,7 @@ const db = client.db();
 export const auth: any = createBetterAuth({
   secret: env.BETTER_AUTH_SECRET,
   baseUrl: env.BETTER_AUTH_URL,
-  database: mongodbAdapter(db),
+  database: mongodbAdapter(db as any),
   authorizeHook: async (credentials) => {
     // Better Auth authorization hook placeholder
     return null;

@@ -13,7 +13,8 @@
     { "path": "../../packages/auth" },
     { "path": "../../packages/core" },
     { "path": "../../packages/logger" },
-    { "path": "../../packages/schema" }
+    { "path": "../../packages/schema" },
+    { "path": "../../packages/sdk" }
   ],
   "include": ["src/**/*"]
 }
