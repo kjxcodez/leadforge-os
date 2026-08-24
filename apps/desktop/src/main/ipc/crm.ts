@@ -443,6 +443,19 @@ export function registerCrmIpc() {
       }
     };
 
+    const sources = db
+      .prepare('SELECT * FROM intelligence_sources WHERE companyId = ?')
+      .all(companyId);
+    const evidence = db
+      .prepare('SELECT * FROM intelligence_evidence WHERE companyId = ?')
+      .all(companyId);
+    const claims = db
+      .prepare('SELECT * FROM intelligence_claims WHERE companyId = ?')
+      .all(companyId);
+    const inferences = db
+      .prepare('SELECT * FROM intelligence_inferences WHERE companyId = ?')
+      .all(companyId);
+
     return {
       companyIntelligence: companyIntelligence
         ? {
@@ -467,7 +480,22 @@ export function registerCrmIpc() {
         ...c,
         personalizationOpportunities: safeParse(c.personalizationOpportunities)
       })),
-      opportunityScore: opportunityScore || null
+      opportunityScore: opportunityScore
+        ? {
+            ...opportunityScore,
+            provenance: safeParse((opportunityScore as any).provenance)
+          }
+        : null,
+      sources,
+      evidence,
+      claims: claims.map((clm: any) => ({
+        ...clm,
+        evidenceIds: safeParse(clm.evidenceIds)
+      })),
+      inferences: inferences.map((inf: any) => ({
+        ...inf,
+        supportingClaimIds: safeParse(inf.supportingClaimIds)
+      }))
     };
   });
 

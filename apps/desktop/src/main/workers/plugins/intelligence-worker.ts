@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { join } from 'path';
+import { randomUUID } from 'crypto';
 import type { JobContext } from '../../../shared/types/job';
 import {
   CompanyAnalyzer,
@@ -39,18 +40,13 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
       .all(companyId) as any[];
     ctx.updateProgress(20, { description: `Found ${contacts.length} associated contact(s)` });
 
-    // 3. Analyze company & contacts
-    const compIntel = CompanyAnalyzer.analyze(company, contacts);
-    const contactIntels = contacts.map((c) => ContactAnalyzer.analyze(c));
-
-    // 4. Check if website html has been crawled
-    // We can query from page_crawls or similar if available, or simulate website html analysis
-    let htmlContent = '<html><body>Mock site content</body></html>';
+    // 3. Check if website HTML has been crawled in page_crawls
+    let htmlContent = '';
     try {
       const crawlerRow = db
         .prepare(
           `
-        SELECT html FROM page_crawls WHERE companyId = ? ORDER BY id DESC LIMIT 1
+        SELECT html FROM page_crawls WHERE companyId = ? ORDER BY crawledAt DESC LIMIT 1
       `
         )
         .get(companyId) as { html: string } | undefined;
@@ -58,17 +54,24 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
         htmlContent = crawlerRow.html;
       }
     } catch {
-      // Fallback if table doesn't exist
+      // Table missing or empty
     }
 
-    const webIntel = WebsiteAnalyzer.analyze(companyId, htmlContent, company.website || '');
+    // 4. Analyze company, website, and contacts
+    const compRes = CompanyAnalyzer.analyze(company, contacts, htmlContent);
+    const compIntel = compRes.companyIntelligence;
+
+    const webRes = WebsiteAnalyzer.analyze(companyId, htmlContent, company.website || '');
+    const webIntel = webRes.websiteIntelligence;
+
+    const contactIntels = contacts.map((c) => ContactAnalyzer.analyze(c));
     ctx.updateProgress(45, { description: 'Completed company and website technical analysis' });
 
-    // 5. Calculate opportunity scores
+    // 5. Calculate grounded opportunity scores with provenance
     const opportunityScore = ScoringEngine.calculate(company, compIntel, webIntel, contactIntels);
     ctx.updateProgress(65, { description: 'Opportunity scoring calculations completed' });
 
-    // 6. Generate AI personalized insights
+    // 6. Generate AI personalized insights (or rule fallback)
     const openRouterKey = ctx.payload._secrets?.['openrouter_key'] || '';
     const aiInsights = await AIInsightGenerator.generate(
       company.name,
@@ -80,8 +83,96 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
     ctx.updateProgress(85, { description: 'AI opening lines and objection models generated' });
 
     // 7. Write to SQLite in a single transaction
+    const now = new Date().toISOString();
+    const sourceId = `src-${companyId}`;
+
     const writeTx = db.transaction(() => {
-      // Save Company Intelligence
+      // Save Intelligence Source
+      db.prepare(
+        `
+        INSERT INTO intelligence_sources (id, workspaceId, companyId, sourceType, url, retrievedAt, status, retrievalMethod, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, 'SUCCESS', ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET retrievedAt=excluded.retrievedAt, updatedAt=excluded.updatedAt
+      `
+      ).run(
+        sourceId,
+        ctx.workspaceId,
+        companyId,
+        company.website ? 'WEBSITE_HTML' : 'MANUAL_INPUT',
+        company.website || null,
+        now,
+        htmlContent ? 'DETERMINISTIC_HTML' : 'MANUAL',
+        now,
+        now
+      );
+
+      // Save Evidence
+      for (const ev of [...compRes.evidence, ...webRes.evidence]) {
+        db.prepare(
+          `
+          INSERT INTO intelligence_evidence (id, workspaceId, companyId, sourceId, evidenceType, key, value, rawExcerpt, extractionMethod, observedAt, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET value=excluded.value, observedAt=excluded.observedAt
+        `
+        ).run(
+          ev.id,
+          ctx.workspaceId,
+          companyId,
+          sourceId,
+          ev.evidenceType,
+          ev.key,
+          ev.value,
+          ev.rawExcerpt || null,
+          ev.extractionMethod,
+          ev.observedAt,
+          ev.createdAt
+        );
+      }
+
+      // Save Claims
+      for (const clm of [...compRes.claims, ...webRes.claims]) {
+        db.prepare(
+          `
+          INSERT INTO intelligence_claims (id, workspaceId, companyId, evidenceIds, subject, predicate, objectValue, verificationStatus, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET objectValue=excluded.objectValue
+        `
+        ).run(
+          clm.id,
+          ctx.workspaceId,
+          companyId,
+          JSON.stringify(clm.evidenceIds),
+          clm.subject,
+          clm.predicate,
+          clm.objectValue,
+          clm.verificationStatus,
+          clm.createdAt
+        );
+      }
+
+      // Save Inferences
+      for (const inf of compRes.inferences) {
+        db.prepare(
+          `
+          INSERT INTO intelligence_inferences (id, workspaceId, companyId, supportingClaimIds, field, value, inferenceMethod, confidence, reason, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET value=excluded.value, reason=excluded.reason, confidence=excluded.confidence
+        `
+        ).run(
+          inf.id,
+          ctx.workspaceId,
+          companyId,
+          JSON.stringify(inf.supportingClaimIds),
+          inf.field,
+          inf.value,
+          inf.inferenceMethod,
+          inf.confidence,
+          inf.reason,
+          inf.createdAt
+        );
+      }
+
+      // Save Company Intelligence (Backward-compatible cache)
       db.prepare(
         `
         INSERT INTO company_intelligence (
@@ -107,7 +198,7 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
         JSON.stringify(compIntel.missingInformation)
       );
 
-      // Save Website Intelligence
+      // Save Website Intelligence (Backward-compatible cache)
       db.prepare(
         `
         INSERT INTO website_intelligence (
@@ -154,16 +245,17 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
         );
       }
 
-      // Save Opportunity Scores
+      // Save Opportunity Scores with Provenance
       db.prepare(
         `
         INSERT INTO opportunity_scores (
-          companyId, overallScore, fitScore, sizeScore, intentScore, urgencyScore, explanation
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          companyId, overallScore, fitScore, sizeScore, intentScore, urgencyScore, explanation, provenance
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(companyId) DO UPDATE SET
           overallScore=excluded.overallScore, fitScore=excluded.fitScore,
           sizeScore=excluded.sizeScore, intentScore=excluded.intentScore,
-          urgencyScore=excluded.urgencyScore, explanation=excluded.explanation
+          urgencyScore=excluded.urgencyScore, explanation=excluded.explanation,
+          provenance=excluded.provenance
       `
       ).run(
         companyId,
@@ -172,16 +264,17 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
         opportunityScore.sizeScore,
         opportunityScore.intentScore,
         opportunityScore.urgencyScore,
-        opportunityScore.explanation
+        opportunityScore.explanation,
+        JSON.stringify(opportunityScore.provenance || [])
       );
     });
 
     writeTx();
     ctx.updateProgress(100, {
-      description: 'Intelligence enrichment successfully written to local SQLite database.'
+      description: 'Grounded intelligence enrichment successfully written to local SQLite database.'
     });
     ctx.emitLog(
-      `Lead Intelligence enrichment completed for Company: ${companyId}. Score: ${opportunityScore.overallScore}`,
+      `Lead Intelligence enrichment completed for Company: ${companyId}. Honest Score: ${opportunityScore.overallScore}%`,
       'info'
     );
 
