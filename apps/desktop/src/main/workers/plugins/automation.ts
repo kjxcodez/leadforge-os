@@ -1847,14 +1847,27 @@ async function handleSendEmailStep(
   const authToken = ctx.payload._secrets?.sessionToken || process.env.SESSION_TOKEN || '';
   const sdk = new SdkClient({ baseUrl: apiUrl, token: authToken });
 
-  const accountDoc = db
-    .prepare(
-      `SELECT id FROM email_accounts WHERE workspaceId = ? AND status = 'connected' AND deletedAt IS NULL ORDER BY createdAt ASC LIMIT 1`
-    )
-    .get(execCtx.workspace) as { id: string } | undefined;
+  const targetAccountId = step.config?.sendingAccountId || step.config?.accountId;
+  let accountDoc: { id: string } | undefined;
+
+  if (targetAccountId) {
+    accountDoc = db
+      .prepare(
+        `SELECT id FROM email_accounts WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`
+      )
+      .get(targetAccountId, workspaceId) as { id: string } | undefined;
+  }
 
   if (!accountDoc) {
-    throw new Error('No connected Gmail account found in workspace for sending email step.');
+    accountDoc = db
+      .prepare(
+        `SELECT id FROM email_accounts WHERE workspaceId = ? AND deletedAt IS NULL ORDER BY createdAt ASC LIMIT 1`
+      )
+      .get(workspaceId) as { id: string } | undefined;
+  }
+
+  if (!accountDoc) {
+    throw new Error('No connected Gmail sender account found in workspace for sending email step.');
   }
 
   const useSignature = step.config?.useGmailSignature !== false;
