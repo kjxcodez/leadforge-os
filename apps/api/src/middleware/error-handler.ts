@@ -14,16 +14,33 @@ import { errorResponse } from '../utils/index.js';
 export function errorHandler(error: Error, c: Context): Response {
   const reqId = c.get('requestId') || 'unknown';
 
-  // If error is our standard API Error
-  if (error instanceof ApiError) {
+  // Handle EmailDomainError domain exceptions cleanly
+  if (
+    error.name === 'EmailDomainError' ||
+    (error as any).code?.startsWith?.('ATTACHMENT') ||
+    (error as any).code?.startsWith?.('TEST_RECIPIENT') ||
+    (error as any).code?.startsWith?.('MAILBOX') ||
+    (error as any).code?.startsWith?.('EMAIL')
+  ) {
+    const domainErr = error as any;
+    const code = domainErr.code || 'BAD_REQUEST';
+    let statusCode = 400;
+
+    if (code === 'MAILBOX_NOT_FOUND' || code === 'ATTACHMENT_NOT_FOUND') {
+      statusCode = 404;
+    } else if (code === 'EMAIL_RATE_LIMITED' || code === 'TEST_RECIPIENT_LIMIT_REACHED') {
+      statusCode = 429;
+    } else if (code === 'MAILBOX_REAUTH_REQUIRED' || code === 'MAILBOX_NOT_AUTHORIZED') {
+      statusCode = 401;
+    } else if (code === 'MAILBOX_DISCONNECTED') {
+      statusCode = 403;
+    }
+
     logger.warn(
-      { reqId, statusCode: error.statusCode, errorCode: error.errorCode, details: error.details },
-      `ApiError handled: ${error.message}`
+      { reqId, statusCode, errorCode: code, message: domainErr.message },
+      `EmailDomainError handled: ${domainErr.message}`
     );
-    return c.json(
-      errorResponse(error.errorCode, error.message, error.details),
-      error.statusCode as any
-    );
+    return c.json(errorResponse(code, domainErr.message, null), statusCode as any);
   }
 
   // Handle Mongoose specific validation or query errors safely without exposing DB internals

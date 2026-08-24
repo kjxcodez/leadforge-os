@@ -1,4 +1,5 @@
 import { env, logger } from '../../../config/index.js';
+import { EmailDomainError } from '../types.js';
 
 /**
  * Server-side Google OAuth + Gmail REST client.
@@ -388,7 +389,11 @@ export class GmailApiClient {
           }
         }
         if (!base64Data) {
-          throw new Error(`Attachment file missing or unreadable: ${att.filename || att.path}`);
+          const filename = att.filename || att.path || 'file';
+          throw new EmailDomainError(
+            'ATTACHMENT_UNREADABLE',
+            `Unable to read attachment "${filename}". Please remove and attach the file again.`
+          );
         }
 
         const contentType = att.contentType || 'application/octet-stream';

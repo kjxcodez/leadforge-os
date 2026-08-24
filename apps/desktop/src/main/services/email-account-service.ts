@@ -98,11 +98,19 @@ export async function sendTestEmail(
     const fs = await import('fs');
     for (const att of payload.attachments) {
       let contentBase64 = att.contentBase64 || '';
-      if (!contentBase64 && att.path && fs.existsSync(att.path)) {
-        contentBase64 = fs.readFileSync(att.path).toString('base64');
+      if (!contentBase64 && att.path) {
+        if (fs.existsSync(att.path)) {
+          try {
+            contentBase64 = fs.readFileSync(att.path).toString('base64');
+          } catch {
+            // Error handling below
+          }
+        }
       }
-      const item: any = { filename: att.filename };
-      if (contentBase64) item.contentBase64 = contentBase64;
+      if (!contentBase64) {
+        throw new Error(`Unable to read "${att.filename || 'attachment'}". Please remove and attach the file again.`);
+      }
+      const item: any = { filename: att.filename, contentBase64 };
       if (att.contentType) item.contentType = att.contentType;
       if (att.size) item.size = att.size;
       processedAttachments.push(item);

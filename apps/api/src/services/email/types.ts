@@ -83,7 +83,9 @@ export interface EmailProviderErrorShape {
     | 'GMAIL_AUTH_REVOKED'
     | 'TEST_RECIPIENT_LIMIT_REACHED'
     | 'ATTACHMENT_SIZE_EXCEEDED'
-    | 'ATTACHMENT_TYPE_NOT_ALLOWED';
+    | 'ATTACHMENT_TYPE_NOT_ALLOWED'
+    | 'ATTACHMENT_UNREADABLE'
+    | 'ATTACHMENT_NOT_FOUND';
   message: string;
   reauthRequired?: boolean;
 }
