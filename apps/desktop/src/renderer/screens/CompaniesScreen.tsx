@@ -298,11 +298,14 @@ export default function CompaniesScreen() {
                 className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[120px]"
               >
                 <option value="">All Locations</option>
-                {distinctValues.locations.map((loc: string) => (
-                  <option key={loc} value={loc}>
-                    {loc}
-                  </option>
-                ))}
+                {distinctValues.locations.map((loc: string) => {
+                  const label = loc.length > 40 ? loc.slice(0, 37) + '...' : loc;
+                  return (
+                    <option key={loc} value={loc} title={loc}>
+                      {label}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}
