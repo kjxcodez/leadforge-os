@@ -357,6 +357,20 @@ export async function runCampaignTests() {
   assert.ok(preloadContent.includes("'campaigns:schedule'"), "IPC channel 'campaigns:schedule' must be authorized in preload allowlist");
   console.log('✅ campaigns:schedule preload authorization contract verified.');
 
+  // 11. Test Phase 10C Canonical Variable Resolver Parity
+  const { renderCanonicalVariables } = require('@leadforge/sdk');
+  const sampleContext = {
+    contact: { firstName: 'Subrota', lastName: 'Sarker', email: 'subrota@ecoray.com' },
+    company: { name: 'Ecoray Group', domain: 'ecoray.com' }
+  };
+
+  const canonicalOut = renderCanonicalVariables('Hello {{contact.firstName}} from {{company.name}}', sampleContext);
+  assert.strictEqual(canonicalOut, 'Hello Subrota from Ecoray Group');
+
+  const legacyOut = renderCanonicalVariables('Hello {{firstName}} from {{company}}', sampleContext);
+  assert.strictEqual(legacyOut, 'Hello Subrota from Ecoray Group');
+  console.log('✅ Phase 10C canonical variable rendering parity verified.');
+
   console.log('--- ALL CAMPAIGN INTEGRATION TESTS PASSED ---');
 }
 
