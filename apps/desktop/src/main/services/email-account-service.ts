@@ -97,20 +97,32 @@ export async function sendTestEmail(
   if (Array.isArray(payload.attachments)) {
     const fs = await import('fs');
     for (const att of payload.attachments) {
+      const filename = att.filename || 'attachment';
+      const ext = filename.split('.').pop()?.toLowerCase();
+      if (['exe', 'bat', 'cmd', 'scr', 'vbs', 'sh', 'ps1'].includes(ext || '')) {
+        throw new Error(`File type .${ext} is not allowed for email attachments.`);
+      }
+      if (att.size && att.size > 25 * 1024 * 1024) {
+        throw new Error(`Attachment "${filename}" exceeds the 25 MB limit.`);
+      }
+
       let contentBase64 = att.contentBase64 || '';
       if (!contentBase64 && att.path) {
         if (fs.existsSync(att.path)) {
           try {
-            contentBase64 = fs.readFileSync(att.path).toString('base64');
+            const stat = fs.statSync(att.path);
+            if (stat.isFile() && stat.size <= 25 * 1024 * 1024) {
+              contentBase64 = fs.readFileSync(att.path).toString('base64');
+            }
           } catch {
-            // Error handling below
+            // Handled by validation check below
           }
         }
       }
       if (!contentBase64) {
-        throw new Error(`Unable to read "${att.filename || 'attachment'}". Please remove and attach the file again.`);
+        throw new Error(`Unable to read "${filename}". Please remove and attach the file again.`);
       }
-      const item: any = { filename: att.filename, contentBase64 };
+      const item: any = { filename, contentBase64 };
       if (att.contentType) item.contentType = att.contentType;
       if (att.size) item.size = att.size;
       processedAttachments.push(item);

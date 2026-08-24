@@ -32,7 +32,15 @@ export interface SendTestModalProps {
 export const SendTestModal = ({ isOpen, onClose, account }: SendTestModalProps) => {
   const [recipient, setRecipient] = useState('');
   const [useSignature, setUseSignature] = useState(true);
-  const [attachments, setAttachments] = useState<Array<{ name: string; path?: string; size: number }>>([]);
+  const [attachments, setAttachments] = useState<
+    Array<{
+      name: string;
+      path?: string | undefined;
+      contentBase64?: string | undefined;
+      contentType?: string | undefined;
+      size: number;
+    }>
+  >([]);
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [globalRecipients, setGlobalRecipients] = useState<Array<{ email: string }>>([]);
@@ -65,7 +73,20 @@ export const SendTestModal = ({ isOpen, onClose, account }: SendTestModalProps) 
     setErrorMessage(null);
   };
 
-  const handleFileAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const readAsBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.includes(',') ? result.split(',')[1] : result;
+        resolve(base64 || '');
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileAdd = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const files = Array.from(e.target.files);
 
@@ -80,11 +101,26 @@ export const SendTestModal = ({ isOpen, onClose, account }: SendTestModalProps) 
         toast.error(`File type .${ext} is not allowed for email attachments.`);
         continue;
       }
-      newAttachments.push({
-        name: f.name,
-        path: (f as any).path,
-        size: f.size
-      });
+      try {
+        const contentBase64 = await readAsBase64(f);
+        const item: {
+          name: string;
+          path?: string;
+          contentBase64?: string;
+          contentType?: string;
+          size: number;
+        } = {
+          name: f.name,
+          contentBase64,
+          size: f.size
+        };
+        if ((f as any).path) item.path = (f as any).path;
+        if (f.type) item.contentType = f.type;
+        newAttachments.push(item);
+      } catch (err) {
+        console.error('[SendTestModal] Failed to read file:', err);
+        toast.error(`Unable to read file "${f.name}". Please try another file.`);
+      }
     }
     setAttachments(newAttachments);
     e.target.value = '';
@@ -122,11 +158,16 @@ export const SendTestModal = ({ isOpen, onClose, account }: SendTestModalProps) 
         id: account.id,
         to: targetEmail,
         useSignature,
-        attachments: attachments.map((a) => ({
-          filename: a.name,
-          path: a.path,
-          size: a.size
-        }))
+        attachments: attachments.map((a) => {
+          const item: any = {
+            filename: a.name,
+            size: a.size
+          };
+          if (a.path) item.path = a.path;
+          if (a.contentBase64) item.contentBase64 = a.contentBase64;
+          if (a.contentType) item.contentType = a.contentType;
+          return item;
+        })
       });
 
       if (result.sent) {
