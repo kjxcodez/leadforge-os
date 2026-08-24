@@ -743,6 +743,83 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE audiences ADD COLUMN mode TEXT NOT NULL DEFAULT 'dynamic';
       ALTER TABLE audiences ADD COLUMN staticMemberIds TEXT;
     `
+  },
+  {
+    name: '029_intelligence_trust_foundation',
+    up: `
+      CREATE TABLE IF NOT EXISTS page_crawls (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        companyId TEXT NOT NULL,
+        url TEXT NOT NULL,
+        html TEXT NOT NULL,
+        crawledAt TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS intelligence_sources (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        companyId TEXT,
+        sourceType TEXT NOT NULL,
+        url TEXT,
+        retrievedAt TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'SUCCESS',
+        contentHash TEXT,
+        retrievalMethod TEXT,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS intelligence_evidence (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        companyId TEXT NOT NULL,
+        sourceId TEXT NOT NULL,
+        evidenceType TEXT NOT NULL,
+        key TEXT NOT NULL,
+        value TEXT NOT NULL,
+        rawExcerpt TEXT,
+        extractionMethod TEXT NOT NULL,
+        observedAt TEXT NOT NULL,
+        createdAt TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS intelligence_claims (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        companyId TEXT NOT NULL,
+        evidenceIds TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        predicate TEXT NOT NULL,
+        objectValue TEXT NOT NULL,
+        verificationStatus TEXT NOT NULL DEFAULT 'VERIFIED',
+        createdAt TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS intelligence_inferences (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        companyId TEXT NOT NULL,
+        supportingClaimIds TEXT NOT NULL,
+        field TEXT NOT NULL,
+        value TEXT NOT NULL,
+        inferenceMethod TEXT NOT NULL DEFAULT 'RULE_HEURISTIC',
+        confidence REAL,
+        reason TEXT NOT NULL,
+        createdAt TEXT NOT NULL
+      );
+
+      ALTER TABLE opportunity_scores ADD COLUMN provenance TEXT;
+      ALTER TABLE company_intelligence ADD COLUMN openingLine TEXT;
+      ALTER TABLE company_intelligence ADD COLUMN createdAt TEXT;
+      ALTER TABLE company_intelligence ADD COLUMN updatedAt TEXT;
+
+      CREATE INDEX IF NOT EXISTS idx_page_crawls_companyId ON page_crawls(companyId);
+      CREATE INDEX IF NOT EXISTS idx_intelligence_sources_companyId ON intelligence_sources(companyId);
+      CREATE INDEX IF NOT EXISTS idx_intelligence_evidence_companyId ON intelligence_evidence(companyId);
+      CREATE INDEX IF NOT EXISTS idx_intelligence_claims_companyId ON intelligence_claims(companyId);
+      CREATE INDEX IF NOT EXISTS idx_intelligence_inferences_companyId ON intelligence_inferences(companyId);
+    `
   }
 ];
 

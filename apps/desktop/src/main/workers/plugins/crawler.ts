@@ -324,6 +324,16 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
             const html = await res.text();
             pagesCrawled++;
 
+            // Save raw page crawl for intelligence evidence model
+            try {
+              const crawlId = randomUUID();
+              db.prepare(
+                `INSERT INTO page_crawls (id, workspaceId, companyId, url, html, crawledAt) VALUES (?, ?, ?, ?, ?, datetime('now'))`
+              ).run(crawlId, ctx.workspaceId, companyId, item.url, html);
+            } catch {
+              // Ignore table lock / insertion warning
+            }
+
             // Extract contacts from HTML content
             const $ = cheerio.load(html);
             const pageEmails = new Set<string>();

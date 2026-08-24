@@ -725,6 +725,10 @@ export interface IpcChannelMap {
       websiteIntelligence: any;
       contactIntelligences: any[];
       opportunityScore: any;
+      sources?: any[];
+      evidence?: any[];
+      claims?: any[];
+      inferences?: any[];
     };
   };
   'intelligence:trigger': {
