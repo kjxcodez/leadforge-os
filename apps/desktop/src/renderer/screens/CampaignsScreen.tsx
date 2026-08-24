@@ -1503,8 +1503,9 @@ export default function CampaignsScreen() {
                 <select
                   className="h-6 text-[10px] bg-surface-3 border border-border-subtle rounded-none px-1 text-foreground focus:outline-none"
                   onChange={(e) => {
-                    if (e.target.value) {
-                      setTplSubj((prev) => prev + ` {{${e.target.value}}}`);
+                    const val = e.target.value;
+                    if (val) {
+                      setTplSubj((prev) => (prev ? `${prev} {{${val}}}` : `{{${val}}}`));
                       e.target.value = '';
                     }
                   }}
@@ -1539,8 +1540,9 @@ export default function CampaignsScreen() {
                 <select
                   className="h-6 text-[10px] bg-surface-3 border border-border-subtle rounded-none px-1 text-foreground focus:outline-none"
                   onChange={(e) => {
-                    if (e.target.value) {
-                      setTplBody((prev) => prev + ` {{${e.target.value}}}`);
+                    const val = e.target.value;
+                    if (val) {
+                      setTplBody((prev) => (prev ? `${prev} {{${val}}}` : `{{${val}}}`));
                       e.target.value = '';
                     }
                   }}
