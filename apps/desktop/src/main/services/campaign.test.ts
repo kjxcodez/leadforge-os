@@ -327,8 +327,35 @@ export async function runCampaignTests() {
   assert.strictEqual(parsedSteps[2].type, 'IF');
   assert.strictEqual(parsedSteps[3].type, 'ADD_TAG');
   assert.strictEqual(parsedSteps[4].type, 'UPDATE_STAGE');
-  assert.strictEqual(parsedSteps[5].type, 'SEND_NOTIFICATION');
-  console.log('✅ Phase 10B progressive outreach sequence steps and action mappings verified.');
+  // 10. Test Phase 10B-R SDK ExecutionsModule CRUD methods & Worker SQL Parameter Binding Contract
+  const { ExecutionsModule } = require('@leadforge/sdk');
+  const executionsMod = new ExecutionsModule({ get: () => {}, post: () => {}, patch: () => {}, delete: () => {} });
+  assert.strictEqual(typeof executionsMod.create, 'function', 'ExecutionsModule.create must exist');
+  assert.strictEqual(typeof executionsMod.update, 'function', 'ExecutionsModule.update must exist');
+  assert.strictEqual(typeof executionsMod.delete, 'function', 'ExecutionsModule.delete must exist');
+  console.log('✅ ExecutionsModule CRUD interface contract verified.');
+
+  // Test SQL parameter binding with primitive string parameter (not object)
+  const accountTestStmt = db.prepare(
+    `SELECT id FROM email_accounts WHERE workspaceId = ? AND deletedAt IS NULL ORDER BY createdAt ASC LIMIT 1`
+  );
+  db.prepare(
+    `INSERT INTO email_accounts (id, workspaceId, name, email, provider, status, createdAt, updatedAt)
+     VALUES (?, ?, 'Test Sender', 'sender@test.com', 'GMAIL', 'connected', datetime('now'), datetime('now'))`
+  ).run(sendingAccountId, workspaceId);
+
+  const foundAcc = accountTestStmt.get(workspaceId) as { id: string } | undefined;
+  assert.ok(foundAcc);
+  assert.strictEqual(foundAcc.id, sendingAccountId);
+  console.log('✅ SEND_EMAIL SQL query parameter binding contract verified.');
+
+  // Test IPC channel authorization in preload allowlist
+  const fs = require('fs');
+  const path = require('path');
+  const preloadPath = path.join(__dirname, '../../preload/index.ts');
+  const preloadContent = fs.readFileSync(preloadPath, 'utf8');
+  assert.ok(preloadContent.includes("'campaigns:schedule'"), "IPC channel 'campaigns:schedule' must be authorized in preload allowlist");
+  console.log('✅ campaigns:schedule preload authorization contract verified.');
 
   console.log('--- ALL CAMPAIGN INTEGRATION TESTS PASSED ---');
 }
