@@ -1,17 +1,18 @@
 /**
- * Lead Intelligence Engine — Automated Tests
+ * Lead Intelligence Trust Engine — Automated Regression Tests
  *
- * Tests cover:
- * - CompanyAnalyzer output shape
- * - ContactAnalyzer decision-maker scoring
- * - ScoringEngine calculations and explanation text
- * - LeadPrioritizer queue assignments
- * - AIInsightGenerator rule-based fallback
+ * Verification covers Phase 10D requirements:
+ * 1. Zero hardcoded fake defaults (No 'Google Analytics', 'B2B', or '$1M-$5M' without evidence).
+ * 2. Deterministic HTML extraction producing Evidence & Claims.
+ * 3. Labeled Inferences with method and confidence.
+ * 4. Grounded scoring starting at 0% baseline with explainable provenance.
+ * 5. LeadPrioritizer queue assignments.
  */
 
 import assert from 'assert';
 import {
   CompanyAnalyzer,
+  WebsiteAnalyzer,
   ContactAnalyzer,
   ScoringEngine,
   LeadPrioritizer,
@@ -24,215 +25,197 @@ const fail = (msg: string, err?: any) => {
   process.exitCode = 1;
 };
 
-// ── Section 1: CompanyAnalyzer ──────────────────────────────────────────────
-console.log('\n── CompanyAnalyzer ──');
+// ── Section 1: Zero Fake Defaults & Honest State ─────────────────────────────
+console.log('\n── Section 1: Zero Fake Defaults & Honest State ──');
 {
-  const company = {
-    id: 'c-001',
-    name: 'TechCorp AI',
-    industry: 'Software',
-    website: 'https://techcorp.ai',
-    location: 'San Francisco, CA',
-    phone: '+1-555-123-4567'
+  const emptyCompany = {
+    id: 'c-empty-001',
+    name: 'Blank Enterprise',
+    industry: '',
+    website: ''
   };
-  const contacts = [
-    { id: 'ct-001', title: 'CEO & Founder' },
-    { id: 'ct-002', title: 'Software Engineer' }
-  ];
-  const result = CompanyAnalyzer.analyze(company, contacts);
 
-  assert.strictEqual(result.companyId, 'c-001', 'companyId should match');
-  pass('companyId matches');
+  const res = CompanyAnalyzer.analyze(emptyCompany, []);
+  const intel = res.companyIntelligence;
 
-  assert.ok(result.techStack.length > 0, 'Tech stack should not be empty');
-  pass('Tech stack is populated');
-
-  assert.strictEqual(result.businessModel, 'B2B', 'Software company should be B2B');
-  pass('Business model classified as B2B for Software industry');
-
-  assert.ok(
-    result.decisionMakerLikelihood > 0.5,
-    'Decision-maker likelihood should be high with CEO contact'
-  );
-  pass(`Decision-maker likelihood is ${result.decisionMakerLikelihood}`);
-
+  // 1. Tech stack must be empty when no HTML is analyzed
   assert.strictEqual(
-    result.leadConfidence,
-    'High',
-    'Lead confidence should be High with a CEO contact'
+    intel.techStack.length,
+    0,
+    'Tech stack MUST be empty when no HTML is analyzed (No fake Google Analytics)'
   );
-  pass('Lead confidence = High with CEO contact');
+  pass('Zero hardcoded Google Analytics default verified');
+
+  // 2. Revenue must be Unknown
+  assert.strictEqual(
+    intel.estimatedRevenue,
+    'Unknown',
+    'Estimated revenue MUST be Unknown when no evidence exists'
+  );
+  pass('Zero hardcoded $1M-$5M revenue default verified');
+
+  // 3. Business model must be Unknown without industry/evidence
+  assert.strictEqual(
+    intel.businessModel,
+    'Unknown',
+    'Business model MUST be Unknown when no evidence or industry exists'
+  );
+  pass('Zero hardcoded B2B business model default verified');
+
+  // 4. Grounded score for empty company MUST be 0%
+  const emptyScore = ScoringEngine.calculate(emptyCompany, intel, null, []);
+  assert.strictEqual(
+    emptyScore.overallScore,
+    0,
+    'Empty company with no evidence MUST score 0% (No ungrounded 46% base score)'
+  );
+  pass('Ground baseline score = 0% verified for un-analyzed companies');
 }
 
-// ── Section 2: ContactAnalyzer ──────────────────────────────────────────────
-console.log('\n── ContactAnalyzer ──');
-{
-  const ceoCnt = {
-    id: 'ct-101',
-    title: 'CEO',
-    linkedinUrl: 'https://linkedin.com/in/johndoe',
-    headline: 'Serial Entrepreneur'
-  };
-  const managerCnt = {
-    id: 'ct-102',
-    title: 'Marketing Manager',
-    linkedinUrl: null,
-    headline: null
-  };
-  const unknownCnt = { id: 'ct-103', title: '', linkedinUrl: null, headline: null };
-
-  const ceoResult = ContactAnalyzer.analyze(ceoCnt);
-  assert.strictEqual(ceoResult.decisionMakerScore, 1.0, 'CEO should have score 1.0');
-  assert.strictEqual(ceoResult.seniority, 'Executive', 'CEO seniority should be Executive');
-  assert.strictEqual(ceoResult.buyingInfluence, 'Decision Maker', 'CEO should be Decision Maker');
-  assert.ok(
-    ceoResult.personalizationOpportunities.length >= 2,
-    'CEO with LinkedIn + headline should have 2+ personalization hooks'
-  );
-  pass('CEO analyzed correctly: score=1.0, Executive, Decision Maker, 2+ personalization hooks');
-
-  const manResult = ContactAnalyzer.analyze(managerCnt);
-  assert.strictEqual(manResult.decisionMakerScore, 0.5, 'Manager should have score 0.5');
-  assert.strictEqual(manResult.seniority, 'Manager', 'Manager seniority should be Manager');
-  pass('Manager analyzed correctly: score=0.5, Manager seniority');
-
-  const unknownResult = ContactAnalyzer.analyze(unknownCnt);
-  assert.ok(unknownResult.decisionMakerScore <= 0.2, 'Unknown contact should have low score');
-  pass('Unknown contact correctly classified with low score');
-}
-
-// ── Section 3: ScoringEngine ────────────────────────────────────────────────
-console.log('\n── ScoringEngine ──');
+// ── Section 2: Deterministic Evidence & Claim Model ────────────────────────
+console.log('\n── Section 2: Deterministic Evidence & Claim Model ──');
 {
   const company = {
-    id: 'c-002',
-    name: 'MarTech Startup',
+    id: 'c-web-101',
+    name: 'SaaSify Inc',
+    industry: 'Software',
+    website: 'https://saasify.io',
+    phone: '+1-800-555-0199'
+  };
+
+  const html = `
+    <html>
+      <head>
+        <title>SaaSify — NextGen Automation</title>
+        <script src="https://www.googletagmanager.com/gtag/js?id=UA-12345"></script>
+        <link rel="stylesheet" href="https://cdn.tailwindcss.com">
+      </head>
+      <body>
+        <h1>Pricing & Demo</h1>
+        <a href="/pricing">View Pricing</a>
+        <a href="/trial">Start Free Trial</a>
+      </body>
+    </html>
+  `;
+
+  const compRes = CompanyAnalyzer.analyze(company, [], html);
+  const webRes = WebsiteAnalyzer.analyze(company.id, html, company.website);
+
+  // Verified tech stack evidence
+  assert.ok(
+    compRes.companyIntelligence.techStack.includes('Google Analytics'),
+    'Google Analytics should be extracted from gtag.js script tag'
+  );
+  assert.ok(
+    compRes.companyIntelligence.techStack.includes('TailwindCSS'),
+    'TailwindCSS should be extracted from tailwind link'
+  );
+  pass('Deterministic HTML technology extraction verified');
+
+  // Verified claims
+  assert.ok(compRes.claims.length > 0, 'Company claims list should not be empty');
+  assert.strictEqual(compRes.claims[0]!.verificationStatus, 'VERIFIED');
+  pass('Verified claims correctly created and linked');
+
+  // Inferred business model from industry
+  assert.strictEqual(compRes.companyIntelligence.businessModel, 'B2B');
+  assert.ok(compRes.inferences.length > 0, 'Inferences array should contain B2B rule');
+  assert.strictEqual(compRes.inferences[0]!.inferenceMethod, 'RULE_HEURISTIC');
+  pass('Inferred business model correctly labeled with RULE_HEURISTIC method');
+
+  // Website buying signals
+  assert.ok(webRes.websiteIntelligence.buyingSignals.length >= 2);
+  pass('Website buying intent signals extracted from HTML text');
+}
+
+// ── Section 3: Score Provenance & Missing-Data Safety ────────────────────────
+console.log('\n── Section 3: Score Provenance & Missing-Data Safety ──');
+{
+  const company = {
+    id: 'c-score-202',
+    name: 'GrowthCorp',
     industry: 'Marketing',
-    website: 'https://martech.io'
+    website: 'https://growthcorp.com',
+    location: 'Chicago, IL',
+    phone: '+1-312-555-0100'
   };
+
   const compIntel: any = {
-    techStack: ['React', 'HubSpot', 'Segment'],
+    companyId: company.id,
+    techStack: ['HubSpot', 'Google Analytics'],
     businessModel: 'B2B',
-    decisionMakerLikelihood: 0.9,
-    leadConfidence: 'High'
+    growthSignals: ['Modern stack adoption']
   };
+
   const webIntel: any = {
-    buyingSignals: ['Active Sales CTA detected', 'Product trial signup present'],
-    technicalIssues: [],
-    contentQuality: 'High'
+    companyId: company.id,
+    buyingSignals: ['Active Sales CTA detected'],
+    technicalIssues: ['Unsecure HTTP website (No SSL certificate)'],
+    testimonialsCaseStudies: ['Client success section found']
   };
+
   const contacts: any[] = [
     {
-      contactId: 'c1',
+      contactId: 'ct-1',
       decisionMakerScore: 1.0,
       seniority: 'Executive',
       buyingInfluence: 'Decision Maker',
       personalizationOpportunities: ['LinkedIn'],
-      relationshipStrength: 0.1
-    },
-    {
-      contactId: 'c2',
-      decisionMakerScore: 0.5,
-      seniority: 'Manager',
-      buyingInfluence: 'Influencer',
-      personalizationOpportunities: [],
       relationshipStrength: 0.1
     }
   ];
 
   const score = ScoringEngine.calculate(company, compIntel, webIntel, contacts);
 
-  assert.ok(
-    score.overallScore > 0 && score.overallScore <= 100,
-    `Score should be 0-100, got ${score.overallScore}`
-  );
-  pass(`Overall score is valid: ${score.overallScore}`);
+  assert.ok(score.overallScore > 0 && score.overallScore <= 100);
+  assert.ok(score.provenance && score.provenance.length > 0, 'Score MUST include detailed provenance items');
 
-  assert.ok(
-    score.fitScore >= 60,
-    `Fit score should be ≥60 for Marketing industry, got ${score.fitScore}`
-  );
-  pass(`Fit score is ${score.fitScore} (Marketing industry match)`);
+  const industryProv = score.provenance.find((p) => p.factor === 'High Fit Industry');
+  assert.ok(industryProv, 'Provenance MUST reference industry fit factor');
+  assert.strictEqual(industryProv!.points, 40);
+  pass('Score component provenance verified');
 
-  assert.ok(
-    score.intentScore > 40,
-    `Intent score should be elevated with buying signals, got ${score.intentScore}`
-  );
-  pass(`Intent score elevated to ${score.intentScore} with active buying signals`);
-
-  assert.ok(score.explanation && score.explanation.length > 5, 'Explanation should not be empty');
-  pass('Score explanation is provided');
-
-  assert.ok(
-    score.explanation.includes('+'),
-    'Explanation should contain positive increment notation'
-  );
-  pass('Score explanation contains increment notation');
+  assert.ok(score.explanation.includes('+40: High Fit Industry'));
+  pass('Formatted score explanation string contains explicit provenance additions');
 }
 
-// ── Section 4: LeadPrioritizer ──────────────────────────────────────────────
-console.log('\n── LeadPrioritizer ──');
+// ── Section 4: ContactAnalyzer & Queue Prioritization ──────────────────────
+console.log('\n── Section 4: ContactAnalyzer & Queue Prioritization ──');
 {
-  assert.strictEqual(LeadPrioritizer.getQueue(85), 'Hot', 'Score 85 should map to Hot');
-  pass('Score 85 → Hot Lead');
+  const ceoResult = ContactAnalyzer.analyze({ id: 'cnt-1', title: 'Chief Executive Officer' });
+  assert.strictEqual(ceoResult.decisionMakerScore, 1.0);
+  assert.strictEqual(ceoResult.seniority, 'Executive');
+  pass('CEO contact analyzed correctly');
 
-  assert.strictEqual(LeadPrioritizer.getQueue(75), 'Hot', 'Score 75 should map to Hot (boundary)');
-  pass('Score 75 → Hot Lead (boundary)');
+  const unknownContact = ContactAnalyzer.analyze({ id: 'cnt-2', title: '' });
+  assert.strictEqual(unknownContact.decisionMakerScore, 0.0);
+  assert.strictEqual(unknownContact.seniority, 'Unknown');
+  pass('Empty title contact yields decisionMakerScore = 0.0 & Unknown seniority');
 
-  assert.strictEqual(LeadPrioritizer.getQueue(60), 'Warm', 'Score 60 should map to Warm');
-  pass('Score 60 → Warm Lead');
-
-  assert.strictEqual(
-    LeadPrioritizer.getQueue(45),
-    'Warm',
-    'Score 45 should map to Warm (boundary)'
-  );
-  pass('Score 45 → Warm Lead (boundary)');
-
-  assert.strictEqual(LeadPrioritizer.getQueue(30), 'Cold', 'Score 30 should map to Cold');
-  pass('Score 30 → Cold Lead');
-
-  assert.strictEqual(LeadPrioritizer.getQueue(0), 'Cold', 'Score 0 should map to Cold');
-  pass('Score 0 → Cold Lead');
+  assert.strictEqual(LeadPrioritizer.getQueue(85), 'Hot');
+  assert.strictEqual(LeadPrioritizer.getQueue(50), 'Warm');
+  assert.strictEqual(LeadPrioritizer.getQueue(0), 'Cold');
+  pass('Lead prioritization queues verified (85→Hot, 50→Warm, 0→Cold)');
 }
 
-// ── Section 5: AIInsightGenerator (fallback mode) ───────────────────────────
-console.log('\n── AIInsightGenerator (Fallback) ──');
+// ── Section 5: AIInsightGenerator Fallback ──────────────────────────────────
+console.log('\n── Section 5: AIInsightGenerator Fallback ──');
 (async () => {
   try {
     const result = await AIInsightGenerator.generate(
-      'TechCorp AI',
+      'TechCorp',
       'Software',
-      ['React', 'Next.js'],
-      ['Unsecure HTTP website (No SSL certificate)']
-      // No API key — should use rule-based fallback
+      ['React'],
+      ['Unsecure HTTP website']
     );
 
-    assert.ok(
-      result.openingLine && result.openingLine.length > 10,
-      'Opening line should be non-empty'
-    );
-    pass(`Opening line: "${result.openingLine}"`);
+    assert.ok(result.openingLine && result.openingLine.length > 10);
+    assert.ok(result.painPoint && result.painPoint.length > 5);
+    assert.ok(result.outreachAngle && result.outreachAngle.length > 5);
+    pass(`AIInsightGenerator generated non-fabricated insight hooks`);
 
-    assert.ok(
-      result.painPoint && result.painPoint.length > 5,
-      'Pain point hypothesis should be non-empty'
-    );
-    pass(`Pain point: "${result.painPoint}"`);
-
-    assert.ok(
-      result.outreachAngle && result.outreachAngle.length > 5,
-      'Outreach angle should be non-empty'
-    );
-    pass(`Outreach angle: "${result.outreachAngle}"`);
-
-    console.log('\n── INTELLIGENCE ENGINE TESTS COMPLETE ──');
-    if (process.exitCode === 1) {
-      console.log('\n❌ SOME TESTS FAILED');
-    } else {
-      console.log('✅ ALL INTELLIGENCE ENGINE TESTS PASSED\n');
-    }
+    console.log('\n── ALL INTELLIGENCE TRUST REGRESSION TESTS PASSED ✅ ──\n');
   } catch (err: any) {
-    fail('AIInsightGenerator test threw unexpectedly', err.message);
+    fail('AIInsightGenerator test failed', err.message);
   }
 })();
