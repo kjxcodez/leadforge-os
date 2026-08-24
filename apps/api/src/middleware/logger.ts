@@ -14,6 +14,28 @@ export async function requestIdMiddleware(c: Context, next: Next): Promise<void>
   await next();
 }
 
+export function sanitizeUrl(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    let changed = false;
+    ['code', 'state', 'token', 'access_token', 'refresh_token', 'code_verifier'].forEach((key) => {
+      if (parsed.searchParams.has(key)) {
+        parsed.searchParams.set(key, '[REDACTED]');
+        changed = true;
+      }
+    });
+    if (changed) return parsed.toString();
+  } catch {
+    // Regex fallback if URL parsing fails
+  }
+  return rawUrl
+    .replace(/code=[^&]+/gi, 'code=[REDACTED]')
+    .replace(/state=[^&]+/gi, 'state=[REDACTED]')
+    .replace(/token=[^&]+/gi, 'token=[REDACTED]')
+    .replace(/access_token=[^&]+/gi, 'access_token=[REDACTED]')
+    .replace(/refresh_token=[^&]+/gi, 'refresh_token=[REDACTED]');
+}
+
 /**
  * Middleware that logs HTTP incoming request details and execution duration.
  *
@@ -22,7 +44,8 @@ export async function requestIdMiddleware(c: Context, next: Next): Promise<void>
  */
 export async function loggerMiddleware(c: Context, next: Next): Promise<void> {
   const reqId = c.get('requestId') || crypto.randomUUID();
-  const { method, url } = c.req;
+  const method = c.req.method;
+  const url = sanitizeUrl(c.req.url);
   const start = Date.now();
 
   logger.info({ reqId, method, url }, `📥 Incoming Request: ${method} ${url}`);
