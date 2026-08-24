@@ -57,6 +57,47 @@ export class AutomationService {
 
   // ── Executions Management ────────────────────────────────────────────────
 
+  public async createExecution(data: any): Promise<any> {
+    const exec = new SequenceExecutionModel({
+      _id: data.id || data._id || undefined,
+      workspaceId: this.workspaceId as any,
+      sequenceId: data.sequenceId,
+      campaignId: data.campaignId,
+      contactId: data.contactId,
+      companyId: data.companyId,
+      currentStep: data.currentStep || 0,
+      currentStepName: data.currentStepName || 'Initial',
+      status: (data.status || 'RUNNING').toUpperCase(),
+      startedAt: data.startedAt ? new Date(data.startedAt) : new Date(),
+      completedAt: data.completedAt ? new Date(data.completedAt) : undefined,
+      logs: data.logs || [],
+      sentMessageIds: data.sentMessageIds || []
+    });
+    await exec.save();
+    return exec;
+  }
+
+  public async updateExecution(id: string, data: any): Promise<any> {
+    const updateData = { ...data };
+    if (updateData.status) {
+      updateData.status = updateData.status.toUpperCase();
+    }
+    const exec = await SequenceExecutionModel.findOneAndUpdate(
+      { _id: id, workspaceId: this.workspaceId } as any,
+      { $set: updateData },
+      { new: true }
+    );
+    if (!exec) throw new Error('Sequence execution not found.');
+    return exec;
+  }
+
+  public async deleteExecution(id: string): Promise<void> {
+    await SequenceExecutionModel.findOneAndDelete({
+      _id: id,
+      workspaceId: this.workspaceId
+    } as any);
+  }
+
   public async listExecutions(): Promise<any[]> {
     return SequenceExecutionModel.find({
       workspaceId: this.workspaceId

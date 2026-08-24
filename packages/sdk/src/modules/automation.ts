@@ -42,6 +42,18 @@ export class ExecutionsModule {
     return this.client.get<SequenceExecution>(`/automation/executions/${id}`);
   }
 
+  public async create(dto: any): Promise<SequenceExecution> {
+    return this.client.post<SequenceExecution>('/automation/executions', dto);
+  }
+
+  public async update(id: string, dto: any): Promise<SequenceExecution> {
+    return this.client.patch<SequenceExecution>(`/automation/executions/${id}`, dto);
+  }
+
+  public async delete(id: string): Promise<void> {
+    return this.client.delete<void>(`/automation/executions/${id}`);
+  }
+
   public async start(
     sequenceId: string,
     contactId?: string | null,
