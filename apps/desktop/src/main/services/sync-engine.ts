@@ -19,7 +19,13 @@ interface QueueItem {
     | 'templates'
     | 'discovery_runs'
     | 'company_discovery_runs'
-    | 'audiences';
+    | 'audiences'
+    | 'intelligence_sources'
+    | 'intelligence_evidence'
+    | 'intelligence_claims'
+    | 'intelligence_inferences'
+    | 'opportunity_scores'
+    | 'page_crawls';
   entityId: string;
   operation: 'CREATE' | 'UPDATE' | 'DELETE';
   payload: string;

@@ -820,6 +820,18 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_intelligence_claims_companyId ON intelligence_claims(companyId);
       CREATE INDEX IF NOT EXISTS idx_intelligence_inferences_companyId ON intelligence_inferences(companyId);
     `
+  },
+  {
+    name: '030_structured_location_and_sync_hardening',
+    up: `
+      ALTER TABLE companies ADD COLUMN city TEXT;
+      ALTER TABLE companies ADD COLUMN state TEXT;
+      ALTER TABLE companies ADD COLUMN country TEXT;
+
+      CREATE INDEX IF NOT EXISTS idx_companies_location_city ON companies(workspaceId, city);
+      CREATE INDEX IF NOT EXISTS idx_companies_location_state ON companies(workspaceId, state);
+      CREATE INDEX IF NOT EXISTS idx_companies_location_country ON companies(workspaceId, country);
+    `
   }
 ];
 
