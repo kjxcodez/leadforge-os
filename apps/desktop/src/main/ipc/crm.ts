@@ -83,6 +83,80 @@ export function registerCrmIpc() {
     return LocalCRMRepository.findMany('contacts', workspaceId, filter);
   });
 
+  safeRegister('contacts:query', async (_event, { workspaceId, search, status, companyId, title, source, discoveryRunId }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    const db = getDatabase(workspaceId);
+
+    let query = 'SELECT DISTINCT c.* FROM contacts c';
+    const params: any[] = [];
+    const conditions: string[] = ['c.workspaceId = ?', 'c.deletedAt IS NULL'];
+    params.push(workspaceId);
+
+    if (discoveryRunId) {
+      query += ' INNER JOIN company_discovery_runs cdr ON c.companyId = cdr.companyId';
+      conditions.push('cdr.discoveryRunId = ?');
+      params.push(discoveryRunId);
+    }
+
+    if (search) {
+      conditions.push('(c.firstName LIKE ? OR c.lastName LIKE ? OR c.email LIKE ? OR c.title LIKE ? OR c.notes LIKE ?)');
+      const term = `%${search}%`;
+      params.push(term, term, term, term, term);
+    }
+
+    if (status) {
+      conditions.push('c.status = ?');
+      params.push(status);
+    }
+
+    if (companyId) {
+      conditions.push('c.companyId = ?');
+      params.push(companyId);
+    }
+
+    if (title) {
+      conditions.push('c.title LIKE ?');
+      params.push(`%${title}%`);
+    }
+
+    if (source) {
+      conditions.push('(c.source LIKE ? OR c.sourcePlatform LIKE ?)');
+      params.push(`%${source}%`, `%${source}%`);
+    }
+
+    query += ' WHERE ' + conditions.join(' AND ') + ' ORDER BY c.createdAt DESC';
+
+    const rows = db.prepare(query).all(...params) as any[];
+    return rows.map((r) => {
+      if (typeof r.tags === 'string') {
+        try { r.tags = JSON.parse(r.tags); } catch {}
+      }
+      return r;
+    });
+  });
+
+  safeRegister('companies:distinct-values', async (_event, { workspaceId }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    const db = getDatabase(workspaceId);
+    const indRows = db.prepare(`SELECT DISTINCT industry FROM companies WHERE workspaceId = ? AND deletedAt IS NULL AND industry IS NOT NULL AND industry != '' ORDER BY industry ASC`).all(workspaceId) as Array<{ industry: string }>;
+    const locRows = db.prepare(`SELECT DISTINCT location FROM companies WHERE workspaceId = ? AND deletedAt IS NULL AND location IS NOT NULL AND location != '' ORDER BY location ASC`).all(workspaceId) as Array<{ location: string }>;
+    return {
+      industries: indRows.map((r) => r.industry),
+      locations: locRows.map((r) => r.location)
+    };
+  });
+
+  safeRegister('contacts:distinct-values', async (_event, { workspaceId }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    const db = getDatabase(workspaceId);
+    const titleRows = db.prepare(`SELECT DISTINCT title FROM contacts WHERE workspaceId = ? AND deletedAt IS NULL AND title IS NOT NULL AND title != '' ORDER BY title ASC`).all(workspaceId) as Array<{ title: string }>;
+    const sourceRows = db.prepare(`SELECT DISTINCT source FROM contacts WHERE workspaceId = ? AND deletedAt IS NULL AND source IS NOT NULL AND source != '' ORDER BY source ASC`).all(workspaceId) as Array<{ source: string }>;
+    return {
+      titles: titleRows.map((r) => r.title),
+      sources: sourceRows.map((r) => r.source)
+    };
+  });
+
   safeRegister('contacts:get', async (_event, { workspaceId, id }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     if (!id) throw new Error('id is required.');
@@ -104,6 +178,7 @@ export function registerCrmIpc() {
     if (!id) throw new Error('id is required.');
     return LocalCRMRepository.softDelete('contacts', workspaceId, id);
   });
+
 
   // Campaigns
   safeRegister('campaigns:list', async (_event, { workspaceId, filter }) => {
