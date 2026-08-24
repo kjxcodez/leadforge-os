@@ -110,7 +110,10 @@ export function registerCampaignsIpc(): void {
               entityId: contactId,
               entityType: 'contact',
               executionId: enrollmentId,
-              workspaceId: runtime.workspaceId
+              workspaceId: runtime.workspaceId,
+              _secrets: {
+                sessionToken: process.env.SESSION_TOKEN || ''
+              }
             })
           );
         }
@@ -260,7 +263,10 @@ export function registerCampaignsIpc(): void {
                 entityId: enroll.contactId,
                 entityType: 'contact',
                 executionId: id,
-                workspaceId: runtime.workspaceId
+                workspaceId: runtime.workspaceId,
+                _secrets: {
+                  sessionToken: process.env.SESSION_TOKEN || ''
+                }
               })
             );
           }
@@ -440,7 +446,10 @@ export function registerCampaignsIpc(): void {
                 entityId: enroll.contactId,
                 entityType: 'contact',
                 executionId: enroll.id,
-                workspaceId: runtime.workspaceId
+                workspaceId: runtime.workspaceId,
+                _secrets: {
+                  sessionToken: process.env.SESSION_TOKEN || ''
+                }
               })
             );
             enqueuedJobsCount++;
