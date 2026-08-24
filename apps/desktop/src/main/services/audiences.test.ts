@@ -177,6 +177,34 @@ export async function runAudiencesTests() {
 
   console.log('✅ Structured CRM company queries verified.');
 
+  // 8. Test IPC Channel Authorization Allowlist Contract
+  const fs = require('fs');
+  const path = require('path');
+  const preloadPath = path.join(__dirname, '../../preload/index.ts');
+  const preloadContent = fs.readFileSync(preloadPath, 'utf8');
+
+  const requiredIPCChannels = [
+    'companies:distinct-values',
+    'contacts:distinct-values',
+    'companies:query',
+    'contacts:query',
+    'audiences:list',
+    'audiences:create',
+    'audiences:get',
+    'audiences:update',
+    'audiences:delete',
+    'audiences:resolve',
+    'discovery:run:list'
+  ];
+
+  for (const channel of requiredIPCChannels) {
+    assert.ok(
+      preloadContent.includes(`'${channel}'`),
+      `IPC channel '${channel}' must be authorized in preload/index.ts allowlist`
+    );
+  }
+  console.log('✅ IPC preload authorization contract verified for all Phase 10A CRM & Audience channels.');
+
   console.log('--- ALL AUDIENCES & CRM FOUNDATION TESTS PASSED ---');
 }
 
