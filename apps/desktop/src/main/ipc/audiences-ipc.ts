@@ -2,8 +2,47 @@ import { safeRegister } from './helper';
 import { LocalCRMRepository } from '../database/repositories/local-crm';
 import { getDatabase } from '../database/connection';
 
-export function resolveAudienceLocally(workspaceId: string, filterDefinition: any) {
+export function resolveAudienceLocally(
+  workspaceId: string,
+  filterDefinition: any,
+  mode?: string,
+  staticMemberIds?: any
+) {
   const db = getDatabase(workspaceId);
+  const isStatic = mode === 'static' || (Array.isArray(staticMemberIds) && staticMemberIds.length > 0);
+
+  if (isStatic) {
+    let ids: string[] = [];
+    if (Array.isArray(staticMemberIds)) {
+      ids = staticMemberIds.map((id) => String(id));
+    } else if (typeof staticMemberIds === 'string') {
+      try {
+        const parsed = JSON.parse(staticMemberIds);
+        if (Array.isArray(parsed)) ids = parsed.map((id) => String(id));
+      } catch {}
+    }
+
+    if (ids.length === 0) {
+      return { contactIds: [], companyIds: [] };
+    }
+
+    // Query active contacts matching staticMemberIds in workspace
+    const placeholders = ids.map(() => '?').join(', ');
+    const rows = db
+      .prepare(
+        `SELECT id, companyId FROM contacts WHERE id IN (${placeholders}) AND workspaceId = ? AND deletedAt IS NULL`
+      )
+      .all(...ids, workspaceId) as Array<{ id: string; companyId: string | null }>;
+
+    const contactIds = rows.map((r) => r.id);
+    const companyIds = Array.from(
+      new Set(rows.map((r) => r.companyId).filter(Boolean))
+    ) as string[];
+
+    return { contactIds, companyIds };
+  }
+
+  // Dynamic mode resolution
   const filter = filterDefinition || {};
 
   let companyQuery = 'SELECT id FROM companies WHERE workspaceId = ? AND deletedAt IS NULL';
@@ -35,10 +74,12 @@ export function resolveAudienceLocally(workspaceId: string, filterDefinition: an
   }
 
   if (filter.discoveryRunId) {
-    companyQuery += ' AND id IN (SELECT companyId FROM company_discovery_runs WHERE workspaceId = ? AND discoveryRunId = ?)';
+    companyQuery +=
+      ' AND id IN (SELECT companyId FROM company_discovery_runs WHERE workspaceId = ? AND discoveryRunId = ?)';
     companyParams.push(workspaceId, filter.discoveryRunId);
 
-    contactQuery += ' AND companyId IN (SELECT companyId FROM company_discovery_runs WHERE workspaceId = ? AND discoveryRunId = ?)';
+    contactQuery +=
+      ' AND companyId IN (SELECT companyId FROM company_discovery_runs WHERE workspaceId = ? AND discoveryRunId = ?)';
     contactParams.push(workspaceId, filter.discoveryRunId);
   }
 
@@ -60,8 +101,7 @@ export function registerAudiencesIpc() {
   safeRegister('audiences:list', async (_event, { workspaceId }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     const audiences = await LocalCRMRepository.findMany('audiences', workspaceId);
-    
-    // Enrich with current matching count
+
     return audiences.map((audience) => {
       let filterDef = audience.filterDefinition;
       if (typeof filterDef === 'string') {
@@ -71,9 +111,24 @@ export function registerAudiencesIpc() {
           filterDef = {};
         }
       }
-      const { contactIds, companyIds } = resolveAudienceLocally(workspaceId, filterDef);
+      let staticIds = audience.staticMemberIds;
+      if (typeof staticIds === 'string') {
+        try {
+          staticIds = JSON.parse(staticIds);
+        } catch {
+          staticIds = [];
+        }
+      }
+      const { contactIds, companyIds } = resolveAudienceLocally(
+        workspaceId,
+        filterDef,
+        audience.mode,
+        staticIds
+      );
       return {
         ...audience,
+        mode: audience.mode || (Array.isArray(staticIds) && staticIds.length > 0 ? 'static' : 'dynamic'),
+        staticMemberIds: staticIds || [],
         contactCount: contactIds.length,
         companyCount: companyIds.length
       };
@@ -83,7 +138,13 @@ export function registerAudiencesIpc() {
   safeRegister('audiences:create', async (_event, record) => {
     if (!record.workspaceId) throw new Error('workspaceId is required.');
     if (!record.name) throw new Error('name is required.');
-    return LocalCRMRepository.save('audiences', record);
+    const payload = {
+      ...record,
+      mode: record.mode || (Array.isArray(record.staticMemberIds) && record.staticMemberIds.length > 0 ? 'static' : 'dynamic'),
+      filterDefinition: record.filterDefinition || {},
+      staticMemberIds: record.staticMemberIds || []
+    };
+    return LocalCRMRepository.save('audiences', payload);
   });
 
   safeRegister('audiences:get', async (_event, { workspaceId, id }) => {
@@ -100,9 +161,24 @@ export function registerAudiencesIpc() {
         filterDef = {};
       }
     }
-    const { contactIds, companyIds } = resolveAudienceLocally(workspaceId, filterDef);
+    let staticIds = audience.staticMemberIds;
+    if (typeof staticIds === 'string') {
+      try {
+        staticIds = JSON.parse(staticIds);
+      } catch {
+        staticIds = [];
+      }
+    }
+    const { contactIds, companyIds } = resolveAudienceLocally(
+      workspaceId,
+      filterDef,
+      audience.mode,
+      staticIds
+    );
     return {
       ...audience,
+      mode: audience.mode || (Array.isArray(staticIds) && staticIds.length > 0 ? 'static' : 'dynamic'),
+      staticMemberIds: staticIds || [],
       contactCount: contactIds.length,
       companyCount: companyIds.length,
       resolvedContactIds: contactIds,
@@ -121,17 +197,23 @@ export function registerAudiencesIpc() {
     return LocalCRMRepository.softDelete('audiences', workspaceId, id);
   });
 
-  safeRegister('audiences:resolve', async (_event, { workspaceId, id, filterDefinition }) => {
+  safeRegister('audiences:resolve', async (_event, { workspaceId, id, filterDefinition, mode, staticMemberIds }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     let filterDef = filterDefinition;
-    if (id && !filterDef) {
+    let audMode = mode;
+    let staticIds = staticMemberIds;
+
+    if (id && !filterDef && !staticIds) {
       const audience = await LocalCRMRepository.findById('audiences', workspaceId, id);
       if (audience) {
+        audMode = audience.mode;
+        staticIds = audience.staticMemberIds;
         filterDef = typeof audience.filterDefinition === 'string'
           ? JSON.parse(audience.filterDefinition)
           : audience.filterDefinition;
       }
     }
-    return resolveAudienceLocally(workspaceId, filterDef || {});
+    return resolveAudienceLocally(workspaceId, filterDef || {}, audMode, staticIds);
   });
 }
+

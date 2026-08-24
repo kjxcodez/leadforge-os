@@ -35,10 +35,30 @@ export class AudienceService {
   }
 
   /**
-   * Resolves filter definition to matching Contact IDs (or Company IDs).
+   * Resolves filter definition or static member IDs to matching Contact IDs (or Company IDs).
    */
   public async resolveAudience(audienceId: string): Promise<{ contactIds: string[]; companyIds: string[] }> {
     const audience = await this.getAudienceById(audienceId);
+    if (!audience) return { contactIds: [], companyIds: [] };
+
+    // Static Mode Resolution
+    if (audience.mode === 'static' || (Array.isArray(audience.staticMemberIds) && audience.staticMemberIds.length > 0)) {
+      const targetIds = audience.staticMemberIds || [];
+      const validContacts = await ContactModel.find({
+        _id: { $in: targetIds },
+        workspaceId: this.workspaceId,
+        deletedAt: null
+      }).select('_id companyId');
+
+      const contactIds = validContacts.map((c) => c._id.toString());
+      const companyIds = Array.from(
+        new Set(validContacts.map((c) => c.companyId?.toString()).filter(Boolean))
+      ) as string[];
+
+      return { contactIds, companyIds };
+    }
+
+    // Dynamic Mode Resolution
     const filter = audience.filterDefinition || {};
 
     const companyQuery: any = { workspaceId: this.workspaceId, deletedAt: null };
@@ -81,4 +101,5 @@ export class AudienceService {
 
     return { contactIds, companyIds };
   }
+
 }
