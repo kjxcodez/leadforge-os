@@ -44,6 +44,10 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { PageHeader } from '../components/common/PageHeader';
+import {
+  ProgressiveSequenceEditor,
+  type SequenceStepItem
+} from '../components/crm/ProgressiveSequenceEditor';
 
 /**
  * CampaignsScreen — outbound sequences dashboard, templates, and SMTP senders.
@@ -92,10 +96,13 @@ export default function CampaignsScreen() {
   const [campTimezone, setCampTimezone] = useState('UTC');
 
   const [selectedAudienceId, setSelectedAudienceId] = useState(initialAudienceId);
-  const [inlineSubject, setInlineSubject] = useState('');
-  const [inlineBody, setInlineBody] = useState('');
-  const [followUpWaitDays, setFollowUpWaitDays] = useState(3);
-  const [followUpBody, setFollowUpBody] = useState('');
+  const [sequenceSteps, setSequenceSteps] = useState<SequenceStepItem[]>([
+    {
+      id: 'step_1',
+      type: 'SEND_EMAIL',
+      config: { subject: '', body: '' }
+    }
+  ]);
 
   const [previewTemplateId, setPreviewTemplateId] = useState('');
   const [previewContactId, setPreviewContactId] = useState('');
@@ -400,48 +407,66 @@ export default function CampaignsScreen() {
       toast.error('Please select a connected Sender Email Account for outreach.');
       return;
     }
+    if (!sequenceSteps || sequenceSteps.length === 0) {
+      toast.error('Outreach campaign must contain at least 1 sequence step.');
+      return;
+    }
+
+    // Step validation check (Section 31)
+    for (let i = 0; i < sequenceSteps.length; i++) {
+      const s = sequenceSteps[i];
+      if (!s) continue;
+      if (s.type === 'SEND_EMAIL') {
+        if (!s.config.subject || !s.config.subject.trim()) {
+          toast.error(`Step ${i + 1} (Email) is missing a Subject Line.`);
+          return;
+        }
+        if (!s.config.body || !s.config.body.trim()) {
+          toast.error(`Step ${i + 1} (Email) is missing a Message Body.`);
+          return;
+        }
+      }
+      if (s.type === 'WAIT' && (!s.config.delaySeconds || s.config.delaySeconds <= 0)) {
+        toast.error(`Step ${i + 1} (Wait) must have a valid delay duration.`);
+        return;
+      }
+    }
 
     try {
       let targetSeqId = campSeqId;
 
-      // 1. If inline message is specified and no sequence selected, build sequence dynamically
-      if (!targetSeqId && inlineSubject && inlineBody) {
-        const steps: any[] = [
-          {
-            id: 'step_1',
-            type: 'SEND_EMAIL',
-            config: { subject: inlineSubject, body: inlineBody }
+      // Build sequence dynamically from sequenceSteps if not reusing existing sequence
+      if (!targetSeqId) {
+        const formattedSteps: any[] = sequenceSteps.map((s, idx) => {
+          const stepId = s?.id || `step_${idx + 1}`;
+          const stepType = s?.type || 'SEND_EMAIL';
+          const stepConfig = s?.config || {};
+
+          if (stepType === 'IF') {
+            return {
+              id: stepId,
+              type: 'IF',
+              config: {
+                condition: stepConfig.condition || "contact.status == 'REPLIED'",
+                thenGoto: `label_yes_${idx}`,
+                elseSkip: 1
+              }
+            };
           }
-        ];
-        if (followUpBody && followUpWaitDays > 0) {
-          steps.push({
-            id: 'step_2',
-            type: 'WAIT',
-            config: { delaySeconds: followUpWaitDays * 86400 }
-          });
-          steps.push({
-            id: 'step_3',
-            type: 'SEND_EMAIL',
-            config: { subject: `Re: ${inlineSubject}`, body: followUpBody }
-          });
-        }
+          return {
+            id: stepId,
+            type: stepType,
+            config: stepConfig
+          };
+        });
 
         const seq = await window.ipc.invoke('sequence:create', {
           name: `Sequence: ${campName.trim()}`,
           status: 'ACTIVE',
           trigger: { type: 'MANUAL', config: {} },
-          steps
+          steps: formattedSteps
         });
         targetSeqId = seq.id;
-      }
-
-      if (!targetSeqId && sequences.length > 0) {
-        targetSeqId = sequences[0].id;
-      }
-
-      if (!targetSeqId) {
-        toast.error('Please create an outreach email message or select an existing sequence.');
-        return;
       }
 
       // 2. Create Campaign
@@ -485,9 +510,13 @@ export default function CampaignsScreen() {
       setCampSeqId('');
       setCampAccId('');
       setSelectedAudienceId('');
-      setInlineSubject('');
-      setInlineBody('');
-      setFollowUpBody('');
+      setSequenceSteps([
+        {
+          id: 'step_1',
+          type: 'SEND_EMAIL',
+          config: { subject: '', body: '' }
+        }
+      ]);
       toast.success(
         enrolledCount > 0
           ? `Outreach campaign "${campName.trim()}" launched successfully with ${enrolledCount} contacts!`
@@ -629,8 +658,7 @@ export default function CampaignsScreen() {
         {[
           { id: 'campaigns', label: 'Campaigns', Icon: Megaphone },
           { id: 'monitor', label: 'Queue Monitor', Icon: Activity },
-          { id: 'templates', label: 'Templates', Icon: FileText },
-          { id: 'accounts', label: 'Sender Accounts', Icon: Mail }
+          { id: 'templates', label: 'Templates', Icon: FileText }
         ].map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -1447,79 +1475,6 @@ export default function CampaignsScreen() {
             </div>
           )}
         </TabsContent>
-
-        {/* ── SENDER ACCOUNTS TAB ─────────────────────────────────────────── */}
-        <TabsContent value="accounts" className="mt-4 space-y-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="font-semibold text-foreground text-xs">Connected Sender Accounts</h3>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                Mailboxes connected to your workspace for outreach campaign dispatch.
-              </p>
-            </div>
-            <Button
-              onClick={() => navigate('/settings')}
-              size="sm"
-              variant="outline"
-              className="flex items-center gap-1 rounded-none text-xs"
-            >
-              <Settings className="h-3.5 w-3.5" />
-              Manage Mailboxes in Settings →
-            </Button>
-          </div>
-
-          {accounts.length === 0 ? (
-            <div className="h-[220px] flex items-center justify-center p-6 bg-card border border-border-subtle border-dashed rounded-none">
-              <div className="max-w-md w-full flex flex-col items-center text-center space-y-3">
-                <div className="w-10 h-10 rounded-none bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
-                  <Mail className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-semibold text-foreground">No connected mailboxes</h3>
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    Connect your Gmail account via Google OAuth in Settings to start sending campaigns.
-                  </p>
-                </div>
-                <Button onClick={() => navigate('/settings')} size="sm" className="rounded-none text-xs">
-                  Go to Settings → Email Accounts
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {accounts.map((acc: any) => (
-                <div
-                  key={acc.id}
-                  className="bg-card border border-border-subtle rounded-none p-4 space-y-3 shadow-sm"
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-bold text-foreground text-xs">{acc.name}</h4>
-                      <span className="block text-[10px] text-muted-foreground font-mono mt-0.5">
-                        {acc.email}
-                      </span>
-                    </div>
-                    <Badge className="bg-success-muted text-success border border-success/20 text-[9px] font-bold rounded-none">
-                      {acc.status}
-                    </Badge>
-                  </div>
-
-                  <div className="flex justify-between items-center text-[10px] pt-2 border-t border-border-subtle/50 font-mono text-muted-foreground">
-                    <span>Daily Limit: {acc.dailyLimit || 200}</span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => navigate('/settings')}
-                      className="h-6 text-[10px] p-0 hover:underline"
-                    >
-                      Manage in Settings →
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </TabsContent>
       </Tabs>
 
 
@@ -1586,141 +1541,99 @@ export default function CampaignsScreen() {
 
       {/* ── Launch Campaign Dialog ───────────────────────────────────────── */}
       <Dialog open={campaignOpen} onOpenChange={setCampaignOpen}>
-        <DialogContent className="max-w-lg rounded-none bg-background border border-border-subtle shadow-elevation-2 max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-xl rounded-none bg-card border border-border-subtle shadow-elevation-2 max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 text-foreground font-bold text-sm">
               <Megaphone className="w-4 h-4 text-primary" />
               Launch Outreach Campaign
             </DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleCreateCampaign} className="space-y-4">
-            {/* Step 1: Campaign Metadata */}
+            {/* Section 1: Target Audience */}
             <div className="space-y-2">
-              <div className="text-xs font-bold text-foreground border-b border-border-subtle pb-1">
-                1. Campaign Details
+              <div className="text-[11px] font-bold text-foreground uppercase tracking-wider font-mono border-b border-border-subtle pb-1 flex items-center justify-between">
+                <span>1. Target Audience</span>
+                {selectedAudienceId && (
+                  <Badge className="bg-primary/10 text-primary border border-primary/20 text-[9px] rounded-none">
+                    Audience Selected
+                  </Badge>
+                )}
               </div>
               <div className="space-y-1">
-                <Label htmlFor="campName">Campaign Name <span className="text-danger">*</span></Label>
+                <Label htmlFor="campAudience" className="text-xs">Select Target Audience Segment</Label>
+                <select
+                  id="campAudience"
+                  value={selectedAudienceId}
+                  onChange={(e) => setSelectedAudienceId(e.target.value)}
+                  className="w-full h-8 px-2 bg-surface-3 border border-border-subtle rounded-none text-xs text-foreground focus-visible:outline-none font-sans"
+                >
+                  <option value="">-- All Active Contacts --</option>
+                  {((audiencesQuery.data || []) as any[]).map((aud: any) => (
+                    <option key={aud.id} value={aud.id}>
+                      {`${aud.name} (${aud.contactCount || 0} contacts • ${aud.mode?.toUpperCase() || 'DYNAMIC'})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Section 2: Campaign Details */}
+            <div className="space-y-2">
+              <div className="text-[11px] font-bold text-foreground uppercase tracking-wider font-mono border-b border-border-subtle pb-1">
+                2. Campaign Details
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="campName" className="text-xs">Campaign Name <span className="text-danger">*</span></Label>
                 <Input
                   id="campName"
                   placeholder="e.g. Q4 SaaS Leads Outreach"
                   value={campName}
                   onChange={(e) => setCampName(e.target.value)}
                   required
-                  className="rounded-none bg-card border-border-subtle"
+                  className="rounded-none bg-surface-3 border-border-subtle text-xs"
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="campDesc">Description</Label>
+                <Label htmlFor="campDesc" className="text-xs">Description</Label>
                 <Input
                   id="campDesc"
                   placeholder="Target audience and campaign goals..."
                   value={campDesc}
                   onChange={(e) => setCampDesc(e.target.value)}
-                  className="rounded-none bg-card border-border-subtle text-xs"
+                  className="rounded-none bg-surface-3 border-border-subtle text-xs"
                 />
               </div>
             </div>
 
-            {/* Step 2: Target Audience */}
+            {/* Section 3: Outreach Sequence Builder */}
             <div className="space-y-2">
-              <div className="text-xs font-bold text-foreground border-b border-border-subtle pb-1">
-                2. Target Audience
+              <div className="text-[11px] font-bold text-foreground uppercase tracking-wider font-mono border-b border-border-subtle pb-1 flex items-center justify-between">
+                <span>3. Outreach Sequence</span>
+                <span className="text-[10px] text-muted-foreground font-normal">
+                  {sequenceSteps.length} step(s) configured
+                </span>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="campAudience">Select Audience Segment</Label>
-                <select
-                  id="campAudience"
-                  value={selectedAudienceId}
-                  onChange={(e) => setSelectedAudienceId(e.target.value)}
-                  className="w-full h-8 px-2 bg-card border border-border-subtle rounded-none text-xs focus-visible:outline-none"
-                >
-                  <option value="">-- All Active Contacts --</option>
-                  {((audiencesQuery.data || []) as any[]).map((aud: any) => (
-                    <option key={aud.id} value={aud.id}>
-                      {`${aud.name} (${aud.contactCount || 0} contacts)`}
-                    </option>
-                  ))}
-                </select>
-              </div>
+
+              <ProgressiveSequenceEditor
+                steps={sequenceSteps}
+                onChange={setSequenceSteps}
+                templates={templates}
+              />
             </div>
 
-            {/* Step 3: Message & Sequence */}
+            {/* Section 4: Sender & Schedule Settings */}
             <div className="space-y-2">
-              <div className="text-xs font-bold text-foreground border-b border-border-subtle pb-1">
-                3. Outreach Message & Sequence
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="campSeq">Existing Sequence <span className="text-muted-foreground font-normal">(Optional if writing inline)</span></Label>
-                <select
-                  id="campSeq"
-                  value={campSeqId}
-                  onChange={(e) => setCampSeqId(e.target.value)}
-                  className="w-full h-8 px-2 bg-card border border-border-subtle rounded-none text-xs focus-visible:outline-none"
-                >
-                  <option value="">-- Build Inline Message Below --</option>
-                  {sequences.map((seq: any) => (
-                    <option key={seq.id} value={seq.id}>
-                      {seq.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {!campSeqId && (
-                <div className="space-y-2 bg-surface-3 p-3 border border-border-subtle">
-                  <div className="space-y-1">
-                    <Label htmlFor="inlineSubject" className="text-xs font-semibold">Email Subject</Label>
-                    <Input
-                      id="inlineSubject"
-                      placeholder="Quick question regarding {{company}}"
-                      value={inlineSubject}
-                      onChange={(e) => setInlineSubject(e.target.value)}
-                      className="rounded-none bg-card border-border-subtle text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="inlineBody" className="text-xs font-semibold">Initial Message</Label>
-                    <Textarea
-                      id="inlineBody"
-                      rows={3}
-                      placeholder="Hi {{firstName}}, I saw your company {{company}}..."
-                      value={inlineBody}
-                      onChange={(e) => setInlineBody(e.target.value)}
-                      className="rounded-none bg-card border-border-subtle text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1 pt-1">
-                    <Label htmlFor="followUpBody" className="text-xs font-semibold flex items-center justify-between">
-                      <span>Follow-up Message (Optional)</span>
-                      <span className="text-[10px] text-muted-foreground font-normal">Wait {followUpWaitDays} days</span>
-                    </Label>
-                    <Textarea
-                      id="followUpBody"
-                      rows={2}
-                      placeholder="Following up on my previous note..."
-                      value={followUpBody}
-                      onChange={(e) => setFollowUpBody(e.target.value)}
-                      className="rounded-none bg-card border-border-subtle text-xs"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Step 4: Sender & Schedule Settings */}
-            <div className="space-y-2">
-              <div className="text-xs font-bold text-foreground border-b border-border-subtle pb-1">
+              <div className="text-[11px] font-bold text-foreground uppercase tracking-wider font-mono border-b border-border-subtle pb-1">
                 4. Sender & Schedule Settings
               </div>
               <div className="space-y-1">
-                <Label htmlFor="campAcc">Sender Email Account <span className="text-danger">*</span></Label>
+                <Label htmlFor="campAcc" className="text-xs">Sender Email Account <span className="text-danger">*</span></Label>
                 <select
                   id="campAcc"
                   value={campAccId}
                   onChange={(e) => setCampAccId(e.target.value)}
-                  className="w-full h-8 px-2 bg-card border border-border-subtle rounded-none text-xs focus-visible:outline-none"
+                  className="w-full h-8 px-2 bg-surface-3 border border-border-subtle rounded-none text-xs text-foreground focus-visible:outline-none"
                   required
                 >
                   <option value="">-- Select Sender Account --</option>
@@ -1734,25 +1647,50 @@ export default function CampaignsScreen() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <Label htmlFor="campLimit">Daily Limit</Label>
+                  <Label htmlFor="campLimit" className="text-xs">Daily Limit</Label>
                   <Input
                     id="campLimit"
                     type="number"
                     value={campLimit}
                     onChange={(e) => setCampLimit(parseInt(e.target.value) || 200)}
                     required
-                    className="rounded-none bg-card border-border-subtle font-mono text-xs"
+                    className="rounded-none bg-surface-3 border-border-subtle font-mono text-xs"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="campTz">Timezone</Label>
+                  <Label htmlFor="campTz" className="text-xs">Timezone</Label>
                   <Input
                     id="campTz"
                     value={campTimezone}
                     onChange={(e) => setCampTimezone(e.target.value)}
                     required
-                    className="rounded-none bg-card border-border-subtle text-xs"
+                    className="rounded-none bg-surface-3 border-border-subtle text-xs"
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 5: Review & Safety Summary */}
+            <div className="bg-surface-3/60 border border-border-subtle rounded-none p-3 space-y-2">
+              <div className="text-[10px] font-bold text-foreground uppercase tracking-wider font-mono flex items-center gap-1 text-primary">
+                <CheckCircle className="w-3.5 h-3.5" /> Launch Review Summary
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-muted-foreground">
+                <div>
+                  <span className="text-foreground font-semibold">Audience:</span>{' '}
+                  {selectedAudienceId
+                    ? ((audiencesQuery.data || []) as any[]).find((a) => a.id === selectedAudienceId)?.name || 'Selected'
+                    : 'All Active Contacts'}
+                </div>
+                <div>
+                  <span className="text-foreground font-semibold">Steps:</span> {sequenceSteps.length} step(s)
+                </div>
+                <div>
+                  <span className="text-foreground font-semibold">Sender:</span>{' '}
+                  {accounts.find((a: any) => a.id === campAccId)?.email || 'None selected'}
+                </div>
+                <div>
+                  <span className="text-foreground font-semibold">Daily Limit:</span> {campLimit} emails/day
                 </div>
               </div>
             </div>
@@ -1761,7 +1699,7 @@ export default function CampaignsScreen() {
               <Button type="button" variant="secondary" className="rounded-none" onClick={() => setCampaignOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" className="rounded-none gap-1.5">
+              <Button type="submit" className="rounded-none gap-1.5 font-semibold">
                 <Megaphone className="w-3.5 h-3.5" />
                 Launch Outreach
               </Button>
