@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
 import { AIRuntime, PromptsLibrary } from '@leadforge/ai';
 import type { JobContext } from '../../../shared/types/job';
-import { SdkClient } from '@leadforge/sdk';
+import { SdkClient, renderCanonicalVariables } from '@leadforge/sdk';
 
 function decryptSecretFallback(val: string): string {
   if (!val) return '';
@@ -181,9 +181,7 @@ function resolveTokenPath(path: string, ctx: ExecutionContext): string {
 export function resolveVariables(template: string, ctx: ExecutionContext): string {
   if (template === null || template === undefined) return '';
   if (typeof template !== 'string') return String(template);
-  return template.replace(/\{\{([^}]+)\}\}/g, (_m, raw: string) =>
-    resolveTokenPath(raw.trim(), ctx)
-  );
+  return renderCanonicalVariables(template, ctx as any);
 }
 
 export function resolveVariablesRecursive(
