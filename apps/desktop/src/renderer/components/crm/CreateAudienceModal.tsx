@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Users, Filter, Check, UserMinus, Sparkles } from 'lucide-react';
 import { useWorkspace } from '../../hooks/useWorkspace';
 import { Button } from '../ui/button';
@@ -23,13 +23,16 @@ interface CreateAudienceModalProps {
   initialFilters?: Record<string, any>;
 }
 
+const EMPTY_CONTACTS: PreloadedContact[] = [];
+const EMPTY_FILTERS: Record<string, any> = {};
+
 export const CreateAudienceModal: React.FC<CreateAudienceModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
   initialMode = 'dynamic',
-  initialSelectedContacts = [],
-  initialFilters = {}
+  initialSelectedContacts = EMPTY_CONTACTS,
+  initialFilters = EMPTY_FILTERS
 }) => {
   const { activeWorkspace } = useWorkspace();
   const workspaceId = activeWorkspace?.id || '';
@@ -51,50 +54,26 @@ export const CreateAudienceModal: React.FC<CreateAudienceModalProps> = ({
   const [sourceOptions, setSourceOptions] = useState<string[]>([]);
   const [discoveryRuns, setDiscoveryRuns] = useState<any[]>([]);
 
+  const prevIsOpenRef = useRef(false);
+
+  // Reset form state ONLY when modal transitions from closed (false) to open (true)
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       setName('');
       setDescription('');
-      const defaultMode = initialSelectedContacts.length > 0 ? 'static' : initialMode;
+      const defaultMode = (initialSelectedContacts && initialSelectedContacts.length > 0) ? 'static' : initialMode;
       setMode(defaultMode);
-      setSelectedContacts(initialSelectedContacts);
-      setFilters(initialFilters);
+      setSelectedContacts(initialSelectedContacts || EMPTY_CONTACTS);
+      setFilters(initialFilters || EMPTY_FILTERS);
       setAllowUnfiltered(false);
       setError(null);
-
-      // Load distinct filter options if workspaceId is present and mode is dynamic
-      if (workspaceId && (window as any).ipc && defaultMode === 'dynamic') {
-        (window as any).ipc.invoke('companies:distinct-values', { workspaceId }).then((res: any) => {
-          setIndustryOptions(res?.industries || []);
-          setLocationOptions(res?.locations || []);
-        }).catch((err: any) => {
-          console.warn('[CreateAudienceModal] Failed to load company distinct values:', err?.message || err);
-        });
-
-        (window as any).ipc.invoke('contacts:distinct-values', { workspaceId }).then((res: any) => {
-          setTitleOptions(res?.titles || []);
-          setSourceOptions(res?.sources || []);
-        }).catch((err: any) => {
-          console.warn('[CreateAudienceModal] Failed to load contact distinct values:', err?.message || err);
-        });
-
-        (window as any).ipc.invoke('companies:query', { workspaceId }).then((res: any) => {
-          setCompanyOptions(res || []);
-        }).catch((err: any) => {
-          console.warn('[CreateAudienceModal] Failed to load companies:', err?.message || err);
-        });
-
-        (window as any).ipc.invoke('discovery:run:list', { workspaceId }).then((res: any) => {
-          setDiscoveryRuns(res || []);
-        }).catch((err: any) => {
-          console.warn('[CreateAudienceModal] Failed to load discovery runs:', err?.message || err);
-        });
-      }
     }
-  }, [isOpen, initialMode, initialSelectedContacts, initialFilters, workspaceId]);
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, initialMode, initialSelectedContacts, initialFilters]);
 
+  // Load distinct filter options when modal opens or workspaceId changes
   useEffect(() => {
-    if (isOpen && mode === 'dynamic' && workspaceId && (window as any).ipc && industryOptions.length === 0) {
+    if (isOpen && workspaceId && (window as any).ipc) {
       (window as any).ipc.invoke('companies:distinct-values', { workspaceId }).then((res: any) => {
         setIndustryOptions(res?.industries || []);
         setLocationOptions(res?.locations || []);
@@ -121,7 +100,7 @@ export const CreateAudienceModal: React.FC<CreateAudienceModalProps> = ({
         console.warn('[CreateAudienceModal] Failed to load discovery runs:', err?.message || err);
       });
     }
-  }, [isOpen, mode, workspaceId, industryOptions.length]);
+  }, [isOpen, workspaceId]);
 
   if (!isOpen) return null;
 
@@ -349,9 +328,14 @@ export const CreateAudienceModal: React.FC<CreateAudienceModalProps> = ({
                       className="w-full h-7 bg-card border border-border-subtle rounded-none px-2 text-xs outline-none text-foreground"
                     >
                       <option value="">All Locations</option>
-                      {locationOptions.map((loc) => (
-                        <option key={loc} value={loc}>{loc}</option>
-                      ))}
+                      {locationOptions.map((loc) => {
+                        const label = loc.length > 40 ? loc.slice(0, 37) + '...' : loc;
+                        return (
+                          <option key={loc} value={loc} title={loc}>
+                            {label}
+                          </option>
+                        );
+                      })}
                     </select>
                   ) : (
                     <Input
