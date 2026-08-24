@@ -73,6 +73,26 @@ export function resolveAudienceLocally(
     companyParams.push(`%${filter.industry}%`);
   }
 
+  if (filter.city) {
+    companyQuery += ' AND (city LIKE ? OR location LIKE ?)';
+    companyParams.push(`%${filter.city}%`, `%${filter.city}%`);
+  }
+
+  if (filter.state) {
+    companyQuery += ' AND (state LIKE ? OR location LIKE ?)';
+    companyParams.push(`%${filter.state}%`, `%${filter.state}%`);
+  }
+
+  if (filter.country) {
+    companyQuery += ' AND (country LIKE ? OR location LIKE ?)';
+    companyParams.push(`%${filter.country}%`, `%${filter.country}%`);
+  }
+
+  if (filter.location) {
+    companyQuery += ' AND location LIKE ?';
+    companyParams.push(`%${filter.location}%`);
+  }
+
   if (filter.discoveryRunId) {
     companyQuery +=
       ' AND id IN (SELECT companyId FROM company_discovery_runs WHERE workspaceId = ? AND discoveryRunId = ?)';

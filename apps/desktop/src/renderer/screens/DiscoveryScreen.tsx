@@ -223,25 +223,86 @@ export default function DiscoveryScreen() {
   }, [jobName, jobQuery, country, stateName, city, maxResults, createRunMutation]);
 
   const allJobs = (jobsQuery.data || []) as any[];
+  const rawDiscoveryRuns = (discoveryRunsQuery.data || []) as any[];
   const existingCompanies = (companiesQuery.data || []) as any[];
   const existingContacts = (contactsQuery.data || []) as any[];
 
-  const parentJobs = allJobs.filter((j) => j.type !== 'crawler:website');
+  // Build logical Discovery Runs array (combining discovery_runs records + unlinked parent jobs fallback)
+  const discoveryRunsList = React.useMemo(() => {
+    const runMap = new Map<string, any>();
+
+    // 1. Process explicit discovery_runs records
+    rawDiscoveryRuns.forEach((run: any) => {
+      const linkedJobs = allJobs.filter((j) => {
+        try {
+          const p = JSON.parse(j.payload || '{}');
+          return p.discoveryRunId === run.id;
+        } catch {
+          return false;
+        }
+      });
+
+      const mapsJob = linkedJobs.find((j) => j.type === 'scraper:maps') || linkedJobs[0];
+      const status = mapsJob ? mapsJob.status : run.status || 'completed';
+      const progress = mapsJob ? (mapsJob.progress || 0) : (status === 'completed' ? 100 : 0);
+
+      runMap.set(run.id, {
+        id: run.id,
+        name: run.name || run.query,
+        query: run.query,
+        location: [run.city, run.state, run.country].filter(Boolean).join(', '),
+        status,
+        progress,
+        mapsJobId: mapsJob?.id || run.id,
+        linkedJobs,
+        createdAt: run.createdAt
+      });
+    });
+
+    // 2. Add orphan parent jobs as standalone runs so no jobs are hidden
+    allJobs.forEach((job) => {
+      if (job.type === 'crawler:website') return;
+      try {
+        const p = JSON.parse(job.payload || '{}');
+        const runId = p.discoveryRunId;
+        if (runId && runMap.has(runId)) return;
+
+        const id = runId || job.id;
+        if (!runMap.has(id)) {
+          runMap.set(id, {
+            id,
+            name: p.name || job.type,
+            query: p.query || job.type,
+            location: [p.city, p.state, p.country].filter(Boolean).join(', '),
+            status: job.status,
+            progress: job.progress || 0,
+            mapsJobId: job.id,
+            linkedJobs: [job],
+            createdAt: job.createdAt
+          });
+        }
+      } catch { }
+    });
+
+    return Array.from(runMap.values()).sort(
+      (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
+  }, [rawDiscoveryRuns, allJobs]);
+
   const crawlerJobs = allJobs.filter((j) => j.type === 'crawler:website');
   const runningCrawlers = crawlerJobs.filter((j) =>
     ['running', 'queued', 'retrying'].includes(j.status)
   ).length;
   const completedCrawlers = crawlerJobs.filter((j) => j.status === 'completed').length;
 
-  const selectedJob = allJobs.find((j) => j.id === selectedJobId);
-  const selectedJobPayload = selectedJob ? JSON.parse(selectedJob.payload || '{}') : {};
-  const selectedQuery = (selectedJobPayload.query || '').toLowerCase().trim();
+  const selectedRun = discoveryRunsList.find((r) => r.id === selectedJobId || r.mapsJobId === selectedJobId);
+  const selectedQuery = (selectedRun?.query || '').toLowerCase().trim();
 
-  // Scraper results matching the active query parameters
+  // Scraper results matching the active query or discovery run
   const results = existingCompanies.filter((c) => {
     if (!selectedQuery) return true;
     const blob =
-      `${c.name || ''} ${c.domain || ''} ${c.website || ''} ${c.location || ''}`.toLowerCase();
+      `${c.name || ''} ${c.domain || ''} ${c.website || ''} ${c.location || ''} ${c.city || ''} ${c.state || ''} ${c.country || ''}`.toLowerCase();
     if (blob.includes(selectedQuery)) return true;
     const words = selectedQuery.split(/\s+/).filter((w: string) => w.length > 2);
     if (words.length === 0) return true;
@@ -251,8 +312,8 @@ export default function DiscoveryScreen() {
     });
   });
 
-  const runningJobs = allJobs.filter((j) =>
-    ['running', 'queued', 'retrying'].includes(j.status)
+  const runningJobs = discoveryRunsList.filter((r) =>
+    ['running', 'queued', 'retrying'].includes(r.status)
   ).length;
 
   const statusColor = (status: string) => {
@@ -271,15 +332,15 @@ export default function DiscoveryScreen() {
   const resultsStartIndex = (adjustedResultsPage - 1) * resultsPerPage;
   const paginatedResults = results.slice(resultsStartIndex, resultsStartIndex + resultsPerPage);
 
-  // Pagination calculation: Jobs list
-  const totalParentJobs = parentJobs.length;
+  // Pagination calculation: Discovery Runs list
+  const totalParentJobs = discoveryRunsList.length;
   const totalJobsPages = Math.ceil(totalParentJobs / jobsPerPage);
   const adjustedJobsPage = Math.min(Math.max(1, jobsPage), totalJobsPages || 1);
   const jobsStartIndex = (adjustedJobsPage - 1) * jobsPerPage;
-  const paginatedJobs = parentJobs.slice(jobsStartIndex, jobsStartIndex + jobsPerPage);
+  const paginatedJobs = discoveryRunsList.slice(jobsStartIndex, jobsStartIndex + jobsPerPage);
 
   return (
-    <div className="flex flex-col gap-5 text-xs font-sans h-full overflow-y-auto pr-1 select-none">
+    <div className="flex flex-col gap-5 text-xs font-sans min-h-full pr-1 select-none pb-8">
       <PageHeader
         title="Discovery Platform"
         description="Scrape Google Maps leads, enrich contacts, and import directly into your CRM."
@@ -304,8 +365,8 @@ export default function DiscoveryScreen() {
         className="grid grid-cols-2 sm:grid-cols-4 gap-3"
       >
         {[
-          { label: 'Discovery Jobs', value: parentJobs.length, Icon: Search, color: 'text-primary' },
-          { label: 'Active Jobs', value: runningJobs, Icon: Activity, color: 'text-info' },
+          { label: 'Discovery Runs', value: discoveryRunsList.length, Icon: Search, color: 'text-primary' },
+          { label: 'Active Runs', value: runningJobs, Icon: Activity, color: 'text-info' },
           {
             label: 'Companies Found',
             value: existingCompanies.length,
@@ -357,7 +418,7 @@ export default function DiscoveryScreen() {
                   </Badge>
                 </h3>
                 <div className="flex items-center gap-2 pr-8">
-                  {selectedJob?.status === 'running' && (
+                  {selectedRun?.status === 'running' && (
                     <span className="text-[9px] text-info flex items-center gap-1 animate-pulse">
                       <Activity className="w-3.5 h-3.5" /> Scraping live...
                     </span>
@@ -370,7 +431,7 @@ export default function DiscoveryScreen() {
                   <div className="p-8 text-center text-muted-foreground animate-pulse">Loading scraper database...</div>
                 ) : results.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground">
-                    {selectedJob?.status === 'running'
+                    {selectedRun?.status === 'running'
                       ? 'Scraper is running — results will appear here...'
                       : 'No leads found for this query.'}
                   </div>
@@ -635,7 +696,7 @@ export default function DiscoveryScreen() {
 
         {!jobQueueCollapsed && (
           <>
-            {parentJobs.length === 0 ? (
+            {discoveryRunsList.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
                 No discovery searches launched yet. Click <strong>"New Discovery Run"</strong> to
                 begin.
@@ -646,40 +707,33 @@ export default function DiscoveryScreen() {
                   <table className="w-full text-left border-collapse min-w-[560px]">
                     <thead>
                       <tr className="bg-surface-3/40 text-[9px] font-bold text-muted-foreground uppercase border-b border-border-subtle tracking-wider">
-                        <th className="px-4 py-2.5">Job Name</th>
-                        <th className="px-4 py-2.5">Query</th>
+                        <th className="px-4 py-2.5">Discovery Run</th>
+                        <th className="px-4 py-2.5">Search Query & Location</th>
                         <th className="px-4 py-2.5">Status</th>
                         <th className="px-4 py-2.5 w-40">Progress</th>
-                        <th className="px-4 py-2.5">Crawlers</th>
+                        <th className="px-4 py-2.5">Child Crawlers</th>
                         <th className="px-4 py-2.5 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border-subtle/50">
                       <AnimatePresence initial={false}>
-                        {paginatedJobs.map((job) => {
-                          const isSelected = selectedJobId === job.id;
-                          const payloadObj = JSON.parse(job.payload || '{}');
-                          const displayName = payloadObj.name || job.type;
-                          const queryStr = payloadObj.query || '';
-                          const limitStr = payloadObj.maxResults
-                            ? `${payloadObj.maxResults} leads`
-                            : '';
-                          const isRunnable = ['queued', 'running', 'retrying'].includes(job.status);
+                        {paginatedJobs.map((run: any) => {
+                          const isSelected = selectedJobId === run.id || selectedJobId === run.mapsJobId;
+                          const displayName = run.name || run.query;
+                          const queryStr = run.location ? `${run.query} (${run.location})` : run.query;
+                          const isRunnable = ['queued', 'running', 'retrying'].includes(run.status);
 
                           return (
                             <motion.tr
-                              key={job.id}
+                              key={run.id}
                               initial={{ opacity: 0, y: 4 }}
                               animate={{ opacity: 1, y: 0 }}
                               exit={{ opacity: 0 }}
-                              onClick={() => setSelectedJobId(isSelected ? null : job.id)}
+                              onClick={() => setSelectedJobId(isSelected ? null : run.id)}
                               className={`hover:bg-surface-3/45 cursor-pointer transition-colors ${isSelected ? 'bg-primary/12' : ''}`}
                             >
-                              <td className="px-4 py-3">
-                                <div className="font-semibold text-foreground">{displayName}</div>
-                                {limitStr && (
-                                  <div className="text-[9px] text-muted-foreground">· {limitStr}</div>
-                                )}
+                              <td className="px-4 py-3 font-semibold text-foreground">
+                                {displayName}
                               </td>
                               <td className="px-4 py-3 font-mono text-primary text-[10px]">
                                 {queryStr}
@@ -687,9 +741,9 @@ export default function DiscoveryScreen() {
                               <td className="px-4 py-3">
                                 <Badge
                                   variant="outline"
-                                  className={`text-[9px] font-bold uppercase rounded-none ${statusColor(job.status)}`}
+                                  className={`text-[9px] font-bold uppercase rounded-none ${statusColor(run.status)}`}
                                 >
-                                  {job.status}
+                                  {run.status}
                                 </Badge>
                               </td>
                               <td className="px-4 py-3 w-44">
@@ -697,11 +751,11 @@ export default function DiscoveryScreen() {
                                   <div className="flex-1 bg-surface-3 rounded-none h-1.5 overflow-hidden border border-border-subtle">
                                     <div
                                       className="bg-primary h-full transition-all duration-300 rounded-none"
-                                      style={{ width: `${job.progress || 0}%` }}
+                                      style={{ width: `${run.progress || 0}%` }}
                                     />
                                   </div>
                                   <span className="font-mono text-[10px] text-muted-foreground w-8 shrink-0">
-                                    {job.progress || 0}%
+                                    {run.progress || 0}%
                                   </span>
                                 </div>
                               </td>
@@ -710,7 +764,7 @@ export default function DiscoveryScreen() {
                                   const childCrawlers = crawlerJobs.filter((cj) => {
                                     try {
                                       const p = JSON.parse(cj.payload || '{}');
-                                      return p.discoveryRunId === job.id || p.parentJobId === job.id;
+                                      return p.discoveryRunId === run.id || p.parentJobId === run.id || p.parentJobId === run.mapsJobId;
                                     } catch { return false; }
                                   });
                                   const activeChildCount = childCrawlers.filter((cj) => ['running', 'queued', 'retrying'].includes(cj.status)).length;
@@ -733,7 +787,7 @@ export default function DiscoveryScreen() {
                                     onClick={(e) => {
                                       e.preventDefault();
                                       e.stopPropagation();
-                                      cancelJobMutation.mutate(job.id);
+                                      cancelJobMutation.mutate(run.mapsJobId || run.id);
                                     }}
                                     disabled={cancelJobMutation.isPending}
                                     className="h-6 text-[10px] text-danger border-danger/20 hover:bg-danger-muted rounded-none"
@@ -749,7 +803,7 @@ export default function DiscoveryScreen() {
                                     onClick={(e) => {
                                       e.preventDefault();
                                       e.stopPropagation();
-                                      setSelectedJobId(isSelected ? null : job.id);
+                                      setSelectedJobId(isSelected ? null : run.id);
                                     }}
                                   >
                                     {isSelected ? <CheckCircle className="w-3 h-3 text-primary" /> : null}
@@ -839,7 +893,7 @@ export default function DiscoveryScreen() {
                 className="rounded-none bg-card border-border-subtle font-mono text-xs"
               />
             </div>
-            
+
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1">
                 <Label htmlFor="city" className="text-xs font-semibold">

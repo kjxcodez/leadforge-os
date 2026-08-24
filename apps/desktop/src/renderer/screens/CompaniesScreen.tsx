@@ -49,6 +49,9 @@ export default function CompaniesScreen() {
   const [statusFilter, setStatusFilter] = useState('');
   const [industryFilter, setIndustryFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
+  const [cityFilter, setCityFilter] = useState('');
+  const [stateFilter, setStateFilter] = useState('');
+  const [countryFilter, setCountryFilter] = useState('');
   const [discoveryRunFilter, setDiscoveryRunFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<any | null>(null);
@@ -78,6 +81,20 @@ export default function CompaniesScreen() {
     },
     enabled: !!workspaceId
   });
+
+  // Query linked companies when discoveryRunFilter is active
+  const discoveryRunCompaniesQuery = useQuery({
+    queryKey: ['companies', 'discovery-run', workspaceId, discoveryRunFilter],
+    queryFn: async () => {
+      if (!discoveryRunFilter || !workspaceId) return [];
+      return window.ipc.invoke('companies:query', { workspaceId, discoveryRunId: discoveryRunFilter });
+    },
+    enabled: !!workspaceId && !!discoveryRunFilter
+  });
+
+  const discoveryRunCompanyIds = React.useMemo(() => {
+    return new Set((discoveryRunCompaniesQuery.data || []).map((c: any) => c.id));
+  }, [discoveryRunCompaniesQuery.data]);
 
 
   const handleSearchChange = useCallback((val: string) => {
@@ -134,7 +151,7 @@ export default function CompaniesScreen() {
   const companies = companiesQuery.data || [];
   const contacts = contactsQuery.data || [];
 
-  const distinctValues = distinctQuery.data || { industries: [], locations: [] };
+  const distinctValues = (distinctQuery.data || { industries: [], locations: [], cities: [], states: [], countries: [] }) as { industries: string[]; locations: string[]; cities: string[]; states: string[]; countries: string[] };
   const discoveryRuns = discoveryRunsQuery.data || [];
 
   // Filter & Search logic
@@ -160,14 +177,21 @@ export default function CompaniesScreen() {
     const matchesStatus = !statusFilter || c.status === statusFilter;
     const matchesIndustry = !industryFilter || (c.industry && c.industry.toLowerCase().includes(industryFilter.toLowerCase()));
     const matchesLocation = !locationFilter || (c.location && c.location.toLowerCase().includes(locationFilter.toLowerCase()));
+    const matchesCity = !cityFilter || (c.city && c.city.toLowerCase() === cityFilter.toLowerCase()) || (c.location && c.location.toLowerCase().includes(cityFilter.toLowerCase()));
+    const matchesState = !stateFilter || (c.state && c.state.toLowerCase() === stateFilter.toLowerCase()) || (c.location && c.location.toLowerCase().includes(stateFilter.toLowerCase()));
+    const matchesCountry = !countryFilter || (c.country && c.country.toLowerCase() === countryFilter.toLowerCase()) || (c.location && c.location.toLowerCase().includes(countryFilter.toLowerCase()));
+    const matchesDiscoveryRun = !discoveryRunFilter || discoveryRunCompanyIds.has(c.id);
 
-    return matchesSearch && matchesStatus && matchesIndustry && matchesLocation;
+    return matchesSearch && matchesStatus && matchesIndustry && matchesLocation && matchesCity && matchesState && matchesCountry && matchesDiscoveryRun;
   });
 
   // Build active filter chips
   const activeFilterChips = [
     statusFilter ? { label: 'Status', value: statusFilter, onRemove: () => setStatusFilter('') } : null,
     industryFilter ? { label: 'Industry', value: industryFilter, onRemove: () => setIndustryFilter('') } : null,
+    cityFilter ? { label: 'City', value: cityFilter, onRemove: () => setCityFilter('') } : null,
+    stateFilter ? { label: 'State', value: stateFilter, onRemove: () => setStateFilter('') } : null,
+    countryFilter ? { label: 'Country', value: countryFilter, onRemove: () => setCountryFilter('') } : null,
     locationFilter ? { label: 'Location', value: locationFilter, onRemove: () => setLocationFilter('') } : null,
     discoveryRunFilter ? {
       label: 'Discovery',
@@ -181,6 +205,9 @@ export default function CompaniesScreen() {
     setStatusFilter('');
     setIndustryFilter('');
     setLocationFilter('');
+    setCityFilter('');
+    setStateFilter('');
+    setCountryFilter('');
     setDiscoveryRunFilter('');
   };
 
@@ -289,17 +316,71 @@ export default function CompaniesScreen() {
             </div>
           )}
 
+          {distinctValues.cities.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono">City</span>
+              <select
+                value={cityFilter}
+                onChange={(e) => setCityFilter(e.target.value)}
+                className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[110px]"
+              >
+                <option value="">All Cities</option>
+                {distinctValues.cities.map((c: string) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {distinctValues.states.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono">State / Region</span>
+              <select
+                value={stateFilter}
+                onChange={(e) => setStateFilter(e.target.value)}
+                className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[110px]"
+              >
+                <option value="">All States</option>
+                {distinctValues.states.map((st: string) => (
+                  <option key={st} value={st}>
+                    {st}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {distinctValues.countries.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono">Country</span>
+              <select
+                value={countryFilter}
+                onChange={(e) => setCountryFilter(e.target.value)}
+                className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[110px]"
+              >
+                <option value="">All Countries</option>
+                {distinctValues.countries.map((cnt: string) => (
+                  <option key={cnt} value={cnt}>
+                    {cnt}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {distinctValues.locations.length > 0 && (
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono font-mono">Location</span>
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono">Address</span>
               <select
                 value={locationFilter}
                 onChange={(e) => setLocationFilter(e.target.value)}
                 className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[120px]"
               >
-                <option value="">All Locations</option>
+                <option value="">All Addresses</option>
                 {distinctValues.locations.map((loc: string) => {
-                  const label = loc.length > 40 ? loc.slice(0, 37) + '...' : loc;
+                  const label = loc.length > 35 ? loc.slice(0, 32) + '...' : loc;
                   return (
                     <option key={loc} value={loc} title={loc}>
                       {label}

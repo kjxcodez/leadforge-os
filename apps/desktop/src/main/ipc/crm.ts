@@ -15,7 +15,7 @@ export function registerCrmIpc() {
     return LocalCRMRepository.findMany('companies', workspaceId, filter);
   });
 
-  safeRegister('companies:query', async (_event, { workspaceId, search, status, industry, discoveryRunId, location }) => {
+  safeRegister('companies:query', async (_event, { workspaceId, search, status, industry, discoveryRunId, location, city, state, country }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     const db = getDatabase(workspaceId);
 
@@ -49,6 +49,21 @@ export function registerCrmIpc() {
     if (location) {
       conditions.push('c.location LIKE ?');
       params.push(`%${location}%`);
+    }
+
+    if (city) {
+      conditions.push('(c.city LIKE ? OR c.location LIKE ?)');
+      params.push(`%${city}%`, `%${city}%`);
+    }
+
+    if (state) {
+      conditions.push('(c.state LIKE ? OR c.location LIKE ?)');
+      params.push(`%${state}%`, `%${state}%`);
+    }
+
+    if (country) {
+      conditions.push('(c.country LIKE ? OR c.location LIKE ?)');
+      params.push(`%${country}%`, `%${country}%`);
     }
 
     query += ' WHERE ' + conditions.join(' AND ') + ' ORDER BY c.createdAt DESC';
@@ -141,9 +156,15 @@ export function registerCrmIpc() {
     const db = getDatabase(workspaceId);
     const indRows = db.prepare(`SELECT DISTINCT industry FROM companies WHERE workspaceId = ? AND deletedAt IS NULL AND industry IS NOT NULL AND industry != '' ORDER BY industry ASC`).all(workspaceId) as Array<{ industry: string }>;
     const locRows = db.prepare(`SELECT DISTINCT location FROM companies WHERE workspaceId = ? AND deletedAt IS NULL AND location IS NOT NULL AND location != '' ORDER BY location ASC`).all(workspaceId) as Array<{ location: string }>;
+    const cityRows = db.prepare(`SELECT DISTINCT city FROM companies WHERE workspaceId = ? AND deletedAt IS NULL AND city IS NOT NULL AND city != '' ORDER BY city ASC`).all(workspaceId) as Array<{ city: string }>;
+    const stateRows = db.prepare(`SELECT DISTINCT state FROM companies WHERE workspaceId = ? AND deletedAt IS NULL AND state IS NOT NULL AND state != '' ORDER BY state ASC`).all(workspaceId) as Array<{ state: string }>;
+    const countryRows = db.prepare(`SELECT DISTINCT country FROM companies WHERE workspaceId = ? AND deletedAt IS NULL AND country IS NOT NULL AND country != '' ORDER BY country ASC`).all(workspaceId) as Array<{ country: string }>;
     return {
       industries: indRows.map((r) => r.industry),
-      locations: locRows.map((r) => r.location)
+      locations: locRows.map((r) => r.location),
+      cities: cityRows.map((r) => r.city),
+      states: stateRows.map((r) => r.state),
+      countries: countryRows.map((r) => r.country)
     };
   });
 
@@ -151,10 +172,20 @@ export function registerCrmIpc() {
     if (!workspaceId) throw new Error('workspaceId is required.');
     const db = getDatabase(workspaceId);
     const titleRows = db.prepare(`SELECT DISTINCT title FROM contacts WHERE workspaceId = ? AND deletedAt IS NULL AND title IS NOT NULL AND title != '' ORDER BY title ASC`).all(workspaceId) as Array<{ title: string }>;
-    const sourceRows = db.prepare(`SELECT DISTINCT source FROM contacts WHERE workspaceId = ? AND deletedAt IS NULL AND source IS NOT NULL AND source != '' ORDER BY source ASC`).all(workspaceId) as Array<{ source: string }>;
+    const sourceRows = db.prepare(`SELECT DISTINCT source FROM contacts WHERE workspaceId = ? AND deletedAt IS NULL AND source IS NOT NULL AND source != ''`).all(workspaceId) as Array<{ source: string }>;
+    const platformRows = db.prepare(`SELECT DISTINCT sourcePlatform FROM contacts WHERE workspaceId = ? AND deletedAt IS NULL AND sourcePlatform IS NOT NULL AND sourcePlatform != ''`).all(workspaceId) as Array<{ sourcePlatform: string }>;
+
+    const set = new Set<string>();
+    sourceRows.forEach((r) => set.add(r.source));
+    platformRows.forEach((r) => set.add(r.sourcePlatform));
+
+    if (set.size === 0) {
+      ['google_maps', 'linkedin', 'crawler', 'manual'].forEach((s) => set.add(s));
+    }
+
     return {
       titles: titleRows.map((r) => r.title),
-      sources: sourceRows.map((r) => r.source)
+      sources: Array.from(set).sort()
     };
   });
 

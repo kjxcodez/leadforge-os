@@ -50,6 +50,9 @@ export const CreateAudienceModal: React.FC<CreateAudienceModalProps> = ({
   const [companyOptions, setCompanyOptions] = useState<any[]>([]);
   const [industryOptions, setIndustryOptions] = useState<string[]>([]);
   const [locationOptions, setLocationOptions] = useState<string[]>([]);
+  const [cityOptions, setCityOptions] = useState<string[]>([]);
+  const [stateOptions, setStateOptions] = useState<string[]>([]);
+  const [countryOptions, setCountryOptions] = useState<string[]>([]);
   const [titleOptions, setTitleOptions] = useState<string[]>([]);
   const [sourceOptions, setSourceOptions] = useState<string[]>([]);
   const [discoveryRuns, setDiscoveryRuns] = useState<any[]>([]);
@@ -77,6 +80,9 @@ export const CreateAudienceModal: React.FC<CreateAudienceModalProps> = ({
       (window as any).ipc.invoke('companies:distinct-values', { workspaceId }).then((res: any) => {
         setIndustryOptions(res?.industries || []);
         setLocationOptions(res?.locations || []);
+        setCityOptions(res?.cities || []);
+        setStateOptions(res?.states || []);
+        setCountryOptions(res?.countries || []);
       }).catch((err: any) => {
         console.warn('[CreateAudienceModal] Failed to load company distinct values:', err?.message || err);
       });
@@ -320,28 +326,69 @@ export const CreateAudienceModal: React.FC<CreateAudienceModalProps> = ({
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground">Location</Label>
-                  {locationOptions.length > 0 ? (
+                  <Label className="text-[10px] text-muted-foreground">City</Label>
+                  {cityOptions.length > 0 ? (
                     <select
-                      value={filters.location || ''}
-                      onChange={(e) => handleFilterChange('location', e.target.value)}
+                      value={filters.city || ''}
+                      onChange={(e) => handleFilterChange('city', e.target.value)}
                       className="w-full h-7 bg-card border border-border-subtle rounded-none px-2 text-xs outline-none text-foreground"
                     >
-                      <option value="">All Locations</option>
-                      {locationOptions.map((loc) => {
-                        const label = loc.length > 40 ? loc.slice(0, 37) + '...' : loc;
-                        return (
-                          <option key={loc} value={loc} title={loc}>
-                            {label}
-                          </option>
-                        );
-                      })}
+                      <option value="">All Cities</option>
+                      {cityOptions.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
                     </select>
                   ) : (
                     <Input
-                      placeholder="e.g. Miami, FL"
-                      value={filters.location || ''}
-                      onChange={(e) => handleFilterChange('location', e.target.value)}
+                      placeholder="e.g. Miami"
+                      value={filters.city || ''}
+                      onChange={(e) => handleFilterChange('city', e.target.value)}
+                      className="h-7 text-xs rounded-none bg-card border-border-subtle"
+                    />
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">State / Region</Label>
+                  {stateOptions.length > 0 ? (
+                    <select
+                      value={filters.state || ''}
+                      onChange={(e) => handleFilterChange('state', e.target.value)}
+                      className="w-full h-7 bg-card border border-border-subtle rounded-none px-2 text-xs outline-none text-foreground"
+                    >
+                      <option value="">All States</option>
+                      {stateOptions.map((st) => (
+                        <option key={st} value={st}>{st}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      placeholder="e.g. Florida"
+                      value={filters.state || ''}
+                      onChange={(e) => handleFilterChange('state', e.target.value)}
+                      className="h-7 text-xs rounded-none bg-card border-border-subtle"
+                    />
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Country</Label>
+                  {countryOptions.length > 0 ? (
+                    <select
+                      value={filters.country || ''}
+                      onChange={(e) => handleFilterChange('country', e.target.value)}
+                      className="w-full h-7 bg-card border border-border-subtle rounded-none px-2 text-xs outline-none text-foreground"
+                    >
+                      <option value="">All Countries</option>
+                      {countryOptions.map((cnt) => (
+                        <option key={cnt} value={cnt}>{cnt}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      placeholder="e.g. United States"
+                      value={filters.country || ''}
+                      onChange={(e) => handleFilterChange('country', e.target.value)}
                       className="h-7 text-xs rounded-none bg-card border-border-subtle"
                     />
                   )}

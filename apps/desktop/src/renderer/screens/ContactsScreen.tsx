@@ -38,13 +38,11 @@ export default function ContactsScreen() {
   const [titleFilter, setTitleFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
   const [discoveryRunFilter, setDiscoveryRunFilter] = useState('');
-  const [sourcePlatformFilter, setSourcePlatformFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedContact, setSelectedContact] = useState<any | null>(null);
 
   // Audience Modal State
   const [audienceModalOpen, setAudienceModalOpen] = useState(false);
-
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -57,11 +55,6 @@ export default function ContactsScreen() {
 
   const handleStatusFilterChange = useCallback((val: string) => {
     setStatusFilter(val);
-    setCurrentPage(1);
-  }, []);
-
-  const handleSourcePlatformFilterChange = useCallback((val: string) => {
-    setSourcePlatformFilter(val);
     setCurrentPage(1);
   }, []);
 
@@ -127,6 +120,20 @@ export default function ContactsScreen() {
     enabled: !!workspaceId
   });
 
+  // Query linked companies when discoveryRunFilter is active
+  const discoveryRunCompaniesQuery = useQuery({
+    queryKey: ['companies', 'discovery-run', workspaceId, discoveryRunFilter],
+    queryFn: async () => {
+      if (!discoveryRunFilter || !workspaceId) return [];
+      return window.ipc.invoke('companies:query', { workspaceId, discoveryRunId: discoveryRunFilter });
+    },
+    enabled: !!workspaceId && !!discoveryRunFilter
+  });
+
+  const discoveryRunCompanyIds = React.useMemo(() => {
+    return new Set((discoveryRunCompaniesQuery.data || []).map((c: any) => c.id));
+  }, [discoveryRunCompaniesQuery.data]);
+
   const distinctValues = distinctQuery.data || { titles: [], sources: [] };
   const discoveryRuns = discoveryRunsQuery.data || [];
 
@@ -145,10 +152,12 @@ export default function ContactsScreen() {
     const matchesStatus = !statusFilter || c.status === statusFilter;
     const matchesCompany = !companyFilter || c.companyId === companyFilter;
     const matchesTitle = !titleFilter || (c.title && c.title.toLowerCase().includes(titleFilter.toLowerCase()));
-    const matchesSource = !sourceFilter || (c.source && c.source.toLowerCase().includes(sourceFilter.toLowerCase())) || (c.sourcePlatform && c.sourcePlatform.toLowerCase().includes(sourceFilter.toLowerCase()));
-    const matchesPlatform = !sourcePlatformFilter || c.sourcePlatform === sourcePlatformFilter;
+    const matchesSource = !sourceFilter ||
+      (c.source && c.source.toLowerCase() === sourceFilter.toLowerCase()) ||
+      (c.sourcePlatform && c.sourcePlatform.toLowerCase() === sourceFilter.toLowerCase());
+    const matchesDiscoveryRun = !discoveryRunFilter || (c.companyId && discoveryRunCompanyIds.has(c.companyId));
 
-    return matchesSearch && matchesStatus && matchesCompany && matchesTitle && matchesSource && matchesPlatform;
+    return matchesSearch && matchesStatus && matchesCompany && matchesTitle && matchesSource && matchesDiscoveryRun;
   });
 
   // Build active filter chips
@@ -175,7 +184,6 @@ export default function ContactsScreen() {
     setTitleFilter('');
     setSourceFilter('');
     setDiscoveryRunFilter('');
-    setSourcePlatformFilter('');
   };
 
   // Selected Contacts for Static Audience creation
@@ -354,20 +362,26 @@ export default function ContactsScreen() {
             </div>
           )}
 
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono">Source Platform</span>
-            <select
-              value={sourcePlatformFilter}
-              onChange={(e) => handleSourcePlatformFilterChange(e.target.value)}
-              className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[120px]"
-            >
-              <option value="">All Sources</option>
-              <option value="google_maps">Google Maps</option>
-              <option value="linkedin">LinkedIn</option>
-              <option value="crawler">Web Crawler</option>
-              <option value="manual">Manual</option>
-            </select>
-          </div>
+          {distinctValues.sources.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider font-mono">Source</span>
+              <select
+                value={sourceFilter}
+                onChange={(e) => {
+                  setSourceFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-surface-3 border border-border-subtle rounded-none px-2.5 py-1 text-xs outline-none text-foreground focus:ring-1 focus:ring-ring h-8 min-w-[120px]"
+              >
+                <option value="">All Sources</option>
+                {distinctValues.sources.map((s: string) => (
+                  <option key={s} value={s}>
+                    {s === 'google_maps' ? 'Google Maps' : s === 'linkedin' ? 'LinkedIn' : s === 'crawler' ? 'Web Crawler' : s === 'manual' ? 'Manual' : s}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </EntityToolbar>
 
         {contactsQuery.isLoading ? (
