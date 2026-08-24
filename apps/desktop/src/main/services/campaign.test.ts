@@ -275,6 +275,61 @@ export async function runCampaignTests() {
   assert.ok(job2After.lastError.includes('Max retries exceeded'));
   console.log('✅ Scheduler stale job reconciliation verified.');
 
+  // 9. Test Outreach Sequence Construction and Action Mapping Verification (Phase 10B)
+  const sequenceId10B = randomUUID();
+  const stepsJson = JSON.stringify([
+    {
+      id: 'step_1',
+      type: 'SEND_EMAIL',
+      config: { subject: 'Cold Outreach', body: 'Hi {{firstName}}' }
+    },
+    {
+      id: 'step_2',
+      type: 'WAIT',
+      config: { delaySeconds: 259200 }
+    },
+    {
+      id: 'step_3',
+      type: 'IF',
+      config: { condition: "contact.status == 'REPLIED'", thenGoto: 'label_yes_3', elseSkip: 1 }
+    },
+    {
+      id: 'step_4',
+      type: 'ADD_TAG',
+      config: { tag: 'No-Reply-Followup' }
+    },
+    {
+      id: 'step_5',
+      type: 'UPDATE_STAGE',
+      config: { stage: 'CONTACTED' }
+    },
+    {
+      id: 'step_6',
+      type: 'SEND_NOTIFICATION',
+      config: { message: 'Outreach step executed', type: 'info' }
+    }
+  ]);
+
+  db.prepare(
+    `
+    INSERT INTO sequences (
+      id, workspaceId, name, status, trigger, steps, createdAt, updatedAt
+    ) VALUES (?, ?, ?, 'ACTIVE', '{}', ?, datetime('now'), datetime('now'))
+  `
+  ).run(sequenceId10B, workspaceId, 'Outreach 10B Sequence', stepsJson);
+
+  const seqRow = db.prepare('SELECT * FROM sequences WHERE id = ?').get(sequenceId10B) as any;
+  assert.ok(seqRow);
+  const parsedSteps = JSON.parse(seqRow.steps);
+  assert.strictEqual(parsedSteps.length, 6);
+  assert.strictEqual(parsedSteps[0].type, 'SEND_EMAIL');
+  assert.strictEqual(parsedSteps[1].type, 'WAIT');
+  assert.strictEqual(parsedSteps[2].type, 'IF');
+  assert.strictEqual(parsedSteps[3].type, 'ADD_TAG');
+  assert.strictEqual(parsedSteps[4].type, 'UPDATE_STAGE');
+  assert.strictEqual(parsedSteps[5].type, 'SEND_NOTIFICATION');
+  console.log('✅ Phase 10B progressive outreach sequence steps and action mappings verified.');
+
   console.log('--- ALL CAMPAIGN INTEGRATION TESTS PASSED ---');
 }
 
