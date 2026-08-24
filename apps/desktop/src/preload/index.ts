@@ -145,6 +145,7 @@ contextBridge.exposeInMainWorld('ipc', {
       'agent:execute',
       'agent:workflow:execute',
       'campaigns:enroll',
+      'campaigns:schedule',
       'campaigns:enrollments:list',
       'campaigns:bulk-pause-enrollments',
       'campaigns:bulk-resume-enrollments',

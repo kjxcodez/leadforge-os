@@ -384,4 +384,72 @@ export function registerCampaignsIpc(): void {
       waiting: waitingExecutions
     };
   });
+
+  // 7. Schedule campaign locally
+  safeRegister('campaigns:schedule', async (_event, campaignId) => {
+    if (!campaignId) throw new Error('campaignId is required.');
+
+    const runtime = WorkspaceManager.getActiveRuntime();
+    if (!runtime) throw new Error('No active workspace runtime');
+
+    const db = getDatabase(runtime.workspaceId);
+    const now = new Date().toISOString();
+
+    // Load campaign record
+    const campaign = db
+      .prepare(`SELECT sequenceId, status FROM campaigns WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`)
+      .get(campaignId, runtime.workspaceId) as { sequenceId: string; status: string } | undefined;
+
+    if (!campaign) throw new Error(`Campaign "${campaignId}" not found or deleted.`);
+
+    // 1. Set campaign status to Active
+    db.prepare(`UPDATE campaigns SET status = 'Active', updatedAt = ? WHERE id = ? AND workspaceId = ?`)
+      .run(now, campaignId, runtime.workspaceId);
+
+    // 2. Fetch sequence_executions for this campaign
+    const enrollments = db
+      .prepare(`SELECT id, contactId, nextExecutionAt FROM sequence_executions WHERE campaignId = ? AND deletedAt IS NULL`)
+      .all(campaignId) as Array<{ id: string; contactId: string; nextExecutionAt: string | null }>;
+
+    let enqueuedJobsCount = 0;
+
+    db.transaction(() => {
+      for (const enroll of enrollments) {
+        const isWaiting = enroll.nextExecutionAt && new Date(enroll.nextExecutionAt) > new Date();
+        const newStatus = isWaiting ? 'waiting' : 'running';
+
+        db.prepare(`UPDATE sequence_executions SET status = ?, updatedAt = ? WHERE id = ?`).run(newStatus, now, enroll.id);
+
+        if (!isWaiting) {
+          const existingJob = db
+            .prepare(
+              `SELECT id FROM jobs WHERE workspaceId = ? AND type = 'automation:workflow' AND json_extract(payload, '$.executionId') = ? AND status IN ('queued', 'running', 'starting', 'retrying')`
+            )
+            .get(runtime.workspaceId, enroll.id);
+
+          if (!existingJob) {
+            const jobId = randomUUID();
+            db.prepare(
+              `INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
+               VALUES (?, ?, 'automation:workflow', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))`
+            ).run(
+              jobId,
+              runtime.workspaceId,
+              JSON.stringify({
+                sequenceId: campaign.sequenceId,
+                entityId: enroll.contactId,
+                entityType: 'contact',
+                executionId: enroll.id,
+                workspaceId: runtime.workspaceId
+              })
+            );
+            enqueuedJobsCount++;
+          }
+        }
+      }
+    })();
+
+    console.log(`[IPC] Campaign "${campaignId}" scheduled successfully. Enqueued ${enqueuedJobsCount} workflow job(s).`);
+    return { success: true, campaignId, enqueuedJobsCount };
+  });
 }
