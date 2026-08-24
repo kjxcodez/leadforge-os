@@ -1843,7 +1843,13 @@ async function handleSendEmailStep(
 
   const apiUrl = process.env.API_URL || 'http://localhost:3001/api/v1';
   const authToken = ctx.payload._secrets?.sessionToken || process.env.SESSION_TOKEN || '';
-  const sdk = new SdkClient({ baseUrl: apiUrl, token: authToken });
+  const sdk = new SdkClient({
+    baseUrl: apiUrl,
+    token: authToken,
+    headers: {
+      'x-workspace-id': workspaceId
+    }
+  });
 
   const targetAccountId = step.config?.sendingAccountId || step.config?.accountId;
   let accountDoc: { id: string } | undefined;

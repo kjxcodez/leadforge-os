@@ -2,6 +2,7 @@ import { safeRegister } from './helper';
 import { LocalCRMRepository } from '../database/repositories/local-crm';
 import { getDatabase } from '../database/connection';
 import { WorkspaceManager } from '../lib/workspace-manager';
+import { loadSession } from '../lib/session';
 
 /**
  * Registers CRM entities (companies, contacts, campaigns, activities) IPC channels
@@ -358,7 +359,7 @@ export function registerCrmIpc() {
                   executionId: enroll.id,
                   workspaceId: runtime.workspaceId,
                   _secrets: {
-                    sessionToken: process.env.SESSION_TOKEN || ''
+                    sessionToken: loadSession()?.accessToken || ''
                   }
                 })
               );

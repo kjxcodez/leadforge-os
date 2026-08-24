@@ -87,7 +87,13 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
     // Initialize SDK client for API communication
     const apiUrl = process.env.API_URL || 'http://localhost:3001/api/v1';
     const authToken = ctx.payload._secrets?.sessionToken || process.env.SESSION_TOKEN || '';
-    const sdk = new SdkClient({ baseUrl: apiUrl, token: authToken });
+    const sdk = new SdkClient({
+      baseUrl: apiUrl,
+      token: authToken,
+      headers: {
+        'x-workspace-id': ctx.workspaceId
+      }
+    });
 
     // ── 1. Load email account for sender account ID ────────────────────────
     const account = db

@@ -1,6 +1,7 @@
 import { safeRegister } from './helper';
 import { getDatabase } from '../database/connection';
 import { WorkspaceManager } from '../lib/workspace-manager';
+import { loadSession } from '../lib/session';
 import { randomUUID } from 'crypto';
 
 /**
@@ -112,7 +113,7 @@ export function registerCampaignsIpc(): void {
               executionId: enrollmentId,
               workspaceId: runtime.workspaceId,
               _secrets: {
-                sessionToken: process.env.SESSION_TOKEN || ''
+                sessionToken: loadSession()?.accessToken || ''
               }
             })
           );
@@ -265,7 +266,7 @@ export function registerCampaignsIpc(): void {
                 executionId: id,
                 workspaceId: runtime.workspaceId,
                 _secrets: {
-                  sessionToken: process.env.SESSION_TOKEN || ''
+                  sessionToken: loadSession()?.accessToken || ''
                 }
               })
             );
@@ -448,7 +449,7 @@ export function registerCampaignsIpc(): void {
                 executionId: enroll.id,
                 workspaceId: runtime.workspaceId,
                 _secrets: {
-                  sessionToken: process.env.SESSION_TOKEN || ''
+                  sessionToken: loadSession()?.accessToken || ''
                 }
               })
             );

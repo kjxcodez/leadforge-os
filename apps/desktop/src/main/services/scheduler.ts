@@ -7,6 +7,7 @@ import Database from 'better-sqlite3';
 import { LocalEventBus } from '../lib/event-bus';
 import { AppLogger } from '../lib/logger';
 import { decryptSecret } from '../lib/crypto';
+import { loadSession } from '../lib/session';
 import type { JobPayload, SchedulerConfig } from '../../shared/types/job';
 import type { MainToWorkerMsg, WorkerToMainMsg } from '../../shared/types/ipc';
 
@@ -769,6 +770,10 @@ export class JobScheduler {
     // Inject decrypted secrets using the Principle of Least Privilege
     try {
       const secrets: Record<string, string> = {};
+      const activeSession = loadSession();
+      if (activeSession?.accessToken) {
+        secrets['sessionToken'] = activeSession.accessToken;
+      }
       if (job.type === 'automation:workflow') {
         // 1. Resolve specific SMTP/IMAP credentials of the campaign's connected account
         if (parsedPayload.executionId) {
