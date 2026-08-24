@@ -706,15 +706,23 @@ export default function DiscoveryScreen() {
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-muted-foreground text-[10px]">
-                                {runningCrawlers > 0 ? (
-                                  <span className="text-info animate-pulse">
-                                    {runningCrawlers} crawling
-                                  </span>
-                                ) : completedCrawlers > 0 ? (
-                                  <span className="text-success">{completedCrawlers} done</span>
-                                ) : (
-                                  <span className="opacity-40">—</span>
-                                )}
+                                {(() => {
+                                  const childCrawlers = crawlerJobs.filter((cj) => {
+                                    try {
+                                      const p = JSON.parse(cj.payload || '{}');
+                                      return p.discoveryRunId === job.id || p.parentJobId === job.id;
+                                    } catch { return false; }
+                                  });
+                                  const activeChildCount = childCrawlers.filter((cj) => ['running', 'queued', 'retrying'].includes(cj.status)).length;
+                                  const doneChildCount = childCrawlers.filter((cj) => cj.status === 'completed').length;
+                                  if (activeChildCount > 0) {
+                                    return <span className="text-info animate-pulse">{activeChildCount} active</span>;
+                                  }
+                                  if (doneChildCount > 0) {
+                                    return <span className="text-success">{doneChildCount} completed</span>;
+                                  }
+                                  return <span className="opacity-40">—</span>;
+                                })()}
                               </td>
                               <td className="px-4 py-3 text-right space-x-2" onClick={(e) => e.stopPropagation()}>
                                 {isRunnable ? (
