@@ -1,4 +1,4 @@
-import { SdkError } from '../errors';
+import { SdkError } from '../errors/index.js';
 import type { ApiResponse } from '@leadforge/schema';
 
 export interface HttpClientConfig {

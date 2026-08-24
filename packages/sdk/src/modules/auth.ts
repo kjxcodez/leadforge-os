@@ -1,4 +1,4 @@
-import { HttpClient } from '../http/client';
+import { HttpClient } from '../http/client.js';
 import type { LoginDto, RegisterDto, AuthResponse, ForgotPasswordDto } from '@leadforge/schema';
 
 export class AuthModule {

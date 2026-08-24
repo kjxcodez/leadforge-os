@@ -1,4 +1,4 @@
-import { HttpClient } from '../http/client';
+import { HttpClient } from '../http/client.js';
 
 /**
  * ActivitiesModule handles SDK operations for retrieving audit activities.

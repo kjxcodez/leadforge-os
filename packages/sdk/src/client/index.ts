@@ -1,5 +1,5 @@
-import { HttpClient } from '../http/client';
-import type { HttpClientConfig } from '../http/client';
+import { HttpClient } from '../http/client.js';
+import type { HttpClientConfig } from '../http/client.js';
 import {
   HealthModule,
   AuthModule,
@@ -14,7 +14,7 @@ import {
   ExecutionsModule,
   AudiencesModule,
   CompanyDiscoveryRunsModule
-} from '../modules';
+} from '../modules/index.js';
 
 export class SdkClient {
   private httpClient: HttpClient;

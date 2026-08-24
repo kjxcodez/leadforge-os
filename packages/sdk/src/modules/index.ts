@@ -1,14 +1,14 @@
-export * from './health';
-export * from './auth';
-export * from './companies';
-export * from './contacts';
-export * from './campaigns';
-export * from './outreach';
-export * from './workspaces';
-export * from './discovery';
-export * from './activities';
-export * from './automation';
-export * from './audiences';
-export * from './company-discovery-runs';
+export * from './health.js';
+export * from './auth.js';
+export * from './companies.js';
+export * from './contacts.js';
+export * from './campaigns.js';
+export * from './outreach.js';
+export * from './workspaces.js';
+export * from './discovery.js';
+export * from './activities.js';
+export * from './automation.js';
+export * from './audiences.js';
+export * from './company-discovery-runs.js';
 
 
