@@ -62,28 +62,66 @@ export const CreateAudienceModal: React.FC<CreateAudienceModalProps> = ({
       setAllowUnfiltered(false);
       setError(null);
 
-      // Load distinct filter options if workspaceId is present
-      if (workspaceId && (window as any).ipc) {
+      // Load distinct filter options if workspaceId is present and mode is dynamic
+      if (workspaceId && (window as any).ipc && defaultMode === 'dynamic') {
         (window as any).ipc.invoke('companies:distinct-values', { workspaceId }).then((res: any) => {
           setIndustryOptions(res?.industries || []);
           setLocationOptions(res?.locations || []);
-        }).catch(() => {});
+        }).catch((err: any) => {
+          console.warn('[CreateAudienceModal] Failed to load company distinct values:', err?.message || err);
+        });
 
         (window as any).ipc.invoke('contacts:distinct-values', { workspaceId }).then((res: any) => {
           setTitleOptions(res?.titles || []);
           setSourceOptions(res?.sources || []);
-        }).catch(() => {});
+        }).catch((err: any) => {
+          console.warn('[CreateAudienceModal] Failed to load contact distinct values:', err?.message || err);
+        });
 
         (window as any).ipc.invoke('companies:query', { workspaceId }).then((res: any) => {
           setCompanyOptions(res || []);
-        }).catch(() => {});
+        }).catch((err: any) => {
+          console.warn('[CreateAudienceModal] Failed to load companies:', err?.message || err);
+        });
 
         (window as any).ipc.invoke('discovery:run:list', { workspaceId }).then((res: any) => {
           setDiscoveryRuns(res || []);
-        }).catch(() => {});
+        }).catch((err: any) => {
+          console.warn('[CreateAudienceModal] Failed to load discovery runs:', err?.message || err);
+        });
       }
     }
   }, [isOpen, initialMode, initialSelectedContacts, initialFilters, workspaceId]);
+
+  useEffect(() => {
+    if (isOpen && mode === 'dynamic' && workspaceId && (window as any).ipc && industryOptions.length === 0) {
+      (window as any).ipc.invoke('companies:distinct-values', { workspaceId }).then((res: any) => {
+        setIndustryOptions(res?.industries || []);
+        setLocationOptions(res?.locations || []);
+      }).catch((err: any) => {
+        console.warn('[CreateAudienceModal] Failed to load company distinct values:', err?.message || err);
+      });
+
+      (window as any).ipc.invoke('contacts:distinct-values', { workspaceId }).then((res: any) => {
+        setTitleOptions(res?.titles || []);
+        setSourceOptions(res?.sources || []);
+      }).catch((err: any) => {
+        console.warn('[CreateAudienceModal] Failed to load contact distinct values:', err?.message || err);
+      });
+
+      (window as any).ipc.invoke('companies:query', { workspaceId }).then((res: any) => {
+        setCompanyOptions(res || []);
+      }).catch((err: any) => {
+        console.warn('[CreateAudienceModal] Failed to load companies:', err?.message || err);
+      });
+
+      (window as any).ipc.invoke('discovery:run:list', { workspaceId }).then((res: any) => {
+        setDiscoveryRuns(res || []);
+      }).catch((err: any) => {
+        console.warn('[CreateAudienceModal] Failed to load discovery runs:', err?.message || err);
+      });
+    }
+  }, [isOpen, mode, workspaceId, industryOptions.length]);
 
   if (!isOpen) return null;
 
