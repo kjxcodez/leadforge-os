@@ -7,7 +7,8 @@ const tests = [
   'src/main/services/intelligence.test.ts',
   'src/main/ai/tools/adapter.test.ts',
   'src/main/services/campaign.test.ts',
-  'src/main/services/email-test-recipients.test.ts'
+  'src/main/services/email-test-recipients.test.ts',
+  'src/main/services/send-test-attachment.test.ts'
 ];
 
 let failed = false;
