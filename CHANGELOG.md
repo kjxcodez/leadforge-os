@@ -2,6 +2,19 @@
 
 All notable changes to LeadForge OS will be documented in this file.
 
+## [1.0.0-beta.6] - 2026-08-25
+
+### Added
+- **Unified Canonical Template Variable Resolution**: Integrated full namespaced variable resolution across outreach email dispatchers, automation sequences, and template previews. Supports `{{contact.firstName}}`, `{{contact.lastName}}`, `{{contact.email}}`, `{{company.name}}`, `{{company.industry}}`, `{{company.location}}`, and `{{sender.name}}` with seamless legacy alias fallback.
+- **Structured Geographic Location Modeling**: Added structured city, state, and country attributes to companies and lead discovery runs for precise regional filtering.
+- **Offline Sync Dead-Letter Protection**: Failed mutations after 5 retries are now isolated safely in a dedicated dead-letter queue rather than blocking offline queue execution.
+
+### Fixed
+- **Campaign Scheduling & Worker Crash Recovery**: Fixed database column schema errors in the scheduler recovery engine, ensuring stale and interrupted jobs recover cleanly to retry or failure states on application restart.
+- **Duplicate Campaign Scheduling Guard**: Consolidated campaign schedule handlers under a single authoritative local-first scheduler, preventing duplicate dispatch events.
+- **Worker Credential Storage Sanitization**: Removed plaintext user session tokens from persistent SQLite job storage on disk; credentials are now injected strictly in memory at worker dispatch.
+- **Workspace Provisioning Idempotency**: Network retries and initial onboarding setups now detect existing default workspaces and prevent creating duplicate workspaces with randomized slug suffixes.
+
 ## [1.0.0-beta.5] - 2026-08-06
 
 ### Fixed

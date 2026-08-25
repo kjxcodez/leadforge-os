@@ -2,6 +2,19 @@
 
 This log tracks technical details, architectures, and dev tools improvements for LeadForge OS.
 
+## [1.0.0-beta.6] - 2026-08-25
+
+### Added
+- **`@leadforge/sdk` (`variable-resolver.ts`)**: Built canonical `renderCanonicalVariables()` resolver with strict namespacing (`contact.*`, `company.*`, `sender.*`, `sequence.*`, `workspace.*`) and fallback resolution for un-namespaced legacy tokens.
+- **SQLite Migration 030 (`030_structured_location_and_sync_hardening`)**: Added structured `city`, `state`, `country`, and `location` columns to `companies` and `discovery_runs` tables with indexes.
+- **Electron Node Testing Harness**: Documented and standardized `$env:ELECTRON_RUN_AS_NODE=1 npx electron node_modules/tsx/dist/cli.mjs` execution pattern for running native `better-sqlite3` test suites against Electron ABI 130 without native dlopen mismatch errors.
+
+### Changed
+- **`main/workers/plugins/outreach.ts`**: Replaced custom regex `renderTemplate` function with SDK's `renderCanonicalVariables`, unifying variable rendering across Automation sequences and Outreach dispatcher.
+- **`main/services/scheduler.ts`**: Corrected SQL column name in `reconcileStaleJobs()` from `lastError` to `error` on `jobs` table and `logs` on `sequence_executions` table to match Migration 008.
+- **`main/ipc/campaigns-ipc.ts`**: Removed duplicate `campaigns:schedule` handler and removed plaintext `_secrets: { sessionToken }` payload insertion from SQLite `jobs` table.
+- **`apps/api/src/services/workspace/workspace.service.ts`**: Added owner workspace existence check in `createWorkspace()` to ensure idempotent workspace provisioning on network retry.
+
 ## [1.0.0-beta.5] - 2026-08-06
 
 ### Added
