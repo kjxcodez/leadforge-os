@@ -388,10 +388,7 @@ export function registerCrmIpc() {
                   entityId: enroll.contactId,
                   entityType: 'contact',
                   executionId: enroll.id,
-                  workspaceId: runtime.workspaceId,
-                  _secrets: {
-                    sessionToken: loadSession()?.accessToken || ''
-                  }
+                  workspaceId: runtime.workspaceId
                 })
               );
             }
