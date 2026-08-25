@@ -9,7 +9,8 @@ const tests = [
   'src/main/services/campaign.test.ts',
   'src/main/services/email-test-recipients.test.ts',
   'src/main/services/send-test-attachment.test.ts',
-  'src/main/services/audiences.test.ts'
+  'src/main/services/audiences.test.ts',
+  'src/main/services/post-release-stabilization.test.ts'
 ];
 
 let failed = false;

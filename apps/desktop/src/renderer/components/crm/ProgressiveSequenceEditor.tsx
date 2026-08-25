@@ -14,7 +14,9 @@ import {
   Plus,
   Trash2,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Paperclip,
+  X
 } from 'lucide-react';
 
 export interface SequenceStepItem {
@@ -181,9 +183,18 @@ export function ProgressiveSequenceEditor({
                       onChange={(e) => {
                         const selectedTpl = templates.find((t) => t.id === e.target.value);
                         if (selectedTpl) {
+                          let tplAttachments = selectedTpl.attachments || [];
+                          if (typeof tplAttachments === 'string') {
+                            try {
+                              tplAttachments = JSON.parse(tplAttachments);
+                            } catch {
+                              tplAttachments = [];
+                            }
+                          }
                           updateStepConfig(idx, {
                             subject: selectedTpl.subject,
-                            body: selectedTpl.body
+                            body: selectedTpl.body,
+                            attachments: Array.isArray(tplAttachments) ? tplAttachments : []
                           });
                         }
                       }}
@@ -216,6 +227,95 @@ export function ProgressiveSequenceEditor({
                     onChange={(e) => updateStepConfig(idx, { body: e.target.value })}
                     className="rounded-none bg-surface-3 border-border-subtle text-xs font-sans"
                   />
+                </div>
+
+                {/* Attachments Section */}
+                <div className="space-y-1 pt-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[10px] font-semibold text-foreground flex items-center gap-1">
+                      <Paperclip className="w-3 h-3 text-muted-foreground" />
+                      Attachments ({(step.config.attachments || []).length})
+                    </Label>
+                    <label className="cursor-pointer text-[10px] font-medium text-primary hover:underline flex items-center gap-1">
+                      <Plus className="w-2.5 h-2.5" /> Attach File
+                      <input
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={async (e) => {
+                          if (!e.target.files || e.target.files.length === 0) return;
+                          const files = Array.from(e.target.files);
+                          const currentAtts = [...(step.config.attachments || [])];
+                          for (const f of files) {
+                            if (f.size > 25 * 1024 * 1024) {
+                              alert(`File "${f.name}" exceeds the 25 MB size limit.`);
+                              continue;
+                            }
+                            try {
+                              if ((f as any).path && (window as any).ipc) {
+                                const saved = await (window as any).ipc.invoke('attachments:save', {
+                                  filePath: (f as any).path,
+                                  filename: f.name
+                                });
+                                currentAtts.push(saved);
+                              } else {
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                  const base64 = (reader.result as string).split(',')[1] || '';
+                                  currentAtts.push({
+                                    id: `att_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                                    filename: f.name,
+                                    size: f.size,
+                                    contentBase64: base64,
+                                    contentType: f.type
+                                  });
+                                  updateStepConfig(idx, { attachments: currentAtts });
+                                };
+                                reader.readAsDataURL(f);
+                                continue;
+                              }
+                            } catch (err: any) {
+                              console.error('Failed to attach file:', err);
+                              alert(`Failed to attach ${f.name}: ${err.message}`);
+                            }
+                          }
+                          updateStepConfig(idx, { attachments: currentAtts });
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                  </div>
+                  {(step.config.attachments || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {(step.config.attachments || []).map((att: any, attIdx: number) => (
+                        <div
+                          key={att.id || attIdx}
+                          className="inline-flex items-center gap-1.5 bg-surface-3 border border-border-subtle px-2 py-0.5 text-[10px] text-foreground"
+                        >
+                          <Paperclip className="w-2.5 h-2.5 text-muted-foreground flex-shrink-0" />
+                          <span className="truncate max-w-[140px]" title={att.filename}>
+                            {att.filename}
+                          </span>
+                          <span className="text-muted-foreground text-[9px]">
+                            ({Math.round((att.size || 0) / 1024)} KB)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = (step.config.attachments || []).filter(
+                                (_: any, i: number) => i !== attIdx
+                              );
+                              updateStepConfig(idx, { attachments: updated });
+                            }}
+                            className="text-muted-foreground hover:text-danger ml-0.5"
+                            title="Remove attachment"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -40,7 +40,9 @@ import {
   Archive,
   HelpCircle,
   Activity,
-  Settings
+  Settings,
+  Paperclip,
+  X
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { PageHeader } from '../components/common/PageHeader';
@@ -86,6 +88,7 @@ export default function CampaignsScreen() {
   const [tplName, setTplName] = useState('');
   const [tplSubj, setTplSubj] = useState('');
   const [tplBody, setTplBody] = useState('');
+  const [tplAttachments, setTplAttachments] = useState<any[]>([]);
 
   // Wizard fields for Launching Campaign
   const [campName, setCampName] = useState('');
@@ -285,6 +288,8 @@ export default function CampaignsScreen() {
       setTplName('');
       setTplSubj('');
       setTplBody('');
+      setTplAttachments([]);
+      toast.success('Email template created successfully.');
     }
   });
 
@@ -393,7 +398,8 @@ export default function CampaignsScreen() {
     createTemplateMutation.mutate({
       name: tplName,
       subject: tplSubj,
-      body: tplBody
+      body: tplBody,
+      attachments: tplAttachments
     });
   };
 
@@ -1442,6 +1448,19 @@ export default function CampaignsScreen() {
                       <span className="block text-[10px] text-muted-foreground truncate max-w-xs mt-0.5 font-mono">
                         Subject: {tpl.subject}
                       </span>
+                      {tpl.attachments && (Array.isArray(tpl.attachments) ? tpl.attachments : JSON.parse(tpl.attachments || '[]')).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {(Array.isArray(tpl.attachments) ? tpl.attachments : JSON.parse(tpl.attachments || '[]')).map((att: any, attIdx: number) => (
+                            <span
+                              key={att.id || attIdx}
+                              className="inline-flex items-center gap-1 bg-surface-2 border border-border-subtle px-1.5 py-0.5 text-[9px] text-muted-foreground font-mono"
+                            >
+                              <Paperclip className="w-2.5 h-2.5" />
+                              {att.filename}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-1">
                       <Button
@@ -1578,6 +1597,92 @@ export default function CampaignsScreen() {
                 <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{company.name}}`}</code>,{' '}
                 <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{company.domain}}`}</code>
               </p>
+            </div>
+
+            {/* Attachments Section */}
+            <div className="space-y-1 pt-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                  <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
+                  Attachments ({tplAttachments.length})
+                </Label>
+                <label className="cursor-pointer text-xs font-medium text-primary hover:underline flex items-center gap-1">
+                  <Plus className="w-3 h-3" /> Attach File
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={async (e) => {
+                      if (!e.target.files || e.target.files.length === 0) return;
+                      const files = Array.from(e.target.files);
+                      const currentAtts = [...tplAttachments];
+                      for (const f of files) {
+                        if (f.size > 25 * 1024 * 1024) {
+                          toast.error(`File "${f.name}" exceeds the 25 MB size limit.`);
+                          continue;
+                        }
+                        try {
+                          if ((f as any).path && (window as any).ipc) {
+                            const saved = await (window as any).ipc.invoke('attachments:save', {
+                              filePath: (f as any).path,
+                              filename: f.name
+                            });
+                            currentAtts.push(saved);
+                          } else {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              const base64 = (reader.result as string).split(',')[1] || '';
+                              currentAtts.push({
+                                id: `att_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                                filename: f.name,
+                                size: f.size,
+                                contentBase64: base64,
+                                contentType: f.type
+                              });
+                              setTplAttachments([...currentAtts]);
+                            };
+                            reader.readAsDataURL(f);
+                            continue;
+                          }
+                        } catch (err: any) {
+                          console.error('Failed to attach file:', err);
+                          toast.error(`Failed to attach ${f.name}: ${err.message}`);
+                        }
+                      }
+                      setTplAttachments(currentAtts);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+              </div>
+              {tplAttachments.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {tplAttachments.map((att: any, attIdx: number) => (
+                    <div
+                      key={att.id || attIdx}
+                      className="inline-flex items-center gap-1.5 bg-surface-3 border border-border-subtle px-2 py-0.5 text-[10px] text-foreground"
+                    >
+                      <Paperclip className="w-2.5 h-2.5 text-muted-foreground flex-shrink-0" />
+                      <span className="truncate max-w-[140px]" title={att.filename}>
+                        {att.filename}
+                      </span>
+                      <span className="text-muted-foreground text-[9px]">
+                        ({Math.round((att.size || 0) / 1024)} KB)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTplAttachments(tplAttachments.filter((_, i) => i !== attIdx));
+                        }}
+                        className="text-muted-foreground hover:text-danger ml-0.5"
+                        title="Remove attachment"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-2 pt-2 border-t border-border-subtle">
               <Button type="button" variant="secondary" className="rounded-none" onClick={() => setTemplateOpen(false)}>
@@ -1823,9 +1928,31 @@ export default function CampaignsScreen() {
                     {previewQuery.data.subject}
                   </span>
                 </div>
-                <div className="border-t border-border-subtle pt-2 text-foreground font-sans whitespace-pre-wrap">
+                <div className="border-t border-border-subtle pt-2 text-foreground font-sans whitespace-pre-wrap leading-relaxed">
                   {previewQuery.data.body}
                 </div>
+                {previewTemplateId && (() => {
+                  const currentTpl = (templatesQuery.data || []).find((t: any) => t.id === previewTemplateId);
+                  const atts = currentTpl?.attachments
+                    ? (Array.isArray(currentTpl.attachments) ? currentTpl.attachments : JSON.parse(currentTpl.attachments || '[]'))
+                    : [];
+                  if (atts.length === 0) return null;
+                  return (
+                    <div className="border-t border-border-subtle pt-2">
+                      <div className="text-[10px] font-semibold text-muted-foreground mb-1 flex items-center gap-1">
+                        <Paperclip className="w-3 h-3" /> Attached Files ({atts.length}):
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {atts.map((att: any, idx: number) => (
+                          <span key={att.id || idx} className="inline-flex items-center gap-1 bg-surface-2 border border-border-subtle px-1.5 py-0.5 text-[9px] text-foreground">
+                            <Paperclip className="w-2.5 h-2.5 text-muted-foreground" />
+                            {att.filename} ({Math.round((att.size || 0) / 1024)} KB)
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             ) : null}
 
