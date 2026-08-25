@@ -190,9 +190,4 @@ export function registerOutreachIpc(sdk: SdkClient) {
   safeRegister('templates:preview', async (_event, { id, contactId }) => {
     return sdk.outreach.previewTemplate(id, contactId);
   });
-
-  // Campaigns scheduling trigger
-  safeRegister('campaigns:schedule', async (_event, id) => {
-    return sdk.campaigns.schedule(id);
-  });
 }
