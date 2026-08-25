@@ -1,6 +1,20 @@
 import { z } from 'zod';
 import { objectIdField, nameField } from '../fields/common.js';
 
+/**
+ * Represents a managed attachment file that has been saved to userData/attachments/.
+ * storagePath is the absolute path on the local machine where the file is persisted.
+ * contentType is optional; resolved at send time if absent.
+ */
+export const attachmentItemSchema = z.object({
+  id: z.string(),
+  filename: z.string(),
+  size: z.number().int().nonnegative(),
+  storagePath: z.string(),
+  contentType: z.string().optional()
+});
+export type AttachmentItem = z.infer<typeof attachmentItemSchema>;
+
 export const emailTemplateSchema = z.object({
   id: objectIdField,
   workspaceId: objectIdField,
@@ -8,6 +22,7 @@ export const emailTemplateSchema = z.object({
   subject: z.string(),
   body: z.string(),
   variables: z.array(z.string()),
+  attachments: z.array(attachmentItemSchema).optional(),
   createdAt: z.date(),
   updatedAt: z.date()
 });

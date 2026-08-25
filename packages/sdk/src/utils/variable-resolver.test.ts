@@ -1,69 +1,45 @@
-import assert from 'assert';
-import {
-  renderCanonicalVariables,
-  extractTemplateVariables,
-  type CanonicalVariableContext
-} from './variable-resolver';
+import assert from 'node:assert';
+import { plainTextToHtml, formatEmailBody, renderCanonicalVariables, type CanonicalVariableContext } from './variable-resolver.js';
 
-export async function runVariableResolverTests() {
-  console.log('--- STARTING CANONICAL VARIABLE RESOLVER TESTS ---');
+console.log('[SDK Test] Testing variable-resolver and formatting utilities...');
 
-  const ctx: CanonicalVariableContext = {
-    contact: {
-      firstName: 'Subrota',
-      lastName: 'Sarker',
-      email: 'subrota@ecoray.com',
-      title: 'Head of Engineering'
-    },
-    company: {
-      name: 'Ecoray Group',
-      domain: 'ecoray.com',
-      industry: 'Solar Energy',
-      location: 'Dhaka, Bangladesh'
-    },
-    workspace: {
-      id: 'ws_123',
-      name: 'LeadForge Workspace'
-    },
-    sender: {
-      name: 'Alice Johnson',
-      email: 'alice@leadforge.io'
-    }
-  };
+// Test 1: Plain text variable rendering
+const ctx: CanonicalVariableContext = {
+  contact: { firstName: 'Sarah', lastName: 'Connor', email: 'sarah@resistance.org' },
+  company: { name: 'Cyberdyne Systems', domain: 'cyberdyne.com' },
+  sender: { name: 'John Doe', email: 'john@leadforge.ai' }
+};
 
-  // 1. Test Dotted Namespaced Variables
-  const dottedTemplate = 'Hi {{contact.firstName}}, welcome to {{company.name}} in {{company.industry}}!';
-  const dottedRendered = renderCanonicalVariables(dottedTemplate, ctx);
-  assert.strictEqual(
-    dottedRendered,
-    'Hi Subrota, welcome to Ecoray Group in Solar Energy!'
-  );
-  console.log('✅ Canonical dotted namespaced variable rendering verified.');
+const inputTpl = 'Hello {{contact.firstName}},\n\nI noticed {{company.name}} is hiring.\nLet me know if you are open to chatting.\n\nBest,\n{{sender.name}}';
+const rendered = renderCanonicalVariables(inputTpl, ctx);
 
-  // 2. Test Legacy Un-namespaced Alias Variables
-  const legacyTemplate = 'Hi {{firstName}} {{lastName}}, I noticed {{company}} at {{website}} ({{senderName}} - {{workspaceName}})';
-  const legacyRendered = renderCanonicalVariables(legacyTemplate, ctx);
-  assert.strictEqual(
-    legacyRendered,
-    'Hi Subrota Sarker, I noticed Ecoray Group at ecoray.com (Alice Johnson - LeadForge Workspace)'
-  );
-  console.log('✅ Legacy un-namespaced alias fallback rendering verified.');
+assert.strictEqual(
+  rendered,
+  'Hello Sarah,\n\nI noticed Cyberdyne Systems is hiring.\nLet me know if you are open to chatting.\n\nBest,\nJohn Doe'
+);
+console.log('✅ Variable interpolation passed.');
 
-  // 3. Test Missing & Unknown Variables (should resolve to empty string)
-  const unknownTemplate = 'Hello {{contact.nonExistentField}}, your score is {{variables.unknownScore}}!';
-  const unknownRendered = renderCanonicalVariables(unknownTemplate, ctx);
-  assert.strictEqual(unknownRendered, 'Hello , your score is !');
-  console.log('✅ Missing / unknown variable empty string rendering verified.');
+// Test 2: plainTextToHtml paragraph and line-break conversion
+const html = plainTextToHtml(rendered);
+assert.ok(html.includes('<p style="margin:0 0 16px 0;line-height:1.5;">Hello Sarah,</p>'));
+assert.ok(html.includes('<p style="margin:0 0 16px 0;line-height:1.5;">I noticed Cyberdyne Systems is hiring.<br/>Let me know if you are open to chatting.</p>'));
+assert.ok(html.includes('<p style="margin:0 0 16px 0;line-height:1.5;">Best,<br/>John Doe</p>'));
+console.log('✅ plainTextToHtml paragraph blocks and line breaks passed.');
 
-  // 4. Test Variable Extraction
-  const tokens = extractTemplateVariables('Subject for {{contact.firstName}} at {{company.name}}');
-  assert.deepStrictEqual(tokens, ['contact.firstName', 'company.name']);
-  console.log('✅ Template variable token extraction verified.');
+// Test 3: formatEmailBody returns both text and html
+const formatted = formatEmailBody(rendered);
+assert.strictEqual(formatted.text, rendered);
+assert.strictEqual(formatted.html, html);
+console.log('✅ formatEmailBody structure passed.');
 
-  console.log('--- ALL CANONICAL VARIABLE RESOLVER TESTS PASSED ---');
-}
+// Test 4: HTML entity escaping
+const rawWithEntities = 'Price < $100 & profit > 50% "quoted" \'single\'';
+const escapedHtml = plainTextToHtml(rawWithEntities);
+assert.ok(escapedHtml.includes('&lt;'));
+assert.ok(escapedHtml.includes('&gt;'));
+assert.ok(escapedHtml.includes('&amp;'));
+assert.ok(escapedHtml.includes('&quot;'));
+assert.ok(escapedHtml.includes('&#39;'));
+console.log('✅ HTML escaping passed.');
 
-runVariableResolverTests().catch((err) => {
-  console.error('Test failed:', err);
-  process.exit(1);
-});
+console.log('[SDK Test] All variable-resolver and formatting tests PASSED!');

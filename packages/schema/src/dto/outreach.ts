@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { objectIdField } from '../fields/common.js';
-import { emailMessageSchema, outreachSchema } from '../entities/outreach.js';
+import { emailMessageSchema, outreachSchema, attachmentItemSchema } from '../entities/outreach.js';
 import { paginationParamsSchema } from '../common/pagination.js';
 
 export const createOutreachDtoSchema = z.object({
@@ -54,6 +54,7 @@ export const createEmailTemplateDtoSchema = z.object({
   name: z.string().min(1),
   subject: z.string().min(1),
   body: z.string().min(1),
-  variables: z.array(z.string()).default([])
+  variables: z.array(z.string()).default([]),
+  attachments: z.array(attachmentItemSchema).optional()
 });
 export type CreateEmailTemplateDto = z.infer<typeof createEmailTemplateDtoSchema>;

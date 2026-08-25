@@ -195,3 +195,60 @@ export function extractTemplateVariables(template: string | null | undefined): s
   }
   return Array.from(set);
 }
+
+/**
+ * Converts a plain-text email body (with \n line breaks) into safe HTML suitable
+ * for rendering in email clients (Gmail, Outlook, Apple Mail).
+ *
+ * Conversion rules (applied in order):
+ *  1. HTML-escape all special characters (&, <, >, ", ') to prevent XSS/injection.
+ *  2. Collapse \r\n to \n for consistent handling.
+ *  3. Split on double newlines (\n\n) to create paragraph blocks.
+ *  4. Within each paragraph, convert single \n to <br/>.
+ *  5. Wrap each paragraph in <p style="margin:0 0 16px 0;line-height:1.5;">.
+ *
+ * @param text - Raw plain-text string (as stored in SQLite template body).
+ * @returns Safe HTML string ready for use in a MIME text/html part.
+ */
+export function plainTextToHtml(text: string): string {
+  if (!text) return '';
+
+  // 1. Escape HTML entities
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  // 2. Normalise line endings
+  const normalised = escaped.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // 3. Split into paragraphs on blank lines (two or more consecutive newlines)
+  const paragraphs = normalised.split(/\n{2,}/);
+
+  // 4 & 5. Within each paragraph, convert single \n to <br/> and wrap
+  const htmlParagraphs = paragraphs.map((para) => {
+    const withBreaks = para.replace(/\n/g, '<br/>');
+    return `<p style="margin:0 0 16px 0;line-height:1.5;">${withBreaks}</p>`;
+  });
+
+  return htmlParagraphs.join('\n');
+}
+
+/**
+ * Formats a plain-text email body into both text/plain and text/html MIME parts.
+ *
+ * Use this at the send boundary (worker plugins and API layer) so that:
+ * - `text` is passed as the MIME text/plain part (preserves \n for plain-text clients).
+ * - `html` is passed as the MIME text/html part (correct paragraph/line break rendering).
+ *
+ * @param body - Raw plain-text string as stored in SQLite.
+ * @returns Object with `text` (unchanged) and `html` (safe HTML conversion).
+ */
+export function formatEmailBody(body: string): { text: string; html: string } {
+  return {
+    text: body,
+    html: plainTextToHtml(body)
+  };
+}
