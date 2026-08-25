@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import type { JobContext } from '../../../shared/types/job';
-import { SdkClient, renderCanonicalVariables, type CanonicalVariableContext } from '@leadforge/sdk';
+import { SdkClient, renderCanonicalVariables, formatEmailBody, type CanonicalVariableContext } from '@leadforge/sdk';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,7 +63,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
 
   try {
     // Initialize SDK client for API communication
-    const apiUrl = process.env.API_URL || 'https://api.leadforge.kapiljangid.pro/api/v1';
+    const apiUrl = ctx.payload._config?.apiUrl || process.env.API_URL || 'https://api.leadforge.kapiljangid.pro/api/v1';
     const authToken = ctx.payload._secrets?.sessionToken || process.env.SESSION_TOKEN || '';
     const sdk = new SdkClient({
       baseUrl: apiUrl,
@@ -106,40 +106,83 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
 
     ctx.emitLog(`Campaign resolved: "${campaign.name}"`, 'info');
 
-    // ── 3. Resolve email subject and body ─────────────────────────────────
+    // ── 3. Resolve email subject, body, and attachments ─────────────────
     let subject: string = ctx.payload.subject || '';
     let body: string = ctx.payload.body || '';
+    let rawAttachments: any[] = ctx.payload.attachments || [];
 
-    if ((!subject || !body) && ctx.payload.templateId) {
+    if (ctx.payload.templateId) {
       const tpl = db
         .prepare(
-          `SELECT subject, body FROM templates WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`
+          `SELECT subject, body, attachments FROM templates WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`
         )
         .get(ctx.payload.templateId, ctx.workspaceId) as
-        { subject: string; body: string } | undefined;
+        | { subject: string; body: string; attachments?: string | null }
+        | undefined;
 
       if (tpl) {
         if (!subject) subject = tpl.subject;
         if (!body) body = tpl.body;
+        if (rawAttachments.length === 0 && tpl.attachments) {
+          try {
+            const parsed = typeof tpl.attachments === 'string' ? JSON.parse(tpl.attachments) : tpl.attachments;
+            if (Array.isArray(parsed)) rawAttachments = parsed;
+          } catch {}
+        }
       }
     }
 
     if (!subject || !body) {
       const fallbackTpl = db
         .prepare(
-          `SELECT subject, body FROM templates WHERE workspaceId = ? AND deletedAt IS NULL ORDER BY createdAt ASC LIMIT 1`
+          `SELECT subject, body, attachments FROM templates WHERE workspaceId = ? AND deletedAt IS NULL ORDER BY createdAt ASC LIMIT 1`
         )
-        .get(ctx.workspaceId) as { subject: string; body: string } | undefined;
+        .get(ctx.workspaceId) as { subject: string; body: string; attachments?: string | null } | undefined;
 
       if (fallbackTpl) {
         if (!subject) subject = fallbackTpl.subject;
         if (!body) body = fallbackTpl.body;
+        if (rawAttachments.length === 0 && fallbackTpl.attachments) {
+          try {
+            const parsed = typeof fallbackTpl.attachments === 'string' ? JSON.parse(fallbackTpl.attachments) : fallbackTpl.attachments;
+            if (Array.isArray(parsed)) rawAttachments = parsed;
+          } catch {}
+        }
       }
     }
 
     if (!subject) subject = `Message from ${account.name || 'LeadForge'}`;
     if (!body)
       body = `Hello {{firstName}},\n\nThis message was sent via LeadForge OS.\n\nBest regards,\n${account.name || 'LeadForge'}`;
+
+    // Process attachments from storagePath
+    const processedAttachments = [];
+    if (Array.isArray(rawAttachments) && rawAttachments.length > 0) {
+      const fs = await import('fs');
+      for (const att of rawAttachments) {
+        const filePath = att.storagePath || att.path;
+        if (filePath && !fs.existsSync(filePath)) {
+          throw new Error(
+            `Campaign execution failed: Attachment "${att.filename || filePath}" is unavailable on disk.`
+          );
+        }
+        let contentBase64 = att.contentBase64 || '';
+        if (!contentBase64 && filePath && fs.existsSync(filePath)) {
+          contentBase64 = fs.readFileSync(filePath).toString('base64');
+        }
+        if (!contentBase64) {
+          throw new Error(
+            `Campaign execution failed: Attachment "${att.filename || filePath}" has no readable data.`
+          );
+        }
+        processedAttachments.push({
+          filename: att.filename || 'attachment',
+          contentBase64,
+          contentType: att.contentType,
+          size: att.size
+        });
+      }
+    }
 
     // ── 4. Load eligible contacts ────────────────────────────────────────
     const contacts = db
@@ -269,7 +312,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
 
       const renderedSubject = renderCanonicalVariables(subject, renderCtx);
       const renderedBody = renderCanonicalVariables(body, renderCtx);
-      const isHtml = renderedBody.trim().startsWith('<') && /<[a-z][\s\S]*>/i.test(renderedBody);
+      const formattedBody = formatEmailBody(renderedBody);
 
       const executionId = randomUUID();
       const logId = randomUUID();
@@ -282,7 +325,10 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
           accountId,
           to: contact.email,
           subject: renderedSubject,
-          ...(isHtml ? { html: renderedBody } : { text: renderedBody })
+          text: formattedBody.text,
+          html: formattedBody.html,
+          useSignature: true,
+          attachments: processedAttachments
         });
 
         messageId = res.messageId || '';

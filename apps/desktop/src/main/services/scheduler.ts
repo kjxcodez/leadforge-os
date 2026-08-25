@@ -8,6 +8,7 @@ import { LocalEventBus } from '../lib/event-bus';
 import { AppLogger } from '../lib/logger';
 import { decryptSecret } from '../lib/crypto';
 import { loadSession } from '../lib/session';
+import { loadConfig } from '../lib/config';
 import type { JobPayload, SchedulerConfig } from '../../shared/types/job';
 import type { MainToWorkerMsg, WorkerToMainMsg } from '../../shared/types/ipc';
 
@@ -498,6 +499,7 @@ export class JobScheduler {
 
     // 2. Fork the worker with a minimal, secure environment.
     //    BC-003: stdio changed from 'inherit' → piped, env is now a whitelist.
+    const config = loadConfig();
     const workerHostPath = join(__dirname, 'worker.js');
     const worker = fork(workerHostPath, [], {
       env: {
@@ -509,6 +511,7 @@ export class JobScheduler {
         PLAYWRIGHT_BROWSERS_PATH:
           process.env.PLAYWRIGHT_BROWSERS_PATH ||
           join(app.getPath('userData'), 'playwright-browsers'),
+        API_URL: config.apiUrl,
         NODE_ENV: process.env.NODE_ENV
       },
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
@@ -960,6 +963,9 @@ export class JobScheduler {
         }
       }
       parsedPayload._secrets = secrets;
+      parsedPayload._config = {
+        apiUrl: config.apiUrl
+      };
     } catch (err) {
       AppLogger.error(
         'JobScheduler',

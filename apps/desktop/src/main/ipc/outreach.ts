@@ -153,7 +153,11 @@ export function registerOutreachIpc(sdk: SdkClient) {
           variables:
             typeof item.variables === 'string'
               ? item.variables
-              : JSON.stringify(item.variables || [])
+              : JSON.stringify(item.variables || []),
+          attachments:
+            typeof item.attachments === 'string'
+              ? item.attachments
+              : JSON.stringify(item.attachments || [])
         })),
         true
       );
@@ -174,10 +178,18 @@ export function registerOutreachIpc(sdk: SdkClient) {
       workspaceId: runtime.workspaceId,
       variables:
         typeof dto.variables === 'string' ? dto.variables : JSON.stringify(dto.variables || []),
+      attachments:
+        typeof dto.attachments === 'string'
+          ? dto.attachments
+          : JSON.stringify(dto.attachments || []),
       syncStatus: 'pending'
     };
     await LocalCRMRepository.save('templates', record);
-    return record;
+    return {
+      ...record,
+      variables: typeof record.variables === 'string' ? JSON.parse(record.variables) : record.variables,
+      attachments: typeof record.attachments === 'string' ? JSON.parse(record.attachments) : record.attachments
+    };
   });
 
   safeRegister('templates:delete', async (_event, id) => {

@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
 import { AIRuntime, PromptsLibrary } from '@leadforge/ai';
 import type { JobContext } from '../../../shared/types/job';
-import { SdkClient, renderCanonicalVariables } from '@leadforge/sdk';
+import { SdkClient, renderCanonicalVariables, formatEmailBody } from '@leadforge/sdk';
 
 function decryptSecretFallback(val: string): string {
   if (!val) return '';
@@ -1790,19 +1790,32 @@ async function handleSendEmailStep(
   const templateId = step.config?.templateId;
   let rawSubject = step.config?.subject || '';
   let rawBody = step.config?.body || '';
+  let templateAttachments: any[] = [];
 
   if (templateId) {
     const tpl = db
       .prepare(
         `
-      SELECT subject, body FROM templates
+      SELECT subject, body, attachments FROM templates
       WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
     `
       )
-      .get(templateId, workspaceId) as { subject: string; body: string } | undefined;
+      .get(templateId, workspaceId) as
+      | { subject: string; body: string; attachments?: string | null }
+      | undefined;
     if (tpl) {
       rawSubject = tpl.subject;
       rawBody = tpl.body;
+      if (tpl.attachments) {
+        try {
+          const parsed = typeof tpl.attachments === 'string' ? JSON.parse(tpl.attachments) : tpl.attachments;
+          if (Array.isArray(parsed)) {
+            templateAttachments = parsed;
+          }
+        } catch {
+          // ignore malformed attachments json
+        }
+      }
     }
   }
 
@@ -1840,8 +1853,9 @@ async function handleSendEmailStep(
   };
   const renderedSubject = resolveVariables(rawSubject, renderCtx);
   const renderedBody = resolveVariables(rawBody, renderCtx);
+  const formattedBody = formatEmailBody(renderedBody);
 
-  const apiUrl = process.env.API_URL || 'https://api.leadforge.kapiljangid.pro/api/v1';
+  const apiUrl = ctx.payload._config?.apiUrl || process.env.API_URL || 'https://api.leadforge.kapiljangid.pro/api/v1';
   const authToken = ctx.payload._secrets?.sessionToken || process.env.SESSION_TOKEN || '';
   const sdk = new SdkClient({
     baseUrl: apiUrl,
@@ -1875,7 +1889,9 @@ async function handleSendEmailStep(
   }
 
   const useSignature = step.config?.useGmailSignature !== false;
-  const rawAttachments = step.config?.attachments || [];
+  const rawAttachments = (step.config?.attachments && step.config.attachments.length > 0)
+    ? step.config.attachments
+    : templateAttachments;
   const processedAttachments = [];
 
   if (Array.isArray(rawAttachments) && rawAttachments.length > 0) {
@@ -1910,7 +1926,8 @@ async function handleSendEmailStep(
       accountId: accountDoc.id,
       to: contact.email,
       subject: renderedSubject,
-      html: renderedBody,
+      text: formattedBody.text,
+      html: formattedBody.html,
       useSignature,
       attachments: processedAttachments
     });
