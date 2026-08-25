@@ -63,9 +63,7 @@ export async function runVariableResolverTests() {
   console.log('--- ALL CANONICAL VARIABLE RESOLVER TESTS PASSED ---');
 }
 
-if (require.main === module) {
-  runVariableResolverTests().catch((err) => {
-    console.error('Test failed:', err);
-    process.exit(1);
-  });
-}
+runVariableResolverTests().catch((err) => {
+  console.error('Test failed:', err);
+  process.exit(1);
+});
