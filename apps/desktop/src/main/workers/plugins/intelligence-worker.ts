@@ -18,12 +18,11 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
 
   ctx.emitLog(`Starting Lead Intelligence enrichment for Company: ${companyId}`, 'info');
 
-  const dbDir = process.env.WORKSPACES_DB_DIR || '';
-  if (!dbDir) {
-    throw new Error('WORKSPACES_DB_DIR env variable is required for background workers.');
+  const dbPath = ctx.dbPath || (process.env.WORKSPACES_DB_DIR ? join(process.env.WORKSPACES_DB_DIR, `leadforge_${ctx.workspaceId}.db`) : '');
+  if (!dbPath) {
+    throw new Error('Database path could not be resolved for background worker.');
   }
 
-  const dbPath = join(dbDir, `leadforge_${ctx.workspaceId}.db`);
   const db = new Database(dbPath);
 
   try {

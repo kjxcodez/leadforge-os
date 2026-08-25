@@ -201,12 +201,11 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
     throw new Error('companyId and website payload parameters are required.');
   }
 
-  const dbDir = process.env.WORKSPACES_DB_DIR || '';
-  if (!dbDir) {
-    throw new Error('WORKSPACES_DB_DIR env variable is required for background workers.');
+  const dbPath = ctx.dbPath || (process.env.WORKSPACES_DB_DIR ? join(process.env.WORKSPACES_DB_DIR, `leadforge_${ctx.workspaceId}.db`) : '');
+  if (!dbPath) {
+    throw new Error('Database path could not be resolved for background worker.');
   }
 
-  const dbPath = join(dbDir, `leadforge_${ctx.workspaceId}.db`);
   ctx.emitLog(`Opening database connection at: ${dbPath}`, 'info');
   const db = new Database(dbPath);
 

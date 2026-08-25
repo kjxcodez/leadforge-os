@@ -71,15 +71,14 @@ export async function enrichLinkedIn(ctx: JobContext): Promise<any> {
     'info'
   );
 
-  const dbDir = process.env.WORKSPACES_DB_DIR || '';
-  if (!dbDir) {
-    throw new Error('WORKSPACES_DB_DIR env variable is required for background workers.');
+  const dbPath = ctx.dbPath || (process.env.WORKSPACES_DB_DIR ? join(process.env.WORKSPACES_DB_DIR, `leadforge_${ctx.workspaceId}.db`) : '');
+  if (!dbPath) {
+    throw new Error('Database path could not be resolved for background worker.');
   }
-  const dbPath = join(dbDir, `leadforge_${ctx.workspaceId}.db`);
   const db = new Database(dbPath);
 
-  // 1. Get stored LinkedIn cookie from settings table, process.env, or payload secrets
-  let cookie = ctx.payload._secrets?.['linkedin_li_at'] || process.env.LINKEDIN_COOKIE || '';
+  // 1. Get stored LinkedIn cookie from payload secrets or settings table
+  let cookie = ctx.payload._secrets?.['linkedin_li_at'] || '';
   if (!cookie) {
     const settingRow = db
       .prepare('SELECT value FROM settings WHERE workspaceId = ? AND key = ?')
@@ -92,7 +91,7 @@ export async function enrichLinkedIn(ctx: JobContext): Promise<any> {
   if (!cookie) {
     db.close();
     ctx.emitLog(
-      'No LinkedIn cookie (li_at) configured in Settings or LINKEDIN_COOKIE env var.',
+      'No LinkedIn cookie (li_at) configured in Settings or secrets payload.',
       'error'
     );
     throw new Error(

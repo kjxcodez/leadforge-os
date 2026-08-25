@@ -1857,7 +1857,7 @@ async function handleSendEmailStep(
   const formattedBody = formatEmailBody(renderedBody);
 
   const apiUrl = resolveWorkerApiUrl(ctx);
-  const authToken = ctx.payload._secrets?.sessionToken || process.env.SESSION_TOKEN || '';
+  const authToken = ctx.payload._secrets?.sessionToken || '';
   const sdk = new SdkClient({
     baseUrl: apiUrl,
     token: authToken,

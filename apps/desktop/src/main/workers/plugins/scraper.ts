@@ -167,12 +167,11 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
     'info'
   );
 
-  const dbDir = process.env.WORKSPACES_DB_DIR || '';
-  if (!dbDir) {
-    throw new Error('WORKSPACES_DB_DIR env variable is required for background workers.');
+  const dbPath = ctx.dbPath || (process.env.WORKSPACES_DB_DIR ? join(process.env.WORKSPACES_DB_DIR, `leadforge_${ctx.workspaceId}.db`) : '');
+  if (!dbPath) {
+    throw new Error('Database path could not be resolved for background worker.');
   }
 
-  const dbPath = join(dbDir, `leadforge_${ctx.workspaceId}.db`);
   let db: Database.Database | null = null;
 
   // Restore state from checkpoint if resuming

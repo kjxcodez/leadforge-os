@@ -54,18 +54,17 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
 
   ctx.emitLog(`Initializing API-owned outreach dispatcher for Campaign: ${campaignId}`, 'info');
 
-  const dbDir = process.env.WORKSPACES_DB_DIR || '';
-  if (!dbDir) {
-    throw new Error('WORKSPACES_DB_DIR env variable is required for background workers.');
+  const dbPath = ctx.dbPath || (process.env.WORKSPACES_DB_DIR ? join(process.env.WORKSPACES_DB_DIR, `leadforge_${ctx.workspaceId}.db`) : '');
+  if (!dbPath) {
+    throw new Error('Database path could not be resolved for background worker.');
   }
 
-  const dbPath = join(dbDir, `leadforge_${ctx.workspaceId}.db`);
   const db = new Database(dbPath);
 
   try {
     // Initialize SDK client for API communication
     const apiUrl = resolveWorkerApiUrl(ctx);
-    const authToken = ctx.payload._secrets?.sessionToken || process.env.SESSION_TOKEN || '';
+    const authToken = ctx.payload._secrets?.sessionToken || '';
     const sdk = new SdkClient({
       baseUrl: apiUrl,
       token: authToken,
