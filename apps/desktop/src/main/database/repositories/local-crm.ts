@@ -10,6 +10,7 @@ const JSON_COLUMNS = new Set([
   'notes',
   'steps',
   'variables',
+  'attachments',
   'logs',
   'contactsJson',
   'statisticsJson',

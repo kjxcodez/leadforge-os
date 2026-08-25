@@ -832,6 +832,12 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_companies_location_state ON companies(workspaceId, state);
       CREATE INDEX IF NOT EXISTS idx_companies_location_country ON companies(workspaceId, country);
     `
+  },
+  {
+    name: '031_template_attachments',
+    up: `
+      ALTER TABLE templates ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]';
+    `
   }
 ];
 

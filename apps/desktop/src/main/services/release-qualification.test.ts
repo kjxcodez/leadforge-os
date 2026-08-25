@@ -15,14 +15,14 @@ export async function runReleaseQualificationTests() {
 
   // ── 1. FRESH INSTALL & MIGRATIONS 001-030 ─────────────────────────────────
   console.log('[10F.2 & 10F.3] Testing Fresh Database Initialization & Schema Migrations...');
-  await runMigrations(db, wsA);
-  await runMigrations(db, wsB);
+  await runMigrations(db);
+  // wsB shares the same in-memory database; workspace isolation is enforced by workspaceId column.
 
   const countApplied = (db.prepare("SELECT COUNT(*) as c FROM _migrations").get() as any).c;
-  assert.strictEqual(countApplied, 29, 'Database must have 29 applied migrations (001 through 030)');
+  assert.strictEqual(countApplied, 30, 'Database must have 30 applied migrations (001 through 031)');
   const latestMigration = (db.prepare("SELECT name FROM _migrations ORDER BY id DESC LIMIT 1").get() as any).name;
-  assert.strictEqual(latestMigration, '030_structured_location_and_sync_hardening');
-  console.log(`✅ Fresh install applied all 29 migrations (001 through 030) successfully (latest: ${latestMigration}).`);
+  assert.strictEqual(latestMigration, '031_template_attachments');
+  console.log(`✅ Fresh install applied all 30 migrations (001 through 031) successfully (latest: ${latestMigration}).`);
 
   // ── 2. DATABASE POPULATION & UPGRADE IDEMPOTENCY ──────────────────────────
   console.log('[10F.3] Populating initial dataset across entities for upgrade qualification...');
@@ -104,7 +104,7 @@ export async function runReleaseQualificationTests() {
   const beforeClaims = (db.prepare("SELECT COUNT(*) as c FROM intelligence_claims WHERE workspaceId = ?").get(wsA) as any).c;
 
   // Re-run migrations to test idempotency
-  await runMigrations(db, wsA);
+  await runMigrations(db);
 
   const afterCompanies = (db.prepare("SELECT COUNT(*) as c FROM companies WHERE workspaceId = ?").get(wsA) as any).c;
   const afterContacts = (db.prepare("SELECT COUNT(*) as c FROM contacts WHERE workspaceId = ?").get(wsA) as any).c;
