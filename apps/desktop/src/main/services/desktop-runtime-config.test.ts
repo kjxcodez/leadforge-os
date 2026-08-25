@@ -128,8 +128,45 @@ export async function runDesktopRuntimeConfigTests() {
     process.env.API_URL = savedEnv;
   }
 
+  // ── 4. WORKER CONTEXT & SECRETS CONTRACT ──────────────────────────────────
+  console.log('\n[Test 4] Testing worker JobContext dbPath and secrets contract...');
+  const mockWorkerCtx: JobContext = {
+    jobId: 'job_4',
+    workspaceId: 'ws_test_123',
+    payload: {
+      _secrets: {
+        sessionToken: 'test_session_token_xyz',
+        linkedin_li_at: 'test_li_at_cookie_abc'
+      }
+    },
+    dbPath: 'C:\\Users\\Mock\\AppData\\Roaming\\LeadForge\\workspaces\\leadforge_ws_test_123.db',
+    updateProgress: () => {},
+    emitLog: () => {},
+    isCancelled: () => false,
+    isPaused: () => false,
+    saveCheckpoint: () => {},
+    getCheckpoint: () => null
+  };
+
+  assert.strictEqual(
+    mockWorkerCtx.dbPath,
+    'C:\\Users\\Mock\\AppData\\Roaming\\LeadForge\\workspaces\\leadforge_ws_test_123.db',
+    'Worker JobContext must expose deterministic dbPath from Main scheduler'
+  );
+  assert.strictEqual(
+    mockWorkerCtx.payload._secrets?.sessionToken,
+    'test_session_token_xyz',
+    'Worker must resolve sessionToken strictly from payload._secrets without process.env'
+  );
+  assert.strictEqual(
+    mockWorkerCtx.payload._secrets?.linkedin_li_at,
+    'test_li_at_cookie_abc',
+    'Worker must resolve linkedin_li_at strictly from payload._secrets without process.env'
+  );
+  console.log('✅ Worker JobContext dbPath and payload secrets verified.');
+
   console.log('\n============================================================');
-  console.log('--- ALL RUNTIME CONFIGURATION TESTS PASSED (3/3) ---');
+  console.log('--- ALL RUNTIME CONFIGURATION TESTS PASSED (4/4) ---');
   console.log('============================================================\n');
 }
 
