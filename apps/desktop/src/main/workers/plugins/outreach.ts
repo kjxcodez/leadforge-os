@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import type { JobContext } from '../../../shared/types/job';
-import { SdkClient } from '@leadforge/sdk';
+import { SdkClient, renderCanonicalVariables, type CanonicalVariableContext } from '@leadforge/sdk';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -13,6 +13,7 @@ interface ContactRecord {
   email: string;
   title: string | null;
   status: string | null;
+  companyId: string | null;
 }
 
 interface EmailAccountRecord {
@@ -33,29 +34,6 @@ interface OutreachCheckpoint {
   failureCount: number;
   skippedCount: number;
   currentIndex: number;
-}
-
-// ── Template rendering ───────────────────────────────────────────────────────
-
-function renderTemplate(template: string, contact: ContactRecord, campaignName: string): string {
-  return template.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_match, variable: string) => {
-    switch (variable) {
-      case 'firstName':
-        return contact.firstName || '';
-      case 'lastName':
-        return contact.lastName || '';
-      case 'fullName':
-        return `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
-      case 'email':
-        return contact.email || '';
-      case 'title':
-        return contact.title || '';
-      case 'campaign':
-        return campaignName || '';
-      default:
-        return '';
-    }
-  });
 }
 
 // ── Main plugin ──────────────────────────────────────────────────────────────
@@ -167,7 +145,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
     const contacts = db
       .prepare(
         `
-      SELECT id, firstName, lastName, email, title, status
+      SELECT id, firstName, lastName, email, title, status, companyId
       FROM contacts
       WHERE workspaceId = ?
         AND deletedAt IS NULL
@@ -249,8 +227,48 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
         `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || contact.email;
       ctx.emitLog(`Preparing email for "${fullName}" <${contact.email}>`, 'info');
 
-      const renderedSubject = renderTemplate(subject, contact, campaign.name);
-      const renderedBody = renderTemplate(body, contact, campaign.name);
+      let companyRow: any = null;
+      if (contact.companyId) {
+        companyRow = db
+          .prepare(
+            `SELECT id, name, domain, industry, location, website FROM companies WHERE id = ? AND workspaceId = ?`
+          )
+          .get(contact.companyId, ctx.workspaceId);
+      }
+
+      const renderCtx: CanonicalVariableContext = {
+        contact: {
+          id: contact.id,
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+          email: contact.email,
+          title: contact.title,
+          status: contact.status
+        },
+        company: companyRow
+          ? {
+              id: companyRow.id,
+              name: companyRow.name,
+              domain: companyRow.domain || companyRow.website,
+              industry: companyRow.industry,
+              location: companyRow.location,
+              website: companyRow.website
+            }
+          : null,
+        sender: {
+          name: account.name,
+          email: account.email
+        },
+        sequence: {
+          name: campaign.name
+        },
+        workspace: {
+          id: ctx.workspaceId
+        }
+      };
+
+      const renderedSubject = renderCanonicalVariables(subject, renderCtx);
+      const renderedBody = renderCanonicalVariables(body, renderCtx);
       const isHtml = renderedBody.trim().startsWith('<') && /<[a-z][\s\S]*>/i.test(renderedBody);
 
       const executionId = randomUUID();
