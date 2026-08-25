@@ -1,6 +1,7 @@
 import { EmailAccountModel } from '../../db/models/email-account.model.js';
 import { UserTestRecipientModel } from '../../db/models/user-test-recipient.model.js';
 import { logger } from '../../config/index.js';
+import { plainTextToHtml } from '@leadforge/sdk';
 import {
   EmailDomainError,
   type SendEmailInput,
@@ -75,11 +76,14 @@ export class EmailService {
       }
     }
 
-    // Signature resolution if useSignature is true/default and HTML body is provided
+    // Signature resolution and fallback safe HTML conversion
     let finalHtml = input.html;
-    if (input.useSignature !== false && input.html && account.signature) {
-      if (!input.html.includes('class="gmail_signature"')) {
-        finalHtml = `${input.html}<br/><hr style="border: 0; border-top: 1px solid #e4e4e7; margin: 16px 0;" /><div class="gmail_signature">${account.signature}</div>`;
+    if (!finalHtml && input.text) {
+      finalHtml = plainTextToHtml(input.text);
+    }
+    if (input.useSignature !== false && finalHtml && account.signature) {
+      if (!finalHtml.includes('class="gmail_signature"')) {
+        finalHtml = `${finalHtml}<br/><hr style="border: 0; border-top: 1px solid #e4e4e7; margin: 16px 0;" /><div class="gmail_signature">${account.signature}</div>`;
       }
     }
 
