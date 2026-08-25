@@ -125,7 +125,7 @@ export class JobScheduler {
             .prepare(
               `
             UPDATE jobs
-            SET status = 'retrying', retryCount = retryCount + 1, lastError = 'Worker execution interrupted due to application restart.', updatedAt = CURRENT_TIMESTAMP
+            SET status = 'retrying', retryCount = retryCount + 1, error = 'Worker execution interrupted due to application restart.', updatedAt = CURRENT_TIMESTAMP
             WHERE id = ?
           `
             )
@@ -147,7 +147,7 @@ export class JobScheduler {
             .prepare(
               `
             UPDATE jobs
-            SET status = 'failed', lastError = 'Worker execution interrupted due to application restart. Max retries exceeded.', updatedAt = CURRENT_TIMESTAMP
+            SET status = 'failed', error = 'Worker execution interrupted due to application restart. Max retries exceeded.', updatedAt = CURRENT_TIMESTAMP
             WHERE id = ?
           `
             )
@@ -158,7 +158,7 @@ export class JobScheduler {
               .prepare(
                 `
               UPDATE sequence_executions
-              SET status = 'paused', lastError = 'Max retries exceeded due to restart interruption.', updatedAt = CURRENT_TIMESTAMP
+              SET status = 'paused', logs = 'Max retries exceeded due to restart interruption.', updatedAt = CURRENT_TIMESTAMP
               WHERE id = ? AND status IN ('running', 'starting')
             `
               )

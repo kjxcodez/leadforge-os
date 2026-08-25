@@ -245,7 +245,7 @@ export async function runCampaignTests() {
       db.prepare(
         `
         UPDATE jobs
-        SET status = 'retrying', retryCount = retryCount + 1, lastError = 'Worker execution interrupted due to application restart.', updatedAt = CURRENT_TIMESTAMP
+        SET status = 'retrying', retryCount = retryCount + 1, error = 'Worker execution interrupted due to application restart.', updatedAt = CURRENT_TIMESTAMP
         WHERE id = ?
       `
       ).run(job.id);
@@ -253,7 +253,7 @@ export async function runCampaignTests() {
       db.prepare(
         `
         UPDATE jobs
-        SET status = 'failed', lastError = 'Worker execution interrupted due to application restart. Max retries exceeded.', updatedAt = CURRENT_TIMESTAMP
+        SET status = 'failed', error = 'Worker execution interrupted due to application restart. Max retries exceeded.', updatedAt = CURRENT_TIMESTAMP
         WHERE id = ?
       `
       ).run(job.id);
@@ -261,18 +261,18 @@ export async function runCampaignTests() {
   }
 
   const job1After = db
-    .prepare('SELECT status, retryCount, lastError FROM jobs WHERE id = ?')
+    .prepare('SELECT status, retryCount, error FROM jobs WHERE id = ?')
     .get(staleJobId1) as any;
   assert.strictEqual(job1After.status, 'retrying');
   assert.strictEqual(job1After.retryCount, 2);
-  assert.ok(job1After.lastError.includes('application restart'));
+  assert.ok(job1After.error.includes('application restart'));
 
   const job2After = db
-    .prepare('SELECT status, retryCount, lastError FROM jobs WHERE id = ?')
+    .prepare('SELECT status, retryCount, error FROM jobs WHERE id = ?')
     .get(staleJobId2) as any;
   assert.strictEqual(job2After.status, 'failed');
   assert.strictEqual(job2After.retryCount, 3);
-  assert.ok(job2After.lastError.includes('Max retries exceeded'));
+  assert.ok(job2After.error.includes('Max retries exceeded'));
   console.log('✅ Scheduler stale job reconciliation verified.');
 
   // 9. Test Outreach Sequence Construction and Action Mapping Verification (Phase 10B)
