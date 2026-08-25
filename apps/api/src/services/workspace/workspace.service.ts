@@ -54,6 +54,15 @@ export class WorkspaceService {
     dto: CreateWorkspaceDto & { ownerId: string; ownerEmail: string }
   ): Promise<WorkspaceDocument> {
     const validated = createWorkspaceDtoSchema.parse(dto);
+
+    // Idempotency guard: if owner already has an active workspace with the same name, return it
+    const existingUserWorkspaces = await this.workspaceRepository.findUserWorkspaces(dto.ownerId);
+    const existingMatch = existingUserWorkspaces.find(
+      (w) => w.name.trim().toLowerCase() === validated.name.trim().toLowerCase()
+    );
+    if (existingMatch) {
+      return existingMatch;
+    }
     
     // Auto-resolve unique slug to prevent 409 database collisions on common names
     let slug = slugify(validated.name);
