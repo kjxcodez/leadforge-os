@@ -3,6 +3,7 @@ import { join } from 'path';
 import { randomUUID } from 'crypto';
 import type { JobContext } from '../../../shared/types/job';
 import { SdkClient, renderCanonicalVariables, formatEmailBody, type CanonicalVariableContext } from '@leadforge/sdk';
+import { resolveWorkerApiUrl } from '../worker-host';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,7 +64,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
 
   try {
     // Initialize SDK client for API communication
-    const apiUrl = ctx.payload._config?.apiUrl || process.env.API_URL || 'https://api.leadforge.kapiljangid.pro/api/v1';
+    const apiUrl = resolveWorkerApiUrl(ctx);
     const authToken = ctx.payload._secrets?.sessionToken || process.env.SESSION_TOKEN || '';
     const sdk = new SdkClient({
       baseUrl: apiUrl,

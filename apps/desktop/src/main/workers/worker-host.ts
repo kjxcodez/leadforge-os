@@ -11,6 +11,21 @@ import { enrichLinkedIn } from './plugins/linkedin';
 import { pollImapReplies } from './plugins/imap-poller';
 import { executeIntelligenceEnrichment } from './plugins/intelligence-worker';
 
+/**
+ * Resolves the authoritative API server URL from the JobContext or environment.
+ * Throws a loud, descriptive error if the URL is missing or unresolvable.
+ */
+export function resolveWorkerApiUrl(ctx: JobContext): string {
+  const rawUrl = ctx.payload?._config?.apiUrl || process.env.API_URL;
+  if (!rawUrl || typeof rawUrl !== 'string' || !rawUrl.trim()) {
+    throw new Error(
+      'LeadForge could not determine the API server URL for this environment. Please ensure the job was dispatched by the LeadForge Scheduler.'
+    );
+  }
+  let trimmed = rawUrl.trim().replace(/\/+$/, '');
+  return trimmed.endsWith('/api/v1') ? trimmed : `${trimmed}/api/v1`;
+}
+
 // ---------------------------------------------------------------------------
 // Mock Test Plugin
 // ---------------------------------------------------------------------------

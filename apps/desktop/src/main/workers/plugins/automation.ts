@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { AIRuntime, PromptsLibrary } from '@leadforge/ai';
 import type { JobContext } from '../../../shared/types/job';
 import { SdkClient, renderCanonicalVariables, formatEmailBody } from '@leadforge/sdk';
+import { resolveWorkerApiUrl } from '../worker-host';
 
 function decryptSecretFallback(val: string): string {
   if (!val) return '';
@@ -1855,7 +1856,7 @@ async function handleSendEmailStep(
   const renderedBody = resolveVariables(rawBody, renderCtx);
   const formattedBody = formatEmailBody(renderedBody);
 
-  const apiUrl = ctx.payload._config?.apiUrl || process.env.API_URL || 'https://api.leadforge.kapiljangid.pro/api/v1';
+  const apiUrl = resolveWorkerApiUrl(ctx);
   const authToken = ctx.payload._secrets?.sessionToken || process.env.SESSION_TOKEN || '';
   const sdk = new SdkClient({
     baseUrl: apiUrl,
