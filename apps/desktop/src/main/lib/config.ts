@@ -1,6 +1,50 @@
-import { app } from 'electron';
 import { join } from 'path';
 import fs from 'fs';
+
+export const DEFAULT_PRODUCTION_API_URL = 'https://api.leadforge.kapiljangid.pro/api/v1';
+export const DEFAULT_DEVELOPMENT_API_URL = 'http://localhost:3001/api/v1';
+
+/**
+ * Normalizes an API base URL ensuring proper protocol and /api/v1 suffix.
+ */
+export function normalizeApiUrl(rawUrl: string): string {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
+  let trimmed = rawUrl.trim().replace(/\/+$/, '');
+  if (!trimmed) return '';
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+    trimmed = `https://${trimmed}`;
+  }
+  return trimmed.endsWith('/api/v1') ? trimmed : `${trimmed}/api/v1`;
+}
+
+function getAppVersion(): string {
+  try {
+    // Dynamically require electron to allow safe execution in Node.js test environments
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const electron = require('electron');
+    const electronApp = electron.app || electron.default?.app;
+    if (electronApp && typeof electronApp.getVersion === 'function') {
+      return electronApp.getVersion();
+    }
+  } catch {
+    // not in Electron runtime
+  }
+  return '1.1.1-beta.1';
+}
+
+export function isDevEnvironment(): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const electron = require('electron');
+    const electronApp = electron.app || electron.default?.app;
+    if (electronApp && typeof electronApp.isPackaged === 'boolean') {
+      return !electronApp.isPackaged;
+    }
+  } catch {
+    // not in Electron runtime
+  }
+  return process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
+}
 
 export interface AppConfig {
   // Build-time
@@ -27,14 +71,24 @@ export interface AppConfig {
 
 let cachedConfig: AppConfig | null = null;
 
-export function getLocalConfigPath() {
-  return join(app.getPath('userData'), 'config.json');
+export function getLocalConfigPath(): string {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const electron = require('electron');
+    const electronApp = electron.app || electron.default?.app;
+    if (electronApp && typeof electronApp.getPath === 'function') {
+      return join(electronApp.getPath('userData'), 'config.json');
+    }
+  } catch {
+    // not in Electron runtime
+  }
+  return join(process.cwd(), 'config.json');
 }
 
 export function loadConfig(): AppConfig {
   if (cachedConfig) return cachedConfig;
 
-  const pkgVersion = app.getVersion();
+  const pkgVersion = getAppVersion();
   const buildConfig = {
     appName: 'LeadForge OS',
     version: pkgVersion,
@@ -53,10 +107,16 @@ export function loadConfig(): AppConfig {
     console.error('Failed to read config.json:', err);
   }
 
-  // Precedence: process.env.API_URL > config.json's apiUrl > Production fallback URL
-  let rawApiUrl = process.env.API_URL || localData.apiUrl || 'https://api.leadforge.kapiljangid.pro/api/v1';
-  rawApiUrl = rawApiUrl.replace(/\/+$/, '');
-  const apiUrl = rawApiUrl.endsWith('/api/v1') ? rawApiUrl : `${rawApiUrl}/api/v1`;
+  const isDevMode = isDevEnvironment();
+  const defaultFallback = isDevMode ? DEFAULT_DEVELOPMENT_API_URL : DEFAULT_PRODUCTION_API_URL;
+
+  // Precedence: process.env.API_URL > config.json's apiUrl > Environment Default
+  const rawApiUrl = process.env.API_URL || localData.apiUrl || defaultFallback;
+  const apiUrl = normalizeApiUrl(rawApiUrl);
+
+  if (!apiUrl) {
+    throw new Error('LeadForge could not determine the API server URL for this environment.');
+  }
 
   cachedConfig = {
     ...buildConfig,
