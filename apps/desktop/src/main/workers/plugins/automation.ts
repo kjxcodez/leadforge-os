@@ -1841,7 +1841,7 @@ async function handleSendEmailStep(
   const renderedSubject = resolveVariables(rawSubject, renderCtx);
   const renderedBody = resolveVariables(rawBody, renderCtx);
 
-  const apiUrl = process.env.API_URL || 'http://localhost:3001/api/v1';
+  const apiUrl = process.env.API_URL || 'https://api.leadforge.kapiljangid.pro/api/v1';
   const authToken = ctx.payload._secrets?.sessionToken || process.env.SESSION_TOKEN || '';
   const sdk = new SdkClient({
     baseUrl: apiUrl,

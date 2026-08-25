@@ -63,7 +63,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
 
   try {
     // Initialize SDK client for API communication
-    const apiUrl = process.env.API_URL || 'http://localhost:3001/api/v1';
+    const apiUrl = process.env.API_URL || 'https://api.leadforge.kapiljangid.pro/api/v1';
     const authToken = ctx.payload._secrets?.sessionToken || process.env.SESSION_TOKEN || '';
     const sdk = new SdkClient({
       baseUrl: apiUrl,
