@@ -478,18 +478,20 @@ export class SyncEngine {
     if (entityType === 'discovery_runs') return this.sdk.discovery;
     if (entityType === 'audiences') return this.sdk.audiences;
     if (entityType === 'company_discovery_runs') return this.sdk.companyDiscoveryRuns;
+    // Local-only operational ledgers and intelligence caches (durable in local SQLite)
     if (
       entityType === 'intelligence_sources' ||
       entityType === 'intelligence_evidence' ||
       entityType === 'intelligence_claims' ||
       entityType === 'intelligence_inferences' ||
       entityType === 'opportunity_scores' ||
-      entityType === 'page_crawls'
+      entityType === 'page_crawls' ||
+      entityType === 'email_deliveries'
     ) {
       return {
-        create: (payload: any) => ((this.sdk as any).intelligence?.save?.(entityType, payload) ?? Promise.resolve()),
-        update: (id: string, payload: any) => ((this.sdk as any).intelligence?.save?.(entityType, payload) ?? Promise.resolve()),
-        delete: (id: string) => Promise.resolve()
+        create: (_payload: any) => Promise.resolve(),
+        update: (_id: string, _payload: any) => Promise.resolve(),
+        delete: (_id: string) => Promise.resolve()
       };
     }
     return null;
