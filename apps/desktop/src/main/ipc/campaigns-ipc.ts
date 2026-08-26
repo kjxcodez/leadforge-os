@@ -33,6 +33,7 @@ export function registerCampaignsIpc(): void {
 
     if (!campaign) throw new Error(`Campaign "${campaignId}" not found or deleted.`);
 
+    const isActive = campaign.status?.toUpperCase() === 'ACTIVE';
     const now = new Date().toISOString();
     const enrolledIds: string[] = [];
 
@@ -67,7 +68,7 @@ export function registerCampaignsIpc(): void {
           campaignId,
           runtime.workspaceId,
           contactId,
-          campaign.status === 'Active' ? 'running' : 'paused',
+          isActive ? 'RUNNING' : 'PAUSED',
           now,
           now,
           now
@@ -90,13 +91,13 @@ export function registerCampaignsIpc(): void {
             workspaceId: runtime.workspaceId,
             contactId,
             currentStep: 0,
-            status: campaign.status === 'Active' ? 'RUNNING' : 'PAUSED',
+            status: isActive ? 'RUNNING' : 'PAUSED',
             startedAt: now
           })
         );
 
         // If the campaign is already active, spawn the workflow job in the queue immediately
-        if (campaign.status === 'Active') {
+        if (isActive) {
           const jobId = randomUUID();
           db.prepare(
             `
@@ -184,8 +185,8 @@ export function registerCampaignsIpc(): void {
           db.prepare(
             `
           UPDATE sequence_executions
-          SET status = 'paused', updatedAt = ?
-          WHERE id = ? AND campaignId = ? AND status IN ('running', 'queued', 'starting', 'waiting')
+          SET status = 'PAUSED', updatedAt = ?
+          WHERE id = ? AND campaignId = ? AND UPPER(status) IN ('RUNNING', 'QUEUED', 'STARTING', 'WAITING')
         `
           ).run(now, id, campaignId);
 
@@ -227,7 +228,7 @@ export function registerCampaignsIpc(): void {
             .prepare(
               `
           SELECT sequenceId, contactId, nextExecutionAt FROM sequence_executions
-          WHERE id = ? AND campaignId = ? AND status = 'paused'
+          WHERE id = ? AND campaignId = ? AND UPPER(status) = 'PAUSED'
         `
             )
             .get(id, campaignId) as
@@ -236,7 +237,7 @@ export function registerCampaignsIpc(): void {
           if (!enroll) continue;
 
           const isWaiting = enroll.nextExecutionAt && new Date(enroll.nextExecutionAt) > new Date();
-          const newStatus = isWaiting ? 'waiting' : 'running';
+          const newStatus = isWaiting ? 'WAITING' : 'RUNNING';
 
           db.prepare(
             `
@@ -272,7 +273,7 @@ export function registerCampaignsIpc(): void {
     }
   );
 
-  // 5. Bulk Remove Enrollments
+  // 5. Bulk Remove Enrollments (Hard delete or soft delete execution)
   safeRegister(
     'campaigns:bulk-remove-enrollments',
     async (_event, { campaignId, enrollmentIds }) => {
@@ -284,18 +285,20 @@ export function registerCampaignsIpc(): void {
       const runtime = WorkspaceManager.getActiveRuntime();
       if (!runtime) throw new Error('No active workspace runtime');
       const db = getDatabase(runtime.workspaceId);
+      const now = new Date().toISOString();
 
       db.transaction(() => {
         for (const id of enrollmentIds) {
+          // Soft delete execution record
           db.prepare(
             `
           UPDATE sequence_executions
-          SET deletedAt = datetime('now'), updatedAt = datetime('now')
+          SET deletedAt = ?, updatedAt = ?
           WHERE id = ? AND campaignId = ?
         `
-          ).run(id, campaignId);
+          ).run(now, now, id, campaignId);
 
-          // Cancel pending job
+          // Cancel any active background scheduler jobs for this execution
           db.prepare(
             `
           UPDATE jobs
@@ -306,79 +309,67 @@ export function registerCampaignsIpc(): void {
             AND status IN ('queued', 'starting', 'running', 'retrying')
         `
           ).run(runtime.workspaceId, id);
+
+          // Queue DELETE mutation for sync
+          db.prepare(
+            `
+          INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
+          VALUES (?, ?, 'sequence_executions', ?, 'DELETE', '{}', 1, 0, NULL, datetime('now'), datetime('now'))
+        `
+          ).run(randomUUID(), runtime.workspaceId, id);
         }
       })();
 
-      return { success: true };
+      return { success: true, count: enrollmentIds.length };
     }
   );
 
-  // 6. Queue and Jobs detailed monitor list
-  safeRegister('scheduler:queue:list', async (_event, { workspaceId }) => {
+  // 6. Get real-time campaign runtime health & scheduled jobs overview
+  safeRegister('campaigns:runtime:overview', async (_event, { workspaceId, campaignId }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     const db = getDatabase(workspaceId);
 
-    // Fetch all jobs for email queue display
-    const jobs = db
-      .prepare(
-        `
-      SELECT 
-        j.id,
-        j.id as jobId,
-        j.type,
-        j.status,
-        j.retryCount,
-        j.createdAt,
-        j.updatedAt,
-        j.payload,
-        c.firstName,
-        c.lastName,
-        c.email,
-        comp.name as companyName,
-        camp.name as campaignName
-      FROM jobs j
-      LEFT JOIN sequence_executions se ON json_extract(j.payload, '$.executionId') = se.id
-      LEFT JOIN contacts c ON se.contactId = c.id
-      LEFT JOIN companies comp ON c.companyId = comp.id
-      LEFT JOIN campaigns camp ON se.campaignId = camp.id
-      WHERE j.workspaceId = ? AND j.type = 'automation:workflow'
-      ORDER BY j.createdAt DESC
-    `
-      )
-      .all(workspaceId) as any[];
+    let query = `
+      SELECT id, type, status, priority, payload, progress, retryCount, maxRetries, lastError, createdAt, updatedAt
+      FROM jobs
+      WHERE workspaceId = ? AND type = 'automation:workflow' AND status IN ('queued', 'starting', 'running', 'retrying')
+      ORDER BY createdAt DESC
+    `;
+    const params: any[] = [workspaceId];
 
-    // Map payload into parsed objects
-    const parsedJobs = jobs.map((j) => {
-      try {
-        j.payload = j.payload ? JSON.parse(j.payload) : {};
-      } catch {
-        j.payload = {};
-      }
-      return j;
-    });
+    const activeJobs = db.prepare(query).all(...params) as any[];
 
-    // Fetch waiting/delayed executions
-    const waitingExecutions = db
-      .prepare(
-        `
-      SELECT 
-        se.*,
-        c.firstName,
-        c.lastName,
-        c.email,
-        comp.name as companyName,
-        s.name as sequenceName,
-        camp.name as campaignName
-      FROM sequence_executions se
-      LEFT JOIN contacts c ON se.contactId = c.id
-      LEFT JOIN companies comp ON c.companyId = comp.id
-      LEFT JOIN sequences s ON se.sequenceId = s.id
-      LEFT JOIN campaigns camp ON se.campaignId = camp.id
-      WHERE se.workspaceId = ? AND se.status = 'waiting' AND se.deletedAt IS NULL
-      ORDER BY se.nextExecutionAt ASC
-    `
-      )
-      .all(workspaceId) as any[];
+    // Parse and filter if campaignId is specified
+    const parsedJobs = activeJobs
+      .map((job) => {
+        try {
+          const payload = JSON.parse(job.payload || '{}');
+          return { ...job, payload };
+        } catch {
+          return { ...job, payload: {} };
+        }
+      })
+      .filter((job) => {
+        if (!campaignId) return true;
+        // Correlate with execution campaignId
+        const execRow = db
+          .prepare('SELECT campaignId FROM sequence_executions WHERE id = ?')
+          .get(job.payload?.executionId) as any;
+        return execRow?.campaignId === campaignId;
+      });
+
+    // Check waiting executions
+    let waitQuery = `
+      SELECT id, campaignId, sequenceId, contactId, currentStep, currentStepName, status, nextExecutionAt, startedAt
+      FROM sequence_executions
+      WHERE workspaceId = ? AND UPPER(status) = 'WAITING' AND deletedAt IS NULL
+    `;
+    const waitParams: any[] = [workspaceId];
+    if (campaignId) {
+      waitQuery += ' AND campaignId = ?';
+      waitParams.push(campaignId);
+    }
+    const waitingExecutions = db.prepare(waitQuery).all(...waitParams) as any[];
 
     return {
       jobs: parsedJobs,
@@ -403,21 +394,22 @@ export function registerCampaignsIpc(): void {
 
     if (!campaign) throw new Error(`Campaign "${campaignId}" not found or deleted.`);
 
-    // 1. Set campaign status to Active
-    db.prepare(`UPDATE campaigns SET status = 'Active', updatedAt = ? WHERE id = ? AND workspaceId = ?`)
+    // 1. Set campaign status to ACTIVE
+    db.prepare(`UPDATE campaigns SET status = 'ACTIVE', updatedAt = ? WHERE id = ? AND workspaceId = ?`)
       .run(now, campaignId, runtime.workspaceId);
 
-    // 2. Fetch sequence_executions for this campaign
+    // 2. Fetch sequence_executions for this campaign that are not completed
     const enrollments = db
-      .prepare(`SELECT id, contactId, nextExecutionAt FROM sequence_executions WHERE campaignId = ? AND deletedAt IS NULL`)
-      .all(campaignId) as Array<{ id: string; contactId: string; nextExecutionAt: string | null }>;
+      .prepare(`SELECT id, contactId, nextExecutionAt, status FROM sequence_executions WHERE campaignId = ? AND UPPER(status) != 'COMPLETED' AND deletedAt IS NULL`)
+      .all(campaignId) as Array<{ id: string; contactId: string; nextExecutionAt: string | null; status: string }>;
 
     let enqueuedJobsCount = 0;
 
     db.transaction(() => {
       for (const enroll of enrollments) {
+        if (enroll.status?.toUpperCase() === 'COMPLETED') continue;
         const isWaiting = enroll.nextExecutionAt && new Date(enroll.nextExecutionAt) > new Date();
-        const newStatus = isWaiting ? 'waiting' : 'running';
+        const newStatus = isWaiting ? 'WAITING' : 'RUNNING';
 
         db.prepare(`UPDATE sequence_executions SET status = ?, updatedAt = ? WHERE id = ?`).run(newStatus, now, enroll.id);
 

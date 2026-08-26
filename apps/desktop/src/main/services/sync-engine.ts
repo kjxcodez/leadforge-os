@@ -138,18 +138,12 @@ export class SyncEngine {
       try {
         const campaigns = await this.sdk.campaigns.list();
         if (campaigns && campaigns.length) {
-          const records = campaigns.map((c: any) => {
-            let status = c.status;
-            if (status) {
-              status = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
-            }
-            return {
-              ...c,
-              status,
-              workspaceId: this.workspaceId,
-              syncStatus: 'synced'
-            };
-          });
+          const records = campaigns.map((c: any) => ({
+            ...c,
+            status: c.status ? c.status.toUpperCase() : 'DRAFT',
+            workspaceId: this.workspaceId,
+            syncStatus: 'synced'
+          }));
           await LocalCRMRepository.saveMany('campaigns', records, true); // skipQueue = true
         }
       } catch (e) {
@@ -177,6 +171,7 @@ export class SyncEngine {
         if (executions && executions.length) {
           const records = executions.map((ex: any) => ({
             ...ex,
+            status: ex.status ? ex.status.toUpperCase() : 'PENDING',
             workspaceId: this.workspaceId,
             syncStatus: 'synced'
           }));
@@ -210,6 +205,8 @@ export class SyncEngine {
             workspaceId: this.workspaceId,
             variables:
               typeof t.variables === 'string' ? t.variables : JSON.stringify(t.variables || []),
+            attachments:
+              typeof t.attachments === 'string' ? t.attachments : JSON.stringify(t.attachments || []),
             syncStatus: 'synced'
           }));
           await LocalCRMRepository.saveMany('templates', records, true);
@@ -375,8 +372,11 @@ export class SyncEngine {
       try {
         const payload = JSON.parse(item.payload || '{}');
 
-        // Map local campaign status casing to server uppercase requirements
-        if (item.entityType === 'campaigns' && payload.status) {
+        // Map local campaign and execution status casing to server uppercase requirements
+        if (
+          (item.entityType === 'campaigns' || item.entityType === 'sequence_executions') &&
+          payload.status
+        ) {
           payload.status = payload.status.toUpperCase();
         }
 
@@ -471,7 +471,7 @@ export class SyncEngine {
     if (entityType === 'templates') {
       return {
         create: (payload: any) => this.sdk.outreach.createTemplate(payload),
-        update: (id: string, payload: any) => Promise.resolve(),
+        update: (id: string, payload: any) => this.sdk.outreach.updateTemplate(id, payload),
         delete: (id: string) => this.sdk.outreach.deleteTemplate(id)
       };
     }
