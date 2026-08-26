@@ -29,6 +29,7 @@ import {
 import { PageHeader } from '../components/common/PageHeader';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { COUNTRIES, getStatesForCountry, getCitiesForState } from '../lib/locations';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -206,10 +207,26 @@ export default function DiscoveryScreen() {
     }
   });
 
+  const availableStates = React.useMemo(() => {
+    return getStatesForCountry(country);
+  }, [country]);
+
+  const availableCities = React.useMemo(() => {
+    return getCitiesForState(country, stateName);
+  }, [country, stateName]);
+
   const handleCreateJob = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (!jobQuery.trim()) {
       toast.error('Please enter a target business keyword or category (e.g. HVAC contractors).');
+      return;
+    }
+    if (!country.trim()) {
+      toast.error('Please select a target Country.');
+      return;
+    }
+    if (!stateName.trim()) {
+      toast.error('Please select or enter a target State / Region.');
       return;
     }
     createRunMutation.mutate({
@@ -894,42 +911,77 @@ export default function DiscoveryScreen() {
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div className="space-y-1">
-                <Label htmlFor="city" className="text-xs font-semibold">
-                  City
+                <Label htmlFor="country" className="text-xs font-semibold">
+                  Country <span className="text-danger">*</span>
                 </Label>
-                <Input
-                  id="city"
-                  placeholder="Miami"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="rounded-none bg-card border-border-subtle text-xs"
-                />
+                <select
+                  id="country"
+                  value={country}
+                  onChange={(e) => {
+                    setCountry(e.target.value);
+                    setStateName('');
+                    setCity('');
+                  }}
+                  required
+                  className="h-9 w-full rounded-none bg-card border border-border-subtle px-2 text-xs text-foreground focus:outline-none"
+                >
+                  <option value="">Select Country...</option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
               </div>
+
               <div className="space-y-1">
                 <Label htmlFor="stateName" className="text-xs font-semibold">
-                  State / Region
+                  State / Region <span className="text-danger">*</span>
                 </Label>
                 <Input
                   id="stateName"
-                  placeholder="Florida"
+                  list="states-datalist"
+                  placeholder={country ? "e.g. Florida" : "Select Country first"}
                   value={stateName}
-                  onChange={(e) => setStateName(e.target.value)}
-                  className="rounded-none bg-card border-border-subtle text-xs"
+                  disabled={!country}
+                  onChange={(e) => {
+                    setStateName(e.target.value);
+                    setCity('');
+                  }}
+                  required
+                  className="rounded-none bg-card border-border-subtle text-xs disabled:opacity-50"
                 />
+                <datalist id="states-datalist">
+                  {availableStates.map((s) => (
+                    <option key={s.code} value={s.name}>
+                      {s.name} ({s.code})
+                    </option>
+                  ))}
+                </datalist>
               </div>
+
               <div className="space-y-1">
-                <Label htmlFor="country" className="text-xs font-semibold">
-                  Country
+                <Label htmlFor="city" className="text-xs font-semibold">
+                  City <span className="text-muted-foreground font-normal">(Optional)</span>
                 </Label>
                 <Input
-                  id="country"
-                  placeholder="United States"
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  className="rounded-none bg-card border-border-subtle text-xs"
+                  id="city"
+                  list="cities-datalist"
+                  placeholder={stateName ? "e.g. Miami" : "Select State first"}
+                  value={city}
+                  disabled={!stateName}
+                  onChange={(e) => setCity(e.target.value)}
+                  className="rounded-none bg-card border-border-subtle text-xs disabled:opacity-50"
                 />
+                <datalist id="cities-datalist">
+                  {availableCities.map((cityName) => (
+                    <option key={cityName} value={cityName}>
+                      {cityName}
+                    </option>
+                  ))}
+                </datalist>
               </div>
             </div>
 

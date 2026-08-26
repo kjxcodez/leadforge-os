@@ -58,3 +58,6 @@ export const createEmailTemplateDtoSchema = z.object({
   attachments: z.array(attachmentItemSchema).optional()
 });
 export type CreateEmailTemplateDto = z.infer<typeof createEmailTemplateDtoSchema>;
+
+export const updateEmailTemplateDtoSchema = createEmailTemplateDtoSchema.partial();
+export type UpdateEmailTemplateDto = z.infer<typeof updateEmailTemplateDtoSchema>;

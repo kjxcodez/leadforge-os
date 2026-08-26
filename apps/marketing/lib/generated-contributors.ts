@@ -13,13 +13,13 @@ export const GENERATED_CONTRIBUTORS: Contributor[] = [
     "id": 103230903,
     "avatar_url": "https://avatars.githubusercontent.com/u/103230903?v=4",
     "html_url": "https://github.com/kjxcodez",
-    "contributions": 428
+    "contributions": 432
   },
   {
     "login": "github-actions[bot]",
     "id": 41898282,
     "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
     "html_url": "https://github.com/apps/github-actions",
-    "contributions": 3
+    "contributions": 5
   }
 ];

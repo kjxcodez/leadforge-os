@@ -10,6 +10,7 @@ import {
   reconnectGmailAccount,
   sendTestEmail
 } from '../services/email-account-service';
+import { getDatabase } from '../database/connection';
 
 /**
  * Registers outreach email accounts, templates, and campaigns scheduling IPC channels.
@@ -192,6 +193,34 @@ export function registerOutreachIpc(sdk: SdkClient) {
     };
   });
 
+  safeRegister('templates:update', async (_event, { id, dto }) => {
+    const runtime = WorkspaceManager.getActiveRuntime();
+    if (!runtime) throw new Error('No active workspace runtime');
+    if (!id) throw new Error('Template ID is required.');
+    const record: any = {
+      ...dto,
+      id,
+      workspaceId: runtime.workspaceId,
+      syncStatus: 'pending'
+    };
+    if (dto.variables !== undefined) {
+      record.variables =
+        typeof dto.variables === 'string' ? dto.variables : JSON.stringify(dto.variables || []);
+    }
+    if (dto.attachments !== undefined) {
+      record.attachments =
+        typeof dto.attachments === 'string'
+          ? dto.attachments
+          : JSON.stringify(dto.attachments || []);
+    }
+    await LocalCRMRepository.save('templates', record);
+    return {
+      ...record,
+      variables: typeof record.variables === 'string' ? JSON.parse(record.variables) : (record.variables || []),
+      attachments: typeof record.attachments === 'string' ? JSON.parse(record.attachments) : (record.attachments || [])
+    };
+  });
+
   safeRegister('templates:delete', async (_event, id) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
@@ -201,5 +230,38 @@ export function registerOutreachIpc(sdk: SdkClient) {
 
   safeRegister('templates:preview', async (_event, { id, contactId }) => {
     return sdk.outreach.previewTemplate(id, contactId);
+  });
+
+  safeRegister('email-deliveries:list', async (_event, payload) => {
+    const targetWsId = payload?.workspaceId || WorkspaceManager.getActiveRuntime()?.workspaceId;
+    if (!targetWsId) throw new Error('workspaceId is required.');
+    const db = getDatabase(targetWsId);
+    let query = `
+      SELECT ed.*, c.firstName, c.lastName, c.email as contactEmail, comp.name as companyName, camp.name as campaignName
+      FROM email_deliveries ed
+      LEFT JOIN contacts c ON ed.contactId = c.id
+      LEFT JOIN companies comp ON c.companyId = comp.id
+      LEFT JOIN campaigns camp ON ed.campaignId = camp.id
+      WHERE ed.workspaceId = ?
+    `;
+    const params: any[] = [targetWsId];
+    if (payload?.campaignId) {
+      query += ` AND ed.campaignId = ?`;
+      params.push(payload.campaignId);
+    }
+    if (payload?.contactId) {
+      query += ` AND ed.contactId = ?`;
+      params.push(payload.contactId);
+    }
+    if (payload?.status) {
+      query += ` AND ed.status = ?`;
+      params.push(payload.status);
+    }
+    query += ` ORDER BY ed.createdAt DESC LIMIT 100`;
+    try {
+      return db.prepare(query).all(...params);
+    } catch {
+      return [];
+    }
   });
 }

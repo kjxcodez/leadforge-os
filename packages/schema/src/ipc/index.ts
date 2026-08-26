@@ -450,6 +450,10 @@ export interface IpcChannelMap {
     input: any;
     output: any;
   };
+  'templates:update': {
+    input: { id: string; dto: any };
+    output: any;
+  };
   'templates:delete': {
     input: string;
     output: void;
@@ -457,6 +461,10 @@ export interface IpcChannelMap {
   'templates:preview': {
     input: { id: string; contactId?: string };
     output: { subject: string; body: string };
+  };
+  'email-deliveries:list': {
+    input: { workspaceId: string; campaignId?: string; contactId?: string; status?: string };
+    output: any[];
   };
   'campaigns:schedule': {
     input: string;

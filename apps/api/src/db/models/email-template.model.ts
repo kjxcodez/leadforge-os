@@ -6,6 +6,7 @@ export interface EmailTemplateDocument extends mongoose.Document, WorkspaceScope
   subject: string;
   body: string;
   variables: string[];
+  attachments?: any[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -15,7 +16,8 @@ const emailTemplateSchema = new Schema<EmailTemplateDocument>(
     name: { type: String, required: true, trim: true },
     subject: { type: String, required: true },
     body: { type: String, required: true },
-    variables: { type: [String], default: [] }
+    variables: { type: [String], default: [] },
+    attachments: { type: [Schema.Types.Mixed], default: [] }
   },
   {
     timestamps: true,

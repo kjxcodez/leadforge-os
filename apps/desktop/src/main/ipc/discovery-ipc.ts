@@ -6,7 +6,9 @@ export function registerDiscoveryIpc() {
   safeRegister('discovery:run:create', async (_event, payload) => {
     const { workspaceId, name, query, country, state, city, maxResults = 20, provider = 'google_maps' } = payload;
     if (!workspaceId) throw new Error('workspaceId is required.');
-    if (!query) throw new Error('Query is required.');
+    if (!query || !query.trim()) throw new Error('Query is required.');
+    if (!country || !country.trim()) throw new Error('Country is required.');
+    if (!state || !state.trim()) throw new Error('State / Region is required.');
 
     const runName = name && name.trim() ? name.trim() : `${query} in ${city || state || country || 'Global'}`.trim();
     const id = globalThis.crypto?.randomUUID

@@ -164,10 +164,10 @@ export class OutreachService {
   // ── Email Templates Management ──────────────────────────────────────────
 
   public async createTemplate(data: any): Promise<any> {
-    const bodyVars = (data.body.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []).map((v: string) =>
+    const bodyVars = (data.body?.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []).map((v: string) =>
       v.replace(/[\{\}]/g, '')
     );
-    const subjectVars = (data.subject.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []).map((v: string) =>
+    const subjectVars = (data.subject?.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []).map((v: string) =>
       v.replace(/[\{\}]/g, '')
     );
     const variables = Array.from(new Set([...bodyVars, ...subjectVars]));
@@ -178,11 +178,43 @@ export class OutreachService {
       name: data.name,
       subject: data.subject,
       body: data.body,
-      variables
+      variables,
+      attachments: data.attachments || []
     });
 
     await template.save();
     return template;
+  }
+
+  public async updateTemplate(id: string, data: any): Promise<any> {
+    const updatePayload: any = {};
+    if (data.name !== undefined) updatePayload.name = data.name;
+    if (data.subject !== undefined) updatePayload.subject = data.subject;
+    if (data.body !== undefined) updatePayload.body = data.body;
+    if (data.attachments !== undefined) updatePayload.attachments = data.attachments;
+
+    if (data.body || data.subject) {
+      const bodyVars = ((data.body || '').match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []).map((v: string) =>
+        v.replace(/[\{\}]/g, '')
+      );
+      const subjectVars = ((data.subject || '').match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []).map((v: string) =>
+        v.replace(/[\{\}]/g, '')
+      );
+      if (bodyVars.length || subjectVars.length) {
+        updatePayload.variables = Array.from(new Set([...bodyVars, ...subjectVars]));
+      }
+    }
+
+    const updated = await EmailTemplateModel.findOneAndUpdate(
+      {
+        _id: id,
+        workspaceId: this.workspaceId
+      } as any,
+      { $set: updatePayload },
+      { new: true }
+    );
+    if (!updated) throw new Error('Template not found or does not belong to this workspace.');
+    return updated;
   }
 
   public async listTemplates(): Promise<any[]> {

@@ -626,6 +626,15 @@ outreachRouter.delete('/templates/:id', async (c) => {
   return c.json(successResponse({ success: true }));
 });
 
+outreachRouter.patch('/templates/:id', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const service = new OutreachService(wsId);
+  const updated = await service.updateTemplate(id, body);
+  return c.json(successResponse(updated));
+});
+
 outreachRouter.get('/templates/:id/preview', async (c) => {
   const wsId = getWorkspaceId(c);
   const id = c.req.param('id');

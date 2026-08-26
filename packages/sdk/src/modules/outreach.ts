@@ -5,7 +5,8 @@ import type {
   OutreachFilters,
   EmailAccount,
   EmailTemplate,
-  CreateEmailTemplateDto
+  CreateEmailTemplateDto,
+  UpdateEmailTemplateDto
 } from '@leadforge/schema';
 
 export interface SendEmailPayload {
@@ -129,6 +130,10 @@ export class OutreachModule {
 
   public async createTemplate(dto: CreateEmailTemplateDto): Promise<EmailTemplate> {
     return this.client.post<EmailTemplate>('/outreach/templates', dto);
+  }
+
+  public async updateTemplate(id: string, dto: UpdateEmailTemplateDto): Promise<EmailTemplate> {
+    return this.client.patch<EmailTemplate>(`/outreach/templates/${id}`, dto);
   }
 
   public async deleteTemplate(id: string): Promise<void> {

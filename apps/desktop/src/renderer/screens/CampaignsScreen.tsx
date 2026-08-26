@@ -42,6 +42,7 @@ import {
   Activity,
   Settings,
   Paperclip,
+  Pencil,
   X
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -78,6 +79,7 @@ export default function CampaignsScreen() {
   // Modal Dialog states
   const [accountOpen, setAccountOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [campaignOpen, setCampaignOpen] = useState(!!initialAudienceId);
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -122,6 +124,12 @@ export default function CampaignsScreen() {
   const [enrollmentPage, setEnrollmentPage] = useState(1);
   const [enrollmentsPerPage] = useState(10);
 
+  const [activitySubTab, setActivitySubTab] = useState<'leads' | 'deliveries'>('leads');
+  const [deliverySearch, setDeliverySearch] = useState('');
+  const [deliveryStatusFilter, setDeliveryStatusFilter] = useState('all');
+  const [deliveryPage, setDeliveryPage] = useState(1);
+  const [deliveriesPerPage] = useState(10);
+
   const handleEnrollmentSearchChange = useCallback((val: string) => {
     setEnrollmentSearch(val);
     setEnrollmentPage(1);
@@ -132,6 +140,16 @@ export default function CampaignsScreen() {
     setEnrollmentPage(1);
   }, []);
 
+  const handleDeliverySearchChange = useCallback((val: string) => {
+    setDeliverySearch(val);
+    setDeliveryPage(1);
+  }, []);
+
+  const handleDeliveryStatusChange = useCallback((val: string) => {
+    setDeliveryStatusFilter(val);
+    setDeliveryPage(1);
+  }, []);
+
   // ── Query Hooks ─────────────────────────────────────────────────────────
 
   const accountsQuery = useQuery({
@@ -140,6 +158,18 @@ export default function CampaignsScreen() {
       return window.ipc.invoke('email-accounts:list', undefined);
     },
     enabled: !!workspaceId
+  });
+
+  const emailDeliveriesQuery = useQuery({
+    queryKey: ['email_deliveries', workspaceId, selectedCampaignId, deliveryStatusFilter],
+    queryFn: async () => {
+      const payload: any = { workspaceId };
+      if (selectedCampaignId) payload.campaignId = selectedCampaignId;
+      if (deliveryStatusFilter !== 'all') payload.status = deliveryStatusFilter;
+      return window.ipc.invoke('email-deliveries:list', payload);
+    },
+    enabled: !!workspaceId,
+    refetchInterval: 5000
   });
 
   const templatesQuery = useQuery({
@@ -285,11 +315,31 @@ export default function CampaignsScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email_templates', workspaceId] });
       setTemplateOpen(false);
+      setEditingTemplateId(null);
       setTplName('');
       setTplSubj('');
       setTplBody('');
       setTplAttachments([]);
       toast.success('Email template created successfully.');
+    }
+  });
+
+  const updateTemplateMutation = useMutation({
+    mutationFn: async ({ id, dto }: { id: string; dto: any }) => {
+      return window.ipc.invoke('templates:update', { id, dto });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['email_templates', workspaceId] });
+      setTemplateOpen(false);
+      setEditingTemplateId(null);
+      setTplName('');
+      setTplSubj('');
+      setTplBody('');
+      setTplAttachments([]);
+      toast.success('Email template updated successfully.');
+    },
+    onError: (err: any) => {
+      toast.error(`Failed to update template: ${err.message || err}`);
     }
   });
 
@@ -393,14 +443,52 @@ export default function CampaignsScreen() {
     connectGmailOAuthMutation.mutate();
   };
 
-  const handleCreateTemplate = (e: React.FormEvent) => {
+  const handleOpenCreateTemplate = () => {
+    setEditingTemplateId(null);
+    setTplName('');
+    setTplSubj('');
+    setTplBody('');
+    setTplAttachments([]);
+    setTemplateOpen(true);
+  };
+
+  const handleOpenEditTemplate = (tpl: any) => {
+    setEditingTemplateId(tpl.id);
+    setTplName(tpl.name || '');
+    setTplSubj(tpl.subject || '');
+    setTplBody(tpl.body || '');
+    let atts: any[] = [];
+    if (tpl.attachments) {
+      try {
+        atts = typeof tpl.attachments === 'string' ? JSON.parse(tpl.attachments) : tpl.attachments;
+      } catch {
+        atts = [];
+      }
+    }
+    setTplAttachments(Array.isArray(atts) ? atts : []);
+    setTemplateOpen(true);
+  };
+
+  const handleSaveTemplate = (e: React.FormEvent) => {
     e.preventDefault();
-    createTemplateMutation.mutate({
-      name: tplName,
-      subject: tplSubj,
-      body: tplBody,
-      attachments: tplAttachments
-    });
+    if (editingTemplateId) {
+      updateTemplateMutation.mutate({
+        id: editingTemplateId,
+        dto: {
+          name: tplName,
+          subject: tplSubj,
+          body: tplBody,
+          attachments: tplAttachments
+        }
+      });
+    } else {
+      createTemplateMutation.mutate({
+        name: tplName,
+        subject: tplSubj,
+        body: tplBody,
+        attachments: tplAttachments
+      });
+    }
   };
 
   const handleCreateCampaign = async (e: React.FormEvent) => {
@@ -638,6 +726,45 @@ export default function CampaignsScreen() {
     }
   };
 
+  const getDeliveryStatusBadge = (status: string) => {
+    switch (status?.toUpperCase()) {
+      case 'SENT':
+        return (
+          <Badge className="bg-success-muted text-success border border-success/30 font-mono text-[9px] uppercase font-bold rounded-none">
+            <CheckCircle className="w-2.5 h-2.5 mr-1 inline" />
+            Sent
+          </Badge>
+        );
+      case 'SENDING':
+        return (
+          <Badge className="bg-info-muted text-info border border-info/30 font-mono text-[9px] uppercase font-bold rounded-none animate-pulse">
+            <Clock className="w-2.5 h-2.5 mr-1 inline" />
+            Sending
+          </Badge>
+        );
+      case 'FAILED':
+        return (
+          <Badge className="bg-danger-muted text-danger border border-danger/30 font-mono text-[9px] uppercase font-bold rounded-none">
+            <AlertCircle className="w-2.5 h-2.5 mr-1 inline" />
+            Failed
+          </Badge>
+        );
+      case 'SUPPRESSED':
+        return (
+          <Badge className="bg-warning-muted text-warning border border-warning/30 font-mono text-[9px] uppercase font-bold rounded-none">
+            <CheckCircle className="w-2.5 h-2.5 mr-1 inline" />
+            Suppressed
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="outline" className="text-[9px] rounded-none uppercase">
+            {status || 'Pending'}
+          </Badge>
+        );
+    }
+  };
+
   // Pagination calculation: Campaigns list
   const totalCampaigns = campaigns.length;
   const totalCampaignPages = Math.ceil(totalCampaigns / campaignsPerPage);
@@ -651,6 +778,22 @@ export default function CampaignsScreen() {
   const adjustedEnrollmentPage = Math.min(Math.max(1, enrollmentPage), totalEnrollmentPages || 1);
   const enrollmentStartIndex = (adjustedEnrollmentPage - 1) * enrollmentsPerPage;
   const paginatedEnrollments = filteredEnrollments.slice(enrollmentStartIndex, enrollmentStartIndex + enrollmentsPerPage);
+
+  // Pagination calculation: Deliveries list
+  const rawDeliveries = (emailDeliveriesQuery.data || []) as any[];
+  const filteredDeliveries = rawDeliveries.filter((d) => {
+    if (!deliverySearch.trim()) return true;
+    const q = deliverySearch.toLowerCase();
+    const matchRecipient = `${d.firstName || ''} ${d.lastName || ''} ${d.recipientEmail || ''} ${d.companyName || ''}`.toLowerCase();
+    const matchSubject = (d.subject || '').toLowerCase();
+    const matchSender = (d.senderEmail || '').toLowerCase();
+    return matchRecipient.includes(q) || matchSubject.includes(q) || matchSender.includes(q);
+  });
+  const totalDeliveries = filteredDeliveries.length;
+  const totalDeliveryPages = Math.ceil(totalDeliveries / deliveriesPerPage);
+  const adjustedDeliveryPage = Math.min(Math.max(1, deliveryPage), totalDeliveryPages || 1);
+  const deliveryStartIndex = (adjustedDeliveryPage - 1) * deliveriesPerPage;
+  const paginatedDeliveries = filteredDeliveries.slice(deliveryStartIndex, deliveryStartIndex + deliveriesPerPage);
 
   return (
     <div className="space-y-6 text-xs font-sans h-full overflow-y-auto pr-1">
@@ -1069,14 +1212,364 @@ export default function CampaignsScreen() {
                     </div>
                   </div>
 
-                  {/* Main detail workflow section: Left Enrollment Table, Right Timeline Stepper */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    {/* Enrollment Table Column */}
-                    <div className="lg:col-span-2 space-y-3 bg-card border border-border-subtle rounded-none p-4 shadow-sm">
+                  {/* Activity Sub-Tab Switcher */}
+                  <div className="flex items-center justify-between border-b border-border-subtle pb-2">
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={activitySubTab === 'leads' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setActivitySubTab('leads')}
+                        className="h-7 text-[11px] rounded-none gap-1.5"
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        Enrolled Leads & Stepper
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={activitySubTab === 'deliveries' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setActivitySubTab('deliveries')}
+                        className="h-7 text-[11px] rounded-none gap-1.5"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        Outbound Delivery Ledger ({rawDeliveries.length})
+                      </Button>
+                    </div>
+                  </div>
+
+                  {activitySubTab === 'leads' ? (
+                    /* Main detail workflow section: Left Enrollment Table, Right Timeline Stepper */
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                      {/* Enrollment Table Column */}
+                      <div className="lg:col-span-2 space-y-3 bg-card border border-border-subtle rounded-none p-4 shadow-sm">
+                        <div className="flex justify-between items-center gap-2">
+                          <h4 className="font-semibold text-foreground text-[11px] flex items-center gap-1.5">
+                            <Users className="h-4 w-4 text-primary" />
+                            Enrolled Recipient Leads
+                          </h4>
+
+                          {/* Search and filter toolbar */}
+                          <div className="flex gap-2">
+                            <div className="relative">
+                              <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground opacity-60" />
+                              <Input
+                                placeholder="Search leads..."
+                                value={enrollmentSearch}
+                                onChange={(e) => handleEnrollmentSearchChange(e.target.value)}
+                                className="pl-8 h-7 text-[10px] w-40 rounded-none border-border-subtle bg-card"
+                              />
+                            </div>
+                            <select
+                              value={enrollmentStatusFilter}
+                              onChange={(e) => handleEnrollmentStatusChange(e.target.value)}
+                              className="h-7 text-[10px] bg-background border border-border-subtle rounded-none px-1.5 focus-visible:outline-none"
+                            >
+                              <option value="all">All Statuses</option>
+                              <option value="running">Running</option>
+                              <option value="waiting">Waiting</option>
+                              <option value="paused">Paused</option>
+                              <option value="replied">Replied</option>
+                              <option value="completed">Completed</option>
+                              <option value="failed">Failed</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Bulk Actions Banner on selections */}
+                        {selectedEnrollmentIds.length > 0 && (
+                          <div className="flex items-center justify-between bg-surface-3 border border-border-subtle rounded-none p-2.5 text-[10px]">
+                            <span className="font-semibold text-foreground">
+                              {selectedEnrollmentIds.length} lead(s) selected
+                            </span>
+                            <div className="flex gap-1.5">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => bulkResumeMutation.mutate(selectedEnrollmentIds)}
+                                className="h-6 text-[9px] px-2 text-success rounded-none hover:bg-success-muted"
+                              >
+                                Resume
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => bulkPauseMutation.mutate(selectedEnrollmentIds)}
+                                className="h-6 text-[9px] px-2 text-warning rounded-none hover:bg-warning-muted"
+                              >
+                                Pause
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  if (
+                                    confirm(
+                                      `Remove ${selectedEnrollmentIds.length} lead(s) from campaign?`
+                                    )
+                                  ) {
+                                    bulkRemoveMutation.mutate(selectedEnrollmentIds);
+                                  }
+                                }}
+                                className="h-6 text-[9px] px-2 text-danger rounded-none hover:bg-danger-muted"
+                              >
+                                Remove
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Enrolled Leads Table */}
+                        <div className="border border-border-subtle rounded-none overflow-hidden flex flex-col justify-between">
+                          <Table>
+                            <TableHeader className="bg-surface-3/40">
+                              <TableRow>
+                                <TableHead className="w-8 py-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={
+                                      selectedEnrollmentIds.length === paginatedEnrollments.length &&
+                                      paginatedEnrollments.length > 0
+                                    }
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedEnrollmentIds(
+                                          paginatedEnrollments.map((x: any) => x.id)
+                                        );
+                                      } else {
+                                        setSelectedEnrollmentIds([]);
+                                      }
+                                    }}
+                                    className="rounded-none border-border-subtle text-primary focus:ring-ring"
+                                  />
+                                </TableHead>
+                                <TableHead className="py-2">Contact</TableHead>
+                                <TableHead className="py-2">Next Run</TableHead>
+                                <TableHead className="py-2">Status</TableHead>
+                                <TableHead className="py-2 text-center">Sends</TableHead>
+                                <TableHead className="py-2 text-right">Action</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {paginatedEnrollments.map((enroll: any) => {
+                                const isChecked = selectedEnrollmentIds.includes(enroll.id);
+                                const nextRun = enroll.nextExecutionAt
+                                  ? formatDistanceToNow(new Date(enroll.nextExecutionAt))
+                                  : '—';
+                                return (
+                                  <TableRow
+                                    key={enroll.id}
+                                    className={`hover:bg-surface-3/15 cursor-pointer ${
+                                      selectedEnrollment?.id === enroll.id ? 'bg-primary/12' : ''
+                                    }`}
+                                    onClick={() => setSelectedEnrollment(enroll)}
+                                  >
+                                    <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setSelectedEnrollmentIds([
+                                              ...selectedEnrollmentIds,
+                                              enroll.id
+                                            ]);
+                                          } else {
+                                            setSelectedEnrollmentIds(
+                                              selectedEnrollmentIds.filter((x) => x !== enroll.id)
+                                            );
+                                          }
+                                        }}
+                                        className="rounded-none border-border-subtle text-primary focus:ring-ring"
+                                      />
+                                    </TableCell>
+                                    <TableCell className="py-2">
+                                      <div className="font-semibold text-foreground">
+                                        {enroll.firstName} {enroll.lastName || ''}
+                                      </div>
+                                      <span className="block text-[9px] font-mono text-primary truncate max-w-[120px]">
+                                        {enroll.email}
+                                      </span>
+                                    </TableCell>
+                                    <TableCell className="py-2 font-mono text-[10px] text-muted-foreground">
+                                      {nextRun}
+                                    </TableCell>
+                                    <TableCell className="py-2">
+                                      {getEnrollmentStatusBadge(enroll.status)}
+                                    </TableCell>
+                                    <TableCell className="py-2 text-center font-mono font-bold">
+                                      {enroll.emailsSentCount || 0}
+                                    </TableCell>
+                                    <TableCell
+                                      className="py-2 text-right"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          if (confirm('Remove lead from this campaign?')) {
+                                            bulkRemoveMutation.mutate([enroll.id]);
+                                          }
+                                        }}
+                                        className="h-6 w-6 p-0 text-danger hover:bg-danger-muted rounded-none"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+
+                        {/* Enrollment table pagination controls */}
+                        {totalEnrollmentPages > 1 && (
+                          <div className="flex items-center justify-between border-t border-border-subtle pt-4 mt-2 select-none">
+                            <span className="text-[11px] text-muted-foreground">
+                              Showing{' '}
+                              <strong className="text-foreground font-mono">{enrollmentStartIndex + 1}</strong>{' '}
+                              to{' '}
+                              <strong className="text-foreground font-mono">
+                                {Math.min(enrollmentStartIndex + enrollmentsPerPage, totalEnrollments)}
+                              </strong>{' '}
+                              of <strong className="text-foreground font-mono">{totalEnrollments}</strong> leads
+                            </span>
+
+                            <div className="flex items-center gap-1">
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setEnrollmentPage((p) => Math.max(1, p - 1));
+                                }}
+                                disabled={adjustedEnrollmentPage === 1}
+                                className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
+                              >
+                                Previous
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setEnrollmentPage((p) => Math.min(totalEnrollmentPages, p + 1));
+                                }}
+                                disabled={adjustedEnrollmentPage === totalEnrollmentPages}
+                                className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
+                              >
+                                Next
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Stepper Details Column */}
+                      <div className="bg-card border border-border-subtle rounded-none p-4 shadow-sm space-y-4">
+                        <h4 className="font-semibold text-foreground text-[11px] flex items-center gap-1.5 pb-2 border-b border-border-subtle">
+                          <Activity className="h-4 w-4 text-primary" />
+                          Execution Telemetry Stream
+                        </h4>
+
+                        {selectedEnrollment ? (
+                          <div className="space-y-4">
+                            <div>
+                              <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                Selected Recipient
+                              </span>
+                              <div className="font-bold text-foreground text-xs mt-0.5">
+                                {selectedEnrollment.firstName} {selectedEnrollment.lastName || ''}
+                              </div>
+                              <span className="text-[10px] font-mono text-primary block mt-0.5">
+                                {selectedEnrollment.email}
+                              </span>
+                              {selectedEnrollment.companyName && (
+                                <span className="text-[10px] text-muted-foreground block mt-0.5 truncate">
+                                  Firm: {selectedEnrollment.companyName}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="space-y-1">
+                              <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                Sequence Progress
+                              </span>
+                              <div className="text-[11px] font-medium text-foreground flex items-center gap-2">
+                                {getEnrollmentStatusBadge(selectedEnrollment.status)}
+                                <span className="font-mono">
+                                  Step {selectedEnrollment.currentStepIndex || 0} of{' '}
+                                  {sequence?.steps ? (typeof sequence.steps === 'string' ? JSON.parse(sequence.steps).length : sequence.steps.length) : 0}
+                                </span>
+                              </div>
+                              {selectedEnrollment.status === 'replied' && (
+                                <p className="text-[9px] text-success font-semibold flex items-center gap-0.5 mt-1 bg-success-muted border border-success/15 px-2 py-1">
+                                  <CheckCircle className="h-3 w-3" />
+                                  Sequence stopped because recipient replied!
+                                </p>
+                              )}
+                              {selectedEnrollment.status === 'failed' && (
+                                <p className="text-[9px] text-danger font-semibold flex items-center gap-0.5 mt-1 bg-danger-muted border border-danger/15 px-2 py-1">
+                                  <AlertCircle className="h-3 w-3" />
+                                  Send failed: check SMTP credentials or connection logs.
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Raw logs output */}
+                            <div className="space-y-1.5 pt-3 border-t border-border-subtle">
+                              <span className="block font-semibold text-foreground text-[10px]">
+                                Technical Audit Logs:
+                              </span>
+                              <div className="bg-surface-3 border border-border-subtle rounded-none p-2.5 font-mono text-[9px] max-h-40 overflow-y-auto space-y-1 text-muted-foreground">
+                                {selectedEnrollment.logs && selectedEnrollment.logs.length > 0 ? (
+                                  selectedEnrollment.logs.map((log: any, idx: number) => (
+                                    <div
+                                      key={idx}
+                                      className="border-b border-border-subtle/30 pb-1 last:border-0 last:pb-0"
+                                    >
+                                      <span className="text-zinc-500">
+                                        [{new Date(log.timestamp).toLocaleTimeString()}]
+                                      </span>{' '}
+                                      <span className="text-foreground font-semibold">
+                                        {log.action || 'Log'}:
+                                      </span>{' '}
+                                      {log.message}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="text-center py-2 italic text-zinc-500">
+                                    No telemetry log entries.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center py-10 text-muted-foreground italic">
+                            Select a contact from the leads table to view their execution timeline
+                            stepper.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    /* Outbound Delivery Ledger Table */
+                    <div className="space-y-3 bg-card border border-border-subtle rounded-none p-4 shadow-sm">
                       <div className="flex justify-between items-center gap-2">
                         <h4 className="font-semibold text-foreground text-[11px] flex items-center gap-1.5">
-                          <Users className="h-4 w-4 text-primary" />
-                          Enrolled Recipient Leads
+                          <Mail className="h-4 w-4 text-primary" />
+                          Outbound Delivery History & Verification Ledger
                         </h4>
 
                         {/* Search and filter toolbar */}
@@ -1084,191 +1577,110 @@ export default function CampaignsScreen() {
                           <div className="relative">
                             <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground opacity-60" />
                             <Input
-                              placeholder="Search leads..."
-                              value={enrollmentSearch}
-                              onChange={(e) => handleEnrollmentSearchChange(e.target.value)}
-                              className="pl-8 h-7 text-[10px] w-40 rounded-none border-border-subtle bg-card"
+                              placeholder="Search recipient, sender, subject..."
+                              value={deliverySearch}
+                              onChange={(e) => handleDeliverySearchChange(e.target.value)}
+                              className="pl-8 h-7 text-[10px] w-64 rounded-none border-border-subtle bg-card"
                             />
                           </div>
                           <select
-                            value={enrollmentStatusFilter}
-                            onChange={(e) => handleEnrollmentStatusChange(e.target.value)}
+                            value={deliveryStatusFilter}
+                            onChange={(e) => handleDeliveryStatusChange(e.target.value)}
                             className="h-7 text-[10px] bg-background border border-border-subtle rounded-none px-1.5 focus-visible:outline-none"
                           >
-                            <option value="all">All Statuses</option>
-                            <option value="running">Running</option>
-                            <option value="waiting">Waiting</option>
-                            <option value="paused">Paused</option>
-                            <option value="replied">Replied</option>
-                            <option value="completed">Completed</option>
-                            <option value="failed">Failed</option>
+                            <option value="all">All Delivery Statuses</option>
+                            <option value="SENT">Sent</option>
+                            <option value="SENDING">Sending</option>
+                            <option value="FAILED">Failed</option>
+                            <option value="SUPPRESSED">Suppressed</option>
                           </select>
                         </div>
                       </div>
 
-                      {/* Bulk Actions Banner on selections */}
-                      {selectedEnrollmentIds.length > 0 && (
-                        <div className="flex items-center justify-between bg-surface-3 border border-border-subtle rounded-none p-2.5 text-[10px]">
-                          <span className="font-semibold text-foreground">
-                            {selectedEnrollmentIds.length} lead(s) selected
-                          </span>
-                          <div className="flex gap-1.5">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => bulkResumeMutation.mutate(selectedEnrollmentIds)}
-                              className="h-6 text-[9px] px-2 text-success rounded-none hover:bg-success-muted"
-                            >
-                              Resume
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => bulkPauseMutation.mutate(selectedEnrollmentIds)}
-                              className="h-6 text-[9px] px-2 text-warning rounded-none hover:bg-warning-muted"
-                            >
-                              Pause
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                if (
-                                  confirm(
-                                    `Remove ${selectedEnrollmentIds.length} lead(s) from campaign?`
-                                  )
-                                ) {
-                                  bulkRemoveMutation.mutate(selectedEnrollmentIds);
-                                }
-                              }}
-                              className="h-6 text-[9px] px-2 text-danger rounded-none hover:bg-danger-muted"
-                            >
-                              Remove
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Enrolled Leads Table */}
-                      <div className="border border-border-subtle rounded-none overflow-hidden flex flex-col justify-between">
+                      <div className="border border-border-subtle rounded-none overflow-hidden">
                         <Table>
                           <TableHeader className="bg-surface-3/40">
                             <TableRow>
-                              <TableHead className="w-8 py-2">
-                                <input
-                                  type="checkbox"
-                                  checked={
-                                    selectedEnrollmentIds.length === paginatedEnrollments.length &&
-                                    paginatedEnrollments.length > 0
-                                  }
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedEnrollmentIds(
-                                        paginatedEnrollments.map((x: any) => x.id)
-                                      );
-                                    } else {
-                                      setSelectedEnrollmentIds([]);
-                                    }
-                                  }}
-                                  className="rounded-none border-border-subtle text-primary focus:ring-ring"
-                                />
-                              </TableHead>
-                              <TableHead className="py-2">Contact</TableHead>
-                              <TableHead className="py-2">Next Run</TableHead>
-                              <TableHead className="py-2">Status</TableHead>
-                              <TableHead className="py-2 text-center">Sends</TableHead>
-                              <TableHead className="py-2 text-right">Action</TableHead>
+                              <TableHead className="py-2 w-24">Status</TableHead>
+                              <TableHead className="py-2">Recipient</TableHead>
+                              <TableHead className="py-2">Step / Subject</TableHead>
+                              <TableHead className="py-2">Sender Mailbox</TableHead>
+                              <TableHead className="py-2">Sent Time</TableHead>
+                              <TableHead className="py-2 text-right">Provider Message ID / Info</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {paginatedEnrollments.map((enroll: any) => {
-                              const isChecked = selectedEnrollmentIds.includes(enroll.id);
-                              const nextRun = enroll.nextExecutionAt
-                                ? formatDistanceToNow(new Date(enroll.nextExecutionAt))
-                                : '—';
-                              return (
-                                <TableRow
-                                  key={enroll.id}
-                                  className={`hover:bg-surface-3/15 cursor-pointer ${
-                                    selectedEnrollment?.id === enroll.id ? 'bg-primary/12' : ''
-                                  }`}
-                                  onClick={() => setSelectedEnrollment(enroll)}
-                                >
-                                  <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          setSelectedEnrollmentIds([
-                                            ...selectedEnrollmentIds,
-                                            enroll.id
-                                          ]);
-                                        } else {
-                                          setSelectedEnrollmentIds(
-                                            selectedEnrollmentIds.filter((x) => x !== enroll.id)
-                                          );
-                                        }
-                                      }}
-                                      className="rounded-none border-border-subtle text-primary focus:ring-ring"
-                                    />
-                                  </TableCell>
-                                  <TableCell className="py-2">
-                                    <div className="font-semibold text-foreground">
-                                      {enroll.firstName} {enroll.lastName || ''}
-                                    </div>
-                                    <span className="block text-[9px] font-mono text-primary truncate max-w-[120px]">
-                                      {enroll.email}
-                                    </span>
-                                  </TableCell>
-                                  <TableCell className="py-2 font-mono text-[10px] text-muted-foreground">
-                                    {nextRun}
-                                  </TableCell>
-                                  <TableCell className="py-2">
-                                    {getEnrollmentStatusBadge(enroll.status)}
-                                  </TableCell>
-                                  <TableCell className="py-2 text-center font-mono font-bold">
-                                    {enroll.emailsSentCount || 0}
-                                  </TableCell>
-                                  <TableCell
-                                    className="py-2 text-right"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        if (confirm('Remove lead from this campaign?')) {
-                                          bulkRemoveMutation.mutate([enroll.id]);
-                                        }
-                                      }}
-                                      className="h-6 w-6 p-0 text-danger hover:bg-danger-muted rounded-none"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
+                            {paginatedDeliveries.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground italic">
+                                  No outbound delivery attempts recorded for this campaign yet.
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              paginatedDeliveries.map((deliv: any) => {
+                                const sentTime = deliv.sentAt || deliv.createdAt;
+                                return (
+                                  <TableRow key={deliv.id} className="hover:bg-surface-3/15 text-[11px]">
+                                    <TableCell className="py-2">
+                                      {getDeliveryStatusBadge(deliv.status)}
+                                    </TableCell>
+                                    <TableCell className="py-2">
+                                      <div className="font-semibold text-foreground">
+                                        {deliv.firstName ? `${deliv.firstName} ${deliv.lastName || ''}` : deliv.contactEmail || deliv.recipientEmail}
+                                      </div>
+                                      <span className="block text-[9px] font-mono text-primary truncate max-w-[160px]">
+                                        {deliv.recipientEmail}
+                                      </span>
+                                      {deliv.companyName && (
+                                        <span className="block text-[9px] text-muted-foreground truncate max-w-[160px]">
+                                          {deliv.companyName}
+                                        </span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="py-2 max-w-[220px]">
+                                      <div className="text-[10px] font-bold text-foreground truncate">
+                                        Step {deliv.stepIndex + 1}: {deliv.subject}
+                                      </div>
+                                      <span className="block text-[9px] font-mono text-muted-foreground truncate">
+                                        Campaign: {deliv.campaignName || campaign.name || 'Outreach'}
+                                      </span>
+                                    </TableCell>
+                                    <TableCell className="py-2 font-mono text-[10px] text-muted-foreground">
+                                      {deliv.senderEmail}
+                                    </TableCell>
+                                    <TableCell className="py-2 font-mono text-[10px] text-muted-foreground">
+                                      {sentTime ? formatDistanceToNow(new Date(sentTime), { addSuffix: true }) : '—'}
+                                    </TableCell>
+                                    <TableCell className="py-2 text-right">
+                                      {deliv.providerMessageId ? (
+                                        <span className="font-mono text-[9px] bg-surface-3 border border-border-subtle px-1.5 py-0.5 rounded-none text-foreground" title={deliv.providerMessageId}>
+                                          ID: {deliv.providerMessageId.slice(0, 12)}...
+                                        </span>
+                                      ) : deliv.error ? (
+                                        <span className="text-danger text-[9px] font-mono truncate max-w-[160px] inline-block" title={deliv.error}>
+                                          {deliv.error}
+                                        </span>
+                                      ) : (
+                                        <span className="text-muted-foreground text-[9px] font-mono">—</span>
+                                      )}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })
+                            )}
                           </TableBody>
                         </Table>
                       </div>
 
-                      {/* Enrollment table pagination controls */}
-                      {totalEnrollmentPages > 1 && (
+                      {/* Delivery table pagination controls */}
+                      {totalDeliveryPages > 1 && (
                         <div className="flex items-center justify-between border-t border-border-subtle pt-4 mt-2 select-none">
                           <span className="text-[11px] text-muted-foreground">
-                            Showing{' '}
-                            <strong className="text-foreground font-mono">{enrollmentStartIndex + 1}</strong>{' '}
-                            to{' '}
+                            Showing <strong className="text-foreground font-mono">{deliveryStartIndex + 1}</strong> to{' '}
                             <strong className="text-foreground font-mono">
-                              {Math.min(enrollmentStartIndex + enrollmentsPerPage, totalEnrollments)}
+                              {Math.min(deliveryStartIndex + deliveriesPerPage, totalDeliveries)}
                             </strong>{' '}
-                            of <strong className="text-foreground font-mono">{totalEnrollments}</strong> leads
+                            of <strong className="text-foreground font-mono">{totalDeliveries}</strong> deliveries
                           </span>
 
                           <div className="flex items-center gap-1">
@@ -1279,9 +1691,9 @@ export default function CampaignsScreen() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                setEnrollmentPage((p) => Math.max(1, p - 1));
+                                setDeliveryPage((p) => Math.max(1, p - 1));
                               }}
-                              disabled={adjustedEnrollmentPage === 1}
+                              disabled={adjustedDeliveryPage === 1}
                               className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
                             >
                               Previous
@@ -1293,9 +1705,9 @@ export default function CampaignsScreen() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                setEnrollmentPage((p) => Math.min(totalEnrollmentPages, p + 1));
+                                setDeliveryPage((p) => Math.min(totalDeliveryPages, p + 1));
                               }}
-                              disabled={adjustedEnrollmentPage === totalEnrollmentPages}
+                              disabled={adjustedDeliveryPage === totalDeliveryPages}
                               className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
                             >
                               Next
@@ -1304,95 +1716,7 @@ export default function CampaignsScreen() {
                         </div>
                       )}
                     </div>
-
-                    {/* Stepper Details Column */}
-                    <div className="bg-card border border-border-subtle rounded-none p-4 shadow-sm space-y-4">
-                      <h4 className="font-semibold text-foreground text-[11px] flex items-center gap-1.5 pb-2 border-b border-border-subtle">
-                        <Activity className="h-4 w-4 text-primary" />
-                        Execution Telemetry Stream
-                      </h4>
-
-                      {selectedEnrollment ? (
-                        <div className="space-y-4">
-                          <div>
-                            <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
-                              Selected Recipient
-                            </span>
-                            <div className="font-bold text-foreground text-xs mt-0.5">
-                              {selectedEnrollment.firstName} {selectedEnrollment.lastName || ''}
-                            </div>
-                            <span className="text-[10px] font-mono text-primary block mt-0.5">
-                              {selectedEnrollment.email}
-                            </span>
-                            {selectedEnrollment.companyName && (
-                              <span className="text-[10px] text-muted-foreground block mt-0.5 truncate">
-                                Firm: {selectedEnrollment.companyName}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="space-y-1">
-                            <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
-                              Sequence Progress
-                            </span>
-                            <div className="text-[11px] font-medium text-foreground flex items-center gap-2">
-                              {getEnrollmentStatusBadge(selectedEnrollment.status)}
-                              <span className="font-mono">
-                                Step {selectedEnrollment.currentStepIndex || 0} of{' '}
-                                {sequence?.steps ? (typeof sequence.steps === 'string' ? JSON.parse(sequence.steps).length : sequence.steps.length) : 0}
-                              </span>
-                            </div>
-                            {selectedEnrollment.status === 'replied' && (
-                              <p className="text-[9px] text-success font-semibold flex items-center gap-0.5 mt-1 bg-success-muted border border-success/15 px-2 py-1">
-                                <CheckCircle className="h-3 w-3" />
-                                Sequence stopped because recipient replied!
-                              </p>
-                            )}
-                            {selectedEnrollment.status === 'failed' && (
-                              <p className="text-[9px] text-danger font-semibold flex items-center gap-0.5 mt-1 bg-danger-muted border border-danger/15 px-2 py-1">
-                                <AlertCircle className="h-3 w-3" />
-                                Send failed: check SMTP credentials or connection logs.
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Raw logs output */}
-                          <div className="space-y-1.5 pt-3 border-t border-border-subtle">
-                            <span className="block font-semibold text-foreground text-[10px]">
-                              Technical Audit Logs:
-                            </span>
-                            <div className="bg-surface-3 border border-border-subtle rounded-none p-2.5 font-mono text-[9px] max-h-40 overflow-y-auto space-y-1 text-muted-foreground">
-                              {selectedEnrollment.logs && selectedEnrollment.logs.length > 0 ? (
-                                selectedEnrollment.logs.map((log: any, idx: number) => (
-                                  <div
-                                    key={idx}
-                                    className="border-b border-border-subtle/30 pb-1 last:border-0 last:pb-0"
-                                  >
-                                    <span className="text-zinc-500">
-                                      [{new Date(log.timestamp).toLocaleTimeString()}]
-                                    </span>{' '}
-                                    <span className="text-foreground font-semibold">
-                                      {log.action || 'Log'}:
-                                    </span>{' '}
-                                    {log.message}
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="text-center py-2 italic text-zinc-500">
-                                  No telemetry log entries.
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-center py-10 text-muted-foreground italic">
-                          Select a contact from the leads table to view their execution timeline
-                          stepper.
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             })()
@@ -1409,7 +1733,7 @@ export default function CampaignsScreen() {
           <div className="flex justify-between items-center">
             <span className="font-semibold text-foreground text-[11px]">Email Copy Templates</span>
             <Button
-              onClick={() => setTemplateOpen(true)}
+              onClick={handleOpenCreateTemplate}
               size="sm"
               className="flex items-center gap-1 rounded-none"
             >
@@ -1430,7 +1754,7 @@ export default function CampaignsScreen() {
                     Draft merge copy templates with dynamic variables like {`{{firstName}}`} or {`{{company}}`}.
                   </p>
                 </div>
-                <Button onClick={() => setTemplateOpen(true)} size="sm" className="rounded-none">
+                <Button onClick={handleOpenCreateTemplate} size="sm" className="rounded-none">
                   + Create Template
                 </Button>
               </div>
@@ -1477,6 +1801,15 @@ export default function CampaignsScreen() {
                       </Button>
                       <Button
                         size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenEditTemplate(tpl)}
+                        className="h-7 text-[10px] gap-0.5 rounded-none hover:text-primary"
+                      >
+                        <Pencil className="h-3 w-3" />
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
                         variant="ghost"
                         onClick={() => deleteTemplateMutation.mutate(tpl.id)}
                         className="h-7 w-7 p-0 text-danger hover:bg-danger-muted rounded-none"
@@ -1498,13 +1831,13 @@ export default function CampaignsScreen() {
 
 
 
-      {/* ── Create Template Dialog ───────────────────────────────────────── */}
+      {/* ── Create / Edit Template Dialog ─────────────────────────────────── */}
       <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
         <DialogContent className="max-w-md rounded-none bg-background border border-border-subtle shadow-elevation-2">
           <DialogHeader>
-            <DialogTitle>Create Email Template</DialogTitle>
+            <DialogTitle>{editingTemplateId ? 'Edit Email Template' : 'Create Email Template'}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreateTemplate} className="space-y-3">
+          <form onSubmit={handleSaveTemplate} className="space-y-3">
             <div className="space-y-1">
               <Label htmlFor="tplName">Template Name</Label>
               <Input
@@ -1538,7 +1871,7 @@ export default function CampaignsScreen() {
                   </optgroup>
                   <optgroup label="Company">
                     <option value="company.name">Company Name</option>
-                    <option value="company.domain">Company Website</option>
+                    <option value="company.domain">Company Domain</option>
                     <option value="company.industry">Company Industry</option>
                     <option value="company.location">Company Location</option>
                   </optgroup>
@@ -1546,16 +1879,16 @@ export default function CampaignsScreen() {
               </div>
               <Input
                 id="tplSubj"
-                placeholder="Quick question for {{contact.firstName}} at {{company.name}}"
+                placeholder="Quick question about {{company.name}}"
                 value={tplSubj}
                 onChange={(e) => setTplSubj(e.target.value)}
                 required
-                className="rounded-none bg-card border-border-subtle"
+                className="rounded-none bg-card border-border-subtle font-mono text-xs"
               />
             </div>
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label htmlFor="tplBody">Email Body (HTML supported)</Label>
+                <Label htmlFor="tplBody">Message Body</Label>
                 <select
                   className="h-6 text-[10px] bg-surface-3 border border-border-subtle rounded-none px-1 text-foreground focus:outline-none"
                   onChange={(e) => {
@@ -1575,7 +1908,7 @@ export default function CampaignsScreen() {
                   </optgroup>
                   <optgroup label="Company">
                     <option value="company.name">Company Name</option>
-                    <option value="company.domain">Company Website</option>
+                    <option value="company.domain">Company Domain</option>
                     <option value="company.industry">Company Industry</option>
                     <option value="company.location">Company Location</option>
                   </optgroup>
@@ -1583,30 +1916,23 @@ export default function CampaignsScreen() {
               </div>
               <Textarea
                 id="tplBody"
-                rows={6}
-                placeholder="Hi {{contact.firstName}}, I noticed {{company.name}} is in {{company.industry}}..."
+                rows={5}
+                placeholder="Hi {{contact.firstName}}, I noticed {{company.name}} was looking to expand..."
                 value={tplBody}
                 onChange={(e) => setTplBody(e.target.value)}
                 required
-                className="rounded-none bg-card border-border-subtle"
+                className="rounded-none bg-card border-border-subtle font-mono text-xs"
               />
-              <p className="text-[9px] text-muted-foreground mt-0.5">
-                Merge variables:{' '}
-                <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{contact.firstName}}`}</code>,{' '}
-                <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{contact.lastName}}`}</code>,{' '}
-                <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{company.name}}`}</code>,{' '}
-                <code className="font-mono bg-surface-3 px-1 rounded-none border border-border-subtle">{`{{company.domain}}`}</code>
-              </p>
             </div>
 
-            {/* Attachments Section */}
-            <div className="space-y-1 pt-1">
+            {/* Template Attachments Section */}
+            <div className="space-y-1.5 pt-1">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-semibold text-foreground flex items-center gap-1">
                   <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
                   Attachments ({tplAttachments.length})
                 </Label>
-                <label className="cursor-pointer text-xs font-medium text-primary hover:underline flex items-center gap-1">
+                <label className="cursor-pointer text-[10px] font-medium text-primary hover:underline flex items-center gap-1">
                   <Plus className="w-3 h-3" /> Attach File
                   <input
                     type="file"
@@ -1632,50 +1958,47 @@ export default function CampaignsScreen() {
                             const reader = new FileReader();
                             reader.onload = () => {
                               const base64 = (reader.result as string).split(',')[1] || '';
-                              currentAtts.push({
-                                id: `att_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-                                filename: f.name,
-                                size: f.size,
-                                contentBase64: base64,
-                                contentType: f.type
-                              });
-                              setTplAttachments([...currentAtts]);
+                              setTplAttachments((prev) => [
+                                ...prev,
+                                {
+                                  id: `att_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                                  filename: f.name,
+                                  size: f.size,
+                                  contentBase64: base64,
+                                  contentType: f.type
+                                }
+                              ]);
                             };
                             reader.readAsDataURL(f);
                             continue;
                           }
                         } catch (err: any) {
-                          console.error('Failed to attach file:', err);
                           toast.error(`Failed to attach ${f.name}: ${err.message}`);
                         }
                       }
                       setTplAttachments(currentAtts);
-                      e.target.value = '';
                     }}
                   />
                 </label>
               </div>
+
               {tplAttachments.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {tplAttachments.map((att: any, attIdx: number) => (
+                <div className="space-y-1 max-h-24 overflow-y-auto bg-surface-3 border border-border-subtle p-1.5 rounded-none">
+                  {tplAttachments.map((att: any, idx: number) => (
                     <div
-                      key={att.id || attIdx}
-                      className="inline-flex items-center gap-1.5 bg-surface-3 border border-border-subtle px-2 py-0.5 text-[10px] text-foreground"
+                      key={att.id || idx}
+                      className="flex items-center justify-between px-2 py-1 bg-card border border-border-subtle text-[10px] font-mono text-foreground"
                     >
-                      <Paperclip className="w-2.5 h-2.5 text-muted-foreground flex-shrink-0" />
-                      <span className="truncate max-w-[140px]" title={att.filename}>
+                      <span className="truncate max-w-[200px] flex items-center gap-1">
+                        <Paperclip className="w-2.5 h-2.5 text-muted-foreground shrink-0" />
                         {att.filename}
-                      </span>
-                      <span className="text-muted-foreground text-[9px]">
-                        ({Math.round((att.size || 0) / 1024)} KB)
                       </span>
                       <button
                         type="button"
-                        onClick={() => {
-                          setTplAttachments(tplAttachments.filter((_, i) => i !== attIdx));
-                        }}
-                        className="text-muted-foreground hover:text-danger ml-0.5"
-                        title="Remove attachment"
+                        onClick={() =>
+                          setTplAttachments((prev) => prev.filter((_, i) => i !== idx))
+                        }
+                        className="text-muted-foreground hover:text-danger ml-2"
                       >
                         <X className="w-2.5 h-2.5" />
                       </button>
@@ -1688,8 +2011,12 @@ export default function CampaignsScreen() {
               <Button type="button" variant="secondary" className="rounded-none" onClick={() => setTemplateOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" className="rounded-none" disabled={createTemplateMutation.isPending}>
-                Save Template
+              <Button
+                type="submit"
+                className="rounded-none"
+                disabled={createTemplateMutation.isPending || updateTemplateMutation.isPending}
+              >
+                {editingTemplateId ? 'Update Template' : 'Save Template'}
               </Button>
             </div>
           </form>
