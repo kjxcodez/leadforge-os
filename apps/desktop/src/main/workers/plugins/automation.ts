@@ -1829,7 +1829,7 @@ async function handleSendEmailStep(
   const contact = db
     .prepare(
       `
-    SELECT id, firstName, lastName, email, title, phone
+    SELECT id, firstName, lastName, email, title, phone, companyId
     FROM contacts WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
   `
     )
@@ -1841,6 +1841,7 @@ async function handleSendEmailStep(
         email: string | null;
         title: string | null;
         phone: string | null;
+        companyId: string | null;
       }
     | undefined;
 
@@ -1889,6 +1890,105 @@ async function handleSendEmailStep(
     throw new Error('No connected Gmail sender account found in workspace for sending email step.');
   }
 
+  const senderEmailRow = db
+    .prepare('SELECT email FROM email_accounts WHERE id = ?')
+    .get(accountDoc.id) as { email: string } | undefined;
+  const senderEmail = senderEmailRow?.email || 'unknown';
+
+  // Fetch execution metadata for idempotency key and ledger tracking
+  const execRow = db
+    .prepare('SELECT campaignId, currentStep, sentMessageIds, emailsSent FROM sequence_executions WHERE id = ?')
+    .get(execCtx.execution.id) as
+    | { campaignId: string | null; currentStep: number; sentMessageIds: string | null; emailsSent: number | null }
+    | undefined;
+  const campaignId = execRow?.campaignId || (execCtx as any).campaign?.id || null;
+  const currentStepNum = execRow?.currentStep ?? Number(execCtx.execution.currentStep || 0);
+  const stepKey = step.id || String(currentStepNum);
+  const idempotencyKey = `email_${workspaceId}_${execCtx.execution.id}_${stepKey}_${entityId}`;
+
+  // 1. Idempotency Check: Suppress duplicate send if step was already completed
+  let existingDelivery: { id: string; providerMessageId: string | null; status: string } | undefined;
+  try {
+    existingDelivery = db
+      .prepare('SELECT id, providerMessageId, status FROM email_deliveries WHERE idempotencyKey = ?')
+      .get(idempotencyKey) as { id: string; providerMessageId: string | null; status: string } | undefined;
+  } catch {
+    // email_deliveries table might not exist yet if migration hasn't completed
+  }
+
+  if (existingDelivery && (existingDelivery.status === 'SENT' || existingDelivery.status === 'SUPPRESSED')) {
+    ctx.emitLog(
+      `Step execution idempotency: Email step already sent (providerMessageId=${existingDelivery.providerMessageId}). Suppressing duplicate send on retry.`,
+      'info'
+    );
+    return { status: 'success' };
+  }
+
+  // 2. Pre-commit delivery attempt in SQLite (status: 'SENDING')
+  let deliveryId =
+    existingDelivery?.id ||
+    (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : require('crypto').randomUUID());
+
+  try {
+    if (existingDelivery) {
+      db.prepare(
+        `UPDATE email_deliveries SET status = 'SENDING', attempt = attempt + 1, updatedAt = CURRENT_TIMESTAMP WHERE id = ?`
+      ).run(deliveryId);
+    } else {
+      db.prepare(
+        `INSERT INTO email_deliveries (
+          id, workspaceId, campaignId, sequenceId, executionId, stepIndex, contactId, companyId, accountId,
+          senderEmail, recipientEmail, subject, providerMessageId, status, attempt, idempotencyKey, createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'SENDING', 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+      ).run(
+        deliveryId,
+        workspaceId,
+        campaignId,
+        sequenceId,
+        execCtx.execution.id,
+        currentStepNum,
+        entityId,
+        contact.companyId || null,
+        accountDoc.id,
+        senderEmail,
+        contact.email,
+        renderedSubject,
+        idempotencyKey
+      );
+    }
+  } catch (deliveryLogErr: any) {
+    const errStr = String(deliveryLogErr?.message || deliveryLogErr);
+    // If another concurrent worker inserted this idempotency key simultaneously:
+    if (errStr.includes('UNIQUE constraint failed') || errStr.includes('UNIQUE')) {
+      const concurrentRow = db
+        .prepare('SELECT id, providerMessageId, status FROM email_deliveries WHERE idempotencyKey = ?')
+        .get(idempotencyKey) as { id: string; providerMessageId: string | null; status: string } | undefined;
+      if (concurrentRow) {
+        if (concurrentRow.status === 'SENT' || concurrentRow.status === 'SUPPRESSED') {
+          ctx.emitLog(
+            `Concurrent send race resolved: Step was completed by another worker (providerMessageId=${concurrentRow.providerMessageId}). Suppressing duplicate send.`,
+            'info'
+          );
+          return { status: 'success' };
+        }
+        if (concurrentRow.status === 'SENDING') {
+          ctx.emitLog(
+            `Concurrent send race detected: Another worker has actively claimed SENDING for idempotencyKey=${idempotencyKey}. Aborting redundant send.`,
+            'warn'
+          );
+          return { status: 'success' };
+        }
+        // If it failed or retrying, adopt the existing deliveryId
+        deliveryId = concurrentRow.id;
+      } else {
+        ctx.emitLog(`Pre-send unique constraint race: ${errStr}`, 'warn');
+        return { status: 'success' };
+      }
+    } else {
+      ctx.emitLog(`Pre-send delivery log warning: ${errStr}`, 'warn');
+    }
+  }
+
   const useSignature = step.config?.useGmailSignature !== false;
   const rawAttachments = (step.config?.attachments && step.config.attachments.length > 0)
     ? step.config.attachments
@@ -1932,38 +2032,54 @@ async function handleSendEmailStep(
       useSignature,
       attachments: processedAttachments
     });
-    const sentMsgId = sendResult.messageId;
+    const sentMsgId = sendResult.messageId || null;
+
+    // Immediately commit status 'SENT' in email_deliveries
+    try {
+      db.prepare(
+        `UPDATE email_deliveries SET status = 'SENT', providerMessageId = ?, sentAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP WHERE id = ?`
+      ).run(sentMsgId, deliveryId);
+    } catch {}
+
+    // Update contacts.lastContactedAt
+    try {
+      db.prepare(
+        `UPDATE contacts SET lastContactedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND workspaceId = ?`
+      ).run(entityId, workspaceId);
+    } catch {}
+
     if (sentMsgId) {
       try {
-        const row = db
-          .prepare('SELECT sentMessageIds FROM sequence_executions WHERE id = ?')
-          .get(execCtx.execution.id) as { sentMessageIds: string | null } | undefined;
         let ids: string[] = [];
-        if (row?.sentMessageIds) {
+        if (execRow?.sentMessageIds) {
           try {
-            ids = JSON.parse(row.sentMessageIds);
+            ids = JSON.parse(execRow.sentMessageIds);
             if (!Array.isArray(ids)) ids = [];
-          } catch {
-            // fallback
-          }
+          } catch {}
         }
         ids.push(sentMsgId);
+        const newCount = (execRow?.emailsSent || 0) + 1;
         db.prepare(
-          'UPDATE sequence_executions SET sentMessageIds = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?'
-        ).run(JSON.stringify(ids), execCtx.execution.id);
+          'UPDATE sequence_executions SET sentMessageIds = ?, emailsSent = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?'
+        ).run(JSON.stringify(ids), newCount, execCtx.execution.id);
       } catch (err: any) {
         ctx.emitLog(`Failed to record sent messageId: ${err.message}`, 'error');
       }
     }
 
     ctx.emitLog(
-      `Gmail send success: messageId=${sentMsgId || 'unknown'}, ` +
-        `recipient=${contact.email}, subject=${renderedSubject}`,
+      `Gmail send success: messageId=${sentMsgId || 'unknown'}, recipient=${contact.email}, subject=${renderedSubject}`,
       'info'
     );
     return { status: 'success' };
   } catch (sendErr: any) {
-    throw new Error(`Gmail send failed: ${sendErr.message || sendErr}`);
+    const errMsg = sendErr.message || String(sendErr);
+    try {
+      db.prepare(
+        `UPDATE email_deliveries SET status = 'FAILED', error = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?`
+      ).run(errMsg, deliveryId);
+    } catch {}
+    throw new Error(`Gmail send failed: ${errMsg}`);
   }
 }
 

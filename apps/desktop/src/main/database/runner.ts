@@ -838,6 +838,44 @@ export const MIGRATIONS: Migration[] = [
     up: `
       ALTER TABLE templates ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]';
     `
+  },
+  {
+    name: '032_email_deliveries_ledger',
+    up: `
+      CREATE TABLE IF NOT EXISTS email_deliveries (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        campaignId TEXT,
+        sequenceId TEXT NOT NULL,
+        executionId TEXT NOT NULL,
+        stepIndex INTEGER NOT NULL,
+        contactId TEXT NOT NULL,
+        companyId TEXT,
+        accountId TEXT NOT NULL,
+        senderEmail TEXT NOT NULL,
+        recipientEmail TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        providerMessageId TEXT,
+        status TEXT NOT NULL CHECK(status IN ('QUEUED', 'SENDING', 'SENT', 'FAILED', 'RETRYING', 'CANCELLED', 'SUPPRESSED')),
+        attempt INTEGER NOT NULL DEFAULT 1,
+        error TEXT,
+        idempotencyKey TEXT UNIQUE NOT NULL,
+        sentAt DATETIME,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_email_deliveries_ws_camp ON email_deliveries (workspaceId, campaignId);
+      CREATE INDEX IF NOT EXISTS idx_email_deliveries_contact ON email_deliveries (workspaceId, contactId);
+      CREATE INDEX IF NOT EXISTS idx_email_deliveries_key ON email_deliveries (idempotencyKey);
+    `
+  },
+  {
+    name: '033_contact_last_contacted_at',
+    up: `
+      ALTER TABLE contacts ADD COLUMN lastContactedAt DATETIME DEFAULT NULL;
+      CREATE INDEX IF NOT EXISTS idx_contacts_last_contacted ON contacts (workspaceId, lastContactedAt);
+    `
   }
 ];
 
