@@ -63,6 +63,7 @@ export class AudienceService {
 
     const companyQuery: any = { workspaceId: this.workspaceId, deletedAt: null };
     const contactQuery: any = { workspaceId: this.workspaceId, deletedAt: null };
+    let hasCompanyFilter = false;
 
     if (filter.search) {
       const searchRegex = new RegExp(filter.search, 'i');
@@ -77,6 +78,36 @@ export class AudienceService {
 
     if (filter.industry) {
       companyQuery.industry = new RegExp(filter.industry, 'i');
+      hasCompanyFilter = true;
+    }
+
+    if (filter.city) {
+      const cityRegex = new RegExp(filter.city, 'i');
+      companyQuery.$or = [{ city: cityRegex }, { location: cityRegex }];
+      hasCompanyFilter = true;
+    }
+
+    if (filter.state) {
+      const stateRegex = new RegExp(filter.state, 'i');
+      companyQuery.$or = [{ state: stateRegex }, { location: stateRegex }];
+      hasCompanyFilter = true;
+    }
+
+    if (filter.country) {
+      const countryRegex = new RegExp(filter.country, 'i');
+      companyQuery.$or = [{ country: countryRegex }, { location: countryRegex }];
+      hasCompanyFilter = true;
+    }
+
+    if (filter.location) {
+      companyQuery.location = new RegExp(filter.location, 'i');
+      hasCompanyFilter = true;
+    }
+
+    if (filter.companyId) {
+      companyQuery._id = filter.companyId;
+      contactQuery.companyId = filter.companyId;
+      hasCompanyFilter = true;
     }
 
     if (filter.discoveryRunId) {
@@ -87,12 +118,35 @@ export class AudienceService {
       const targetCompanyIds = provenances.map((p) => p.companyId);
       companyQuery._id = { $in: targetCompanyIds };
       contactQuery.companyId = { $in: targetCompanyIds };
+      hasCompanyFilter = true;
+    }
+
+    if (filter.contactedStatus === 'never') {
+      contactQuery.$and = contactQuery.$and || [];
+      contactQuery.$and.push({
+        $or: [
+          { lastContactedAt: null },
+          { lastContactedAt: { $exists: false } }
+        ],
+        status: { $ne: 'CONTACTED' }
+      });
+    } else if (filter.contactedStatus === 'contacted') {
+      contactQuery.$and = contactQuery.$and || [];
+      contactQuery.$and.push({
+        $or: [
+          { lastContactedAt: { $ne: null } },
+          { status: { $in: ['CONTACTED', 'REPLIED'] } }
+        ]
+      });
     }
 
     const matchingCompanies = await CompanyModel.find(companyQuery).select('_id');
     const companyIds = matchingCompanies.map((c) => c._id.toString());
 
-    if (companyIds.length > 0 && !contactQuery.companyId) {
+    if (hasCompanyFilter && !filter.discoveryRunId && !filter.companyId) {
+      if (companyIds.length === 0) {
+        return { contactIds: [], companyIds: [] };
+      }
       contactQuery.companyId = { $in: companyIds };
     }
 

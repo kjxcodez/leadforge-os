@@ -439,6 +439,19 @@ export const CreateAudienceModal: React.FC<CreateAudienceModalProps> = ({
                     />
                   )}
                 </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Outreach History</Label>
+                  <select
+                    value={filters.contactedStatus || ''}
+                    onChange={(e) => handleFilterChange('contactedStatus', e.target.value)}
+                    className="w-full h-7 bg-card border border-border-subtle rounded-none px-2 text-xs outline-none text-foreground font-medium"
+                  >
+                    <option value="">All Outreach States</option>
+                    <option value="never">Never Contacted (Unsent)</option>
+                    <option value="contacted">Already Contacted (Sent)</option>
+                  </select>
+                </div>
               </div>
 
               {/* Section 8 Safeguard */}
