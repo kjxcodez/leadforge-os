@@ -29,6 +29,7 @@
     "src/preload/**/*",
     "src/renderer/**/*",
     "src/shared/**/*",
+    "src/**/*.json",
     "electron.vite.config.js"
   ]
 }

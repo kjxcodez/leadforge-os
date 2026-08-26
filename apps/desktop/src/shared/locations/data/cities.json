@@ -1,0 +1,756 @@
+{
+  "US-CA": [
+    "Los Angeles",
+    "San Francisco",
+    "San Diego",
+    "San Jose",
+    "Sacramento",
+    "Oakland",
+    "Irvine",
+    "Fresno",
+    "Long Beach",
+    "Palo Alto",
+    "Santa Clara",
+    "Sunnyvale",
+    "Pasadena"
+  ],
+  "US-NY": [
+    "New York",
+    "Brooklyn",
+    "Queens",
+    "Buffalo",
+    "Rochester",
+    "Albany",
+    "Syracuse",
+    "Yonkers",
+    "White Plains"
+  ],
+  "US-TX": [
+    "Houston",
+    "Austin",
+    "Dallas",
+    "San Antonio",
+    "Fort Worth",
+    "El Paso",
+    "Arlington",
+    "Plano",
+    "Irving",
+    "Frisco"
+  ],
+  "US-FL": [
+    "Miami",
+    "Orlando",
+    "Tampa",
+    "Fort Lauderdale",
+    "Jacksonville",
+    "St. Petersburg",
+    "Naples",
+    "Boca Raton",
+    "Tallahassee",
+    "West Palm Beach",
+    "Clearwater",
+    "Gainesville"
+  ],
+  "US-IL": [
+    "Chicago",
+    "Naperville",
+    "Aurora",
+    "Rockford",
+    "Joliet",
+    "Springfield",
+    "Evanston",
+    "Peoria"
+  ],
+  "US-WA": [
+    "Seattle",
+    "Bellevue",
+    "Tacoma",
+    "Spokane",
+    "Vancouver",
+    "Everett",
+    "Redmond",
+    "Kirkland",
+    "Renton"
+  ],
+  "US-MA": [
+    "Boston",
+    "Cambridge",
+    "Worcester",
+    "Springfield",
+    "Lowell",
+    "Newton",
+    "Somerville",
+    "Quincy"
+  ],
+  "US-CO": [
+    "Denver",
+    "Boulder",
+    "Colorado Springs",
+    "Aurora",
+    "Fort Collins",
+    "Lakewood",
+    "Thornton"
+  ],
+  "US-GA": [
+    "Atlanta",
+    "Savannah",
+    "Augusta",
+    "Columbus",
+    "Macon",
+    "Alpharetta",
+    "Roswell",
+    "Sandy Springs"
+  ],
+  "US-NC": [
+    "Charlotte",
+    "Raleigh",
+    "Durham",
+    "Greensboro",
+    "Winston-Salem",
+    "Cary",
+    "Wilmington"
+  ],
+  "US-PA": [
+    "Philadelphia",
+    "Pittsburgh",
+    "Allentown",
+    "Erie",
+    "Reading",
+    "Scranton",
+    "Bethlehem"
+  ],
+  "US-OH": [
+    "Columbus",
+    "Cleveland",
+    "Cincinnati",
+    "Toledo",
+    "Akron",
+    "Dayton"
+  ],
+  "US-AZ": [
+    "Phoenix",
+    "Scottsdale",
+    "Tucson",
+    "Mesa",
+    "Chandler",
+    "Tempe",
+    "Gilbert",
+    "Glendale"
+  ],
+  "US-NV": [
+    "Las Vegas",
+    "Reno",
+    "Henderson",
+    "North Las Vegas",
+    "Sparks",
+    "Carson City"
+  ],
+  "US-MI": [
+    "Detroit",
+    "Grand Rapids",
+    "Ann Arbor",
+    "Lansing",
+    "Warren",
+    "Sterling Heights",
+    "Troy"
+  ],
+  "US-NJ": [
+    "Newark",
+    "Jersey City",
+    "Paterson",
+    "Elizabeth",
+    "Trenton",
+    "Princeton",
+    "Hoboken",
+    "Edison"
+  ],
+  "US-VA": [
+    "Virginia Beach",
+    "Richmond",
+    "Norfolk",
+    "Arlington",
+    "Alexandria",
+    "Chesapeake",
+    "Reston",
+    "Tysons"
+  ],
+  "US-DC": [
+    "Washington"
+  ],
+  "US-MD": [
+    "Baltimore",
+    "Rockville",
+    "Bethesda",
+    "Silver Spring",
+    "Gaithersburg",
+    "Annapolis"
+  ],
+  "US-MN": [
+    "Minneapolis",
+    "Saint Paul",
+    "Rochester",
+    "Bloomington",
+    "Duluth"
+  ],
+  "US-MO": [
+    "Kansas City",
+    "St. Louis",
+    "Springfield",
+    "Columbia"
+  ],
+  "US-OR": [
+    "Portland",
+    "Salem",
+    "Eugene",
+    "Gresham",
+    "Hillsboro",
+    "Beaverton"
+  ],
+  "US-TN": [
+    "Nashville",
+    "Memphis",
+    "Knoxville",
+    "Chattanooga",
+    "Clarksville"
+  ],
+  "US-UT": [
+    "Salt Lake City",
+    "Provo",
+    "West Valley City",
+    "West Jordan",
+    "Orem",
+    "Sandy"
+  ],
+  "US-WI": [
+    "Milwaukee",
+    "Madison",
+    "Green Bay",
+    "Kenosha"
+  ],
+  "CA-ON": [
+    "Toronto",
+    "Ottawa",
+    "Mississauga",
+    "Brampton",
+    "Hamilton",
+    "London",
+    "Markham",
+    "Vaughan",
+    "Kitchener",
+    "Windsor"
+  ],
+  "CA-BC": [
+    "Vancouver",
+    "Victoria",
+    "Surrey",
+    "Burnaby",
+    "Richmond",
+    "Kelowna",
+    "Abbotsford",
+    "Coquitlam"
+  ],
+  "CA-QC": [
+    "Montreal",
+    "Quebec City",
+    "Laval",
+    "Gatineau",
+    "Longueuil",
+    "Sherbrooke"
+  ],
+  "CA-AB": [
+    "Calgary",
+    "Edmonton",
+    "Red Deer",
+    "Lethbridge",
+    "St. Albert"
+  ],
+  "CA-MB": [
+    "Winnipeg",
+    "Brandon",
+    "Steinbach"
+  ],
+  "CA-NS": [
+    "Halifax",
+    "Dartmouth",
+    "Sydney"
+  ],
+  "GB-GLN": [
+    "London",
+    "Westminster",
+    "Camden",
+    "Greenwich",
+    "Kensington",
+    "Islington",
+    "Hackney",
+    "Croydon"
+  ],
+  "GB-GMC": [
+    "Manchester",
+    "Salford",
+    "Bolton",
+    "Stockport",
+    "Oldham",
+    "Rochdale",
+    "Wigan"
+  ],
+  "GB-WMD": [
+    "Birmingham",
+    "Coventry",
+    "Wolverhampton",
+    "Solihull",
+    "Walsall",
+    "Dudley"
+  ],
+  "GB-ENG": [
+    "London",
+    "Birmingham",
+    "Manchester",
+    "Leeds",
+    "Bristol",
+    "Liverpool",
+    "Newcastle",
+    "Sheffield",
+    "Nottingham",
+    "Southampton"
+  ],
+  "GB-SCT": [
+    "Edinburgh",
+    "Glasgow",
+    "Aberdeen",
+    "Dundee",
+    "Inverness",
+    "Stirling"
+  ],
+  "GB-WLS": [
+    "Cardiff",
+    "Swansea",
+    "Newport",
+    "Wrexham"
+  ],
+  "GB-NIR": [
+    "Belfast",
+    "Derry",
+    "Lisburn",
+    "Newry"
+  ],
+  "AU-NSW": [
+    "Sydney",
+    "Newcastle",
+    "Wollongong",
+    "Central Coast",
+    "Parramatta",
+    "Penrith"
+  ],
+  "AU-VIC": [
+    "Melbourne",
+    "Geelong",
+    "Ballarat",
+    "Bendigo",
+    "Shepparton"
+  ],
+  "AU-QLD": [
+    "Brisbane",
+    "Gold Coast",
+    "Sunshine Coast",
+    "Townsville",
+    "Cairns",
+    "Toowoomba"
+  ],
+  "AU-WA": [
+    "Perth",
+    "Fremantle",
+    "Mandurah",
+    "Bunbury"
+  ],
+  "AU-SA": [
+    "Adelaide",
+    "Mount Gambier",
+    "Whyalla"
+  ],
+  "AU-TAS": [
+    "Hobart",
+    "Launceston"
+  ],
+  "AU-ACT": [
+    "Canberra"
+  ],
+  "IN-MH": [
+    "Mumbai",
+    "Pune",
+    "Nagpur",
+    "Thane",
+    "Nashik",
+    "Navi Mumbai",
+    "Aurangabad"
+  ],
+  "IN-KA": [
+    "Bengaluru",
+    "Mysuru",
+    "Hubballi",
+    "Mangaluru",
+    "Belagavi"
+  ],
+  "IN-DL": [
+    "New Delhi",
+    "Delhi",
+    "Connaught Place",
+    "Dwarka",
+    "Noida Extension"
+  ],
+  "IN-TN": [
+    "Chennai",
+    "Coimbatore",
+    "Madurai",
+    "Tiruchirappalli",
+    "Salem"
+  ],
+  "IN-TG": [
+    "Hyderabad",
+    "Warangal",
+    "Secunderabad",
+    "Nizamabad"
+  ],
+  "IN-GJ": [
+    "Ahmedabad",
+    "Surat",
+    "Vadodara",
+    "Rajkot",
+    "Gandhinagar"
+  ],
+  "IN-UP": [
+    "Noida",
+    "Lucknow",
+    "Kanpur",
+    "Agra",
+    "Varanasi",
+    "Ghaziabad"
+  ],
+  "IN-WB": [
+    "Kolkata",
+    "Howrah",
+    "Siliguri",
+    "Durgapur"
+  ],
+  "IN-HR": [
+    "Gurugram",
+    "Faridabad",
+    "Panipat",
+    "Ambala"
+  ],
+  "IN-KL": [
+    "Kochi",
+    "Thiruvananthapuram",
+    "Kozhikode",
+    "Thrissur"
+  ],
+  "DE-BE": [
+    "Berlin",
+    "Mitte",
+    "Charlottenburg",
+    "Kreuzberg",
+    "Pankow"
+  ],
+  "DE-BY": [
+    "Munich (München)",
+    "Nuremberg (Nürnberg)",
+    "Augsburg",
+    "Regensburg",
+    "Würzburg",
+    "Ingolstadt"
+  ],
+  "DE-HE": [
+    "Frankfurt am Main",
+    "Wiesbaden",
+    "Kassel",
+    "Darmstadt",
+    "Offenbach"
+  ],
+  "DE-NW": [
+    "Cologne (Köln)",
+    "Düsseldorf",
+    "Dortmund",
+    "Essen",
+    "Bonn",
+    "Münster",
+    "Aachen",
+    "Duisburg"
+  ],
+  "DE-BW": [
+    "Stuttgart",
+    "Karlsruhe",
+    "Mannheim",
+    "Freiburg",
+    "Heidelberg",
+    "Ulm",
+    "Heilbronn"
+  ],
+  "DE-HH": [
+    "Hamburg",
+    "Altona",
+    "Eimsbüttel",
+    "Wandsbek"
+  ],
+  "DE-SN": [
+    "Leipzig",
+    "Dresden",
+    "Chemnitz"
+  ],
+  "FR-IDF": [
+    "Paris",
+    "Boulogne-Billancourt",
+    "Saint-Denis",
+    "Versailles",
+    "Nanterre",
+    "Créteil",
+    "Montreuil"
+  ],
+  "FR-ARA": [
+    "Lyon",
+    "Saint-Étienne",
+    "Grenoble",
+    "Villeurbanne",
+    "Clermont-Ferrand",
+    "Annecy"
+  ],
+  "FR-PAC": [
+    "Marseille",
+    "Nice",
+    "Toulon",
+    "Aix-en-Provence",
+    "Cannes",
+    "Avignon"
+  ],
+  "FR-OCC": [
+    "Toulouse",
+    "Montpellier",
+    "Nîmes",
+    "Perpignan",
+    "Béziers"
+  ],
+  "FR-NAQ": [
+    "Bordeaux",
+    "Limoges",
+    "Poitiers",
+    "Pau",
+    "La Rochelle"
+  ],
+  "NL-NH": [
+    "Amsterdam",
+    "Haarlem",
+    "Alkmaar",
+    "Hilversum",
+    "Amstelveen",
+    "Zaandam"
+  ],
+  "NL-ZH": [
+    "Rotterdam",
+    "The Hague (Den Haag)",
+    "Leiden",
+    "Delft",
+    "Dordrecht",
+    "Zoetermeer"
+  ],
+  "NL-UT": [
+    "Utrecht",
+    "Amersfoort",
+    "Veenendaal",
+    "Zeist"
+  ],
+  "NL-NB": [
+    "Eindhoven",
+    "Tilburg",
+    "Breda",
+    "'s-Hertogenbosch",
+    "Helmond"
+  ],
+  "AE-DXB": [
+    "Dubai",
+    "Jumeirah",
+    "Business Bay",
+    "Downtown Dubai",
+    "Deira",
+    "Dubai Marina",
+    "Al Barsha"
+  ],
+  "AE-AUH": [
+    "Abu Dhabi",
+    "Al Ain",
+    "Musaffah",
+    "Khalifa City",
+    "Yas Island"
+  ],
+  "AE-SHJ": [
+    "Sharjah",
+    "Khor Fakkan",
+    "Kalba"
+  ],
+  "SG-SG-CR": [
+    "Singapore",
+    "Downtown Core",
+    "Marina Bay",
+    "Orchard",
+    "Tanjong Pagar",
+    "Novena"
+  ],
+  "SG-SG-ER": [
+    "Tampines",
+    "Bedok",
+    "Changi",
+    "Pasir Ris"
+  ],
+  "SG-SG-WR": [
+    "Jurong East",
+    "Clementi",
+    "Tuas",
+    "Bukit Batok"
+  ],
+  "IE-D": [
+    "Dublin",
+    "Dún Laoghaire",
+    "Swords",
+    "Tallaght",
+    "Blackrock",
+    "Sandyford"
+  ],
+  "IE-C": [
+    "Cork",
+    "Ballincollig",
+    "Cobh",
+    "Mallow"
+  ],
+  "IE-G": [
+    "Galway",
+    "Salthill",
+    "Tuam"
+  ],
+  "ES-MD": [
+    "Madrid",
+    "Móstoles",
+    "Alcalá de Henares",
+    "Fuenlabrada",
+    "Leganés",
+    "Getafe"
+  ],
+  "ES-CT": [
+    "Barcelona",
+    "L'Hospitalet de Llobregat",
+    "Badalona",
+    "Terrassa",
+    "Sabadell",
+    "Tarragona",
+    "Girona"
+  ],
+  "ES-AN": [
+    "Seville",
+    "Málaga",
+    "Córdoba",
+    "Granada",
+    "Jerez de la Frontera",
+    "Almería",
+    "Marbella"
+  ],
+  "ES-VC": [
+    "Valencia",
+    "Alicante",
+    "Elche",
+    "Castellón de la Plana"
+  ],
+  "IT-LOM": [
+    "Milan",
+    "Brescia",
+    "Monza",
+    "Bergamo",
+    "Como",
+    "Varese",
+    "Pavia"
+  ],
+  "IT-LAZ": [
+    "Rome",
+    "Latina",
+    "Guidonia Montecelio",
+    "Fiumicino"
+  ],
+  "IT-VEN": [
+    "Venice",
+    "Verona",
+    "Padua",
+    "Vicenza",
+    "Treviso"
+  ],
+  "IT-PIE": [
+    "Turin",
+    "Novara",
+    "Alessandria",
+    "Asti"
+  ],
+  "BR-SP": [
+    "São Paulo",
+    "Campinas",
+    "Guarulhos",
+    "São Bernardo do Campo",
+    "Santo André",
+    "Osasco",
+    "Ribeirão Preto",
+    "Santos"
+  ],
+  "BR-RJ": [
+    "Rio de Janeiro",
+    "São Gonçalo",
+    "Duque de Caxias",
+    "Nova Iguaçu",
+    "Niterói"
+  ],
+  "MX-CMX": [
+    "Mexico City",
+    "Cuauhtémoc",
+    "Benito Juárez",
+    "Miguel Hidalgo",
+    "Álvaro Obregón",
+    "Coyoacán",
+    "Tlalpan"
+  ],
+  "MX-JAL": [
+    "Guadalajara",
+    "Zapopan",
+    "Tlaquepaque",
+    "Tonalá",
+    "Puerto Vallarta"
+  ],
+  "MX-NLE": [
+    "Monterrey",
+    "San Pedro Garza García",
+    "Guadalupe",
+    "San Nicolás de los Garza",
+    "Apodaca"
+  ],
+  "JP-13": [
+    "Tokyo",
+    "Shinjuku",
+    "Shibuya",
+    "Chiyoda",
+    "Minato",
+    "Chuo",
+    "Shinagawa"
+  ],
+  "JP-27": [
+    "Osaka",
+    "Sakai",
+    "Higashiosaka",
+    "Toyonaka"
+  ],
+  "ZA-GP": [
+    "Johannesburg",
+    "Pretoria",
+    "Sandton",
+    "Midrand",
+    "Centurion",
+    "Soweto",
+    "Randburg"
+  ],
+  "ZA-WC": [
+    "Cape Town",
+    "Stellenbosch",
+    "Paarl",
+    "George"
+  ]
+}

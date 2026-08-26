@@ -1,0 +1,3263 @@
+{
+  "US": [
+    {
+      "code": "AL",
+      "name": "Alabama",
+      "countryCode": "US"
+    },
+    {
+      "code": "AK",
+      "name": "Alaska",
+      "countryCode": "US"
+    },
+    {
+      "code": "AZ",
+      "name": "Arizona",
+      "countryCode": "US"
+    },
+    {
+      "code": "AR",
+      "name": "Arkansas",
+      "countryCode": "US"
+    },
+    {
+      "code": "CA",
+      "name": "California",
+      "countryCode": "US"
+    },
+    {
+      "code": "CO",
+      "name": "Colorado",
+      "countryCode": "US"
+    },
+    {
+      "code": "CT",
+      "name": "Connecticut",
+      "countryCode": "US"
+    },
+    {
+      "code": "DE",
+      "name": "Delaware",
+      "countryCode": "US"
+    },
+    {
+      "code": "FL",
+      "name": "Florida",
+      "countryCode": "US"
+    },
+    {
+      "code": "GA",
+      "name": "Georgia",
+      "countryCode": "US"
+    },
+    {
+      "code": "HI",
+      "name": "Hawaii",
+      "countryCode": "US"
+    },
+    {
+      "code": "ID",
+      "name": "Idaho",
+      "countryCode": "US"
+    },
+    {
+      "code": "IL",
+      "name": "Illinois",
+      "countryCode": "US"
+    },
+    {
+      "code": "IN",
+      "name": "Indiana",
+      "countryCode": "US"
+    },
+    {
+      "code": "IA",
+      "name": "Iowa",
+      "countryCode": "US"
+    },
+    {
+      "code": "KS",
+      "name": "Kansas",
+      "countryCode": "US"
+    },
+    {
+      "code": "KY",
+      "name": "Kentucky",
+      "countryCode": "US"
+    },
+    {
+      "code": "LA",
+      "name": "Louisiana",
+      "countryCode": "US"
+    },
+    {
+      "code": "ME",
+      "name": "Maine",
+      "countryCode": "US"
+    },
+    {
+      "code": "MD",
+      "name": "Maryland",
+      "countryCode": "US"
+    },
+    {
+      "code": "MA",
+      "name": "Massachusetts",
+      "countryCode": "US"
+    },
+    {
+      "code": "MI",
+      "name": "Michigan",
+      "countryCode": "US"
+    },
+    {
+      "code": "MN",
+      "name": "Minnesota",
+      "countryCode": "US"
+    },
+    {
+      "code": "MS",
+      "name": "Mississippi",
+      "countryCode": "US"
+    },
+    {
+      "code": "MO",
+      "name": "Missouri",
+      "countryCode": "US"
+    },
+    {
+      "code": "MT",
+      "name": "Montana",
+      "countryCode": "US"
+    },
+    {
+      "code": "NE",
+      "name": "Nebraska",
+      "countryCode": "US"
+    },
+    {
+      "code": "NV",
+      "name": "Nevada",
+      "countryCode": "US"
+    },
+    {
+      "code": "NH",
+      "name": "New Hampshire",
+      "countryCode": "US"
+    },
+    {
+      "code": "NJ",
+      "name": "New Jersey",
+      "countryCode": "US"
+    },
+    {
+      "code": "NM",
+      "name": "New Mexico",
+      "countryCode": "US"
+    },
+    {
+      "code": "NY",
+      "name": "New York",
+      "countryCode": "US"
+    },
+    {
+      "code": "NC",
+      "name": "North Carolina",
+      "countryCode": "US"
+    },
+    {
+      "code": "ND",
+      "name": "North Dakota",
+      "countryCode": "US"
+    },
+    {
+      "code": "OH",
+      "name": "Ohio",
+      "countryCode": "US"
+    },
+    {
+      "code": "OK",
+      "name": "Oklahoma",
+      "countryCode": "US"
+    },
+    {
+      "code": "OR",
+      "name": "Oregon",
+      "countryCode": "US"
+    },
+    {
+      "code": "PA",
+      "name": "Pennsylvania",
+      "countryCode": "US"
+    },
+    {
+      "code": "RI",
+      "name": "Rhode Island",
+      "countryCode": "US"
+    },
+    {
+      "code": "SC",
+      "name": "South Carolina",
+      "countryCode": "US"
+    },
+    {
+      "code": "SD",
+      "name": "South Dakota",
+      "countryCode": "US"
+    },
+    {
+      "code": "TN",
+      "name": "Tennessee",
+      "countryCode": "US"
+    },
+    {
+      "code": "TX",
+      "name": "Texas",
+      "countryCode": "US"
+    },
+    {
+      "code": "UT",
+      "name": "Utah",
+      "countryCode": "US"
+    },
+    {
+      "code": "VT",
+      "name": "Vermont",
+      "countryCode": "US"
+    },
+    {
+      "code": "VA",
+      "name": "Virginia",
+      "countryCode": "US"
+    },
+    {
+      "code": "WA",
+      "name": "Washington",
+      "countryCode": "US"
+    },
+    {
+      "code": "WV",
+      "name": "West Virginia",
+      "countryCode": "US"
+    },
+    {
+      "code": "WI",
+      "name": "Wisconsin",
+      "countryCode": "US"
+    },
+    {
+      "code": "WY",
+      "name": "Wyoming",
+      "countryCode": "US"
+    },
+    {
+      "code": "DC",
+      "name": "District of Columbia",
+      "countryCode": "US"
+    },
+    {
+      "code": "PR",
+      "name": "Puerto Rico",
+      "countryCode": "US"
+    },
+    {
+      "code": "VI",
+      "name": "Virgin Islands",
+      "countryCode": "US"
+    },
+    {
+      "code": "GU",
+      "name": "Guam",
+      "countryCode": "US"
+    }
+  ],
+  "CA": [
+    {
+      "code": "ON",
+      "name": "Ontario",
+      "countryCode": "CA"
+    },
+    {
+      "code": "QC",
+      "name": "Quebec",
+      "countryCode": "CA"
+    },
+    {
+      "code": "BC",
+      "name": "British Columbia",
+      "countryCode": "CA"
+    },
+    {
+      "code": "AB",
+      "name": "Alberta",
+      "countryCode": "CA"
+    },
+    {
+      "code": "MB",
+      "name": "Manitoba",
+      "countryCode": "CA"
+    },
+    {
+      "code": "SK",
+      "name": "Saskatchewan",
+      "countryCode": "CA"
+    },
+    {
+      "code": "NS",
+      "name": "Nova Scotia",
+      "countryCode": "CA"
+    },
+    {
+      "code": "NB",
+      "name": "New Brunswick",
+      "countryCode": "CA"
+    },
+    {
+      "code": "NL",
+      "name": "Newfoundland and Labrador",
+      "countryCode": "CA"
+    },
+    {
+      "code": "PE",
+      "name": "Prince Edward Island",
+      "countryCode": "CA"
+    },
+    {
+      "code": "NT",
+      "name": "Northwest Territories",
+      "countryCode": "CA"
+    },
+    {
+      "code": "YT",
+      "name": "Yukon",
+      "countryCode": "CA"
+    },
+    {
+      "code": "NU",
+      "name": "Nunavut",
+      "countryCode": "CA"
+    }
+  ],
+  "GB": [
+    {
+      "code": "ENG",
+      "name": "England",
+      "countryCode": "GB"
+    },
+    {
+      "code": "SCT",
+      "name": "Scotland",
+      "countryCode": "GB"
+    },
+    {
+      "code": "WLS",
+      "name": "Wales",
+      "countryCode": "GB"
+    },
+    {
+      "code": "NIR",
+      "name": "Northern Ireland",
+      "countryCode": "GB"
+    },
+    {
+      "code": "GLN",
+      "name": "Greater London",
+      "countryCode": "GB"
+    },
+    {
+      "code": "GMC",
+      "name": "Greater Manchester",
+      "countryCode": "GB"
+    },
+    {
+      "code": "WMD",
+      "name": "West Midlands",
+      "countryCode": "GB"
+    },
+    {
+      "code": "WYK",
+      "name": "West Yorkshire",
+      "countryCode": "GB"
+    },
+    {
+      "code": "SYK",
+      "name": "South Yorkshire",
+      "countryCode": "GB"
+    },
+    {
+      "code": "MSY",
+      "name": "Merseyside",
+      "countryCode": "GB"
+    }
+  ],
+  "AU": [
+    {
+      "code": "NSW",
+      "name": "New South Wales",
+      "countryCode": "AU"
+    },
+    {
+      "code": "VIC",
+      "name": "Victoria",
+      "countryCode": "AU"
+    },
+    {
+      "code": "QLD",
+      "name": "Queensland",
+      "countryCode": "AU"
+    },
+    {
+      "code": "WA",
+      "name": "Western Australia",
+      "countryCode": "AU"
+    },
+    {
+      "code": "SA",
+      "name": "South Australia",
+      "countryCode": "AU"
+    },
+    {
+      "code": "TAS",
+      "name": "Tasmania",
+      "countryCode": "AU"
+    },
+    {
+      "code": "ACT",
+      "name": "Australian Capital Territory",
+      "countryCode": "AU"
+    },
+    {
+      "code": "NT",
+      "name": "Northern Territory",
+      "countryCode": "AU"
+    }
+  ],
+  "IN": [
+    {
+      "code": "MH",
+      "name": "Maharashtra",
+      "countryCode": "IN"
+    },
+    {
+      "code": "KA",
+      "name": "Karnataka",
+      "countryCode": "IN"
+    },
+    {
+      "code": "DL",
+      "name": "Delhi",
+      "countryCode": "IN"
+    },
+    {
+      "code": "TN",
+      "name": "Tamil Nadu",
+      "countryCode": "IN"
+    },
+    {
+      "code": "TG",
+      "name": "Telangana",
+      "countryCode": "IN"
+    },
+    {
+      "code": "GJ",
+      "name": "Gujarat",
+      "countryCode": "IN"
+    },
+    {
+      "code": "UP",
+      "name": "Uttar Pradesh",
+      "countryCode": "IN"
+    },
+    {
+      "code": "WB",
+      "name": "West Bengal",
+      "countryCode": "IN"
+    },
+    {
+      "code": "HR",
+      "name": "Haryana",
+      "countryCode": "IN"
+    },
+    {
+      "code": "KL",
+      "name": "Kerala",
+      "countryCode": "IN"
+    },
+    {
+      "code": "RJ",
+      "name": "Rajasthan",
+      "countryCode": "IN"
+    },
+    {
+      "code": "PB",
+      "name": "Punjab",
+      "countryCode": "IN"
+    },
+    {
+      "code": "MP",
+      "name": "Madhya Pradesh",
+      "countryCode": "IN"
+    },
+    {
+      "code": "AP",
+      "name": "Andhra Pradesh",
+      "countryCode": "IN"
+    },
+    {
+      "code": "BR",
+      "name": "Bihar",
+      "countryCode": "IN"
+    },
+    {
+      "code": "OR",
+      "name": "Odisha",
+      "countryCode": "IN"
+    },
+    {
+      "code": "AS",
+      "name": "Assam",
+      "countryCode": "IN"
+    },
+    {
+      "code": "JH",
+      "name": "Jharkhand",
+      "countryCode": "IN"
+    },
+    {
+      "code": "CH",
+      "name": "Chandigarh",
+      "countryCode": "IN"
+    },
+    {
+      "code": "GA",
+      "name": "Goa",
+      "countryCode": "IN"
+    },
+    {
+      "code": "UT",
+      "name": "Uttarakhand",
+      "countryCode": "IN"
+    },
+    {
+      "code": "HP",
+      "name": "Himachal Pradesh",
+      "countryCode": "IN"
+    }
+  ],
+  "DE": [
+    {
+      "code": "BW",
+      "name": "Baden-Württemberg",
+      "countryCode": "DE"
+    },
+    {
+      "code": "BY",
+      "name": "Bavaria (Bayern)",
+      "countryCode": "DE"
+    },
+    {
+      "code": "BE",
+      "name": "Berlin",
+      "countryCode": "DE"
+    },
+    {
+      "code": "BB",
+      "name": "Brandenburg",
+      "countryCode": "DE"
+    },
+    {
+      "code": "HB",
+      "name": "Bremen",
+      "countryCode": "DE"
+    },
+    {
+      "code": "HH",
+      "name": "Hamburg",
+      "countryCode": "DE"
+    },
+    {
+      "code": "HE",
+      "name": "Hesse (Hessen)",
+      "countryCode": "DE"
+    },
+    {
+      "code": "MV",
+      "name": "Mecklenburg-Western Pomerania",
+      "countryCode": "DE"
+    },
+    {
+      "code": "NI",
+      "name": "Lower Saxony",
+      "countryCode": "DE"
+    },
+    {
+      "code": "NW",
+      "name": "North Rhine-Westphalia",
+      "countryCode": "DE"
+    },
+    {
+      "code": "RP",
+      "name": "Rhineland-Palatinate",
+      "countryCode": "DE"
+    },
+    {
+      "code": "SL",
+      "name": "Saarland",
+      "countryCode": "DE"
+    },
+    {
+      "code": "SN",
+      "name": "Saxony",
+      "countryCode": "DE"
+    },
+    {
+      "code": "ST",
+      "name": "Saxony-Anhalt",
+      "countryCode": "DE"
+    },
+    {
+      "code": "SH",
+      "name": "Schleswig-Holstein",
+      "countryCode": "DE"
+    },
+    {
+      "code": "TH",
+      "name": "Thuringia",
+      "countryCode": "DE"
+    }
+  ],
+  "FR": [
+    {
+      "code": "IDF",
+      "name": "Île-de-France (Paris Region)",
+      "countryCode": "FR"
+    },
+    {
+      "code": "ARA",
+      "name": "Auvergne-Rhône-Alpes (Lyon)",
+      "countryCode": "FR"
+    },
+    {
+      "code": "PAC",
+      "name": "Provence-Alpes-Côte d'Azur",
+      "countryCode": "FR"
+    },
+    {
+      "code": "OCC",
+      "name": "Occitanie (Toulouse)",
+      "countryCode": "FR"
+    },
+    {
+      "code": "NAQ",
+      "name": "Nouvelle-Aquitaine (Bordeaux)",
+      "countryCode": "FR"
+    },
+    {
+      "code": "GES",
+      "name": "Grand Est (Strasbourg)",
+      "countryCode": "FR"
+    },
+    {
+      "code": "HDF",
+      "name": "Hauts-de-France (Lille)",
+      "countryCode": "FR"
+    },
+    {
+      "code": "BRE",
+      "name": "Brittany (Bretagne)",
+      "countryCode": "FR"
+    },
+    {
+      "code": "NOR",
+      "name": "Normandy",
+      "countryCode": "FR"
+    },
+    {
+      "code": "PDL",
+      "name": "Pays de la Loire",
+      "countryCode": "FR"
+    },
+    {
+      "code": "BFC",
+      "name": "Bourgogne-Franche-Comté",
+      "countryCode": "FR"
+    },
+    {
+      "code": "CVL",
+      "name": "Centre-Val de Loire",
+      "countryCode": "FR"
+    },
+    {
+      "code": "COR",
+      "name": "Corsica",
+      "countryCode": "FR"
+    }
+  ],
+  "NL": [
+    {
+      "code": "NH",
+      "name": "North Holland (Amsterdam)",
+      "countryCode": "NL"
+    },
+    {
+      "code": "ZH",
+      "name": "South Holland (Rotterdam / The Hague)",
+      "countryCode": "NL"
+    },
+    {
+      "code": "UT",
+      "name": "Utrecht",
+      "countryCode": "NL"
+    },
+    {
+      "code": "NB",
+      "name": "North Brabant (Eindhoven)",
+      "countryCode": "NL"
+    },
+    {
+      "code": "GE",
+      "name": "Gelderland",
+      "countryCode": "NL"
+    },
+    {
+      "code": "OV",
+      "name": "Overijssel",
+      "countryCode": "NL"
+    },
+    {
+      "code": "LI",
+      "name": "Limburg",
+      "countryCode": "NL"
+    },
+    {
+      "code": "GR",
+      "name": "Groningen",
+      "countryCode": "NL"
+    },
+    {
+      "code": "FR",
+      "name": "Friesland",
+      "countryCode": "NL"
+    },
+    {
+      "code": "DR",
+      "name": "Drenthe",
+      "countryCode": "NL"
+    },
+    {
+      "code": "ZE",
+      "name": "Zeeland",
+      "countryCode": "NL"
+    },
+    {
+      "code": "FL",
+      "name": "Flevoland",
+      "countryCode": "NL"
+    }
+  ],
+  "AE": [
+    {
+      "code": "DXB",
+      "name": "Dubai",
+      "countryCode": "AE"
+    },
+    {
+      "code": "AUH",
+      "name": "Abu Dhabi",
+      "countryCode": "AE"
+    },
+    {
+      "code": "SHJ",
+      "name": "Sharjah",
+      "countryCode": "AE"
+    },
+    {
+      "code": "AJM",
+      "name": "Ajman",
+      "countryCode": "AE"
+    },
+    {
+      "code": "RAK",
+      "name": "Ras Al Khaimah",
+      "countryCode": "AE"
+    },
+    {
+      "code": "FUJ",
+      "name": "Fujairah",
+      "countryCode": "AE"
+    },
+    {
+      "code": "UQW",
+      "name": "Umm Al Quwain",
+      "countryCode": "AE"
+    }
+  ],
+  "SG": [
+    {
+      "code": "SG-CR",
+      "name": "Central Region",
+      "countryCode": "SG"
+    },
+    {
+      "code": "SG-ER",
+      "name": "East Region",
+      "countryCode": "SG"
+    },
+    {
+      "code": "SG-WR",
+      "name": "West Region",
+      "countryCode": "SG"
+    },
+    {
+      "code": "SG-NR",
+      "name": "North Region",
+      "countryCode": "SG"
+    },
+    {
+      "code": "SG-NER",
+      "name": "North-East Region",
+      "countryCode": "SG"
+    }
+  ],
+  "NZ": [
+    {
+      "code": "AUK",
+      "name": "Auckland",
+      "countryCode": "NZ"
+    },
+    {
+      "code": "WGN",
+      "name": "Wellington",
+      "countryCode": "NZ"
+    },
+    {
+      "code": "CAN",
+      "name": "Canterbury (Christchurch)",
+      "countryCode": "NZ"
+    },
+    {
+      "code": "WKO",
+      "name": "Waikato (Hamilton)",
+      "countryCode": "NZ"
+    },
+    {
+      "code": "BOP",
+      "name": "Bay of Plenty",
+      "countryCode": "NZ"
+    },
+    {
+      "code": "OTA",
+      "name": "Otago (Dunedin / Queenstown)",
+      "countryCode": "NZ"
+    }
+  ],
+  "IE": [
+    {
+      "code": "D",
+      "name": "Dublin",
+      "countryCode": "IE"
+    },
+    {
+      "code": "C",
+      "name": "Cork",
+      "countryCode": "IE"
+    },
+    {
+      "code": "G",
+      "name": "Galway",
+      "countryCode": "IE"
+    },
+    {
+      "code": "L",
+      "name": "Limerick",
+      "countryCode": "IE"
+    },
+    {
+      "code": "WD",
+      "name": "Waterford",
+      "countryCode": "IE"
+    },
+    {
+      "code": "KY",
+      "name": "Kerry",
+      "countryCode": "IE"
+    },
+    {
+      "code": "KLD",
+      "name": "Kildare",
+      "countryCode": "IE"
+    }
+  ],
+  "ES": [
+    {
+      "code": "MD",
+      "name": "Madrid",
+      "countryCode": "ES"
+    },
+    {
+      "code": "CT",
+      "name": "Catalonia (Barcelona)",
+      "countryCode": "ES"
+    },
+    {
+      "code": "AN",
+      "name": "Andalusia (Seville / Malaga)",
+      "countryCode": "ES"
+    },
+    {
+      "code": "VC",
+      "name": "Valencian Community",
+      "countryCode": "ES"
+    },
+    {
+      "code": "PV",
+      "name": "Basque Country (Bilbao)",
+      "countryCode": "ES"
+    },
+    {
+      "code": "GA",
+      "name": "Galicia",
+      "countryCode": "ES"
+    },
+    {
+      "code": "CL",
+      "name": "Castile and León",
+      "countryCode": "ES"
+    },
+    {
+      "code": "CN",
+      "name": "Canary Islands",
+      "countryCode": "ES"
+    },
+    {
+      "code": "IB",
+      "name": "Balearic Islands",
+      "countryCode": "ES"
+    },
+    {
+      "code": "AR",
+      "name": "Aragon",
+      "countryCode": "ES"
+    }
+  ],
+  "IT": [
+    {
+      "code": "LOM",
+      "name": "Lombardy (Milan)",
+      "countryCode": "IT"
+    },
+    {
+      "code": "LAZ",
+      "name": "Lazio (Rome)",
+      "countryCode": "IT"
+    },
+    {
+      "code": "VEN",
+      "name": "Veneto (Venice / Verona)",
+      "countryCode": "IT"
+    },
+    {
+      "code": "PIE",
+      "name": "Piedmont (Turin)",
+      "countryCode": "IT"
+    },
+    {
+      "code": "EMR",
+      "name": "Emilia-Romagna (Bologna)",
+      "countryCode": "IT"
+    },
+    {
+      "code": "TOS",
+      "name": "Tuscany (Florence)",
+      "countryCode": "IT"
+    },
+    {
+      "code": "CAM",
+      "name": "Campania (Naples)",
+      "countryCode": "IT"
+    },
+    {
+      "code": "SIC",
+      "name": "Sicily",
+      "countryCode": "IT"
+    },
+    {
+      "code": "PUG",
+      "name": "Apulia (Bari)",
+      "countryCode": "IT"
+    },
+    {
+      "code": "LIG",
+      "name": "Liguria (Genoa)",
+      "countryCode": "IT"
+    }
+  ],
+  "BR": [
+    {
+      "code": "SP",
+      "name": "São Paulo",
+      "countryCode": "BR"
+    },
+    {
+      "code": "RJ",
+      "name": "Rio de Janeiro",
+      "countryCode": "BR"
+    },
+    {
+      "code": "MG",
+      "name": "Minas Gerais",
+      "countryCode": "BR"
+    },
+    {
+      "code": "RS",
+      "name": "Rio Grande do Sul",
+      "countryCode": "BR"
+    },
+    {
+      "code": "PR",
+      "name": "Paraná (Curitiba)",
+      "countryCode": "BR"
+    },
+    {
+      "code": "BA",
+      "name": "Bahia (Salvador)",
+      "countryCode": "BR"
+    },
+    {
+      "code": "SC",
+      "name": "Santa Catarina (Florianópolis)",
+      "countryCode": "BR"
+    },
+    {
+      "code": "DF",
+      "name": "Distrito Federal (Brasília)",
+      "countryCode": "BR"
+    },
+    {
+      "code": "PE",
+      "name": "Pernambuco (Recife)",
+      "countryCode": "BR"
+    },
+    {
+      "code": "CE",
+      "name": "Ceará (Fortaleza)",
+      "countryCode": "BR"
+    }
+  ],
+  "MX": [
+    {
+      "code": "CMX",
+      "name": "Mexico City (CDMX)",
+      "countryCode": "MX"
+    },
+    {
+      "code": "JAL",
+      "name": "Jalisco (Guadalajara)",
+      "countryCode": "MX"
+    },
+    {
+      "code": "NLE",
+      "name": "Nuevo León (Monterrey)",
+      "countryCode": "MX"
+    },
+    {
+      "code": "MEX",
+      "name": "State of Mexico",
+      "countryCode": "MX"
+    },
+    {
+      "code": "PUE",
+      "name": "Puebla",
+      "countryCode": "MX"
+    },
+    {
+      "code": "GUA",
+      "name": "Guanajuato",
+      "countryCode": "MX"
+    },
+    {
+      "code": "QUE",
+      "name": "Querétaro",
+      "countryCode": "MX"
+    },
+    {
+      "code": "BCN",
+      "name": "Baja California (Tijuana)",
+      "countryCode": "MX"
+    },
+    {
+      "code": "YUC",
+      "name": "Yucatán (Mérida)",
+      "countryCode": "MX"
+    }
+  ],
+  "JP": [
+    {
+      "code": "13",
+      "name": "Tokyo",
+      "countryCode": "JP"
+    },
+    {
+      "code": "27",
+      "name": "Osaka",
+      "countryCode": "JP"
+    },
+    {
+      "code": "14",
+      "name": "Kanagawa (Yokohama)",
+      "countryCode": "JP"
+    },
+    {
+      "code": "23",
+      "name": "Aichi (Nagoya)",
+      "countryCode": "JP"
+    },
+    {
+      "code": "01",
+      "name": "Hokkaido (Sapporo)",
+      "countryCode": "JP"
+    },
+    {
+      "code": "26",
+      "name": "Kyoto",
+      "countryCode": "JP"
+    },
+    {
+      "code": "28",
+      "name": "Hyogo (Kobe)",
+      "countryCode": "JP"
+    },
+    {
+      "code": "40",
+      "name": "Fukuoka",
+      "countryCode": "JP"
+    }
+  ],
+  "ZA": [
+    {
+      "code": "GP",
+      "name": "Gauteng (Johannesburg / Pretoria)",
+      "countryCode": "ZA"
+    },
+    {
+      "code": "WC",
+      "name": "Western Cape (Cape Town)",
+      "countryCode": "ZA"
+    },
+    {
+      "code": "KZN",
+      "name": "KwaZulu-Natal (Durban)",
+      "countryCode": "ZA"
+    },
+    {
+      "code": "EC",
+      "name": "Eastern Cape",
+      "countryCode": "ZA"
+    },
+    {
+      "code": "FS",
+      "name": "Free State",
+      "countryCode": "ZA"
+    }
+  ],
+  "CH": [
+    {
+      "code": "ZH",
+      "name": "Zurich",
+      "countryCode": "CH"
+    },
+    {
+      "code": "GE",
+      "name": "Geneva",
+      "countryCode": "CH"
+    },
+    {
+      "code": "BS",
+      "name": "Basel-Stadt",
+      "countryCode": "CH"
+    },
+    {
+      "code": "VD",
+      "name": "Vaud (Lausanne)",
+      "countryCode": "CH"
+    },
+    {
+      "code": "BE",
+      "name": "Bern",
+      "countryCode": "CH"
+    },
+    {
+      "code": "LU",
+      "name": "Lucerne",
+      "countryCode": "CH"
+    },
+    {
+      "code": "SG",
+      "name": "St. Gallen",
+      "countryCode": "CH"
+    },
+    {
+      "code": "TI",
+      "name": "Ticino (Lugano)",
+      "countryCode": "CH"
+    }
+  ],
+  "SE": [
+    {
+      "code": "AB",
+      "name": "Stockholm County",
+      "countryCode": "SE"
+    },
+    {
+      "code": "O",
+      "name": "Västra Götaland (Gothenburg)",
+      "countryCode": "SE"
+    },
+    {
+      "code": "M",
+      "name": "Skåne (Malmö)",
+      "countryCode": "SE"
+    },
+    {
+      "code": "C",
+      "name": "Uppsala County",
+      "countryCode": "SE"
+    },
+    {
+      "code": "E",
+      "name": "Östergötland",
+      "countryCode": "SE"
+    }
+  ],
+  "PL": [
+    {
+      "code": "MZ",
+      "name": "Masovian (Warsaw)",
+      "countryCode": "PL"
+    },
+    {
+      "code": "MA",
+      "name": "Lesser Poland (Kraków)",
+      "countryCode": "PL"
+    },
+    {
+      "code": "DS",
+      "name": "Lower Silesian (Wrocław)",
+      "countryCode": "PL"
+    },
+    {
+      "code": "WP",
+      "name": "Greater Poland (Poznań)",
+      "countryCode": "PL"
+    },
+    {
+      "code": "SL",
+      "name": "Silesian (Katowice)",
+      "countryCode": "PL"
+    },
+    {
+      "code": "PM",
+      "name": "Pomeranian (Gdańsk)",
+      "countryCode": "PL"
+    },
+    {
+      "code": "LD",
+      "name": "Łódź Voivodeship",
+      "countryCode": "PL"
+    }
+  ],
+  "BE": [
+    {
+      "code": "BRU",
+      "name": "Brussels-Capital Region",
+      "countryCode": "BE"
+    },
+    {
+      "code": "VLG",
+      "name": "Flemish Region (Flanders)",
+      "countryCode": "BE"
+    },
+    {
+      "code": "WAL",
+      "name": "Walloon Region (Wallonia)",
+      "countryCode": "BE"
+    },
+    {
+      "code": "VAN",
+      "name": "Antwerp",
+      "countryCode": "BE"
+    },
+    {
+      "code": "VOV",
+      "name": "East Flanders (Ghent)",
+      "countryCode": "BE"
+    }
+  ],
+  "AT": [
+    {
+      "code": "9",
+      "name": "Vienna",
+      "countryCode": "AT"
+    },
+    {
+      "code": "4",
+      "name": "Upper Austria (Linz)",
+      "countryCode": "AT"
+    },
+    {
+      "code": "6",
+      "name": "Styria (Graz)",
+      "countryCode": "AT"
+    },
+    {
+      "code": "3",
+      "name": "Lower Austria",
+      "countryCode": "AT"
+    },
+    {
+      "code": "7",
+      "name": "Tyrol (Innsbruck)",
+      "countryCode": "AT"
+    },
+    {
+      "code": "5",
+      "name": "Salzburg",
+      "countryCode": "AT"
+    }
+  ],
+  "DK": [
+    {
+      "code": "84",
+      "name": "Capital Region (Copenhagen)",
+      "countryCode": "DK"
+    },
+    {
+      "code": "82",
+      "name": "Central Denmark (Aarhus)",
+      "countryCode": "DK"
+    },
+    {
+      "code": "83",
+      "name": "Region of Southern Denmark (Odense)",
+      "countryCode": "DK"
+    },
+    {
+      "code": "81",
+      "name": "North Denmark (Aalborg)",
+      "countryCode": "DK"
+    },
+    {
+      "code": "85",
+      "name": "Region Zealand",
+      "countryCode": "DK"
+    }
+  ],
+  "NO": [
+    {
+      "code": "03",
+      "name": "Oslo",
+      "countryCode": "NO"
+    },
+    {
+      "code": "46",
+      "name": "Vestland (Bergen)",
+      "countryCode": "NO"
+    },
+    {
+      "code": "11",
+      "name": "Rogaland (Stavanger)",
+      "countryCode": "NO"
+    },
+    {
+      "code": "50",
+      "name": "Trøndelag (Trondheim)",
+      "countryCode": "NO"
+    },
+    {
+      "code": "30",
+      "name": "Viken",
+      "countryCode": "NO"
+    }
+  ],
+  "FI": [
+    {
+      "code": "01",
+      "name": "Uusimaa (Helsinki / Espoo)",
+      "countryCode": "FI"
+    },
+    {
+      "code": "11",
+      "name": "Pirkanmaa (Tampere)",
+      "countryCode": "FI"
+    },
+    {
+      "code": "02",
+      "name": "Southwest Finland (Turku)",
+      "countryCode": "FI"
+    },
+    {
+      "code": "14",
+      "name": "North Ostrobothnia (Oulu)",
+      "countryCode": "FI"
+    }
+  ],
+  "PT": [
+    {
+      "code": "11",
+      "name": "Lisbon District",
+      "countryCode": "PT"
+    },
+    {
+      "code": "13",
+      "name": "Porto District",
+      "countryCode": "PT"
+    },
+    {
+      "code": "03",
+      "name": "Braga District",
+      "countryCode": "PT"
+    },
+    {
+      "code": "06",
+      "name": "Coimbra District",
+      "countryCode": "PT"
+    },
+    {
+      "code": "08",
+      "name": "Faro (Algarve)",
+      "countryCode": "PT"
+    }
+  ],
+  "IL": [
+    {
+      "code": "TA",
+      "name": "Tel Aviv District",
+      "countryCode": "IL"
+    },
+    {
+      "code": "C",
+      "name": "Central District",
+      "countryCode": "IL"
+    },
+    {
+      "code": "JM",
+      "name": "Jerusalem District",
+      "countryCode": "IL"
+    },
+    {
+      "code": "HA",
+      "name": "Haifa District",
+      "countryCode": "IL"
+    },
+    {
+      "code": "N",
+      "name": "Northern District",
+      "countryCode": "IL"
+    },
+    {
+      "code": "S",
+      "name": "Southern District",
+      "countryCode": "IL"
+    }
+  ],
+  "AR": [
+    {
+      "code": "B",
+      "name": "Buenos Aires Province",
+      "countryCode": "AR"
+    },
+    {
+      "code": "C",
+      "name": "Autonomous City of Buenos Aires (CABA)",
+      "countryCode": "AR"
+    },
+    {
+      "code": "X",
+      "name": "Córdoba",
+      "countryCode": "AR"
+    },
+    {
+      "code": "S",
+      "name": "Santa Fe (Rosario)",
+      "countryCode": "AR"
+    },
+    {
+      "code": "M",
+      "name": "Mendoza",
+      "countryCode": "AR"
+    }
+  ],
+  "CL": [
+    {
+      "code": "RM",
+      "name": "Santiago Metropolitan Region",
+      "countryCode": "CL"
+    },
+    {
+      "code": "VS",
+      "name": "Valparaíso Region",
+      "countryCode": "CL"
+    },
+    {
+      "code": "BI",
+      "name": "Biobío Region (Concepción)",
+      "countryCode": "CL"
+    },
+    {
+      "code": "AN",
+      "name": "Antofagasta Region",
+      "countryCode": "CL"
+    }
+  ],
+  "CO": [
+    {
+      "code": "DC",
+      "name": "Bogota D.C.",
+      "countryCode": "CO"
+    },
+    {
+      "code": "ANT",
+      "name": "Antioquia (Medellín)",
+      "countryCode": "CO"
+    },
+    {
+      "code": "VAC",
+      "name": "Valle del Cauca (Cali)",
+      "countryCode": "CO"
+    },
+    {
+      "code": "ATL",
+      "name": "Atlántico (Barranquilla)",
+      "countryCode": "CO"
+    },
+    {
+      "code": "SAN",
+      "name": "Santander (Bucaramanga)",
+      "countryCode": "CO"
+    }
+  ],
+  "PH": [
+    {
+      "code": "NCR",
+      "name": "National Capital Region (Metro Manila)",
+      "countryCode": "PH"
+    },
+    {
+      "code": "4A",
+      "name": "Calabarzon",
+      "countryCode": "PH"
+    },
+    {
+      "code": "07",
+      "name": "Central Visayas (Cebu)",
+      "countryCode": "PH"
+    },
+    {
+      "code": "03",
+      "name": "Central Luzon",
+      "countryCode": "PH"
+    },
+    {
+      "code": "11",
+      "name": "Davao Region",
+      "countryCode": "PH"
+    }
+  ],
+  "MY": [
+    {
+      "code": "SGR",
+      "name": "Selangor",
+      "countryCode": "MY"
+    },
+    {
+      "code": "KUL",
+      "name": "Kuala Lumpur",
+      "countryCode": "MY"
+    },
+    {
+      "code": "JHR",
+      "name": "Johor",
+      "countryCode": "MY"
+    },
+    {
+      "code": "PNG",
+      "name": "Penang",
+      "countryCode": "MY"
+    },
+    {
+      "code": "PRK",
+      "name": "Perak",
+      "countryCode": "MY"
+    },
+    {
+      "code": "SBH",
+      "name": "Sabah",
+      "countryCode": "MY"
+    },
+    {
+      "code": "SWK",
+      "name": "Sarawak",
+      "countryCode": "MY"
+    }
+  ],
+  "ID": [
+    {
+      "code": "JK",
+      "name": "Jakarta (Special Capital Region)",
+      "countryCode": "ID"
+    },
+    {
+      "code": "JB",
+      "name": "West Java (Bandung)",
+      "countryCode": "ID"
+    },
+    {
+      "code": "JI",
+      "name": "East Java (Surabaya)",
+      "countryCode": "ID"
+    },
+    {
+      "code": "JT",
+      "name": "Central Java (Semarang)",
+      "countryCode": "ID"
+    },
+    {
+      "code": "BA",
+      "name": "Bali",
+      "countryCode": "ID"
+    },
+    {
+      "code": "BT",
+      "name": "Banten",
+      "countryCode": "ID"
+    },
+    {
+      "code": "SU",
+      "name": "North Sumatra (Medan)",
+      "countryCode": "ID"
+    }
+  ],
+  "TH": [
+    {
+      "code": "10",
+      "name": "Bangkok",
+      "countryCode": "TH"
+    },
+    {
+      "code": "50",
+      "name": "Chiang Mai",
+      "countryCode": "TH"
+    },
+    {
+      "code": "83",
+      "name": "Phuket",
+      "countryCode": "TH"
+    },
+    {
+      "code": "20",
+      "name": "Chonburi (Pattaya)",
+      "countryCode": "TH"
+    },
+    {
+      "code": "11",
+      "name": "Samut Prakan",
+      "countryCode": "TH"
+    },
+    {
+      "code": "12",
+      "name": "Nonthaburi",
+      "countryCode": "TH"
+    }
+  ],
+  "VN": [
+    {
+      "code": "SG",
+      "name": "Ho Chi Minh City",
+      "countryCode": "VN"
+    },
+    {
+      "code": "HN",
+      "name": "Hanoi",
+      "countryCode": "VN"
+    },
+    {
+      "code": "DN",
+      "name": "Da Nang",
+      "countryCode": "VN"
+    },
+    {
+      "code": "BD",
+      "name": "Binh Duong",
+      "countryCode": "VN"
+    },
+    {
+      "code": "HP",
+      "name": "Hai Phong",
+      "countryCode": "VN"
+    },
+    {
+      "code": "DN",
+      "name": "Dong Nai",
+      "countryCode": "VN"
+    }
+  ],
+  "SA": [
+    {
+      "code": "01",
+      "name": "Riyadh Province",
+      "countryCode": "SA"
+    },
+    {
+      "code": "02",
+      "name": "Makkah Province (Jeddah)",
+      "countryCode": "SA"
+    },
+    {
+      "code": "04",
+      "name": "Eastern Province (Dammam / Khobar)",
+      "countryCode": "SA"
+    },
+    {
+      "code": "03",
+      "name": "Al Madinah Province",
+      "countryCode": "SA"
+    }
+  ],
+  "EG": [
+    {
+      "code": "C",
+      "name": "Cairo Governorate",
+      "countryCode": "EG"
+    },
+    {
+      "code": "GZ",
+      "name": "Giza Governorate",
+      "countryCode": "EG"
+    },
+    {
+      "code": "ALX",
+      "name": "Alexandria Governorate",
+      "countryCode": "EG"
+    },
+    {
+      "code": "DK",
+      "name": "Dakahlia (Mansoura)",
+      "countryCode": "EG"
+    },
+    {
+      "code": "SHR",
+      "name": "Al Sharqia",
+      "countryCode": "EG"
+    }
+  ],
+  "NG": [
+    {
+      "code": "LA",
+      "name": "Lagos State",
+      "countryCode": "NG"
+    },
+    {
+      "code": "FC",
+      "name": "Federal Capital Territory (Abuja)",
+      "countryCode": "NG"
+    },
+    {
+      "code": "RI",
+      "name": "Rivers State (Port Harcourt)",
+      "countryCode": "NG"
+    },
+    {
+      "code": "KN",
+      "name": "Kano State",
+      "countryCode": "NG"
+    },
+    {
+      "code": "OY",
+      "name": "Oyo State (Ibadan)",
+      "countryCode": "NG"
+    }
+  ],
+  "KE": [
+    {
+      "code": "30",
+      "name": "Nairobi County",
+      "countryCode": "KE"
+    },
+    {
+      "code": "28",
+      "name": "Mombasa County",
+      "countryCode": "KE"
+    },
+    {
+      "code": "22",
+      "name": "Kiambu County",
+      "countryCode": "KE"
+    },
+    {
+      "code": "32",
+      "name": "Nakuru County",
+      "countryCode": "KE"
+    },
+    {
+      "code": "42",
+      "name": "Kisumu County",
+      "countryCode": "KE"
+    }
+  ],
+  "AF": [
+    {
+      "code": "AF-01",
+      "name": "Afghanistan (National / Central Region)",
+      "countryCode": "AF"
+    }
+  ],
+  "AX": [
+    {
+      "code": "AX-01",
+      "name": "Åland Islands (National / Central Region)",
+      "countryCode": "AX"
+    }
+  ],
+  "AL": [
+    {
+      "code": "AL-01",
+      "name": "Albania (National / Central Region)",
+      "countryCode": "AL"
+    }
+  ],
+  "DZ": [
+    {
+      "code": "DZ-01",
+      "name": "Algeria (National / Central Region)",
+      "countryCode": "DZ"
+    }
+  ],
+  "AS": [
+    {
+      "code": "AS-01",
+      "name": "American Samoa (National / Central Region)",
+      "countryCode": "AS"
+    }
+  ],
+  "AD": [
+    {
+      "code": "AD-01",
+      "name": "Andorra (National / Central Region)",
+      "countryCode": "AD"
+    }
+  ],
+  "AO": [
+    {
+      "code": "AO-01",
+      "name": "Angola (National / Central Region)",
+      "countryCode": "AO"
+    }
+  ],
+  "AI": [
+    {
+      "code": "AI-01",
+      "name": "Anguilla (National / Central Region)",
+      "countryCode": "AI"
+    }
+  ],
+  "AQ": [
+    {
+      "code": "AQ-01",
+      "name": "Antarctica (National / Central Region)",
+      "countryCode": "AQ"
+    }
+  ],
+  "AG": [
+    {
+      "code": "AG-01",
+      "name": "Antigua and Barbuda (National / Central Region)",
+      "countryCode": "AG"
+    }
+  ],
+  "AM": [
+    {
+      "code": "AM-01",
+      "name": "Armenia (National / Central Region)",
+      "countryCode": "AM"
+    }
+  ],
+  "AW": [
+    {
+      "code": "AW-01",
+      "name": "Aruba (National / Central Region)",
+      "countryCode": "AW"
+    }
+  ],
+  "AZ": [
+    {
+      "code": "AZ-01",
+      "name": "Azerbaijan (National / Central Region)",
+      "countryCode": "AZ"
+    }
+  ],
+  "BS": [
+    {
+      "code": "BS-01",
+      "name": "Bahamas (National / Central Region)",
+      "countryCode": "BS"
+    }
+  ],
+  "BH": [
+    {
+      "code": "BH-01",
+      "name": "Bahrain (National / Central Region)",
+      "countryCode": "BH"
+    }
+  ],
+  "BD": [
+    {
+      "code": "BD-01",
+      "name": "Bangladesh (National / Central Region)",
+      "countryCode": "BD"
+    }
+  ],
+  "BB": [
+    {
+      "code": "BB-01",
+      "name": "Barbados (National / Central Region)",
+      "countryCode": "BB"
+    }
+  ],
+  "BY": [
+    {
+      "code": "BY-01",
+      "name": "Belarus (National / Central Region)",
+      "countryCode": "BY"
+    }
+  ],
+  "BZ": [
+    {
+      "code": "BZ-01",
+      "name": "Belize (National / Central Region)",
+      "countryCode": "BZ"
+    }
+  ],
+  "BJ": [
+    {
+      "code": "BJ-01",
+      "name": "Benin (National / Central Region)",
+      "countryCode": "BJ"
+    }
+  ],
+  "BM": [
+    {
+      "code": "BM-01",
+      "name": "Bermuda (National / Central Region)",
+      "countryCode": "BM"
+    }
+  ],
+  "BT": [
+    {
+      "code": "BT-01",
+      "name": "Bhutan (National / Central Region)",
+      "countryCode": "BT"
+    }
+  ],
+  "BO": [
+    {
+      "code": "BO-01",
+      "name": "Bolivia (National / Central Region)",
+      "countryCode": "BO"
+    }
+  ],
+  "BA": [
+    {
+      "code": "BA-01",
+      "name": "Bosnia and Herzegovina (National / Central Region)",
+      "countryCode": "BA"
+    }
+  ],
+  "BW": [
+    {
+      "code": "BW-01",
+      "name": "Botswana (National / Central Region)",
+      "countryCode": "BW"
+    }
+  ],
+  "BV": [
+    {
+      "code": "BV-01",
+      "name": "Bouvet Island (National / Central Region)",
+      "countryCode": "BV"
+    }
+  ],
+  "IO": [
+    {
+      "code": "IO-01",
+      "name": "British Indian Ocean Territory (National / Central Region)",
+      "countryCode": "IO"
+    }
+  ],
+  "BN": [
+    {
+      "code": "BN-01",
+      "name": "Brunei Darussalam (National / Central Region)",
+      "countryCode": "BN"
+    }
+  ],
+  "BG": [
+    {
+      "code": "BG-01",
+      "name": "Bulgaria (National / Central Region)",
+      "countryCode": "BG"
+    }
+  ],
+  "BF": [
+    {
+      "code": "BF-01",
+      "name": "Burkina Faso (National / Central Region)",
+      "countryCode": "BF"
+    }
+  ],
+  "BI": [
+    {
+      "code": "BI-01",
+      "name": "Burundi (National / Central Region)",
+      "countryCode": "BI"
+    }
+  ],
+  "CV": [
+    {
+      "code": "CV-01",
+      "name": "Cabo Verde (National / Central Region)",
+      "countryCode": "CV"
+    }
+  ],
+  "KH": [
+    {
+      "code": "KH-01",
+      "name": "Cambodia (National / Central Region)",
+      "countryCode": "KH"
+    }
+  ],
+  "CM": [
+    {
+      "code": "CM-01",
+      "name": "Cameroon (National / Central Region)",
+      "countryCode": "CM"
+    }
+  ],
+  "KY": [
+    {
+      "code": "KY-01",
+      "name": "Cayman Islands (National / Central Region)",
+      "countryCode": "KY"
+    }
+  ],
+  "CF": [
+    {
+      "code": "CF-01",
+      "name": "Central African Republic (National / Central Region)",
+      "countryCode": "CF"
+    }
+  ],
+  "TD": [
+    {
+      "code": "TD-01",
+      "name": "Chad (National / Central Region)",
+      "countryCode": "TD"
+    }
+  ],
+  "CN": [
+    {
+      "code": "CN-01",
+      "name": "China (National / Central Region)",
+      "countryCode": "CN"
+    }
+  ],
+  "CX": [
+    {
+      "code": "CX-01",
+      "name": "Christmas Island (National / Central Region)",
+      "countryCode": "CX"
+    }
+  ],
+  "CC": [
+    {
+      "code": "CC-01",
+      "name": "Cocos (Keeling) Islands (National / Central Region)",
+      "countryCode": "CC"
+    }
+  ],
+  "KM": [
+    {
+      "code": "KM-01",
+      "name": "Comoros (National / Central Region)",
+      "countryCode": "KM"
+    }
+  ],
+  "CG": [
+    {
+      "code": "CG-01",
+      "name": "Congo (National / Central Region)",
+      "countryCode": "CG"
+    }
+  ],
+  "CD": [
+    {
+      "code": "CD-01",
+      "name": "Congo (Democratic Republic of the) (National / Central Region)",
+      "countryCode": "CD"
+    }
+  ],
+  "CK": [
+    {
+      "code": "CK-01",
+      "name": "Cook Islands (National / Central Region)",
+      "countryCode": "CK"
+    }
+  ],
+  "CR": [
+    {
+      "code": "CR-01",
+      "name": "Costa Rica (National / Central Region)",
+      "countryCode": "CR"
+    }
+  ],
+  "CI": [
+    {
+      "code": "CI-01",
+      "name": "Côte d'Ivoire (National / Central Region)",
+      "countryCode": "CI"
+    }
+  ],
+  "HR": [
+    {
+      "code": "HR-01",
+      "name": "Croatia (National / Central Region)",
+      "countryCode": "HR"
+    }
+  ],
+  "CU": [
+    {
+      "code": "CU-01",
+      "name": "Cuba (National / Central Region)",
+      "countryCode": "CU"
+    }
+  ],
+  "CW": [
+    {
+      "code": "CW-01",
+      "name": "Curaçao (National / Central Region)",
+      "countryCode": "CW"
+    }
+  ],
+  "CY": [
+    {
+      "code": "CY-01",
+      "name": "Cyprus (National / Central Region)",
+      "countryCode": "CY"
+    }
+  ],
+  "CZ": [
+    {
+      "code": "CZ-01",
+      "name": "Czech Republic (National / Central Region)",
+      "countryCode": "CZ"
+    }
+  ],
+  "DJ": [
+    {
+      "code": "DJ-01",
+      "name": "Djibouti (National / Central Region)",
+      "countryCode": "DJ"
+    }
+  ],
+  "DM": [
+    {
+      "code": "DM-01",
+      "name": "Dominica (National / Central Region)",
+      "countryCode": "DM"
+    }
+  ],
+  "DO": [
+    {
+      "code": "DO-01",
+      "name": "Dominican Republic (National / Central Region)",
+      "countryCode": "DO"
+    }
+  ],
+  "EC": [
+    {
+      "code": "EC-01",
+      "name": "Ecuador (National / Central Region)",
+      "countryCode": "EC"
+    }
+  ],
+  "SV": [
+    {
+      "code": "SV-01",
+      "name": "El Salvador (National / Central Region)",
+      "countryCode": "SV"
+    }
+  ],
+  "GQ": [
+    {
+      "code": "GQ-01",
+      "name": "Equatorial Guinea (National / Central Region)",
+      "countryCode": "GQ"
+    }
+  ],
+  "ER": [
+    {
+      "code": "ER-01",
+      "name": "Eritrea (National / Central Region)",
+      "countryCode": "ER"
+    }
+  ],
+  "EE": [
+    {
+      "code": "EE-01",
+      "name": "Estonia (National / Central Region)",
+      "countryCode": "EE"
+    }
+  ],
+  "SZ": [
+    {
+      "code": "SZ-01",
+      "name": "Eswatini (National / Central Region)",
+      "countryCode": "SZ"
+    }
+  ],
+  "ET": [
+    {
+      "code": "ET-01",
+      "name": "Ethiopia (National / Central Region)",
+      "countryCode": "ET"
+    }
+  ],
+  "FK": [
+    {
+      "code": "FK-01",
+      "name": "Falkland Islands (Malvinas) (National / Central Region)",
+      "countryCode": "FK"
+    }
+  ],
+  "FO": [
+    {
+      "code": "FO-01",
+      "name": "Faroe Islands (National / Central Region)",
+      "countryCode": "FO"
+    }
+  ],
+  "FJ": [
+    {
+      "code": "FJ-01",
+      "name": "Fiji (National / Central Region)",
+      "countryCode": "FJ"
+    }
+  ],
+  "GF": [
+    {
+      "code": "GF-01",
+      "name": "French Guiana (National / Central Region)",
+      "countryCode": "GF"
+    }
+  ],
+  "PF": [
+    {
+      "code": "PF-01",
+      "name": "French Polynesia (National / Central Region)",
+      "countryCode": "PF"
+    }
+  ],
+  "TF": [
+    {
+      "code": "TF-01",
+      "name": "French Southern Territories (National / Central Region)",
+      "countryCode": "TF"
+    }
+  ],
+  "GA": [
+    {
+      "code": "GA-01",
+      "name": "Gabon (National / Central Region)",
+      "countryCode": "GA"
+    }
+  ],
+  "GM": [
+    {
+      "code": "GM-01",
+      "name": "Gambia (National / Central Region)",
+      "countryCode": "GM"
+    }
+  ],
+  "GE": [
+    {
+      "code": "GE-01",
+      "name": "Georgia (National / Central Region)",
+      "countryCode": "GE"
+    }
+  ],
+  "GH": [
+    {
+      "code": "GH-01",
+      "name": "Ghana (National / Central Region)",
+      "countryCode": "GH"
+    }
+  ],
+  "GI": [
+    {
+      "code": "GI-01",
+      "name": "Gibraltar (National / Central Region)",
+      "countryCode": "GI"
+    }
+  ],
+  "GR": [
+    {
+      "code": "GR-01",
+      "name": "Greece (National / Central Region)",
+      "countryCode": "GR"
+    }
+  ],
+  "GL": [
+    {
+      "code": "GL-01",
+      "name": "Greenland (National / Central Region)",
+      "countryCode": "GL"
+    }
+  ],
+  "GD": [
+    {
+      "code": "GD-01",
+      "name": "Grenada (National / Central Region)",
+      "countryCode": "GD"
+    }
+  ],
+  "GP": [
+    {
+      "code": "GP-01",
+      "name": "Guadeloupe (National / Central Region)",
+      "countryCode": "GP"
+    }
+  ],
+  "GU": [
+    {
+      "code": "GU-01",
+      "name": "Guam (National / Central Region)",
+      "countryCode": "GU"
+    }
+  ],
+  "GT": [
+    {
+      "code": "GT-01",
+      "name": "Guatemala (National / Central Region)",
+      "countryCode": "GT"
+    }
+  ],
+  "GG": [
+    {
+      "code": "GG-01",
+      "name": "Guernsey (National / Central Region)",
+      "countryCode": "GG"
+    }
+  ],
+  "GN": [
+    {
+      "code": "GN-01",
+      "name": "Guinea (National / Central Region)",
+      "countryCode": "GN"
+    }
+  ],
+  "GW": [
+    {
+      "code": "GW-01",
+      "name": "Guinea-Bissau (National / Central Region)",
+      "countryCode": "GW"
+    }
+  ],
+  "GY": [
+    {
+      "code": "GY-01",
+      "name": "Guyana (National / Central Region)",
+      "countryCode": "GY"
+    }
+  ],
+  "HT": [
+    {
+      "code": "HT-01",
+      "name": "Haiti (National / Central Region)",
+      "countryCode": "HT"
+    }
+  ],
+  "HM": [
+    {
+      "code": "HM-01",
+      "name": "Heard Island and McDonald Islands (National / Central Region)",
+      "countryCode": "HM"
+    }
+  ],
+  "VA": [
+    {
+      "code": "VA-01",
+      "name": "Holy See (National / Central Region)",
+      "countryCode": "VA"
+    }
+  ],
+  "HN": [
+    {
+      "code": "HN-01",
+      "name": "Honduras (National / Central Region)",
+      "countryCode": "HN"
+    }
+  ],
+  "HK": [
+    {
+      "code": "HK-01",
+      "name": "Hong Kong (National / Central Region)",
+      "countryCode": "HK"
+    }
+  ],
+  "HU": [
+    {
+      "code": "HU-01",
+      "name": "Hungary (National / Central Region)",
+      "countryCode": "HU"
+    }
+  ],
+  "IS": [
+    {
+      "code": "IS-01",
+      "name": "Iceland (National / Central Region)",
+      "countryCode": "IS"
+    }
+  ],
+  "IR": [
+    {
+      "code": "IR-01",
+      "name": "Iran (Islamic Republic of) (National / Central Region)",
+      "countryCode": "IR"
+    }
+  ],
+  "IQ": [
+    {
+      "code": "IQ-01",
+      "name": "Iraq (National / Central Region)",
+      "countryCode": "IQ"
+    }
+  ],
+  "IM": [
+    {
+      "code": "IM-01",
+      "name": "Isle of Man (National / Central Region)",
+      "countryCode": "IM"
+    }
+  ],
+  "JM": [
+    {
+      "code": "JM-01",
+      "name": "Jamaica (National / Central Region)",
+      "countryCode": "JM"
+    }
+  ],
+  "JE": [
+    {
+      "code": "JE-01",
+      "name": "Jersey (National / Central Region)",
+      "countryCode": "JE"
+    }
+  ],
+  "JO": [
+    {
+      "code": "JO-01",
+      "name": "Jordan (National / Central Region)",
+      "countryCode": "JO"
+    }
+  ],
+  "KZ": [
+    {
+      "code": "KZ-01",
+      "name": "Kazakhstan (National / Central Region)",
+      "countryCode": "KZ"
+    }
+  ],
+  "KI": [
+    {
+      "code": "KI-01",
+      "name": "Kiribati (National / Central Region)",
+      "countryCode": "KI"
+    }
+  ],
+  "KP": [
+    {
+      "code": "KP-01",
+      "name": "Korea (Democratic People's Republic of) (National / Central Region)",
+      "countryCode": "KP"
+    }
+  ],
+  "KR": [
+    {
+      "code": "KR-01",
+      "name": "Korea (Republic of) (National / Central Region)",
+      "countryCode": "KR"
+    }
+  ],
+  "KW": [
+    {
+      "code": "KW-01",
+      "name": "Kuwait (National / Central Region)",
+      "countryCode": "KW"
+    }
+  ],
+  "KG": [
+    {
+      "code": "KG-01",
+      "name": "Kyrgyzstan (National / Central Region)",
+      "countryCode": "KG"
+    }
+  ],
+  "LA": [
+    {
+      "code": "LA-01",
+      "name": "Lao People's Democratic Republic (National / Central Region)",
+      "countryCode": "LA"
+    }
+  ],
+  "LV": [
+    {
+      "code": "LV-01",
+      "name": "Latvia (National / Central Region)",
+      "countryCode": "LV"
+    }
+  ],
+  "LB": [
+    {
+      "code": "LB-01",
+      "name": "Lebanon (National / Central Region)",
+      "countryCode": "LB"
+    }
+  ],
+  "LS": [
+    {
+      "code": "LS-01",
+      "name": "Lesotho (National / Central Region)",
+      "countryCode": "LS"
+    }
+  ],
+  "LR": [
+    {
+      "code": "LR-01",
+      "name": "Liberia (National / Central Region)",
+      "countryCode": "LR"
+    }
+  ],
+  "LY": [
+    {
+      "code": "LY-01",
+      "name": "Libya (National / Central Region)",
+      "countryCode": "LY"
+    }
+  ],
+  "LI": [
+    {
+      "code": "LI-01",
+      "name": "Liechtenstein (National / Central Region)",
+      "countryCode": "LI"
+    }
+  ],
+  "LT": [
+    {
+      "code": "LT-01",
+      "name": "Lithuania (National / Central Region)",
+      "countryCode": "LT"
+    }
+  ],
+  "LU": [
+    {
+      "code": "LU-01",
+      "name": "Luxembourg (National / Central Region)",
+      "countryCode": "LU"
+    }
+  ],
+  "MO": [
+    {
+      "code": "MO-01",
+      "name": "Macao (National / Central Region)",
+      "countryCode": "MO"
+    }
+  ],
+  "MG": [
+    {
+      "code": "MG-01",
+      "name": "Madagascar (National / Central Region)",
+      "countryCode": "MG"
+    }
+  ],
+  "MW": [
+    {
+      "code": "MW-01",
+      "name": "Malawi (National / Central Region)",
+      "countryCode": "MW"
+    }
+  ],
+  "MV": [
+    {
+      "code": "MV-01",
+      "name": "Maldives (National / Central Region)",
+      "countryCode": "MV"
+    }
+  ],
+  "ML": [
+    {
+      "code": "ML-01",
+      "name": "Mali (National / Central Region)",
+      "countryCode": "ML"
+    }
+  ],
+  "MT": [
+    {
+      "code": "MT-01",
+      "name": "Malta (National / Central Region)",
+      "countryCode": "MT"
+    }
+  ],
+  "MH": [
+    {
+      "code": "MH-01",
+      "name": "Marshall Islands (National / Central Region)",
+      "countryCode": "MH"
+    }
+  ],
+  "MQ": [
+    {
+      "code": "MQ-01",
+      "name": "Martinique (National / Central Region)",
+      "countryCode": "MQ"
+    }
+  ],
+  "MR": [
+    {
+      "code": "MR-01",
+      "name": "Mauritania (National / Central Region)",
+      "countryCode": "MR"
+    }
+  ],
+  "MU": [
+    {
+      "code": "MU-01",
+      "name": "Mauritius (National / Central Region)",
+      "countryCode": "MU"
+    }
+  ],
+  "YT": [
+    {
+      "code": "YT-01",
+      "name": "Mayotte (National / Central Region)",
+      "countryCode": "YT"
+    }
+  ],
+  "FM": [
+    {
+      "code": "FM-01",
+      "name": "Micronesia (Federated States of) (National / Central Region)",
+      "countryCode": "FM"
+    }
+  ],
+  "MD": [
+    {
+      "code": "MD-01",
+      "name": "Moldova (Republic of) (National / Central Region)",
+      "countryCode": "MD"
+    }
+  ],
+  "MC": [
+    {
+      "code": "MC-01",
+      "name": "Monaco (National / Central Region)",
+      "countryCode": "MC"
+    }
+  ],
+  "MN": [
+    {
+      "code": "MN-01",
+      "name": "Mongolia (National / Central Region)",
+      "countryCode": "MN"
+    }
+  ],
+  "ME": [
+    {
+      "code": "ME-01",
+      "name": "Montenegro (National / Central Region)",
+      "countryCode": "ME"
+    }
+  ],
+  "MS": [
+    {
+      "code": "MS-01",
+      "name": "Montserrat (National / Central Region)",
+      "countryCode": "MS"
+    }
+  ],
+  "MA": [
+    {
+      "code": "MA-01",
+      "name": "Morocco (National / Central Region)",
+      "countryCode": "MA"
+    }
+  ],
+  "MZ": [
+    {
+      "code": "MZ-01",
+      "name": "Mozambique (National / Central Region)",
+      "countryCode": "MZ"
+    }
+  ],
+  "MM": [
+    {
+      "code": "MM-01",
+      "name": "Myanmar (National / Central Region)",
+      "countryCode": "MM"
+    }
+  ],
+  "NA": [
+    {
+      "code": "NA-01",
+      "name": "Namibia (National / Central Region)",
+      "countryCode": "NA"
+    }
+  ],
+  "NR": [
+    {
+      "code": "NR-01",
+      "name": "Nauru (National / Central Region)",
+      "countryCode": "NR"
+    }
+  ],
+  "NP": [
+    {
+      "code": "NP-01",
+      "name": "Nepal (National / Central Region)",
+      "countryCode": "NP"
+    }
+  ],
+  "NC": [
+    {
+      "code": "NC-01",
+      "name": "New Caledonia (National / Central Region)",
+      "countryCode": "NC"
+    }
+  ],
+  "NI": [
+    {
+      "code": "NI-01",
+      "name": "Nicaragua (National / Central Region)",
+      "countryCode": "NI"
+    }
+  ],
+  "NE": [
+    {
+      "code": "NE-01",
+      "name": "Niger (National / Central Region)",
+      "countryCode": "NE"
+    }
+  ],
+  "NU": [
+    {
+      "code": "NU-01",
+      "name": "Niue (National / Central Region)",
+      "countryCode": "NU"
+    }
+  ],
+  "NF": [
+    {
+      "code": "NF-01",
+      "name": "Norfolk Island (National / Central Region)",
+      "countryCode": "NF"
+    }
+  ],
+  "MK": [
+    {
+      "code": "MK-01",
+      "name": "North Macedonia (National / Central Region)",
+      "countryCode": "MK"
+    }
+  ],
+  "MP": [
+    {
+      "code": "MP-01",
+      "name": "Northern Mariana Islands (National / Central Region)",
+      "countryCode": "MP"
+    }
+  ],
+  "OM": [
+    {
+      "code": "OM-01",
+      "name": "Oman (National / Central Region)",
+      "countryCode": "OM"
+    }
+  ],
+  "PK": [
+    {
+      "code": "PK-01",
+      "name": "Pakistan (National / Central Region)",
+      "countryCode": "PK"
+    }
+  ],
+  "PW": [
+    {
+      "code": "PW-01",
+      "name": "Palau (National / Central Region)",
+      "countryCode": "PW"
+    }
+  ],
+  "PS": [
+    {
+      "code": "PS-01",
+      "name": "Palestine, State of (National / Central Region)",
+      "countryCode": "PS"
+    }
+  ],
+  "PA": [
+    {
+      "code": "PA-01",
+      "name": "Panama (National / Central Region)",
+      "countryCode": "PA"
+    }
+  ],
+  "PG": [
+    {
+      "code": "PG-01",
+      "name": "Papua New Guinea (National / Central Region)",
+      "countryCode": "PG"
+    }
+  ],
+  "PY": [
+    {
+      "code": "PY-01",
+      "name": "Paraguay (National / Central Region)",
+      "countryCode": "PY"
+    }
+  ],
+  "PE": [
+    {
+      "code": "PE-01",
+      "name": "Peru (National / Central Region)",
+      "countryCode": "PE"
+    }
+  ],
+  "PN": [
+    {
+      "code": "PN-01",
+      "name": "Pitcairn (National / Central Region)",
+      "countryCode": "PN"
+    }
+  ],
+  "PR": [
+    {
+      "code": "PR-01",
+      "name": "Puerto Rico (National / Central Region)",
+      "countryCode": "PR"
+    }
+  ],
+  "QA": [
+    {
+      "code": "QA-01",
+      "name": "Qatar (National / Central Region)",
+      "countryCode": "QA"
+    }
+  ],
+  "RE": [
+    {
+      "code": "RE-01",
+      "name": "Réunion (National / Central Region)",
+      "countryCode": "RE"
+    }
+  ],
+  "RO": [
+    {
+      "code": "RO-01",
+      "name": "Romania (National / Central Region)",
+      "countryCode": "RO"
+    }
+  ],
+  "RU": [
+    {
+      "code": "RU-01",
+      "name": "Russian Federation (National / Central Region)",
+      "countryCode": "RU"
+    }
+  ],
+  "RW": [
+    {
+      "code": "RW-01",
+      "name": "Rwanda (National / Central Region)",
+      "countryCode": "RW"
+    }
+  ],
+  "BL": [
+    {
+      "code": "BL-01",
+      "name": "Saint Barthélemy (National / Central Region)",
+      "countryCode": "BL"
+    }
+  ],
+  "SH": [
+    {
+      "code": "SH-01",
+      "name": "Saint Helena, Ascension and Tristan da Cunha (National / Central Region)",
+      "countryCode": "SH"
+    }
+  ],
+  "KN": [
+    {
+      "code": "KN-01",
+      "name": "Saint Kitts and Nevis (National / Central Region)",
+      "countryCode": "KN"
+    }
+  ],
+  "LC": [
+    {
+      "code": "LC-01",
+      "name": "Saint Lucia (National / Central Region)",
+      "countryCode": "LC"
+    }
+  ],
+  "MF": [
+    {
+      "code": "MF-01",
+      "name": "Saint Martin (French part) (National / Central Region)",
+      "countryCode": "MF"
+    }
+  ],
+  "PM": [
+    {
+      "code": "PM-01",
+      "name": "Saint Pierre and Miquelon (National / Central Region)",
+      "countryCode": "PM"
+    }
+  ],
+  "VC": [
+    {
+      "code": "VC-01",
+      "name": "Saint Vincent and the Grenadines (National / Central Region)",
+      "countryCode": "VC"
+    }
+  ],
+  "WS": [
+    {
+      "code": "WS-01",
+      "name": "Samoa (National / Central Region)",
+      "countryCode": "WS"
+    }
+  ],
+  "SM": [
+    {
+      "code": "SM-01",
+      "name": "San Marino (National / Central Region)",
+      "countryCode": "SM"
+    }
+  ],
+  "ST": [
+    {
+      "code": "ST-01",
+      "name": "Sao Tome and Principe (National / Central Region)",
+      "countryCode": "ST"
+    }
+  ],
+  "SN": [
+    {
+      "code": "SN-01",
+      "name": "Senegal (National / Central Region)",
+      "countryCode": "SN"
+    }
+  ],
+  "RS": [
+    {
+      "code": "RS-01",
+      "name": "Serbia (National / Central Region)",
+      "countryCode": "RS"
+    }
+  ],
+  "SC": [
+    {
+      "code": "SC-01",
+      "name": "Seychelles (National / Central Region)",
+      "countryCode": "SC"
+    }
+  ],
+  "SL": [
+    {
+      "code": "SL-01",
+      "name": "Sierra Leone (National / Central Region)",
+      "countryCode": "SL"
+    }
+  ],
+  "SX": [
+    {
+      "code": "SX-01",
+      "name": "Sint Maarten (Dutch part) (National / Central Region)",
+      "countryCode": "SX"
+    }
+  ],
+  "SK": [
+    {
+      "code": "SK-01",
+      "name": "Slovakia (National / Central Region)",
+      "countryCode": "SK"
+    }
+  ],
+  "SI": [
+    {
+      "code": "SI-01",
+      "name": "Slovenia (National / Central Region)",
+      "countryCode": "SI"
+    }
+  ],
+  "SB": [
+    {
+      "code": "SB-01",
+      "name": "Solomon Islands (National / Central Region)",
+      "countryCode": "SB"
+    }
+  ],
+  "SO": [
+    {
+      "code": "SO-01",
+      "name": "Somalia (National / Central Region)",
+      "countryCode": "SO"
+    }
+  ],
+  "GS": [
+    {
+      "code": "GS-01",
+      "name": "South Georgia and the South Sandwich Islands (National / Central Region)",
+      "countryCode": "GS"
+    }
+  ],
+  "SS": [
+    {
+      "code": "SS-01",
+      "name": "South Sudan (National / Central Region)",
+      "countryCode": "SS"
+    }
+  ],
+  "LK": [
+    {
+      "code": "LK-01",
+      "name": "Sri Lanka (National / Central Region)",
+      "countryCode": "LK"
+    }
+  ],
+  "SD": [
+    {
+      "code": "SD-01",
+      "name": "Sudan (National / Central Region)",
+      "countryCode": "SD"
+    }
+  ],
+  "SR": [
+    {
+      "code": "SR-01",
+      "name": "Suriname (National / Central Region)",
+      "countryCode": "SR"
+    }
+  ],
+  "SJ": [
+    {
+      "code": "SJ-01",
+      "name": "Svalbard and Jan Mayen (National / Central Region)",
+      "countryCode": "SJ"
+    }
+  ],
+  "SY": [
+    {
+      "code": "SY-01",
+      "name": "Syrian Arab Republic (National / Central Region)",
+      "countryCode": "SY"
+    }
+  ],
+  "TW": [
+    {
+      "code": "TW-01",
+      "name": "Taiwan (National / Central Region)",
+      "countryCode": "TW"
+    }
+  ],
+  "TJ": [
+    {
+      "code": "TJ-01",
+      "name": "Tajikistan (National / Central Region)",
+      "countryCode": "TJ"
+    }
+  ],
+  "TZ": [
+    {
+      "code": "TZ-01",
+      "name": "Tanzania, United Republic of (National / Central Region)",
+      "countryCode": "TZ"
+    }
+  ],
+  "TL": [
+    {
+      "code": "TL-01",
+      "name": "Timor-Leste (National / Central Region)",
+      "countryCode": "TL"
+    }
+  ],
+  "TG": [
+    {
+      "code": "TG-01",
+      "name": "Togo (National / Central Region)",
+      "countryCode": "TG"
+    }
+  ],
+  "TK": [
+    {
+      "code": "TK-01",
+      "name": "Tokelau (National / Central Region)",
+      "countryCode": "TK"
+    }
+  ],
+  "TO": [
+    {
+      "code": "TO-01",
+      "name": "Tonga (National / Central Region)",
+      "countryCode": "TO"
+    }
+  ],
+  "TT": [
+    {
+      "code": "TT-01",
+      "name": "Trinidad and Tobago (National / Central Region)",
+      "countryCode": "TT"
+    }
+  ],
+  "TN": [
+    {
+      "code": "TN-01",
+      "name": "Tunisia (National / Central Region)",
+      "countryCode": "TN"
+    }
+  ],
+  "TR": [
+    {
+      "code": "TR-01",
+      "name": "Turkey (National / Central Region)",
+      "countryCode": "TR"
+    }
+  ],
+  "TM": [
+    {
+      "code": "TM-01",
+      "name": "Turkmenistan (National / Central Region)",
+      "countryCode": "TM"
+    }
+  ],
+  "TC": [
+    {
+      "code": "TC-01",
+      "name": "Turks and Caicos Islands (National / Central Region)",
+      "countryCode": "TC"
+    }
+  ],
+  "TV": [
+    {
+      "code": "TV-01",
+      "name": "Tuvalu (National / Central Region)",
+      "countryCode": "TV"
+    }
+  ],
+  "UG": [
+    {
+      "code": "UG-01",
+      "name": "Uganda (National / Central Region)",
+      "countryCode": "UG"
+    }
+  ],
+  "UA": [
+    {
+      "code": "UA-01",
+      "name": "Ukraine (National / Central Region)",
+      "countryCode": "UA"
+    }
+  ],
+  "UM": [
+    {
+      "code": "UM-01",
+      "name": "United States Minor Outlying Islands (National / Central Region)",
+      "countryCode": "UM"
+    }
+  ],
+  "UY": [
+    {
+      "code": "UY-01",
+      "name": "Uruguay (National / Central Region)",
+      "countryCode": "UY"
+    }
+  ],
+  "UZ": [
+    {
+      "code": "UZ-01",
+      "name": "Uzbekistan (National / Central Region)",
+      "countryCode": "UZ"
+    }
+  ],
+  "VU": [
+    {
+      "code": "VU-01",
+      "name": "Vanuatu (National / Central Region)",
+      "countryCode": "VU"
+    }
+  ],
+  "VE": [
+    {
+      "code": "VE-01",
+      "name": "Venezuela (Bolivarian Republic of) (National / Central Region)",
+      "countryCode": "VE"
+    }
+  ],
+  "VG": [
+    {
+      "code": "VG-01",
+      "name": "Virgin Islands (British) (National / Central Region)",
+      "countryCode": "VG"
+    }
+  ],
+  "VI": [
+    {
+      "code": "VI-01",
+      "name": "Virgin Islands (U.S.) (National / Central Region)",
+      "countryCode": "VI"
+    }
+  ],
+  "WF": [
+    {
+      "code": "WF-01",
+      "name": "Wallis and Futuna (National / Central Region)",
+      "countryCode": "WF"
+    }
+  ],
+  "EH": [
+    {
+      "code": "EH-01",
+      "name": "Western Sahara (National / Central Region)",
+      "countryCode": "EH"
+    }
+  ],
+  "YE": [
+    {
+      "code": "YE-01",
+      "name": "Yemen (National / Central Region)",
+      "countryCode": "YE"
+    }
+  ],
+  "ZM": [
+    {
+      "code": "ZM-01",
+      "name": "Zambia (National / Central Region)",
+      "countryCode": "ZM"
+    }
+  ],
+  "ZW": [
+    {
+      "code": "ZW-01",
+      "name": "Zimbabwe (National / Central Region)",
+      "countryCode": "ZW"
+    }
+  ]
+}

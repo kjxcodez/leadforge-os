@@ -14,7 +14,8 @@ const tests = [
   'src/main/services/audiences.test.ts',
   'src/main/services/post-release-stabilization.test.ts',
   'src/main/services/desktop-runtime-config.test.ts',
-  'src/main/services/fresh-database.test.ts'
+  'src/main/services/fresh-database.test.ts',
+  'src/main/services/locations.test.ts'
 ];
 
 let electronPath = null;

@@ -29,7 +29,13 @@ import {
 import { PageHeader } from '../components/common/PageHeader';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { COUNTRIES, getStatesForCountry, getCitiesForState } from '../lib/locations';
+import {
+  COUNTRIES,
+  getStatesForCountry,
+  getCitiesForState,
+  normalizeCountryName,
+  normalizeStateName
+} from '../lib/locations';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -229,12 +235,19 @@ export default function DiscoveryScreen() {
       toast.error('Please select or enter a target State / Region.');
       return;
     }
+
+    const cleanCountryInput = country.replace(/\s*\([A-Z0-9-]+\)$/i, '').trim();
+    const canonicalCountry = normalizeCountryName(cleanCountryInput) || cleanCountryInput;
+    const cleanStateInput = stateName.replace(/\s*\([A-Z0-9-]+\)$/i, '').trim();
+    const canonicalState = normalizeStateName(cleanStateInput, canonicalCountry) || cleanStateInput;
+    const canonicalCity = city.trim();
+
     createRunMutation.mutate({
       name: jobName,
       query: jobQuery,
-      country,
-      state: stateName,
-      city,
+      country: canonicalCountry,
+      state: canonicalState,
+      city: canonicalCity,
       maxResults
     });
   }, [jobName, jobQuery, country, stateName, city, maxResults, createRunMutation]);
@@ -916,8 +929,10 @@ export default function DiscoveryScreen() {
                 <Label htmlFor="country" className="text-xs font-semibold">
                   Country <span className="text-danger">*</span>
                 </Label>
-                <select
+                <Input
                   id="country"
+                  list="countries-datalist"
+                  placeholder="e.g. United States"
                   value={country}
                   onChange={(e) => {
                     setCountry(e.target.value);
@@ -925,15 +940,15 @@ export default function DiscoveryScreen() {
                     setCity('');
                   }}
                   required
-                  className="h-9 w-full rounded-none bg-card border border-border-subtle px-2 text-xs text-foreground focus:outline-none"
-                >
-                  <option value="">Select Country...</option>
+                  className="rounded-none bg-card border-border-subtle text-xs"
+                />
+                <datalist id="countries-datalist">
                   {COUNTRIES.map((c) => (
                     <option key={c.code} value={c.name}>
-                      {c.name}
+                      {c.name} ({c.code})
                     </option>
                   ))}
-                </select>
+                </datalist>
               </div>
 
               <div className="space-y-1">

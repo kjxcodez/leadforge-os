@@ -477,31 +477,44 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
     let companyState: string | null = state || null;
     let companyCountry: string | null = country || null;
 
-    if (location && (!companyCity || !companyState)) {
+    if (location && (!companyCity || !companyState || !companyCountry)) {
       const tokens = location.split(',').map((t) => t.trim());
       if (tokens.length >= 2) {
         const lastToken = tokens[tokens.length - 1] || '';
         const secondLastToken = tokens[tokens.length - 2] || '';
+
+        // Check if last token is country
+        if (!companyCountry && lastToken) {
+          const detectedCountry = normalizeCountryName(lastToken);
+          if (detectedCountry) companyCountry = detectedCountry;
+        }
+
         const stateZipMatch = secondLastToken.match(/^([A-Z]{2})\s*(\d{5})?/i);
         if (stateZipMatch && stateZipMatch[1]) {
           if (!companyState) companyState = stateZipMatch[1].toUpperCase();
           if (!companyCity && tokens.length >= 3) {
             companyCity = tokens[tokens.length - 3] || null;
           }
-        } else if (!companyCity) {
-          companyCity = secondLastToken;
-        }
-        if (!companyCountry && lastToken) {
-          companyCountry = lastToken;
+        } else {
+          // If second last token is a known region name or code for the country
+          const possibleRegion = normalizeStateName(secondLastToken, companyCountry || undefined);
+          if (possibleRegion && possibleRegion !== secondLastToken) {
+            if (!companyState) companyState = possibleRegion;
+            if (!companyCity && tokens.length >= 3) {
+              companyCity = tokens[tokens.length - 3] || null;
+            }
+          } else if (!companyCity) {
+            companyCity = secondLastToken;
+          }
         }
       }
     }
 
-    if (companyState) {
-      companyState = normalizeStateName(companyState, companyCountry || undefined);
-    }
     if (companyCountry) {
       companyCountry = normalizeCountryName(companyCountry);
+    }
+    if (companyState) {
+      companyState = normalizeStateName(companyState, companyCountry || undefined);
     }
 
     // Store in database in atomic transaction
