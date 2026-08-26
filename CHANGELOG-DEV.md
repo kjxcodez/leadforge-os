@@ -2,6 +2,25 @@
 
 This log tracks technical details, architectures, and dev tools improvements for LeadForge OS.
 
+## [1.1.1-beta.2] - 2026-08-27
+
+### Added
+- **`apps/desktop/src/shared/locations/`**: Created version-pinned, local, offline-capable geographic engine containing:
+  - `types.ts`: `LocationCountry`, `LocationRegion`, `LocationCity`, `LocationSearchResult` interfaces.
+  - `data/countries.json` (248 ISO-3166-1 countries with ISO alpha-2, alpha-3, canonical English names, and dialing codes).
+  - `data/regions.json` (complete ISO-3166-2 first-level administrative subdivisions dictionary across all 248 countries).
+  - `data/cities.json` (populated cities dictionary indexed by `${countryCode}-${regionCode}`).
+  - `index.ts`: In-memory indexing engine providing $O(1)$ lookups, case-insensitive natural-language search, and bidirectional normalizations.
+- **`apps/desktop/src/main/services/locations.test.ts`**: Comprehensive automated test suite verifying country enumeration, ISO uniqueness, subdivision resolution across US, CA, GB, AU, IN, DE, FR, populated cities resolution, bidirectional normalization, and search performance benchmarks.
+- **`apps/desktop/src/main/services/fresh-database.test.ts`**: Automated test suite executing all 32 SQLite migrations on an empty database, ensuring clean initial runs and idempotent re-executions.
+
+### Changed
+- **`apps/desktop/src/shared/utils/locations.ts`**: Refactored to act as a backward-compatible adapter over the pinned `locations/` engine while preserving all existing function signatures (`COUNTRIES`, `STATES_BY_COUNTRY`, `TOP_CITIES_BY_STATE`, `getCountries`, `getStatesForCountry`, `getCitiesForState`, `normalizeCountryName`, `normalizeStateName`).
+- **`apps/desktop/src/renderer/screens/DiscoveryScreen.tsx`**: Upgraded Country input to searchable combobox with `<datalist>` backed by all 248 countries; added canonical normalization before dispatching `discovery:run:create`.
+- **`apps/desktop/src/main/workers/plugins/scraper.ts`**: Enhanced address token parser to detect country tokens from the authoritative index and match regional abbreviations against that country's subdivisions.
+- **`apps/desktop/src/renderer/components/common/WhatsNewDialog.tsx`**: Dynamically renders live GitHub Release body from `updater:get-status` and persists `last_whats_new_version` dynamically.
+- **`apps/desktop/scripts/run-tests.js`**: Registered `locations.test.ts` and `fresh-database.test.ts` into native Electron test harness (12 test suites total).
+
 ## [1.0.0-beta.6] - 2026-08-25
 
 ### Added

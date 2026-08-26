@@ -8,7 +8,7 @@ interface WhatsNewDialogProps {
   onClose?: () => void;
 }
 
-const DEFAULT_VERSION = '1.1.1-beta.1';
+const DEFAULT_VERSION = '1.1.1-beta.2';
 
 const RELEASE_HIGHLIGHTS = [
   {

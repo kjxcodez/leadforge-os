@@ -2,6 +2,22 @@
 
 All notable changes to LeadForge OS will be documented in this file.
 
+## [1.1.1-beta.2] - 2026-08-27
+
+### Added
+- **Comprehensive Local Geographic Data Engine**: Replaced the legacy hardcoded 40-country dataset with an authoritative, offline-capable ISO geographic dataset covering **248+ ISO-3166-1 countries**, complete **ISO-3166-2 administrative subdivisions** across all countries, and a curated populated-city dataset.
+- **Searchable Location Combobox**: Enhanced the Discovery Screen modal with a searchable Country selector supporting real-time keyboard autocomplete and dropdown selection.
+- **Cascading Location Workflow**: Standardized the discovery location UX to Country (REQUIRED) $\rightarrow$ State / Region (REQUIRED) $\rightarrow$ City (OPTIONAL) with dynamic sub-region filtering.
+- **Bidirectional Geographic Normalization**: Added canonical normalization mapping country names and ISO codes (e.g. `US`, `USA` $\rightarrow$ `United States`) as well as subdivision abbreviations (e.g. `FL` $\rightarrow$ `Florida`, `ON` $\rightarrow$ `Ontario`, `NSW` $\rightarrow$ `New South Wales`).
+- **Dynamic Release Notes Experience**: Connected the desktop `What's New` dialog to live GitHub Release markdown payloads via the auto-updater IPC pipeline.
+
+### Fixed
+- **Scraper Address Parsing Parity**: Scraped Google Maps place addresses are now parsed and normalized against the full 248-country ISO subdivision index, eliminating mismatches between scraped records and CRM filter criteria.
+- **Offline Location Performance**: In-memory location index operates with zero external runtime API calls, zero rate-limit constraints, and sub-2ms lookup latency.
+- **Email Outreach Line-Break Preservation**: Corrected newline and whitespace rendering in outreach dispatch templates.
+- **Duplicate Send Suppression**: Enforced atomic delivery claim locks across outreach sequences to eliminate duplicate dispatch events.
+- **Clean Database Migration Lifecycle**: Verified idempotent execution of all 32 SQLite database migrations (`001_initial_schema` to `033_contact_last_contacted_at`) on fresh installations.
+
 ## [1.0.0-beta.6] - 2026-08-25
 
 ### Added
