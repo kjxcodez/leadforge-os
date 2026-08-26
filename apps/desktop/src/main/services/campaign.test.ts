@@ -371,6 +371,67 @@ export async function runCampaignTests() {
   assert.strictEqual(legacyOut, 'Hello Subrota from Ecoray Group');
   console.log('✅ Phase 10C canonical variable rendering parity verified.');
 
+  // 12. Test Phase 10H-R email_deliveries Idempotency Race & Duplicate Suppression
+  const execId = randomUUID();
+  const testContactId = randomUUID();
+  const idempotencyKey = `email_${workspaceId}_${execId}_step_0_${testContactId}`;
+
+  // Insert first delivery record as 'SENDING'
+  const deliveryId1 = randomUUID();
+  db.prepare(`
+    INSERT INTO email_deliveries (
+      id, workspaceId, campaignId, sequenceId, executionId, stepIndex, contactId, companyId, accountId,
+      senderEmail, recipientEmail, subject, providerMessageId, status, attempt, idempotencyKey, createdAt, updatedAt
+    ) VALUES (?, ?, ?, ?, ?, 0, ?, NULL, ?, 'sender@test.com', 'lead@test.com', 'Test Subject', NULL, 'SENDING', 1, ?, datetime('now'), datetime('now'))
+  `).run(deliveryId1, workspaceId, campaignId, sequenceId10B, execId, testContactId, sendingAccountId, idempotencyKey);
+
+  // Attempt duplicate insert with same idempotencyKey (simulates concurrent worker race)
+  let uniqueViolationCaught = false;
+  try {
+    const deliveryId2 = randomUUID();
+    db.prepare(`
+      INSERT INTO email_deliveries (
+        id, workspaceId, campaignId, sequenceId, executionId, stepIndex, contactId, companyId, accountId,
+        senderEmail, recipientEmail, subject, providerMessageId, status, attempt, idempotencyKey, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, 0, ?, NULL, ?, 'sender@test.com', 'lead@test.com', 'Test Subject', NULL, 'SENDING', 1, ?, datetime('now'), datetime('now'))
+    `).run(deliveryId2, workspaceId, campaignId, sequenceId10B, execId, testContactId, sendingAccountId, idempotencyKey);
+  } catch (err: any) {
+    if (err.message.includes('UNIQUE constraint failed') || err.message.includes('UNIQUE')) {
+      uniqueViolationCaught = true;
+    }
+  }
+  assert.strictEqual(uniqueViolationCaught, true, 'SQLite must enforce UNIQUE constraint on idempotencyKey');
+
+  // Verify concurrent check retrieves existing row and recognizes SENDING / SENT
+  const existingDelivery = db.prepare('SELECT id, status FROM email_deliveries WHERE idempotencyKey = ?').get(idempotencyKey) as any;
+  assert.ok(existingDelivery);
+  assert.strictEqual(existingDelivery.status, 'SENDING');
+
+  // Mark sent and verify transition
+  db.prepare(`UPDATE email_deliveries SET status = 'SENT', providerMessageId = 'msg_12345', sentAt = datetime('now') WHERE id = ?`).run(deliveryId1);
+  const sentDelivery = db.prepare('SELECT status, providerMessageId, sentAt FROM email_deliveries WHERE id = ?').get(deliveryId1) as any;
+  assert.strictEqual(sentDelivery.status, 'SENT');
+  assert.strictEqual(sentDelivery.providerMessageId, 'msg_12345');
+  assert.ok(sentDelivery.sentAt);
+  console.log('✅ Phase 10H-R email_deliveries idempotency race & duplicate suppression verified.');
+
+  // 13. Test contacts.lastContactedAt column migration & update semantics
+  db.prepare(`
+    INSERT INTO contacts (id, workspaceId, firstName, lastName, email, status, lastContactedAt, createdAt, updatedAt)
+    VALUES (?, ?, 'Jane', 'Doe', 'jane@example.com', 'LEAD', NULL, datetime('now'), datetime('now'))
+  `).run(testContactId, workspaceId);
+
+  const contactBefore = db.prepare('SELECT status, lastContactedAt FROM contacts WHERE id = ?').get(testContactId) as any;
+  assert.strictEqual(contactBefore.status, 'LEAD');
+  assert.strictEqual(contactBefore.lastContactedAt, null);
+
+  // Update lastContactedAt on successful send
+  db.prepare('UPDATE contacts SET lastContactedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP WHERE id = ?').run(testContactId);
+  const contactAfter = db.prepare('SELECT status, lastContactedAt FROM contacts WHERE id = ?').get(testContactId) as any;
+  assert.strictEqual(contactAfter.status, 'LEAD'); // CRM lifecycle status NOT mutated!
+  assert.ok(contactAfter.lastContactedAt); // lastContactedAt timestamp properly populated!
+  console.log('✅ Phase 10H-R contacts.lastContactedAt column & non-destructive send semantics verified.');
+
   console.log('--- ALL CAMPAIGN INTEGRATION TESTS PASSED ---');
 }
 

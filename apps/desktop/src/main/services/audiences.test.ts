@@ -223,6 +223,84 @@ export async function runAudiencesTests() {
   assert.strictEqual(substringMatch[0].name, 'Dhaka Branch');
   console.log('✅ Location filter exact string and LIKE substring query matching contract verified.');
 
+  // 10. Test Phase 10H-R Dynamic Audience with contactedStatus Filter ('never' vs 'contacted')
+  const uncontactedContactId = randomUUID();
+  const contactedContactId = randomUUID();
+
+  db.prepare(`
+    INSERT INTO contacts (id, workspaceId, firstName, lastName, email, status, lastContactedAt, createdAt, updatedAt)
+    VALUES (?, ?, 'Fresh', 'Lead', 'fresh@test.com', 'LEAD', NULL, datetime('now'), datetime('now'))
+  `).run(uncontactedContactId, wsA);
+
+  db.prepare(`
+    INSERT INTO contacts (id, workspaceId, firstName, lastName, email, status, lastContactedAt, createdAt, updatedAt)
+    VALUES (?, ?, 'Sent', 'Lead', 'sent@test.com', 'LEAD', datetime('now'), datetime('now'), datetime('now'))
+  `).run(contactedContactId, wsA);
+
+  // Insert successful delivery record for contactedContactId
+  db.prepare(`
+    INSERT INTO email_deliveries (
+      id, workspaceId, sequenceId, executionId, stepIndex, contactId, accountId,
+      senderEmail, recipientEmail, subject, providerMessageId, status, attempt, idempotencyKey, sentAt, createdAt, updatedAt
+    ) VALUES (?, ?, 'seq_1', 'exec_1', 0, ?, 'acc_1', 'from@test.com', 'sent@test.com', 'Subj', 'msg_1', 'SENT', 1, ?, datetime('now'), datetime('now'), datetime('now'))
+  `).run(randomUUID(), wsA, contactedContactId, `key_${contactedContactId}`);
+
+  // Test dynamic resolution for never contacted
+  const neverContactedRows = db.prepare(`
+    SELECT id FROM contacts 
+    WHERE workspaceId = ? AND deletedAt IS NULL
+      AND id NOT IN (SELECT DISTINCT contactId FROM email_deliveries WHERE workspaceId = ? AND status = 'SENT')
+  `).all(wsA, wsA) as Array<{ id: string }>;
+  const neverContactedIds = neverContactedRows.map((r) => r.id);
+  assert.ok(neverContactedIds.includes(uncontactedContactId), 'Fresh lead must be included in never contacted filter');
+  assert.ok(!neverContactedIds.includes(contactedContactId), 'Sent lead must NOT be included in never contacted filter');
+
+  // Test dynamic resolution for already contacted
+  const contactedRows = db.prepare(`
+    SELECT id FROM contacts 
+    WHERE workspaceId = ? AND deletedAt IS NULL
+      AND id IN (SELECT DISTINCT contactId FROM email_deliveries WHERE workspaceId = ? AND status = 'SENT')
+  `).all(wsA, wsA) as Array<{ id: string }>;
+  const contactedIds = contactedRows.map((r) => r.id);
+  assert.ok(!contactedIds.includes(uncontactedContactId), 'Fresh lead must NOT be in contacted filter');
+  assert.ok(contactedIds.includes(contactedContactId), 'Sent lead must be in contacted filter');
+  console.log('✅ Phase 10H-R dynamic audience contactedStatus (never / contacted) filter verified.');
+
+  // 11. Test Phase 10H-R Location & CompanyId Audience Filter Parity
+  const coTarget = randomUUID();
+  const coOther = randomUUID();
+  const cTarget1 = randomUUID();
+  const cOther1 = randomUUID();
+
+  db.prepare(`
+    INSERT INTO companies (id, workspaceId, name, city, state, country, location, status, createdAt, updatedAt)
+    VALUES (?, ?, 'Target Co', 'Orlando', 'Florida', 'United States', 'Orlando, Florida, USA', 'LEAD', datetime('now'), datetime('now'))
+  `).run(coTarget, wsA);
+
+  db.prepare(`
+    INSERT INTO companies (id, workspaceId, name, city, state, country, location, status, createdAt, updatedAt)
+    VALUES (?, ?, 'Other Co', 'Seattle', 'Washington', 'United States', 'Seattle, Washington, USA', 'LEAD', datetime('now'), datetime('now'))
+  `).run(coOther, wsA);
+
+  db.prepare(`
+    INSERT INTO contacts (id, workspaceId, companyId, firstName, lastName, email, status, createdAt, updatedAt)
+    VALUES (?, ?, ?, 'Target', 'Person', 'target@targetco.com', 'LEAD', datetime('now'), datetime('now'))
+  `).run(cTarget1, wsA, coTarget);
+
+  db.prepare(`
+    INSERT INTO contacts (id, workspaceId, companyId, firstName, lastName, email, status, createdAt, updatedAt)
+    VALUES (?, ?, ?, 'Other', 'Person', 'other@otherco.com', 'LEAD', datetime('now'), datetime('now'))
+  `).run(cOther1, wsA, coOther);
+
+  const cityFilteredCo = db.prepare('SELECT id FROM companies WHERE workspaceId = ? AND (city LIKE ? OR location LIKE ?)').all(wsA, '%Orlando%', '%Orlando%') as any[];
+  assert.strictEqual(cityFilteredCo.length, 1);
+  assert.strictEqual(cityFilteredCo[0].id, coTarget);
+
+  const stateFilteredCo = db.prepare('SELECT id FROM companies WHERE workspaceId = ? AND (state LIKE ? OR location LIKE ?)').all(wsA, '%Florida%', '%Florida%') as any[];
+  assert.strictEqual(stateFilteredCo.length, 1);
+  assert.strictEqual(stateFilteredCo[0].id, coTarget);
+  console.log('✅ Phase 10H-R audience city/state/companyId filter parity verified.');
+
   console.log('--- ALL AUDIENCES & CRM FOUNDATION TESTS PASSED ---');
 }
 

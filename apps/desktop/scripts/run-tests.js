@@ -1,6 +1,8 @@
 const { execSync } = require('child_process');
 const path = require('path');
 
+const fs = require('fs');
+
 const tests = [
   'src/main/services/onboarding.test.ts',
   'src/main/services/updater.test.ts',
@@ -14,13 +16,35 @@ const tests = [
   'src/main/services/desktop-runtime-config.test.ts'
 ];
 
+let electronPath = null;
+const candidateElectronPaths = [
+  path.join(__dirname, '..', 'node_modules', 'electron', 'dist', 'electron.exe'),
+  path.join(__dirname, '..', '..', '..', 'node_modules', 'electron', 'dist', 'electron.exe'),
+  path.join(__dirname, '..', 'node_modules', '.bin', 'electron.cmd'),
+  path.join(__dirname, '..', '..', '..', 'node_modules', '.bin', 'electron.cmd')
+];
+
+for (const p of candidateElectronPaths) {
+  if (fs.existsSync(p)) {
+    electronPath = p;
+    break;
+  }
+}
+
 let failed = false;
 
 for (const test of tests) {
   const testPath = path.join(__dirname, '..', test);
   console.log(`[Desktop Test] Running ${test}...`);
   try {
-    execSync(`npx tsx "${testPath}"`, { stdio: 'pipe' });
+    if (electronPath) {
+      execSync(`"${electronPath}" --import tsx "${testPath}"`, {
+        stdio: 'pipe',
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+      });
+    } else {
+      execSync(`npx tsx "${testPath}"`, { stdio: 'pipe' });
+    }
     console.log(`[Desktop Test] PASS: ${test}\n`);
   } catch (err) {
     const errorStr =
