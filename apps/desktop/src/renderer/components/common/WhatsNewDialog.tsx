@@ -8,20 +8,20 @@ interface WhatsNewDialogProps {
   onClose?: () => void;
 }
 
-const CURRENT_VERSION = '1.0.0';
+const DEFAULT_VERSION = '1.1.1-beta.1';
 
 const RELEASE_HIGHLIGHTS = [
   {
     icon: Sparkles,
     color: 'text-primary',
-    title: 'Consolidated Discovery & CRM',
-    description: 'Discover target accounts, inspect provenance, and promote candidates directly into active CRM records.'
+    title: 'Precision CRM & Location Normalization',
+    description: 'ISO-3166 standardized geographic filtering (Country -> State -> City) with automatic postal abbreviation normalization.'
   },
   {
     icon: Zap,
     color: 'text-success',
-    title: 'Precision Audiences & Outreach',
-    description: 'Filter companies and contacts by location, industry, or revenue, resolve recipient snapshots, and launch sequences.'
+    title: 'Outreach Safety & Idempotent Ledger',
+    description: 'Atomic email delivery claim locks with durable duplicate suppression, attachment validation, and lastContactedAt tracking.'
   },
   {
     icon: Shield,
@@ -39,24 +39,53 @@ const RELEASE_HIGHLIGHTS = [
 
 export function WhatsNewDialog({ isOpen: forceOpen, onClose: forceClose }: WhatsNewDialogProps) {
   const [open, setOpen] = useState(false);
+  const [currentVersion, setCurrentVersion] = useState(DEFAULT_VERSION);
+  const [liveReleaseNotes, setLiveReleaseNotes] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof forceOpen === 'boolean') {
-      setOpen(forceOpen);
-      return;
+    let isMounted = true;
+
+    async function checkVersionAndStatus() {
+      let activeVer = DEFAULT_VERSION;
+      try {
+        if (window.ipc?.invoke) {
+          const status = await window.ipc.invoke('updater:get-status' as any, undefined);
+          if (status?.currentVersion) {
+            activeVer = status.currentVersion;
+          }
+          if (status?.releaseNotes) {
+            setLiveReleaseNotes(status.releaseNotes);
+          }
+        }
+      } catch {}
+
+      if (isMounted) {
+        setCurrentVersion(activeVer);
+
+        if (typeof forceOpen === 'boolean') {
+          setOpen(forceOpen);
+          return;
+        }
+
+        try {
+          const lastSeen = localStorage.getItem('last_whats_new_version');
+          if (lastSeen !== activeVer) {
+            setOpen(true);
+          }
+        } catch {}
+      }
     }
 
-    try {
-      const lastSeen = localStorage.getItem('last_whats_new_version');
-      if (lastSeen !== CURRENT_VERSION) {
-        setOpen(true);
-      }
-    } catch {}
+    checkVersionAndStatus();
+
+    return () => {
+      isMounted = false;
+    };
   }, [forceOpen]);
 
   const handleDismiss = () => {
     try {
-      localStorage.setItem('last_whats_new_version', CURRENT_VERSION);
+      localStorage.setItem('last_whats_new_version', currentVersion);
     } catch {}
     setOpen(false);
     if (forceClose) forceClose();
@@ -95,7 +124,7 @@ export function WhatsNewDialog({ isOpen: forceOpen, onClose: forceClose }: Whats
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="bg-primary/10 text-primary border border-primary/20 text-[10px] font-mono font-bold px-2 py-0.5 rounded-none">
-                  v{CURRENT_VERSION}
+                  v{currentVersion}
                 </span>
                 <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider font-bold">
                   Release Highlights
@@ -109,28 +138,34 @@ export function WhatsNewDialog({ isOpen: forceOpen, onClose: forceClose }: Whats
               </p>
             </div>
 
-            {/* Highlights List */}
-            <div className="space-y-3 pt-1">
-              {RELEASE_HIGHLIGHTS.map((item, idx) => {
-                const Icon = item.icon;
-                return (
-                  <div
-                    key={idx}
-                    className="flex items-start gap-3 p-3 bg-surface-3/40 border border-border-subtle/60 rounded-none"
-                  >
-                    <div className={`mt-0.5 shrink-0 ${item.color}`}>
-                      <Icon className="w-4 h-4" />
+            {/* Content: Live release notes from GitHub when available, or curated highlights */}
+            {liveReleaseNotes ? (
+              <div className="p-3 bg-surface-3/40 border border-border-subtle/60 rounded-none max-h-64 overflow-y-auto space-y-2 text-foreground font-mono text-[11px] whitespace-pre-wrap leading-relaxed">
+                {liveReleaseNotes}
+              </div>
+            ) : (
+              <div className="space-y-3 pt-1">
+                {RELEASE_HIGHLIGHTS.map((item, idx) => {
+                  const Icon = item.icon;
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-start gap-3 p-3 bg-surface-3/40 border border-border-subtle/60 rounded-none"
+                    >
+                      <div className={`mt-0.5 shrink-0 ${item.color}`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <h4 className="font-semibold text-foreground text-xs">{item.title}</h4>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">
+                          {item.description}
+                        </p>
+                      </div>
                     </div>
-                    <div className="space-y-0.5">
-                      <h4 className="font-semibold text-foreground text-xs">{item.title}</h4>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed">
-                        {item.description}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Footer */}
             <div className="pt-2 flex items-center justify-between border-t border-border-subtle/50">
