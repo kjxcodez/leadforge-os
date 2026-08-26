@@ -3,6 +3,7 @@ import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import type { JobContext } from '../../../shared/types/job';
+import { normalizeStateName, normalizeCountryName } from '../../../shared/utils/locations';
 
 /**
  * Resolves link shorteners and redirectors (e.g. t.co, bit.ly) to find the destination URL.
@@ -494,6 +495,13 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
           companyCountry = lastToken;
         }
       }
+    }
+
+    if (companyState) {
+      companyState = normalizeStateName(companyState, companyCountry || undefined);
+    }
+    if (companyCountry) {
+      companyCountry = normalizeCountryName(companyCountry);
     }
 
     // Store in database in atomic transaction
