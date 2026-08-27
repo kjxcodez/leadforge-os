@@ -14,6 +14,8 @@ import { telemetry } from './telemetry';
 import { UpdateManager } from '../services/updater';
 import { updateSplashProgress } from './splash-window';
 
+import { CacheHydrator } from '../services/cache-hydrator';
+
 /**
  * WorkspaceRuntime manages a single workspace isolated connection, local event bus,
  * and lifecycle engines (scheduler, sync, etc.).
@@ -26,6 +28,7 @@ export class WorkspaceRuntime {
   public readonly syncEngine: SyncEngine;
   public readonly eventBridge: EventBridge;
   public readonly triggerEvaluator: AutomationTriggerEvaluator;
+  public readonly sdk: SdkClient;
   private isRunning: boolean = false;
 
   public startedAt: Date | null = null;
@@ -48,6 +51,7 @@ export class WorkspaceRuntime {
 
   constructor(workspaceId: string, sdk: SdkClient) {
     this.workspaceId = workspaceId;
+    this.sdk = sdk;
     const dbOpenStart = Date.now();
     this.sqliteDb = getDatabase(workspaceId);
     this.databaseOpenDuration = Date.now() - dbOpenStart;
@@ -127,10 +131,13 @@ export class WorkspaceRuntime {
     await this.scheduler.start();
     this.schedulerDuration = Date.now() - schedStart;
 
-    // 4. Start Background Sync Engine
-    sendBootProgress('sync:start', '✓ Starting sync engine');
+    // 4. Start Background Sync Engine & Trigger Cache Hydration from MongoDB
+    sendBootProgress('sync:start', '✓ Starting sync engine & cache hydrator');
     const syncStart = Date.now();
     await this.syncEngine.start();
+    CacheHydrator.hydrateWorkspaceCache(this.workspaceId, this.sdk).catch((err) => {
+      console.warn(`[WorkspaceRuntime] Workspace cache hydration error: ${err}`);
+    });
     this.syncDuration = Date.now() - syncStart;
 
     // 5. Start EventBridge to forward LocalEventBus events to the renderer process

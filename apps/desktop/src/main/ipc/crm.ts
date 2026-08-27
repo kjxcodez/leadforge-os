@@ -79,17 +79,51 @@ export function registerCrmIpc() {
 
   safeRegister('companies:create', async (_event, record) => {
     if (!record.workspaceId) throw new Error('workspaceId is required.');
-    return LocalCRMRepository.save('companies', record);
+    try {
+      const sdk = WorkspaceManager.getSdk();
+      const created = await sdk.companies.create(record);
+      const canonicalRecord = {
+        ...created,
+        workspaceId: record.workspaceId,
+        syncStatus: 'synced'
+      };
+      await LocalCRMRepository.save('companies', canonicalRecord, true);
+      return canonicalRecord;
+    } catch (err) {
+      console.warn('[IPC] Direct API company create failed, staging to local offline cache:', err);
+      return LocalCRMRepository.save('companies', { ...record, syncStatus: 'pending' });
+    }
   });
 
   safeRegister('companies:update', async (_event, { id, dto }) => {
-    if (!dto.workspaceId) throw new Error('workspaceId is required.');
-    return LocalCRMRepository.save('companies', { ...dto, id });
+    const workspaceId = dto.workspaceId || dto.workspace_id;
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    try {
+      const sdk = WorkspaceManager.getSdk();
+      const updated = await sdk.companies.update(id, dto);
+      const canonicalRecord = {
+        ...updated,
+        id,
+        workspaceId,
+        syncStatus: 'synced'
+      };
+      await LocalCRMRepository.save('companies', canonicalRecord, true);
+      return canonicalRecord;
+    } catch (err) {
+      console.warn('[IPC] Direct API company update failed, staging to local offline cache:', err);
+      return LocalCRMRepository.save('companies', { ...dto, id, syncStatus: 'pending' });
+    }
   });
 
   safeRegister('companies:delete', async (_event, { workspaceId, id }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     if (!id) throw new Error('id is required.');
+    try {
+      const sdk = WorkspaceManager.getSdk();
+      await sdk.companies.delete(id);
+    } catch (err) {
+      console.warn('[IPC] Direct API company delete failed, flagging local soft delete:', err);
+    }
     return LocalCRMRepository.softDelete('companies', workspaceId, id);
   });
 
@@ -197,17 +231,51 @@ export function registerCrmIpc() {
 
   safeRegister('contacts:create', async (_event, record) => {
     if (!record.workspaceId) throw new Error('workspaceId is required.');
-    return LocalCRMRepository.save('contacts', record);
+    try {
+      const sdk = WorkspaceManager.getSdk();
+      const created = await sdk.contacts.create(record);
+      const canonicalRecord = {
+        ...created,
+        workspaceId: record.workspaceId,
+        syncStatus: 'synced'
+      };
+      await LocalCRMRepository.save('contacts', canonicalRecord, true);
+      return canonicalRecord;
+    } catch (err) {
+      console.warn('[IPC] Direct API contact create failed, staging to local offline cache:', err);
+      return LocalCRMRepository.save('contacts', { ...record, syncStatus: 'pending' });
+    }
   });
 
   safeRegister('contacts:update', async (_event, { id, dto }) => {
-    if (!dto.workspaceId) throw new Error('workspaceId is required.');
-    return LocalCRMRepository.save('contacts', { ...dto, id });
+    const workspaceId = dto.workspaceId || dto.workspace_id;
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    try {
+      const sdk = WorkspaceManager.getSdk();
+      const updated = await sdk.contacts.update(id, dto);
+      const canonicalRecord = {
+        ...updated,
+        id,
+        workspaceId,
+        syncStatus: 'synced'
+      };
+      await LocalCRMRepository.save('contacts', canonicalRecord, true);
+      return canonicalRecord;
+    } catch (err) {
+      console.warn('[IPC] Direct API contact update failed, staging to local offline cache:', err);
+      return LocalCRMRepository.save('contacts', { ...dto, id, syncStatus: 'pending' });
+    }
   });
 
   safeRegister('contacts:delete', async (_event, { workspaceId, id }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     if (!id) throw new Error('id is required.');
+    try {
+      const sdk = WorkspaceManager.getSdk();
+      await sdk.contacts.delete(id);
+    } catch (err) {
+      console.warn('[IPC] Direct API contact delete failed, flagging local soft delete:', err);
+    }
     return LocalCRMRepository.softDelete('contacts', workspaceId, id);
   });
 
