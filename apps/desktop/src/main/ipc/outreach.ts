@@ -144,28 +144,56 @@ export function registerOutreachIpc(sdk: SdkClient) {
   safeRegister('templates:list', async () => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
+    const localTemplates = await LocalCRMRepository.findMany('templates', runtime.workspaceId);
     try {
       const list = await sdk.outreach.listTemplates();
-      await LocalCRMRepository.saveMany(
-        'templates',
-        list.map((item) => ({
-          ...item,
-          workspaceId: runtime.workspaceId,
-          variables:
-            typeof item.variables === 'string'
-              ? item.variables
-              : JSON.stringify(item.variables || []),
-          attachments:
-            typeof item.attachments === 'string'
-              ? item.attachments
-              : JSON.stringify(item.attachments || [])
-        })),
-        true
-      );
-      return list;
+      if (Array.isArray(list) && list.length > 0) {
+        await LocalCRMRepository.saveMany(
+          'templates',
+          list.map((item) => ({
+            ...item,
+            workspaceId: runtime.workspaceId,
+            variables:
+              typeof item.variables === 'string'
+                ? item.variables
+                : JSON.stringify(item.variables || []),
+            attachments:
+              typeof item.attachments === 'string'
+                ? item.attachments
+                : JSON.stringify(item.attachments || [])
+          })),
+          true
+        );
+      }
+
+      const localMap = new Map<string, any>();
+      localTemplates.forEach((t: any) => localMap.set(t.id, t));
+
+      const mergedList = (list || []).map((remote: any) => {
+        const local = localMap.get(remote.id);
+        const remoteAtts = Array.isArray(remote.attachments)
+          ? remote.attachments
+          : typeof remote.attachments === 'string'
+          ? (() => {
+              try {
+                return JSON.parse(remote.attachments);
+              } catch {
+                return [];
+              }
+            })()
+          : [];
+        const localAtts = Array.isArray(local?.attachments) ? local.attachments : [];
+        const attachments = remoteAtts.length > 0 ? remoteAtts : localAtts;
+        return { ...local, ...remote, attachments };
+      });
+
+      const remoteIds = new Set((list || []).map((t: any) => t.id));
+      const localOnly = localTemplates.filter((t: any) => !remoteIds.has(t.id));
+
+      return [...mergedList, ...localOnly];
     } catch (err) {
       console.warn('[IPC] Failed to list templates from remote, falling back to local cache:', err);
-      return LocalCRMRepository.findMany('templates', runtime.workspaceId);
+      return localTemplates;
     }
   });
 

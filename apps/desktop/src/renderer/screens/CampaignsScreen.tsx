@@ -1833,7 +1833,7 @@ export default function CampaignsScreen() {
 
       {/* ── Create / Edit Template Dialog ─────────────────────────────────── */}
       <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
-        <DialogContent className="max-w-md rounded-none bg-background border border-border-subtle shadow-elevation-2">
+        <DialogContent className="max-w-md rounded-none bg-background border border-border-subtle shadow-elevation-2 max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingTemplateId ? 'Edit Email Template' : 'Create Email Template'}</DialogTitle>
           </DialogHeader>

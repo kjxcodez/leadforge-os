@@ -164,10 +164,10 @@ export class OutreachService {
   // ── Email Templates Management ──────────────────────────────────────────
 
   public async createTemplate(data: any): Promise<any> {
-    const bodyVars = (data.body?.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []).map((v: string) =>
+    const bodyVars = (data.body?.match(/\{\{([a-zA-Z0-9_.]+)\}\}/g) || []).map((v: string) =>
       v.replace(/[\{\}]/g, '')
     );
-    const subjectVars = (data.subject?.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []).map((v: string) =>
+    const subjectVars = (data.subject?.match(/\{\{([a-zA-Z0-9_.]+)\}\}/g) || []).map((v: string) =>
       v.replace(/[\{\}]/g, '')
     );
     const variables = Array.from(new Set([...bodyVars, ...subjectVars]));
@@ -194,10 +194,10 @@ export class OutreachService {
     if (data.attachments !== undefined) updatePayload.attachments = data.attachments;
 
     if (data.body || data.subject) {
-      const bodyVars = ((data.body || '').match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []).map((v: string) =>
+      const bodyVars = ((data.body || '').match(/\{\{([a-zA-Z0-9_.]+)\}\}/g) || []).map((v: string) =>
         v.replace(/[\{\}]/g, '')
       );
-      const subjectVars = ((data.subject || '').match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []).map((v: string) =>
+      const subjectVars = ((data.subject || '').match(/\{\{([a-zA-Z0-9_.]+)\}\}/g) || []).map((v: string) =>
         v.replace(/[\{\}]/g, '')
       );
       if (bodyVars.length || subjectVars.length) {

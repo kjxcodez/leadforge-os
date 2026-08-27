@@ -42,4 +42,20 @@ assert.ok(escapedHtml.includes('&quot;'));
 assert.ok(escapedHtml.includes('&#39;'));
 console.log('✅ HTML escaping passed.');
 
+// Test 5: extractTemplateVariables with namespaced and dot tokens
+const { extractTemplateVariables } = await import('./variable-resolver.js');
+const extracted = extractTemplateVariables('Hi {{contact.firstName}} from {{company.name}} ({{company.domain}})! Contact us at {{sender.email}}.');
+assert.deepStrictEqual(extracted, ['contact.firstName', 'company.name', 'company.domain', 'sender.email']);
+console.log('✅ extractTemplateVariables with namespaced tokens passed.');
+
+// Test 6: Fallback when company is null
+const nullCompanyCtx: CanonicalVariableContext = {
+  contact: { firstName: 'Alice', lastName: 'Smith', email: 'alice@example.com' },
+  company: null,
+  sender: { name: 'Bob', email: 'bob@sender.com' }
+};
+const missingCompanyRendered = renderCanonicalVariables('Hi {{contact.firstName}}, working at {{company.name}}', nullCompanyCtx);
+assert.strictEqual(missingCompanyRendered, 'Hi Alice, working at ');
+console.log('✅ Null company fallback handling passed.');
+
 console.log('[SDK Test] All variable-resolver and formatting tests PASSED!');
