@@ -1,13 +1,13 @@
 import { z } from 'zod';
 import { ContactStatus } from '../enums/index.js';
-import { objectIdField, nameField, emailField, phoneField, urlField } from '../fields/common.js';
+import { entityIdField, entityIdFieldNullable, nameField, emailField, phoneField, urlField } from '../fields/common.js';
 
 export const contactStatusSchema = z.nativeEnum(ContactStatus);
 
 export const contactSchema = z.object({
-  id: objectIdField,
-  workspaceId: objectIdField,
-  companyId: objectIdField.nullable().optional(),
+  id: entityIdField,
+  workspaceId: entityIdField,
+  companyId: entityIdFieldNullable,
   firstName: nameField,
   lastName: z.string().nullable().optional(),
   email: emailField.nullable().optional(),
@@ -18,8 +18,9 @@ export const contactSchema = z.object({
   source: z.string().nullable().optional(),
   status: contactStatusSchema,
   notes: z.string().nullable().optional(),
-  createdAt: z.date(),
-  updatedAt: z.date()
+  lastContactedAt: z.coerce.date().nullable().optional(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date()
 });
 
 export type Contact = z.infer<typeof contactSchema>;

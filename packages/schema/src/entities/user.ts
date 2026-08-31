@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { UserRole } from '../enums/index.js';
-import { objectIdField, emailField } from '../fields/common.js';
+import { entityIdField, entityIdFieldNullable, emailField } from '../fields/common.js';
 
 export const userRoleSchema = z.nativeEnum(UserRole);
 
 export const userSchema = z.object({
-  id: objectIdField,
+  id: entityIdField,
   email: emailField,
   passwordHash: z.string().nullable().optional(),
   name: z.string(),
@@ -13,12 +13,12 @@ export const userSchema = z.object({
   image: z.string().nullable().optional(),
   avatar: z.string().nullable().optional(),
   role: userRoleSchema,
-  activeWorkspaceId: objectIdField.nullable().optional(),
+  activeWorkspaceId: entityIdFieldNullable,
   emailVerified: z.boolean().default(false),
-  lastLoginAt: z.date().nullable().optional(),
+  lastLoginAt: z.coerce.date().nullable().optional(),
   status: z.enum(['active', 'suspended', 'pending']).default('active'),
-  createdAt: z.date(),
-  updatedAt: z.date()
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date()
 });
 
 export type User = z.infer<typeof userSchema>;

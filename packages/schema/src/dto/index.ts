@@ -5,3 +5,7 @@ export * from './contact.js';
 export * from './outreach.js';
 export * from './workspace.js';
 export * from './automation.js';
+export * from './bulk.js';
+export * from './intelligence.js';
+export * from './memory.js';
+export * from './audit.js';

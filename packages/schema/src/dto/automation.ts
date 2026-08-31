@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SequenceStatus } from '../enums/index.js';
+import { entityIdField } from '../fields/common.js';
 import {
   sequenceStepSchema,
   sequenceTriggerSchema,
@@ -8,6 +9,7 @@ import {
 import { paginationParamsSchema } from '../common/pagination.js';
 
 export const createSequenceDtoSchema = z.object({
+  id: entityIdField.optional(),
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional().nullable(),
   trigger: sequenceTriggerSchema,

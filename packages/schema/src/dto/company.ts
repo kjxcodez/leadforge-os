@@ -1,9 +1,10 @@
 import { z } from 'zod';
-import { nameField, domainField } from '../fields/common.js';
+import { entityIdField, nameField, domainField } from '../fields/common.js';
 import { companyStatusSchema, companySchema } from '../entities/company.js';
 import { paginationParamsSchema } from '../common/pagination.js';
 
 export const createCompanyDtoSchema = z.object({
+  id: entityIdField.optional(),
   name: nameField,
   domain: domainField.optional(),
   industry: z.string().nullable().optional(),

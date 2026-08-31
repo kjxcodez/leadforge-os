@@ -243,27 +243,6 @@ export interface IpcChannelMap {
     output: void;
   };
 
-  // ── Local Offline Sync Queue Queries ─────────────────────────────────────
-  'db:queue:push': {
-    input: any;
-    output: void;
-  };
-  'db:queue:pop': {
-    input: string;
-    output: any | null;
-  };
-  'db:queue:list': {
-    input: string;
-    output: any[];
-  };
-  'db:queue:update': {
-    input: { workspaceId: string; id: string; retryCount: number; error: string };
-    output: void;
-  };
-  'db:queue:remove': {
-    input: { workspaceId: string; id: string };
-    output: void;
-  };
 
   'scheduler:jobs:list': {
     input: { workspaceId: string };

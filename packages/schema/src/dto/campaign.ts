@@ -1,16 +1,18 @@
 import { z } from 'zod';
-import { nameField, objectIdField } from '../fields/common.js';
+import { nameField, entityIdField } from '../fields/common.js';
 import { campaignStatusSchema, campaignSchema } from '../entities/campaign.js';
 import { paginationParamsSchema } from '../common/pagination.js';
 
 export const createCampaignStepDtoSchema = z.object({
+  id: entityIdField.optional(),
   type: z.string(),
   delayDays: z.number().int().nonnegative(),
-  templateId: objectIdField
+  templateId: entityIdField
 });
 export type CreateCampaignStepDto = z.infer<typeof createCampaignStepDtoSchema>;
 
 export const createCampaignDtoSchema = z.object({
+  id: entityIdField.optional(),
   name: nameField,
   status: campaignStatusSchema.optional(),
   steps: z.array(createCampaignStepDtoSchema).optional(),

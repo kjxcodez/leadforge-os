@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { objectIdField } from '../fields/common.js';
+import { entityIdField } from '../fields/common.js';
 
 export const sessionDataSchema = z.object({
   ip: z.string().optional(),
@@ -8,12 +8,12 @@ export const sessionDataSchema = z.object({
 export type SessionData = z.infer<typeof sessionDataSchema>;
 
 export const sessionSchema = z.object({
-  id: objectIdField,
-  userId: objectIdField,
+  id: entityIdField,
+  userId: entityIdField,
   token: z.string(),
-  expiresAt: z.date(),
+  expiresAt: z.coerce.date(),
   data: sessionDataSchema,
-  createdAt: z.date(),
-  updatedAt: z.date()
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date()
 });
 export type Session = z.infer<typeof sessionSchema>;
