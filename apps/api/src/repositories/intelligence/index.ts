@@ -1,0 +1,9 @@
+export { CompanyIntelligenceRepository } from './company-intelligence.repository.js';
+export { WebsiteIntelligenceRepository } from './website-intelligence.repository.js';
+export { ContactIntelligenceRepository } from './contact-intelligence.repository.js';
+export { OpportunityScoreRepository } from './opportunity-score.repository.js';
+export { PageCrawlRepository } from './page-crawl.repository.js';
+export { IntelligenceSourceRepository } from './intelligence-source.repository.js';
+export { IntelligenceEvidenceRepository } from './intelligence-evidence.repository.js';
+export { IntelligenceClaimRepository } from './intelligence-claim.repository.js';
+export { IntelligenceInferenceRepository } from './intelligence-inference.repository.js';

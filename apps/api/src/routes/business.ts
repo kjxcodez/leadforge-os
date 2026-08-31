@@ -440,6 +440,14 @@ companiesRouter.post('/', async (c) => {
   return c.json(successResponse(company));
 });
 
+companiesRouter.post('/bulk', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const body = await c.req.json();
+  const service = new CompanyService(wsId);
+  const result = await service.createBulk(body);
+  return c.json(successResponse(result), result.failed > 0 && result.inserted === 0 ? 400 : 200);
+});
+
 companiesRouter.patch('/:id', async (c) => {
   const wsId = getWorkspaceId(c);
   const id = c.req.param('id');
@@ -482,6 +490,14 @@ contactsRouter.post('/', async (c) => {
   const service = new ContactService(wsId);
   const contact = await service.createContact({ ...body, workspaceId: wsId });
   return c.json(successResponse(contact));
+});
+
+contactsRouter.post('/bulk', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const body = await c.req.json();
+  const service = new ContactService(wsId);
+  const result = await service.createBulk(body);
+  return c.json(successResponse(result), result.failed > 0 && result.inserted === 0 ? 400 : 200);
 });
 
 contactsRouter.patch('/:id', async (c) => {
