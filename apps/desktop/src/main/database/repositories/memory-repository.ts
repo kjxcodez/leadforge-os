@@ -28,7 +28,7 @@ export class AgentMemoryRepositoryImpl implements AgentMemoryRepository {
   }
 
   /**
-   * Saves memory and inserts corresponding outbox records into sync_queue (Outbox Pattern).
+   * Saves memory to workspace_memory table.
    */
   public async saveMemory(
     workspaceId: string,
@@ -54,37 +54,23 @@ export class AgentMemoryRepositoryImpl implements AgentMemoryRepository {
         db.prepare(
           `
           UPDATE workspace_memory
-          SET value = ?, version = version + 1, updatedAt = datetime('now'), syncStatus = 'pending'
+          SET value = ?, version = version + 1, updatedAt = datetime('now')
           WHERE id = ?
         `
         ).run(serialized, existing.id);
-
-        db.prepare(
-          `
-          INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version)
-          VALUES (?, ?, 'workspace_memory', ?, 'UPDATE', ?, ?)
-        `
-        ).run(randomUUID(), workspaceId, existing.id, serialized, existing.version + 1);
       } else {
         db.prepare(
           `
-          INSERT INTO workspace_memory (id, workspaceId, scope, key, value, syncStatus, version)
-          VALUES (?, ?, ?, ?, ?, 'pending', 1)
+          INSERT INTO workspace_memory (id, workspaceId, scope, key, value, version)
+          VALUES (?, ?, ?, ?, ?, 1)
         `
         ).run(id, workspaceId, scope, key, serialized);
-
-        db.prepare(
-          `
-          INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version)
-          VALUES (?, ?, 'workspace_memory', ?, 'CREATE', ?, 1)
-        `
-        ).run(randomUUID(), workspaceId, id, serialized);
       }
     })();
   }
 
   /**
-   * Soft deletes memory from workspace_memory table and logs outbox DELETE command.
+   * Soft deletes memory from workspace_memory table.
    */
   public async deleteMemory(workspaceId: string, scope: string, key: string): Promise<void> {
     const db = getDatabase(workspaceId);
@@ -103,17 +89,10 @@ export class AgentMemoryRepositoryImpl implements AgentMemoryRepository {
         db.prepare(
           `
           UPDATE workspace_memory
-          SET deletedAt = datetime('now'), syncStatus = 'pending', updatedAt = datetime('now')
+          SET deletedAt = datetime('now'), updatedAt = datetime('now')
           WHERE id = ?
         `
         ).run(existing.id);
-
-        db.prepare(
-          `
-          INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version)
-          VALUES (?, ?, 'workspace_memory', ?, 'DELETE', NULL, 1)
-        `
-        ).run(randomUUID(), workspaceId, existing.id);
       }
     })();
   }

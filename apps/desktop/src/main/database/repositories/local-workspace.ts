@@ -13,16 +13,23 @@ export const LocalWorkspaceRepository = {
     const row = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id) as any;
     if (!row) return null;
 
+    let parsedSettings = { defaultTimezone: 'UTC' };
+    if (row.settings) {
+      try {
+        parsedSettings = JSON.parse(row.settings);
+      } catch {
+        parsedSettings = { defaultTimezone: row.settingsTimezone || 'UTC' };
+      }
+    }
+
     return {
       id: row.id,
       name: row.name,
       slug: row.slug,
       ownerId: row.ownerId,
       plan: row.plan || 'free',
-      settings: {
-        defaultTimezone: row.settingsTimezone || 'UTC'
-      },
-      members: [], // Members mapping can be lazy-loaded
+      settings: parsedSettings,
+      members: [],
       createdAt: new Date(row.createdAt),
       updatedAt: new Date(row.updatedAt)
     };
@@ -35,19 +42,28 @@ export const LocalWorkspaceRepository = {
     const db = getDatabase();
     const rows = db.prepare('SELECT * FROM workspaces').all() as any[];
 
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      slug: row.slug,
-      ownerId: row.ownerId,
-      plan: row.plan || 'free',
-      settings: {
-        defaultTimezone: row.settingsTimezone || 'UTC'
-      },
-      members: [],
-      createdAt: new Date(row.createdAt),
-      updatedAt: new Date(row.updatedAt)
-    }));
+    return rows.map((row) => {
+      let parsedSettings = { defaultTimezone: 'UTC' };
+      if (row.settings) {
+        try {
+          parsedSettings = JSON.parse(row.settings);
+        } catch {
+          parsedSettings = { defaultTimezone: row.settingsTimezone || 'UTC' };
+        }
+      }
+
+      return {
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        ownerId: row.ownerId,
+        plan: row.plan || 'free',
+        settings: parsedSettings,
+        members: [],
+        createdAt: new Date(row.createdAt),
+        updatedAt: new Date(row.updatedAt)
+      };
+    });
   },
 
   /**
@@ -57,17 +73,16 @@ export const LocalWorkspaceRepository = {
     const db = getDatabase();
     db.prepare(
       `
-      INSERT OR REPLACE INTO workspaces (id, name, slug, ownerId, settingsTimezone, syncStatus, version, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO workspaces (id, name, slug, ownerId, plan, settings, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `
     ).run(
       ws.id,
       ws.name,
       ws.slug,
       ws.ownerId,
-      ws.settings.defaultTimezone,
-      'synced',
-      1,
+      ws.plan || 'free',
+      typeof ws.settings === 'object' ? JSON.stringify(ws.settings) : String(ws.settings || '{}'),
       ws.createdAt ? new Date(ws.createdAt).toISOString() : new Date().toISOString(),
       ws.updatedAt ? new Date(ws.updatedAt).toISOString() : new Date().toISOString()
     );
@@ -81,8 +96,8 @@ export const LocalWorkspaceRepository = {
   async saveMany(workspaces: Workspace[]): Promise<void> {
     const db = getDatabase();
     const insert = db.prepare(`
-      INSERT OR REPLACE INTO workspaces (id, name, slug, ownerId, settingsTimezone, syncStatus, version, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO workspaces (id, name, slug, ownerId, plan, settings, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const transaction = db.transaction((list: Workspace[]) => {
@@ -92,9 +107,8 @@ export const LocalWorkspaceRepository = {
           ws.name,
           ws.slug,
           ws.ownerId,
-          ws.settings.defaultTimezone,
-          'synced',
-          1,
+          ws.plan || 'free',
+          typeof ws.settings === 'object' ? JSON.stringify(ws.settings) : String(ws.settings || '{}'),
           ws.createdAt ? new Date(ws.createdAt).toISOString() : new Date().toISOString(),
           ws.updatedAt ? new Date(ws.updatedAt).toISOString() : new Date().toISOString()
         );

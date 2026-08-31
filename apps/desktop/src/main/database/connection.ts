@@ -19,6 +19,27 @@ function logSQLite(message: string, workspaceId?: string) {
   }
 }
 
+function getWorkspacesDir(): string {
+  if (process.env.WORKSPACES_DB_DIR) {
+    return process.env.WORKSPACES_DB_DIR;
+  }
+  try {
+    if (typeof app !== 'undefined' && app?.getPath) {
+      return join(app.getPath('userData'), 'workspaces');
+    }
+  } catch {}
+  return join(process.cwd(), 'report/temp-workspaces');
+}
+
+function getGlobalDbPath(): string {
+  try {
+    if (typeof app !== 'undefined' && app?.getPath) {
+      return join(app.getPath('userData'), 'leadforge.db');
+    }
+  } catch {}
+  return join(process.cwd(), 'report/temp-workspaces/leadforge.db');
+}
+
 /**
  * Initializes and returns the local SQLite database connection.
  * Configures WAL mode, normal synchronisation, and a busy timeout.
@@ -29,41 +50,62 @@ export function getDatabase(workspaceId?: string): Database.Database {
     let db = workspaceDbs.get(workspaceId);
     if (db) return db;
 
-    const userDataPath = app.getPath('userData');
-    const workspacesPath = join(userDataPath, 'workspaces');
+    const workspacesPath = getWorkspacesDir();
 
     if (!fs.existsSync(workspacesPath)) {
       fs.mkdirSync(workspacesPath, { recursive: true });
     }
 
     const dbPath = join(workspacesPath, `leadforge_${workspaceId}.db`);
-    db = new Database(dbPath);
+    try {
+      db = new Database(dbPath);
 
-    // Enable Write-Ahead Logging (WAL) for high concurrency
-    db.pragma('journal_mode = WAL');
-    db.pragma('synchronous = NORMAL');
-    db.pragma('busy_timeout = 5000');
-    db.pragma('foreign_keys = ON');
+      // Enable Write-Ahead Logging (WAL) for high concurrency
+      db.pragma('journal_mode = WAL');
+      db.pragma('synchronous = NORMAL');
+      db.pragma('busy_timeout = 5000');
+      db.pragma('foreign_keys = ON');
 
-    workspaceDbs.set(workspaceId, db);
-    logSQLite(`Workspace database initialized at: ${dbPath}`, workspaceId);
-    return db;
+      workspaceDbs.set(workspaceId, db);
+      logSQLite(`Workspace database initialized at: ${dbPath}`, workspaceId);
+      return db;
+    } catch (err) {
+      if (db) {
+        try {
+          db.close();
+        } catch {}
+      }
+      throw err;
+    }
   }
 
   // Fallback to legacy global connection
   if (globalDb) return globalDb;
 
-  const userDataPath = app.getPath('userData');
-  const dbPath = join(userDataPath, 'leadforge.db');
+  const dbPath = getGlobalDbPath();
+  const dir = join(dbPath, '..');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
 
-  globalDb = new Database(dbPath);
-  globalDb.pragma('journal_mode = WAL');
-  globalDb.pragma('synchronous = NORMAL');
-  globalDb.pragma('busy_timeout = 5000');
-  globalDb.pragma('foreign_keys = ON');
+  try {
+    globalDb = new Database(dbPath);
+    globalDb.pragma('journal_mode = WAL');
+    globalDb.pragma('synchronous = NORMAL');
+    globalDb.pragma('busy_timeout = 5000');
+    globalDb.pragma('foreign_keys = ON');
 
-  logSQLite(`Global database initialized at: ${dbPath}`);
-  return globalDb;
+    logSQLite(`Global database initialized at: ${dbPath}`);
+    return globalDb;
+  } catch (err) {
+    if (globalDb) {
+      try {
+        globalDb.close();
+      } catch {}
+      globalDb = null;
+    }
+    throw err;
+  }
 }
 
 /**
