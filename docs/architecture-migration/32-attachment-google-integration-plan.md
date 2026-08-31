@@ -181,3 +181,15 @@ To prevent accidental double-sends, spam filtering, and provider quota throttlin
 │                                     │ delivery marked `FAILED` with "Attachment fetch error".    │
 └─────────────────────────────────────┴────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 6. Implementation & Verification Status (Phase 9 Complete)
+
+Phase 9 implementation has fully delivered the target Google integration architecture:
+- **Gmail Exclusivity:** Gmail API is the sole outbound email transport. All SMTP infrastructure and dependencies (`nodemailer`) are removed (`active outbound SMTP path = 0`).
+- **Decoupled Connection Model:** `GoogleConnection` abstraction handles OAuth authentication, independent credentials, and granular capabilities (`gmailStatus`, `driveStatus`).
+- **Multi-Sender Isolation:** Workspace supports multiple concurrent Gmail senders with independent token refresh and revocation lifecycles.
+- **Drive Attachment Store:** Binaries are stored in Google Drive (`drive.file`); MongoDB stores canonical `Attachment` metadata records.
+- **Verification Suite:** Fully verified by `scripts/verify-phase9.ts` passing all 27 checks (T9.1 – T9.27). Full documentation recorded in `docs/architecture-migration/47-phase9-google-integration-report.md`.
+

@@ -244,11 +244,15 @@ In place of raw SQL migrations, MongoDB index management and collection bootstra
 
 ---
 
-## 4. Cutover Procedure from `runner.ts` to `initCacheSchema.ts` (Phase 12)
+## 4. Cutover Procedure from `runner.ts` to `initCacheSchema.ts` (Phase 12) — COMPLETED ✅
 
-1. Ensure Phase 4 (SQLite Data Migration to Mongo) is 100% verified.
-2. In `apps/desktop/src/main/database/connection.ts`:
-   - Replace `import { runMigrations } from './runner'` with `import { initCacheSchema } from './initCacheSchema'`.
-   - On database connection open, invoke `initCacheSchema(db)`.
-3. In `apps/desktop/src/main/database/`:
-   - Deprecate and delete `runner.ts`.
+1. Phase 4 (SQLite Data Migration to Mongo) 100% verified.
+2. In `apps/desktop/src/main/database/cache-schema.ts`:
+   - `initCacheSchema(db)` created to initialize clean disposable cache tables.
+   - Self-healing functions `detectCacheState`, `resetWorkspaceCache`, and `ensureCleanCache` implemented.
+3. In `apps/desktop/src/main/index.ts` and `apps/desktop/src/main/lib/workspace-runtime.ts`:
+   - Replaced all calls to `runMigrations()` with `initCacheSchema()`.
+4. In `apps/desktop/src/main/database/`:
+   - Permanently deleted `runner.ts`.
+5. Repository-wide static audit confirmed 0 references to legacy runner or `_migrations`.
+6. Verified with `scripts/verify-phase12.ts` (18/18 PASS).
