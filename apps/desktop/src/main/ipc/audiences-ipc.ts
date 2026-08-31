@@ -197,20 +197,10 @@ export function registerAudiencesIpc() {
       filterDefinition: record.filterDefinition || {},
       staticMemberIds: record.staticMemberIds || []
     };
-    try {
-      const sdk = WorkspaceManager.getSdk();
-      const created = await sdk.audiences.create(payload);
-      const canonicalRecord = {
-        ...created,
-        workspaceId: record.workspaceId,
-        syncStatus: 'synced'
-      };
-      await LocalCRMRepository.save('audiences', canonicalRecord, true);
-      return canonicalRecord;
-    } catch (err) {
-      console.warn('[IPC] Direct API audience create failed, staging to local offline cache:', err);
-      return LocalCRMRepository.save('audiences', { ...payload, syncStatus: 'pending' });
-    }
+    const sdk = WorkspaceManager.getSdk();
+    const created = await sdk.audiences.create(payload);
+    await LocalCRMRepository.saveFromServer('audiences', created);
+    return created;
   });
 
   safeRegister('audiences:get', async (_event, { workspaceId, id }) => {
@@ -254,33 +244,19 @@ export function registerAudiencesIpc() {
 
   safeRegister('audiences:update', async (_event, { id, dto }) => {
     if (!dto.workspaceId) throw new Error('workspaceId is required.');
-    try {
-      const sdk = WorkspaceManager.getSdk();
-      const updated = await sdk.audiences.update(id, dto);
-      const canonicalRecord = {
-        ...updated,
-        id,
-        workspaceId: dto.workspaceId,
-        syncStatus: 'synced'
-      };
-      await LocalCRMRepository.save('audiences', canonicalRecord, true);
-      return canonicalRecord;
-    } catch (err) {
-      console.warn('[IPC] Direct API audience update failed, staging to local offline cache:', err);
-      return LocalCRMRepository.save('audiences', { ...dto, id, syncStatus: 'pending' });
-    }
+    const sdk = WorkspaceManager.getSdk();
+    const updated = await sdk.audiences.update(id, dto);
+    await LocalCRMRepository.saveFromServer('audiences', updated);
+    return updated;
   });
 
   safeRegister('audiences:delete', async (_event, { workspaceId, id }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     if (!id) throw new Error('id is required.');
-    try {
-      const sdk = WorkspaceManager.getSdk();
-      await sdk.audiences.delete(id);
-    } catch (err) {
-      console.warn('[IPC] Direct API audience delete failed, flagging local soft delete:', err);
-    }
-    return LocalCRMRepository.softDelete('audiences', workspaceId, id);
+    const sdk = WorkspaceManager.getSdk();
+    await sdk.audiences.delete(id);
+    await LocalCRMRepository.softDeleteFromServer('audiences', workspaceId, id);
+    return { success: true };
   });
 
   safeRegister('audiences:resolve', async (_event, { workspaceId, id, filterDefinition, mode, staticMemberIds }) => {

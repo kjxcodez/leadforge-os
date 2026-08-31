@@ -48,7 +48,7 @@ export function registerOutreachIpc(sdk: SdkClient) {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
     await disconnectGmailAccount(sdk, id);
-    await LocalCRMRepository.softDelete('email_accounts', runtime.workspaceId, id);
+    await LocalCRMRepository.softDeleteFromServer('email_accounts', runtime.workspaceId, id);
     return { success: true };
   });
 
@@ -200,109 +200,54 @@ export function registerOutreachIpc(sdk: SdkClient) {
   safeRegister('templates:create', async (_event, dto) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    try {
-      const created = await sdk.outreach.createTemplate(dto);
-      const record = {
-        ...created,
-        workspaceId: runtime.workspaceId,
-        variables:
-          typeof created.variables === 'string' ? created.variables : JSON.stringify(created.variables || []),
-        attachments:
-          typeof created.attachments === 'string'
-            ? created.attachments
-            : JSON.stringify(created.attachments || []),
-        syncStatus: 'synced'
-      };
-      await LocalCRMRepository.save('templates', record, true);
-      return {
-        ...record,
-        variables: typeof record.variables === 'string' ? JSON.parse(record.variables) : record.variables,
-        attachments: typeof record.attachments === 'string' ? JSON.parse(record.attachments) : record.attachments
-      };
-    } catch (err) {
-      console.warn('[IPC] Direct API template create failed, staging to local offline cache:', err);
-      const id = dto.id || require('crypto').randomUUID();
-      const record = {
-        ...dto,
-        id,
-        workspaceId: runtime.workspaceId,
-        variables:
-          typeof dto.variables === 'string' ? dto.variables : JSON.stringify(dto.variables || []),
-        attachments:
-          typeof dto.attachments === 'string'
-            ? dto.attachments
-            : JSON.stringify(dto.attachments || []),
-        syncStatus: 'pending'
-      };
-      await LocalCRMRepository.save('templates', record);
-      return {
-        ...record,
-        variables: typeof record.variables === 'string' ? JSON.parse(record.variables) : record.variables,
-        attachments: typeof record.attachments === 'string' ? JSON.parse(record.attachments) : record.attachments
-      };
-    }
+    const created = await sdk.outreach.createTemplate(dto);
+    const record = {
+      ...created,
+      workspaceId: runtime.workspaceId,
+      variables:
+        typeof created.variables === 'string' ? created.variables : JSON.stringify(created.variables || []),
+      attachments:
+        typeof created.attachments === 'string'
+          ? created.attachments
+          : JSON.stringify(created.attachments || [])
+    };
+    await LocalCRMRepository.saveFromServer('templates', record);
+    return {
+      ...record,
+      variables: typeof record.variables === 'string' ? JSON.parse(record.variables) : (record.variables || []),
+      attachments: typeof record.attachments === 'string' ? JSON.parse(record.attachments) : (record.attachments || [])
+    };
   });
 
   safeRegister('templates:update', async (_event, { id, dto }) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
     if (!id) throw new Error('Template ID is required.');
-    try {
-      const updated = await sdk.outreach.updateTemplate(id, dto);
-      const record: any = {
-        ...updated,
-        id,
-        workspaceId: runtime.workspaceId,
-        variables:
-          typeof updated.variables === 'string' ? updated.variables : JSON.stringify(updated.variables || []),
-        attachments:
-          typeof updated.attachments === 'string'
-            ? updated.attachments
-            : JSON.stringify(updated.attachments || []),
-        syncStatus: 'synced'
-      };
-      await LocalCRMRepository.save('templates', record, true);
-      return {
-        ...record,
-        variables: typeof record.variables === 'string' ? JSON.parse(record.variables) : (record.variables || []),
-        attachments: typeof record.attachments === 'string' ? JSON.parse(record.attachments) : (record.attachments || [])
-      };
-    } catch (err) {
-      console.warn('[IPC] Direct API template update failed, staging to local offline cache:', err);
-      const record: any = {
-        ...dto,
-        id,
-        workspaceId: runtime.workspaceId,
-        syncStatus: 'pending'
-      };
-      if (dto.variables !== undefined) {
-        record.variables =
-          typeof dto.variables === 'string' ? dto.variables : JSON.stringify(dto.variables || []);
-      }
-      if (dto.attachments !== undefined) {
-        record.attachments =
-          typeof dto.attachments === 'string'
-            ? dto.attachments
-            : JSON.stringify(dto.attachments || []);
-      }
-      await LocalCRMRepository.save('templates', record);
-      return {
-        ...record,
-        variables: typeof record.variables === 'string' ? JSON.parse(record.variables) : (record.variables || []),
-        attachments: typeof record.attachments === 'string' ? JSON.parse(record.attachments) : (record.attachments || [])
-      };
-    }
+    const updated = await sdk.outreach.updateTemplate(id, dto);
+    const record: any = {
+      ...updated,
+      id,
+      workspaceId: runtime.workspaceId,
+      variables:
+        typeof updated.variables === 'string' ? updated.variables : JSON.stringify(updated.variables || []),
+      attachments:
+        typeof updated.attachments === 'string'
+          ? updated.attachments
+          : JSON.stringify(updated.attachments || [])
+    };
+    await LocalCRMRepository.saveFromServer('templates', record);
+    return {
+      ...record,
+      variables: typeof record.variables === 'string' ? JSON.parse(record.variables) : (record.variables || []),
+      attachments: typeof record.attachments === 'string' ? JSON.parse(record.attachments) : (record.attachments || [])
+    };
   });
 
   safeRegister('templates:delete', async (_event, id) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    try {
-      await sdk.outreach.deleteTemplate(id);
-    } catch (err) {
-      console.warn('[IPC] Direct API template delete failed, flagging local soft delete:', err);
-    }
-    await LocalCRMRepository.softDelete('templates', runtime.workspaceId, id);
+    await sdk.outreach.deleteTemplate(id);
+    await LocalCRMRepository.softDeleteFromServer('templates', runtime.workspaceId, id);
     return { success: true };
   });
 

@@ -1,6 +1,7 @@
 import { safeRegister } from './helper';
 import { getDatabase } from '../database/connection';
 import { WorkspaceManager } from '../lib/workspace-manager';
+import { LocalCRMRepository } from '../database/repositories/local-crm';
 import { loadSession } from '../lib/session';
 import { randomUUID } from 'crypto';
 
@@ -20,6 +21,7 @@ export function registerCampaignsIpc(): void {
     if (!runtime) throw new Error('No active workspace runtime');
 
     const db = getDatabase(runtime.workspaceId);
+    const sdk = WorkspaceManager.getSdk();
 
     // Load target campaign to get sequenceId and status
     const campaign = db
@@ -37,68 +39,34 @@ export function registerCampaignsIpc(): void {
     const now = new Date().toISOString();
     const enrolledIds: string[] = [];
 
-    db.transaction(() => {
-      for (const contactId of contactIds) {
-        // Idempotency check: prevent duplicate enrollments in the same campaign
-        const existing = db
-          .prepare(
-            `
-          SELECT id FROM sequence_executions
-          WHERE campaignId = ? AND contactId = ? AND deletedAt IS NULL
-        `
-          )
-          .get(campaignId, contactId);
-
-        if (existing) continue;
-
-        const enrollmentId = randomUUID();
-
-        // Insert sequence_executions (Enrollment record)
-        db.prepare(
+    for (const contactId of contactIds) {
+      // Idempotency check: prevent duplicate enrollments in the same campaign
+      const existing = db
+        .prepare(
           `
-          INSERT INTO sequence_executions (
-            id, sequenceId, campaignId, workspaceId, contactId, companyId,
-            currentStep, currentStepName, status, startedAt, logs,
-            emailsSent, replies, failures, createdAt, updatedAt
-          ) VALUES (?, ?, ?, ?, ?, NULL, 0, 'Initial', ?, ?, '[]', 0, 0, 0, ?, ?)
-        `
-        ).run(
-          enrollmentId,
-          campaign.sequenceId,
-          campaignId,
-          runtime.workspaceId,
-          contactId,
-          isActive ? 'RUNNING' : 'PAUSED',
-          now,
-          now,
-          now
-        );
+        SELECT id FROM sequence_executions
+        WHERE campaignId = ? AND contactId = ? AND deletedAt IS NULL
+      `
+        )
+        .get(campaignId, contactId);
 
-        // Queue mutation to sync sequence execution to MongoDB
-        db.prepare(
-          `
-          INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
-          VALUES (?, ?, 'sequence_executions', ?, 'CREATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
-        `
-        ).run(
-          randomUUID(),
-          runtime.workspaceId,
-          enrollmentId,
-          JSON.stringify({
-            id: enrollmentId,
-            sequenceId: campaign.sequenceId,
-            campaignId,
-            workspaceId: runtime.workspaceId,
-            contactId,
-            currentStep: 0,
-            status: isActive ? 'RUNNING' : 'PAUSED',
-            startedAt: now
-          })
-        );
+      if (existing) continue;
 
-        // If the campaign is already active, spawn the workflow job in the queue immediately
-        if (isActive) {
-          const jobId = randomUUID();
+      const created = await sdk.executions.create({
+        sequenceId: campaign.sequenceId,
+        campaignId,
+        workspaceId: runtime.workspaceId,
+        contactId,
+        status: isActive ? 'running' : 'paused',
+        startedAt: now
+      });
+
+      await LocalCRMRepository.saveFromServer('sequence_executions', created);
+
+      // If the campaign is already active, spawn the workflow job in the local queue
+      if (isActive) {
+        const jobId = randomUUID();
+        try {
           db.prepare(
             `
             INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
@@ -111,15 +79,17 @@ export function registerCampaignsIpc(): void {
               sequenceId: campaign.sequenceId,
               entityId: contactId,
               entityType: 'contact',
-              executionId: enrollmentId,
+              executionId: created.id,
               workspaceId: runtime.workspaceId
             })
           );
+        } catch (err) {
+          console.warn('[IPC] Local job queueing note:', err);
         }
-
-        enrolledIds.push(enrollmentId);
       }
-    })();
+
+      enrolledIds.push(created.id);
+    }
 
     console.log(`[IPC] Enrolled ${enrolledIds.length} contact(s) into campaign: ${campaignId}`);
     return { success: true, enrolledCount: enrolledIds.length };
@@ -285,20 +255,20 @@ export function registerCampaignsIpc(): void {
       const runtime = WorkspaceManager.getActiveRuntime();
       if (!runtime) throw new Error('No active workspace runtime');
       const db = getDatabase(runtime.workspaceId);
-      const now = new Date().toISOString();
+      const sdk = WorkspaceManager.getSdk();
 
-      db.transaction(() => {
-        for (const id of enrollmentIds) {
-          // Soft delete execution record
-          db.prepare(
-            `
-          UPDATE sequence_executions
-          SET deletedAt = ?, updatedAt = ?
-          WHERE id = ? AND campaignId = ?
-        `
-          ).run(now, now, id, campaignId);
+      for (const id of enrollmentIds) {
+        try {
+          await sdk.executions.delete(id);
+        } catch (err) {
+          console.warn(`[IPC] Execution remote delete warning for ${id}:`, err);
+        }
 
-          // Cancel any active background scheduler jobs for this execution
+        // Soft delete execution record in SQLite cache
+        await LocalCRMRepository.softDeleteFromServer('sequence_executions', runtime.workspaceId, id);
+
+        // Cancel any active background scheduler jobs for this execution
+        try {
           db.prepare(
             `
           UPDATE jobs
@@ -309,16 +279,10 @@ export function registerCampaignsIpc(): void {
             AND status IN ('queued', 'starting', 'running', 'retrying')
         `
           ).run(runtime.workspaceId, id);
-
-          // Queue DELETE mutation for sync
-          db.prepare(
-            `
-          INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
-          VALUES (?, ?, 'sequence_executions', ?, 'DELETE', '{}', 1, 0, NULL, datetime('now'), datetime('now'))
-        `
-          ).run(randomUUID(), runtime.workspaceId, id);
+        } catch (err) {
+          console.warn('[IPC] Local job cancellation note:', err);
         }
-      })();
+      }
 
       return { success: true, count: enrollmentIds.length };
     }

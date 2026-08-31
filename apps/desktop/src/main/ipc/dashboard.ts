@@ -82,12 +82,8 @@ export function registerDashboardIpc(): void {
       )
       .get(workspaceId) as { totalJobs: number; queuedJobs: number };
 
-    // Sync status (sync_queue count)
-    const syncQueueCount = (
-      db
-        .prepare('SELECT COUNT(*) as count FROM sync_queue WHERE workspaceId = ?')
-        .get(workspaceId) as any
-    ).count;
+    // Cache status
+    const syncQueueCount = 0;
 
     // SMTP & IMAP Status (from email_accounts)
     const emailAccount = db
@@ -243,8 +239,8 @@ export function registerDashboardIpc(): void {
         latencyMs: 15,
         restartCount: 0
       },
-      syncEngine: {
-        status: 'Stopped',
+      cacheHydrator: {
+        status: 'Ready',
         uptimeMs: 0,
         lastHeartbeat: null
       },
@@ -283,11 +279,9 @@ export function registerDashboardIpc(): void {
         restartCount: runtime.restartCount
       };
 
-      // Sync Engine
-      const syncEngine = runtime.syncEngine as any;
-      const isSyncRunning = !!syncEngine.intervalId;
-      stats.syncEngine = {
-        status: isSyncRunning ? 'Running' : 'Stopped',
+      // Cache Hydrator
+      stats.cacheHydrator = {
+        status: 'Ready',
         uptimeMs: runtime.startedAt ? Date.now() - runtime.startedAt.getTime() : 0,
         lastHeartbeat: new Date().toISOString()
       };

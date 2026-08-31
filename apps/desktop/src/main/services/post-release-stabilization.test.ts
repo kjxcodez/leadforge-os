@@ -1,7 +1,7 @@
 import assert from 'assert';
 import Database from 'better-sqlite3';
 import { plainTextToHtml, formatEmailBody, renderCanonicalVariables, type CanonicalVariableContext } from '@leadforge/sdk';
-import { runMigrations } from '../database/runner.js';
+import { initCacheSchema } from '../database/cache-schema.js';
 
 export async function runPostReleaseStabilizationTests() {
   console.log('\n============================================================');
@@ -47,7 +47,7 @@ export async function runPostReleaseStabilizationTests() {
   console.log('\n[Test 2] Testing SQLite Migration 031 (templates.attachments column)...');
 
   const db = new Database(':memory:');
-  runMigrations(db);
+  initCacheSchema(db);
 
   const tableInfo = db.prepare("PRAGMA table_info('templates')").all() as any[];
   const hasAttachmentsCol = tableInfo.some((col: any) => col.name === 'attachments');

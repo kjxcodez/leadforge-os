@@ -814,8 +814,8 @@ export function OperationsCenterScreen() {
                         Background Engines Status
                       </span>
                       <span className="font-semibold text-foreground">
-                        Scheduler: {systemInfoQuery.data.schedulerStatus} | Sync:{' '}
-                        {systemInfoQuery.data.syncEngineStatus}
+                        Scheduler: {systemInfoQuery.data.schedulerStatus} | Cache:{' '}
+                        {systemInfoQuery.data.cacheStatus || 'Ready'}
                       </span>
                     </div>
                     <div className="space-y-1 bg-surface-3 p-2 rounded-none border border-border-subtle/50 sm:col-span-2">
@@ -1255,10 +1255,10 @@ export function OperationsCenterScreen() {
               <div className="bg-surface-3 border border-border-subtle rounded-none p-3 flex justify-between items-center gap-4">
                 <div>
                   <span className="font-bold text-foreground block text-[10px] uppercase tracking-wide">
-                    Restore Migration Backup
+                    Rebuild Local Cache
                   </span>
                   <p className="text-muted-foreground text-[10px] mt-0.5 font-medium">
-                    Restore database workspace from the daily `.migration.bak` copy.
+                    Reset and rebuild local SQLite disposable cache directly from MongoDB.
                   </p>
                 </div>
                 <Button

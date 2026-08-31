@@ -74,37 +74,42 @@ class AppLoggerClass {
       console.log(consoleMsg);
     }
 
-    // 2. SQLite system_logs database write
+    // 2. SQLite system_logs database write (if legacy table exists in local database)
     if (params.workspaceId) {
       try {
         const db = getDatabase(params.workspaceId);
-        db.prepare(
+        const hasTable = db
+          .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='system_logs'`)
+          .get();
+        if (hasTable) {
+          db.prepare(
+            `
+            INSERT INTO system_logs (id, workspaceId, workerId, severity, task, message, durationMs, metadata, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           `
-          INSERT INTO system_logs (id, workspaceId, workerId, severity, task, message, durationMs, metadata, timestamp)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `
-        ).run(
-          record.id,
-          record.workspaceId,
-          record.workerId,
-          record.severity,
-          record.task,
-          record.message,
-          record.durationMs,
-          record.metadata ? JSON.stringify(record.metadata) : null,
-          record.timestamp
-        );
+          ).run(
+            record.id,
+            record.workspaceId,
+            record.workerId,
+            record.severity,
+            record.task,
+            record.message,
+            record.durationMs,
+            record.metadata ? JSON.stringify(record.metadata) : null,
+            record.timestamp
+          );
 
-        // Cap to latest 5000 lines
-        db.prepare(
+          // Cap to latest 5000 lines
+          db.prepare(
+            `
+            DELETE FROM system_logs WHERE id NOT IN (
+              SELECT id FROM system_logs ORDER BY timestamp DESC LIMIT 5000
+            )
           `
-          DELETE FROM system_logs WHERE id NOT IN (
-            SELECT id FROM system_logs ORDER BY timestamp DESC LIMIT 5000
-          )
-        `
-        ).run();
+          ).run();
+        }
       } catch (err) {
-        console.error('[Logger] Failed to write log to SQLite system_logs:', err);
+        // SQLite logging is best-effort
       }
     }
 

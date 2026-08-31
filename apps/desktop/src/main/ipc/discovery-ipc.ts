@@ -1,6 +1,7 @@
 import { safeRegister } from './helper';
 import { LocalCRMRepository } from '../database/repositories/local-crm';
 import { getDatabase } from '../database/connection';
+import { WorkspaceManager } from '../lib/workspace-manager';
 
 export function registerDiscoveryIpc() {
   safeRegister('discovery:run:create', async (_event, payload) => {
@@ -11,12 +12,9 @@ export function registerDiscoveryIpc() {
     if (!state || !state.trim()) throw new Error('State / Region is required.');
 
     const runName = name && name.trim() ? name.trim() : `${query} in ${city || state || country || 'Global'}`.trim();
-    const id = globalThis.crypto?.randomUUID
-      ? globalThis.crypto.randomUUID()
-      : require('crypto').randomUUID();
+    const sdk = WorkspaceManager.getSdk();
 
-    const record = {
-      id,
+    const created = await sdk.discovery.createRun({
       workspaceId,
       name: runName,
       query,
@@ -26,40 +24,37 @@ export function registerDiscoveryIpc() {
       provider,
       status: 'running',
       resultCount: 0,
-      startedAt: new Date().toISOString(),
-      syncStatus: 'pending',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+      startedAt: new Date().toISOString()
+    });
 
-    // Save discovery run record (triggers local DB insert + sync queue item)
-    await LocalCRMRepository.save('discovery_runs', record);
+    // Save discovery run record directly into SQLite cache
+    await LocalCRMRepository.saveFromServer('discovery_runs', created);
 
-    // Submit scraper job to scheduler jobs table
-    const db = getDatabase(workspaceId);
+    // Submit scraper job to scheduler via MongoDB SDK
     const jobId = globalThis.crypto?.randomUUID
       ? globalThis.crypto.randomUUID()
       : require('crypto').randomUUID();
 
-    db.prepare(
-      `
-      INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, idempotencyKey, createdAt, updatedAt)
-      VALUES (?, ?, 'scraper:maps', 'queued', 1, ?, 0, 0, 3, NULL, datetime('now'), datetime('now'))
-    `
-    ).run(
-      jobId,
-      workspaceId,
-      JSON.stringify({
-        discoveryRunId: id,
-        query,
-        country,
-        state,
-        city,
-        maxResults
-      })
-    );
+    try {
+      await sdk.jobs.create({
+        id: jobId,
+        type: 'scraper:maps',
+        priority: 1,
+        payload: {
+          discoveryRunId: created.id,
+          query,
+          country,
+          state,
+          city,
+          maxResults
+        },
+        maxRetries: 3
+      });
+    } catch (err) {
+      console.warn('[IPC] Scraper job queueing note:', err);
+    }
 
-    return record;
+    return created;
   });
 
   safeRegister('discovery:run:list', async (_event, { workspaceId }) => {

@@ -3,8 +3,8 @@ import { join, resolve } from 'path';
 import fs from 'fs';
 import { is } from '@electron-toolkit/utils';
 import { SdkClient } from '@leadforge/sdk';
-import { runMigrations } from './database/runner';
-import { closeDatabase } from './database/connection';
+import { initCacheSchema } from './database/cache-schema';
+import { getDatabase, closeDatabase } from './database/connection';
 import { registerAllIpc } from './ipc/register';
 import { loadSession, clearSession } from './lib/session';
 import { AppLogger } from './lib/logger';
@@ -191,11 +191,11 @@ app.whenReady().then(async () => {
   }
   telemetry.sessionRestoreDuration = Date.now() - sessionStart;
 
-  // 1. Run SQLite schema migrations
+  // 1. Initialize clean SQLite cache schema
   try {
-    runMigrations();
+    initCacheSchema(getDatabase());
   } catch (err) {
-    console.error('Failed to run local SQLite migrations:', err);
+    console.error('Failed to initialize local SQLite cache schema:', err);
   }
 
   // Load dynamic configuration

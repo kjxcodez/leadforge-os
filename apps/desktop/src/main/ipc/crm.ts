@@ -79,52 +79,28 @@ export function registerCrmIpc() {
 
   safeRegister('companies:create', async (_event, record) => {
     if (!record.workspaceId) throw new Error('workspaceId is required.');
-    try {
-      const sdk = WorkspaceManager.getSdk();
-      const created = await sdk.companies.create(record);
-      const canonicalRecord = {
-        ...created,
-        workspaceId: record.workspaceId,
-        syncStatus: 'synced'
-      };
-      await LocalCRMRepository.save('companies', canonicalRecord, true);
-      return canonicalRecord;
-    } catch (err) {
-      console.warn('[IPC] Direct API company create failed, staging to local offline cache:', err);
-      return LocalCRMRepository.save('companies', { ...record, syncStatus: 'pending' });
-    }
+    const sdk = WorkspaceManager.getSdk();
+    const created = await sdk.companies.create(record);
+    await LocalCRMRepository.saveFromServer('companies', created);
+    return created;
   });
 
   safeRegister('companies:update', async (_event, { id, dto }) => {
     const workspaceId = dto.workspaceId || dto.workspace_id;
     if (!workspaceId) throw new Error('workspaceId is required.');
-    try {
-      const sdk = WorkspaceManager.getSdk();
-      const updated = await sdk.companies.update(id, dto);
-      const canonicalRecord = {
-        ...updated,
-        id,
-        workspaceId,
-        syncStatus: 'synced'
-      };
-      await LocalCRMRepository.save('companies', canonicalRecord, true);
-      return canonicalRecord;
-    } catch (err) {
-      console.warn('[IPC] Direct API company update failed, staging to local offline cache:', err);
-      return LocalCRMRepository.save('companies', { ...dto, id, syncStatus: 'pending' });
-    }
+    const sdk = WorkspaceManager.getSdk();
+    const updated = await sdk.companies.update(id, dto);
+    await LocalCRMRepository.saveFromServer('companies', updated);
+    return updated;
   });
 
   safeRegister('companies:delete', async (_event, { workspaceId, id }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     if (!id) throw new Error('id is required.');
-    try {
-      const sdk = WorkspaceManager.getSdk();
-      await sdk.companies.delete(id);
-    } catch (err) {
-      console.warn('[IPC] Direct API company delete failed, flagging local soft delete:', err);
-    }
-    return LocalCRMRepository.softDelete('companies', workspaceId, id);
+    const sdk = WorkspaceManager.getSdk();
+    await sdk.companies.delete(id);
+    await LocalCRMRepository.softDeleteFromServer('companies', workspaceId, id);
+    return { success: true };
   });
 
   // Contacts
@@ -231,52 +207,28 @@ export function registerCrmIpc() {
 
   safeRegister('contacts:create', async (_event, record) => {
     if (!record.workspaceId) throw new Error('workspaceId is required.');
-    try {
-      const sdk = WorkspaceManager.getSdk();
-      const created = await sdk.contacts.create(record);
-      const canonicalRecord = {
-        ...created,
-        workspaceId: record.workspaceId,
-        syncStatus: 'synced'
-      };
-      await LocalCRMRepository.save('contacts', canonicalRecord, true);
-      return canonicalRecord;
-    } catch (err) {
-      console.warn('[IPC] Direct API contact create failed, staging to local offline cache:', err);
-      return LocalCRMRepository.save('contacts', { ...record, syncStatus: 'pending' });
-    }
+    const sdk = WorkspaceManager.getSdk();
+    const created = await sdk.contacts.create(record);
+    await LocalCRMRepository.saveFromServer('contacts', created);
+    return created;
   });
 
   safeRegister('contacts:update', async (_event, { id, dto }) => {
     const workspaceId = dto.workspaceId || dto.workspace_id;
     if (!workspaceId) throw new Error('workspaceId is required.');
-    try {
-      const sdk = WorkspaceManager.getSdk();
-      const updated = await sdk.contacts.update(id, dto);
-      const canonicalRecord = {
-        ...updated,
-        id,
-        workspaceId,
-        syncStatus: 'synced'
-      };
-      await LocalCRMRepository.save('contacts', canonicalRecord, true);
-      return canonicalRecord;
-    } catch (err) {
-      console.warn('[IPC] Direct API contact update failed, staging to local offline cache:', err);
-      return LocalCRMRepository.save('contacts', { ...dto, id, syncStatus: 'pending' });
-    }
+    const sdk = WorkspaceManager.getSdk();
+    const updated = await sdk.contacts.update(id, dto);
+    await LocalCRMRepository.saveFromServer('contacts', updated);
+    return updated;
   });
 
   safeRegister('contacts:delete', async (_event, { workspaceId, id }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     if (!id) throw new Error('id is required.');
-    try {
-      const sdk = WorkspaceManager.getSdk();
-      await sdk.contacts.delete(id);
-    } catch (err) {
-      console.warn('[IPC] Direct API contact delete failed, flagging local soft delete:', err);
-    }
-    return LocalCRMRepository.softDelete('contacts', workspaceId, id);
+    const sdk = WorkspaceManager.getSdk();
+    await sdk.contacts.delete(id);
+    await LocalCRMRepository.softDeleteFromServer('contacts', workspaceId, id);
+    return { success: true };
   });
 
 
@@ -392,110 +344,54 @@ export function registerCrmIpc() {
     return campaign;
   });
 
+  safeRegister('companies:bulk:create', async (_event, dto) => {
+    if (!dto.workspaceId) throw new Error('workspaceId is required.');
+    const sdk = WorkspaceManager.getSdk();
+    const result = await sdk.companies.createBulk(dto);
+    if (result && Array.isArray(result.data)) {
+      await LocalCRMRepository.saveManyFromServer('companies', result.data);
+    }
+    return result;
+  });
+
+  safeRegister('contacts:bulk:create', async (_event, dto) => {
+    if (!dto.workspaceId) throw new Error('workspaceId is required.');
+    const sdk = WorkspaceManager.getSdk();
+    const result = await sdk.contacts.createBulk(dto);
+    if (result && Array.isArray(result.data)) {
+      await LocalCRMRepository.saveManyFromServer('contacts', result.data);
+    }
+    return result;
+  });
+
   safeRegister('campaigns:create', async (_event, record) => {
     if (!record.workspaceId) throw new Error('workspaceId is required.');
-    return LocalCRMRepository.save('campaigns', {
+    const sdk = WorkspaceManager.getSdk();
+    const payload = {
       ...record,
       status: record.status || 'Draft'
-    });
+    };
+    const created = await sdk.campaigns.create(payload);
+    await LocalCRMRepository.saveFromServer('campaigns', created);
+    return created;
   });
 
   safeRegister('campaigns:update', async (_event, { id, dto }) => {
-    if (!dto.workspaceId) throw new Error('workspaceId is required.');
-    const runtime = WorkspaceManager.getActiveRuntime();
-    if (!runtime) throw new Error('No active workspace runtime');
-
-    const db = getDatabase(runtime.workspaceId);
-    const oldCampaign = db
-      .prepare(`SELECT status, sequenceId FROM campaigns WHERE id = ? AND workspaceId = ?`)
-      .get(id, runtime.workspaceId) as { status: string; sequenceId: string } | undefined;
-
-    // Perform save
-    const record = await LocalCRMRepository.save('campaigns', { ...dto, id });
-
-    // Handle Status Change Cascade effects
-    if (oldCampaign && dto.status && oldCampaign.status !== dto.status) {
-      const now = new Date().toISOString();
-      if (dto.status === 'Active') {
-        // Transition paused enrollments to running/waiting
-        const pausedEnrollments = db
-          .prepare(
-            `
-          SELECT id, contactId, nextExecutionAt FROM sequence_executions
-          WHERE campaignId = ? AND status = 'paused' AND deletedAt IS NULL
-        `
-          )
-          .all(id) as { id: string; contactId: string; nextExecutionAt: string | null }[];
-
-        db.transaction(() => {
-          for (const enroll of pausedEnrollments) {
-            const isWaiting =
-              enroll.nextExecutionAt && new Date(enroll.nextExecutionAt) > new Date();
-            const newStatus = isWaiting ? 'waiting' : 'running';
-
-            db.prepare(
-              `
-              UPDATE sequence_executions
-              SET status = ?, updatedAt = ?
-              WHERE id = ?
-            `
-            ).run(newStatus, now, enroll.id);
-
-            if (!isWaiting) {
-              const jobId = require('crypto').randomUUID();
-              db.prepare(
-                `
-                INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
-                VALUES (?, ?, 'automation:workflow', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))
-              `
-              ).run(
-                jobId,
-                runtime.workspaceId,
-                JSON.stringify({
-                  sequenceId: oldCampaign.sequenceId,
-                  entityId: enroll.contactId,
-                  entityType: 'contact',
-                  executionId: enroll.id,
-                  workspaceId: runtime.workspaceId
-                })
-              );
-            }
-          }
-        })();
-      } else if (dto.status === 'Paused') {
-        // Transition active/waiting enrollments to paused and cancel active jobs
-        db.transaction(() => {
-          db.prepare(
-            `
-            UPDATE sequence_executions
-            SET status = 'paused', updatedAt = ?
-            WHERE campaignId = ? AND status IN ('running', 'queued', 'starting', 'waiting') AND deletedAt IS NULL
-          `
-          ).run(now, id);
-
-          db.prepare(
-            `
-            UPDATE jobs
-            SET status = 'cancelled', updatedAt = datetime('now')
-            WHERE workspaceId = ?
-              AND type = 'automation:workflow'
-              AND json_extract(payload, '$.executionId') IN (
-                SELECT id FROM sequence_executions WHERE campaignId = ?
-              )
-              AND status IN ('queued', 'starting', 'running', 'retrying')
-          `
-          ).run(runtime.workspaceId, id);
-        })();
-      }
-    }
-
-    return record;
+    const workspaceId = dto.workspaceId || dto.workspace_id;
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    const sdk = WorkspaceManager.getSdk();
+    const updated = await sdk.campaigns.update(id, dto);
+    await LocalCRMRepository.saveFromServer('campaigns', updated);
+    return updated;
   });
 
   safeRegister('campaigns:delete', async (_event, { workspaceId, id }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     if (!id) throw new Error('id is required.');
-    return LocalCRMRepository.softDelete('campaigns', workspaceId, id);
+    const sdk = WorkspaceManager.getSdk();
+    await sdk.campaigns.delete(id);
+    await LocalCRMRepository.softDeleteFromServer('campaigns', workspaceId, id);
+    return { success: true };
   });
 
   // Activities log

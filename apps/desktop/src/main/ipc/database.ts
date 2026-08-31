@@ -1,7 +1,6 @@
 import { safeRegister } from './helper';
 import { LocalCRMRepository } from '../database/repositories/local-crm';
 import { LocalWorkspaceRepository } from '../database/repositories/local-workspace';
-import { LocalQueueRepository } from '../database/repositories/local-queue';
 
 /**
  * Exposes local SQLite database queries over safe Electron IPC channels.
@@ -51,32 +50,5 @@ export function registerDatabaseIpc(): void {
 
   safeRegister('db:workspaces:saveMany', async (_event, workspaces) => {
     return LocalWorkspaceRepository.saveMany(workspaces);
-  });
-
-  // ── Offline Queue Queries ────────────────────────────────────────────────
-
-  safeRegister('db:queue:push', async (_event, item) => {
-    if (!item.workspaceId) throw new Error('workspaceId is required.');
-    return LocalQueueRepository.push(item);
-  });
-
-  safeRegister('db:queue:pop', async (_event, workspaceId) => {
-    if (!workspaceId) throw new Error('workspaceId is required.');
-    return LocalQueueRepository.pop(workspaceId);
-  });
-
-  safeRegister('db:queue:list', async (_event, workspaceId) => {
-    if (!workspaceId) throw new Error('workspaceId is required.');
-    return LocalQueueRepository.list(workspaceId);
-  });
-
-  safeRegister('db:queue:update', async (_event, { workspaceId, id, retryCount, error }) => {
-    if (!workspaceId) throw new Error('workspaceId is required.');
-    return LocalQueueRepository.updateProgress(workspaceId, id, retryCount, error);
-  });
-
-  safeRegister('db:queue:remove', async (_event, { workspaceId, id }) => {
-    if (!workspaceId) throw new Error('workspaceId is required.');
-    return LocalQueueRepository.remove(workspaceId, id);
   });
 }

@@ -10,7 +10,7 @@ import {
 } from './remote';
 
 // ---------------------------------------------------------------------------
-// Base SyncRepository Class
+// Base Data Repository Class for Renderer
 // ---------------------------------------------------------------------------
 
 const DOMAIN_CHANNELS: Record<
@@ -98,19 +98,14 @@ class BaseSyncRepository<T> implements ISyncRepository<T> {
   }
 
   async listAndSync(workspaceId: string, filter?: Record<string, any>): Promise<T[]> {
-    // Under local-first architecture, SWR pull is handled by the Main process SyncEngine.
-    // The renderer repository instantly reads and returns SQLite cache results.
     return this.findMany({ workspaceId, ...filter } as any);
   }
 
   async create(data: T & { workspaceId: string }): Promise<T> {
     const channels = DOMAIN_CHANNELS[this.tableName];
     if (channels) {
-      // Generate ID client-side if missing
       const id = (data as any).id || crypto.randomUUID();
       const record = { ...data, id };
-      // Main process database repository save automatically handles local writes
-      // and schedules synchronization inside a single database transaction.
       return window.ipc.invoke(channels.create as any, record);
     }
 
@@ -119,19 +114,10 @@ class BaseSyncRepository<T> implements ISyncRepository<T> {
     const record = {
       ...data,
       id,
-      syncStatus: 'pending',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
     await window.ipc.invoke('db:save', { tableName: this.tableName, record });
-    await window.ipc.invoke('db:queue:push', {
-      id: crypto.randomUUID(),
-      workspaceId: data.workspaceId,
-      entityType: this.tableName,
-      entityId: id,
-      operation: 'CREATE',
-      payload: JSON.stringify(record)
-    });
     return record;
   }
 
@@ -146,18 +132,9 @@ class BaseSyncRepository<T> implements ISyncRepository<T> {
     const updatedRecord = {
       ...current,
       ...data,
-      syncStatus: 'pending',
       updatedAt: new Date().toISOString()
     };
     await window.ipc.invoke('db:save', { tableName: this.tableName, record: updatedRecord });
-    await window.ipc.invoke('db:queue:push', {
-      id: crypto.randomUUID(),
-      workspaceId: data.workspaceId,
-      entityType: this.tableName,
-      entityId: id,
-      operation: 'UPDATE',
-      payload: JSON.stringify(data)
-    });
     return updatedRecord as T;
   }
 
@@ -172,23 +149,11 @@ class BaseSyncRepository<T> implements ISyncRepository<T> {
 
     // Fallback path
     await window.ipc.invoke('db:softDelete', { tableName: this.tableName, workspaceId, id });
-    await window.ipc.invoke('db:queue:push', {
-      id: crypto.randomUUID(),
-      workspaceId,
-      entityType: this.tableName,
-      entityId: id,
-      operation: 'DELETE',
-      payload: null
-    });
-  }
-
-  async pushLocalMutations(workspaceId: string): Promise<void> {
-    // Executed by the background QueueProcessor
   }
 }
 
 // ---------------------------------------------------------------------------
-// Concrete Sync Repositories exports
+// Concrete Repositories exports
 // ---------------------------------------------------------------------------
 
 export const SyncCompanyRepository = new BaseSyncRepository<any>(
