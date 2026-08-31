@@ -73,4 +73,8 @@ export class ExecutionsModule {
   public async getLogs(id: string): Promise<SequenceLog[]> {
     return this.client.get<SequenceLog[]>(`/automation/executions/${id}/logs`);
   }
+
+  public async addLogs(id: string, logs: any[]): Promise<any[]> {
+    return this.client.post<any[]>(`/automation/executions/${id}/logs`, { logs });
+  }
 }

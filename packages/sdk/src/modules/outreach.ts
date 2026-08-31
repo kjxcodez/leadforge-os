@@ -24,6 +24,12 @@ export interface SendEmailPayload {
     contentType?: string;
     size?: number;
   }>;
+  idempotencyKey?: string;
+  campaignId?: string;
+  sequenceId?: string;
+  executionId?: string;
+  stepIndex?: number;
+  contactId?: string;
 }
 
 export interface OAuthConnectResult {

@@ -3,7 +3,9 @@ import type {
   Company,
   CreateCompanyDto,
   UpdateCompanyDto,
-  CompanyFilters
+  CompanyFilters,
+  BulkCompanyDto,
+  BulkOperationResult
 } from '@leadforge/schema';
 
 export class CompaniesModule {
@@ -20,6 +22,10 @@ export class CompaniesModule {
 
   public async create(dto: CreateCompanyDto): Promise<Company> {
     return this.client.post<Company>('/companies', dto);
+  }
+
+  public async createBulk(dto: BulkCompanyDto): Promise<BulkOperationResult<Company>> {
+    return this.client.post<BulkOperationResult<Company>>('/companies/bulk', dto);
   }
 
   public async update(id: string, dto: UpdateCompanyDto): Promise<Company> {

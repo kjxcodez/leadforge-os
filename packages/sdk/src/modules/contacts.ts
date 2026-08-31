@@ -3,7 +3,9 @@ import type {
   Contact,
   CreateContactDto,
   UpdateContactDto,
-  ContactFilters
+  ContactFilters,
+  BulkContactDto,
+  BulkOperationResult
 } from '@leadforge/schema';
 
 export class ContactsModule {
@@ -20,6 +22,10 @@ export class ContactsModule {
 
   public async create(dto: CreateContactDto): Promise<Contact> {
     return this.client.post<Contact>('/contacts', dto);
+  }
+
+  public async createBulk(dto: BulkContactDto): Promise<BulkOperationResult<Contact>> {
+    return this.client.post<BulkOperationResult<Contact>>('/contacts/bulk', dto);
   }
 
   public async update(id: string, dto: UpdateContactDto): Promise<Contact> {
