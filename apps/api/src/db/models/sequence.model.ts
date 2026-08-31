@@ -1,8 +1,15 @@
 import mongoose, { Schema } from 'mongoose';
-import { workspacePlugin, type WorkspaceScopedDocument } from '../plugins/index.js';
+import {
+  workspacePlugin,
+  softDeletePlugin,
+  type WorkspaceScopedDocument,
+  type SoftDeleteDocument
+} from '../plugins/index.js';
 
-export interface SequenceDocument extends mongoose.Document, WorkspaceScopedDocument {
-  _id: any;
+export interface SequenceDocument
+  extends mongoose.Document,
+    WorkspaceScopedDocument,
+    SoftDeleteDocument {
   name: string;
   description?: string;
   status: string;
@@ -22,10 +29,6 @@ export interface SequenceDocument extends mongoose.Document, WorkspaceScopedDocu
 
 const sequenceSchema = new Schema<SequenceDocument>(
   {
-    _id: {
-      type: String,
-      default: () => new mongoose.Types.ObjectId().toString()
-    },
     name: {
       type: String,
       required: true,
@@ -70,6 +73,7 @@ const sequenceSchema = new Schema<SequenceDocument>(
 
 sequenceSchema.index({ workspaceId: 1, name: 1 });
 sequenceSchema.plugin(workspacePlugin);
+sequenceSchema.plugin(softDeletePlugin);
 
 export const SequenceModel = mongoose.models.Sequence
   ? (mongoose.models.Sequence as mongoose.Model<SequenceDocument>)

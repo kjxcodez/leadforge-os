@@ -29,6 +29,7 @@ export interface ContactDocument
   source?: string | null;
   status: ContactStatus;
   notes?: string | null;
+  lastContactedAt?: Date | null;
 }
 
 const contactSchema = new Schema<ContactDocument>(
@@ -85,6 +86,10 @@ const contactSchema = new Schema<ContactDocument>(
     },
     notes: {
       type: String,
+      default: null
+    },
+    lastContactedAt: {
+      type: Date,
       default: null
     }
   },

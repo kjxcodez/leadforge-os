@@ -13,7 +13,6 @@ export interface DiscoveryRunDocument
     WorkspaceScopedDocument,
     SoftDeleteDocument,
     TimestampDocument {
-  _id: any;
   name: string;
   query: string;
   country?: string | null;
@@ -29,10 +28,6 @@ export interface DiscoveryRunDocument
 
 const discoveryRunSchema = new Schema<DiscoveryRunDocument>(
   {
-    _id: {
-      type: String,
-      default: () => new mongoose.Types.ObjectId().toString()
-    },
     name: {
       type: String,
       required: true,

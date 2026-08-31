@@ -25,10 +25,15 @@ export interface CampaignDocument
     TimestampDocument,
     WorkspaceScopedDocument {
   name: string;
+  description?: string | null;
+  sequenceId?: string | null;
+  sendingAccountId?: string | null;
   status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
   steps: CampaignStep[];
   template?: string | null;
   schedule?: Record<string, any> | string | null;
+  timezone: string;
+  dailyLimit: number;
   settings?: Record<string, any> | null;
 }
 
@@ -38,6 +43,21 @@ const campaignSchema = new Schema<CampaignDocument>(
       type: String,
       required: true,
       trim: true
+    },
+    description: {
+      type: String,
+      default: null,
+      trim: true
+    },
+    sequenceId: {
+      type: String,
+      default: null,
+      index: true
+    },
+    sendingAccountId: {
+      type: String,
+      default: null,
+      index: true
     },
     status: {
       type: String,
@@ -60,6 +80,14 @@ const campaignSchema = new Schema<CampaignDocument>(
       type: Schema.Types.Mixed,
       default: null
     },
+    timezone: {
+      type: String,
+      default: 'UTC'
+    },
+    dailyLimit: {
+      type: Number,
+      default: 0
+    },
     settings: {
       type: Schema.Types.Mixed,
       default: null
@@ -70,6 +98,9 @@ const campaignSchema = new Schema<CampaignDocument>(
     optimisticConcurrency: true
   }
 );
+
+campaignSchema.index({ workspaceId: 1, status: 1 });
+campaignSchema.index({ workspaceId: 1, sequenceId: 1 });
 
 campaignSchema.plugin(workspacePlugin);
 campaignSchema.plugin(softDeletePlugin);

@@ -25,3 +25,59 @@ export {
   type UserTestRecipientDocument
 } from './user-test-recipient.model.js';
 
+// Operational, Intelligence, Execution & Infrastructure Models
+export { JobModel, type JobDocument } from './job.model.js';
+export { SystemLogModel, type SystemLogDocument } from './system-log.model.js';
+export { AutomationLockModel, type AutomationLockDocument } from './automation-lock.model.js';
+export {
+  CompanyIntelligenceModel,
+  type CompanyIntelligenceDocument
+} from './company-intelligence.model.js';
+export {
+  WebsiteIntelligenceModel,
+  type WebsiteIntelligenceDocument
+} from './website-intelligence.model.js';
+export {
+  ContactIntelligenceModel,
+  type ContactIntelligenceDocument
+} from './contact-intelligence.model.js';
+export {
+  OpportunityScoreModel,
+  type OpportunityScoreDocument
+} from './opportunity-score.model.js';
+export { AuditLogModel, type AuditLogDocument } from './audit-log.model.js';
+export {
+  WorkspaceMemoryModel,
+  type WorkspaceMemoryDocument
+} from './workspace-memory.model.js';
+export { PageCrawlModel, type PageCrawlDocument } from './page-crawl.model.js';
+export {
+  IntelligenceSourceModel,
+  type IntelligenceSourceDocument
+} from './intelligence-source.model.js';
+export {
+  IntelligenceEvidenceModel,
+  type IntelligenceEvidenceDocument
+} from './intelligence-evidence.model.js';
+export {
+  IntelligenceClaimModel,
+  type IntelligenceClaimDocument
+} from './intelligence-claim.model.js';
+export {
+  IntelligenceInferenceModel,
+  type IntelligenceInferenceDocument
+} from './intelligence-inference.model.js';
+export {
+  EmailDeliveryModel,
+  type EmailDeliveryDocument
+} from './email-delivery.model.js';
+export {
+  GoogleConnectionModel,
+  type GoogleConnectionDocument
+} from './google-connection.model.js';
+export {
+  AttachmentModel,
+  type AttachmentDocument
+} from './attachment.model.js';
+
+

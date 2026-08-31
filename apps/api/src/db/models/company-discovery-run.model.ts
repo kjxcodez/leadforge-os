@@ -10,7 +10,6 @@ export interface CompanyDiscoveryRunDocument
   extends mongoose.Document,
     WorkspaceScopedDocument,
     TimestampDocument {
-  _id: any;
   companyId: string;
   discoveryRunId: string;
   requiresReview?: boolean;
@@ -18,10 +17,6 @@ export interface CompanyDiscoveryRunDocument
 
 const companyDiscoveryRunSchema = new Schema<CompanyDiscoveryRunDocument>(
   {
-    _id: {
-      type: String,
-      default: () => new mongoose.Types.ObjectId().toString()
-    },
     companyId: {
       type: String,
       required: true,

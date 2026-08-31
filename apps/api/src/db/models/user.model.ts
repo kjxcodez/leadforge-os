@@ -1,4 +1,5 @@
 import mongoose, { Schema } from 'mongoose';
+import { generateEntityId } from '@leadforge/schema';
 import {
   softDeletePlugin,
   auditPlugin,
@@ -28,7 +29,8 @@ const userSchema = new Schema<UserDocument>(
   {
     _id: {
       type: String,
-      default: () => new mongoose.Types.ObjectId().toString()
+      required: true,
+      default: () => generateEntityId()
     },
     email: {
       type: String,

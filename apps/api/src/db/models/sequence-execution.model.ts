@@ -2,16 +2,20 @@ import mongoose, { Schema } from 'mongoose';
 import { workspacePlugin, type WorkspaceScopedDocument } from '../plugins/index.js';
 
 export interface SequenceExecutionDocument extends mongoose.Document, WorkspaceScopedDocument {
-  _id: any;
   sequenceId: string;
-  campaignId?: string;
-  companyId?: string;
-  contactId?: string;
+  campaignId?: string | null;
+  parentJobId?: string | null;
+  companyId?: string | null;
+  contactId?: string | null;
   currentStep: number;
+  currentStepName?: string | null;
   status: string;
+  emailsSent: number;
+  replies: number;
+  failures: number;
   startedAt: Date;
-  completedAt?: Date;
-  nextExecutionAt?: Date;
+  completedAt?: Date | null;
+  nextExecutionAt?: Date | null;
   logs: any[];
   createdAt: Date;
   updatedAt: Date;
@@ -19,16 +23,17 @@ export interface SequenceExecutionDocument extends mongoose.Document, WorkspaceS
 
 const sequenceExecutionSchema = new Schema<SequenceExecutionDocument>(
   {
-    _id: {
-      type: String,
-      default: () => new mongoose.Types.ObjectId().toString()
-    },
     sequenceId: {
       type: String,
       required: true,
       index: true
     },
     campaignId: {
+      type: String,
+      index: true,
+      default: null
+    },
+    parentJobId: {
       type: String,
       index: true,
       default: null
@@ -48,12 +53,28 @@ const sequenceExecutionSchema = new Schema<SequenceExecutionDocument>(
       required: true,
       default: 0
     },
+    currentStepName: {
+      type: String,
+      default: null
+    },
     status: {
       type: String,
       required: true,
       enum: ['PENDING', 'RUNNING', 'WAITING', 'PAUSED', 'COMPLETED', 'FAILED', 'CANCELLED'],
       default: 'PENDING',
       index: true
+    },
+    emailsSent: {
+      type: Number,
+      default: 0
+    },
+    replies: {
+      type: Number,
+      default: 0
+    },
+    failures: {
+      type: Number,
+      default: 0
     },
     startedAt: {
       type: Date,
@@ -80,6 +101,7 @@ const sequenceExecutionSchema = new Schema<SequenceExecutionDocument>(
   }
 );
 
+sequenceExecutionSchema.index({ workspaceId: 1, sequenceId: 1 });
 sequenceExecutionSchema.index({ workspaceId: 1, status: 1, nextExecutionAt: 1 });
 sequenceExecutionSchema.plugin(workspacePlugin);
 
