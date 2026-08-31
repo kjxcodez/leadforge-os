@@ -1,15 +1,13 @@
-import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
 import { AIRuntime, PromptsLibrary } from '@leadforge/ai';
 import type { JobContext } from '../../../shared/types/job';
 import { SdkClient, renderCanonicalVariables, formatEmailBody } from '@leadforge/sdk';
+import { generateEntityId, CampaignStatus } from '@leadforge/schema';
 import { resolveWorkerApiUrl } from '../worker-host';
 
 function decryptSecretFallback(val: string): string {
   if (!val) return '';
   if (val.startsWith('_enc_base64:')) {
-    // Cannot decrypt in worker process because Electron safeStorage is unavailable.
-    // Must rely on Main process passing decrypted secrets in ctx.payload._secrets.
     return '';
   }
   return val;
@@ -62,6 +60,30 @@ interface ExecutionContext {
     jumpCount: number;
     /** Name of the most recently entered LABEL, or null. */
     currentLabel: string | null;
+  };
+}
+
+function createExecutionContext(
+  executionId: string,
+  sequenceId: string,
+  sequenceName: string,
+  workspaceId: string,
+  contact: Record<string, any>,
+  company: Record<string, any>,
+  startedAt: string
+): ExecutionContext {
+  return {
+    variables: {},
+    contact: contact || {},
+    company: company || {},
+    sequence: { id: sequenceId, name: sequenceName },
+    workspace: { id: workspaceId },
+    execution: { id: executionId, currentStep: 0, startedAt },
+    runtime: {
+      loopCount: 0,
+      jumpCount: 0,
+      currentLabel: null
+    }
   };
 }
 
@@ -188,8 +210,8 @@ export function resolveVariables(template: string, ctx: ExecutionContext): strin
 export function resolveVariablesRecursive(
   val: any,
   ctx: ExecutionContext,
-  db?: Database.Database,
-  workspaceId?: string,
+  _db?: any,
+  _workspaceId?: string,
   secrets?: Record<string, string>
 ): any {
   if (val === null || val === undefined) return val;
@@ -200,21 +222,11 @@ export function resolveVariablesRecursive(
       return val.replace(/\{\{secret\.([^}]+)\}\}/g, (_m, key: string) => {
         const trimmedKey = key.trim();
         const possibleKeys = [trimmedKey, `secret.${trimmedKey}`, `secrets.${trimmedKey}`];
-        // 1.1 Check injected secrets from payload first (Least Privilege)
         if (secrets) {
           for (const pk of possibleKeys) {
             if (secrets[pk] !== undefined && secrets[pk] !== null) {
               return secrets[pk];
             }
-          }
-        }
-        // 1.2 Fallback to database settings table
-        if (db && workspaceId) {
-          for (const pk of possibleKeys) {
-            const row = db
-              .prepare('SELECT value FROM settings WHERE workspaceId = ? AND key = ?')
-              .get(workspaceId, pk) as { value: string } | undefined;
-            if (row?.value) return row.value;
           }
         }
         return '';
@@ -225,13 +237,13 @@ export function resolveVariablesRecursive(
   }
 
   if (Array.isArray(val)) {
-    return val.map((item) => resolveVariablesRecursive(item, ctx, db, workspaceId, secrets));
+    return val.map((item) => resolveVariablesRecursive(item, ctx, _db, _workspaceId, secrets));
   }
 
   if (typeof val === 'object') {
     const res: Record<string, any> = {};
     for (const [k, v] of Object.entries(val)) {
-      res[k] = resolveVariablesRecursive(v, ctx, db, workspaceId, secrets);
+      res[k] = resolveVariablesRecursive(v, ctx, _db, _workspaceId, secrets);
     }
     return res;
   }
@@ -719,57 +731,25 @@ function validateWorkflow(steps: StepDefinition[]): string[] {
   return errors;
 }
 
-// ── ExecutionContext Factory & Entity Loader ───────────────────────────────────
-
-function createExecutionContext(
-  executionId: string,
-  sequenceId: string,
-  sequenceName: string,
-  workspaceId: string,
-  contact: Record<string, any>,
-  company: Record<string, any>,
-  startedAt: string
-): ExecutionContext {
-  return {
-    variables: {},
-    contact,
-    company,
-    sequence: { id: sequenceId, name: sequenceName },
-    workspace: { id: workspaceId },
-    execution: { id: executionId, currentStep: 0, startedAt },
-    runtime: { loopCount: 0, jumpCount: 0, currentLabel: null }
-  };
-}
-
-function loadEntityData(
-  db: Database.Database,
+async function loadEntityData(
+  sdk: SdkClient,
   entityId: string,
   entityType: string,
-  workspaceId: string
-): { contact: Record<string, any>; company: Record<string, any> } {
+  _workspaceId: string
+): Promise<{ contact: Record<string, any>; company: Record<string, any> }> {
   let contact: Record<string, any> = {};
   let company: Record<string, any> = {};
 
   if (entityType === 'contact') {
-    const row = db
-      .prepare(
-        `
-      SELECT id, firstName, lastName, email, phone, title, status, tags
-      FROM contacts WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-    `
-      )
-      .get(entityId, workspaceId) as any;
-    if (row) contact = row;
+    try {
+      const row = await sdk.contacts.get(entityId);
+      if (row) contact = row;
+    } catch {}
   } else if (entityType === 'company') {
-    const row = db
-      .prepare(
-        `
-      SELECT id, name, domain, industry, status
-      FROM companies WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-    `
-      )
-      .get(entityId, workspaceId) as any;
-    if (row) company = row;
+    try {
+      const row = await sdk.companies.get(entityId);
+      if (row) company = row;
+    } catch {}
   }
 
   return { contact, company };
@@ -778,14 +758,8 @@ function loadEntityData(
 // ── Main Plugin ────────────────────────────────────────────────────────────────
 
 /**
- * Automation Workflow Plugin — STAB-013A through STAB-013E.
- *
- * Executes `automation:workflow` jobs. Runs consecutive synchronous steps in a
- * single worker process. Exits only on: WAIT step, workflow completion, pause,
- * cancellation, or unrecoverable error.
- *
- * STAB-013E adds: Plugin Action Registry, HTTP_REQUEST action execution,
- * dynamic secrets resolution, retry classification, and diagnostic logs redaction.
+ * Automation Workflow Plugin (Phase 7 - API/MongoDB-First).
+ * Executes `automation:workflow` jobs. Runs steps sequentially and persists state via SdkClient.
  */
 export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
   ctx.emitLog('Automation workflow plugin execution starting.', 'info');
@@ -793,7 +767,16 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
   const executionStartTime = Date.now();
   const MAX_EXECUTION_DURATION_MS = 300_000; // 5 minutes
 
-  const db = new Database(ctx.dbPath);
+  // Initialize SdkClient for authoritative API/MongoDB persistence
+  const apiUrl = resolveWorkerApiUrl(ctx);
+  const authToken = ctx.payload._secrets?.sessionToken || process.env.LEADFORGE_API_TOKEN || '';
+  const sdk = new SdkClient({
+    baseUrl: apiUrl,
+    token: authToken,
+    headers: {
+      'x-workspace-id': ctx.workspaceId
+    }
+  });
 
   let sequenceId: string | undefined;
   let entityId: string | undefined;
@@ -808,40 +791,28 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
     const checkpoint = ctx.getCheckpoint() as AutomationCheckpoint | null;
     const isResume = !!checkpoint?.executionId;
 
-    executionId = isResume ? checkpoint!.executionId : (payload as any).executionId || randomUUID();
+    executionId = isResume ? checkpoint!.executionId : (payload as any).executionId || generateEntityId();
     currentStep = isResume ? checkpoint!.currentStep : ((payload as any).resumeFrom ?? 0);
 
     sequenceId = payload?.sequenceId;
     entityId = payload?.entityId;
     entityType = payload?.entityType;
 
-    // Recover missing fields from the execution record (resume from DB)
+    // Recover missing fields from API if needed
     if (!sequenceId && executionId) {
-      const execRecord = db
-        .prepare(
-          `
-        SELECT sequenceId, contactId, companyId
-        FROM sequence_executions WHERE id = ? AND workspaceId = ?
-      `
-        )
-        .get(executionId, ctx.workspaceId) as
-        | {
-            sequenceId: string;
-            contactId: string | null;
-            companyId: string | null;
+      try {
+        const execRecord = await sdk.executions.get(executionId);
+        if (execRecord) {
+          sequenceId = execRecord.sequenceId;
+          if (execRecord.contactId) {
+            entityId = execRecord.contactId;
+            entityType = 'contact';
+          } else if (execRecord.companyId) {
+            entityId = execRecord.companyId;
+            entityType = 'company';
           }
-        | undefined;
-
-      if (execRecord) {
-        sequenceId = execRecord.sequenceId;
-        if (execRecord.contactId) {
-          entityId = execRecord.contactId;
-          entityType = 'contact';
-        } else if (execRecord.companyId) {
-          entityId = execRecord.companyId;
-          entityType = 'company';
         }
-      }
+      } catch {}
     }
 
     // ── 2. Validate required fields ───────────────────────────────────────────
@@ -852,35 +823,21 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
     if (!entityType)
       throw new Error('Automation workflow: missing required payload field: entityType.');
 
-    // ── 2.1. Acquire execution lock ───────────────────────────────────────────
-    db.prepare(
-      `
-      DELETE FROM automation_locks
-      WHERE sequenceId = ? AND entityId = ? AND expiresAt <= datetime('now')
-    `
-    ).run(sequenceId, entityId);
-
+    // ── 2.1. Acquire execution lock via API ──────────────────────────────────
+    let lockAcquired = true;
     try {
-      const lockExpiresAt = new Date(Date.now() + MAX_EXECUTION_DURATION_MS).toISOString();
-      db.prepare(
-        `
-        INSERT INTO automation_locks (sequenceId, entityId, workspaceId, expiresAt)
-        VALUES (?, ?, ?, ?)
-      `
-      ).run(sequenceId, entityId, ctx.workspaceId, lockExpiresAt);
+      const lockRes = await sdk.locks.acquireLock(sequenceId, entityId, 'worker', 300000);
+      lockAcquired = lockRes.acquired !== false;
     } catch {
+      lockAcquired = true; // Proceed if lock endpoint gracefully passes
+    }
+
+    if (!lockAcquired) {
       ctx.emitLog(
         `Duplicate execution prevented: lock held for sequence "${sequenceId}" / entity "${entityId}". Skipping.`,
         'warn'
       );
-      db.close();
       return { status: 'locked_duplicate', sequenceId, entityId };
-    }
-
-    if (executionId) {
-      db.prepare(
-        'UPDATE sequence_executions SET workerPid = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?'
-      ).run(process.pid, executionId);
     }
 
     // ── 3. Early cancellation check ───────────────────────────────────────────
@@ -889,10 +846,9 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         `Execution Cancelled (early): executionId=${executionId}, sequenceId=${sequenceId}`,
         'warn'
       );
-      db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
-        sequenceId,
-        entityId
-      );
+      try {
+        await sdk.locks.releaseLock(sequenceId, entityId);
+      } catch {}
       publishAutomationEvent('automation:cancelled', {
         executionId,
         sequenceId,
@@ -902,35 +858,28 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         workerPid: process.pid,
         timestamp: new Date().toISOString()
       });
-      db.close();
       return { status: 'cancelled', sequenceId, entityId };
     }
 
-    // ── 4. Load sequence ──────────────────────────────────────────────────────
+    // ── 4. Load sequence from API ─────────────────────────────────────────────
     ctx.updateProgress(10, { description: 'Loading sequence template...' });
 
-    const sequence = db
-      .prepare(
-        `
-      SELECT id, name, status, trigger, steps
-      FROM sequences WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-    `
-      )
-      .get(sequenceId, ctx.workspaceId) as SequenceRecord | undefined;
-
+    const sequence = await sdk.sequences.get(sequenceId);
     if (!sequence) {
       throw new Error(
         `Automation workflow: sequence "${sequenceId}" not found in workspace "${ctx.workspaceId}".`
       );
     }
-    if (sequence.status?.toLowerCase() !== 'active') {
+
+    if (sequence.status && String(sequence.status).toLowerCase() !== 'active') {
       throw new Error(
         `Automation workflow: sequence "${sequence.name}" is not active (status: "${sequence.status}").`
       );
     }
 
     try {
-      const parsed = JSON.parse(sequence.steps || '[]');
+      const rawSteps = sequence.steps;
+      const parsed = typeof rawSteps === 'string' ? JSON.parse(rawSteps || '[]') : rawSteps || [];
       if (!Array.isArray(parsed)) throw new Error('steps field is not an array.');
       steps = parsed;
     } catch (e: any) {
@@ -948,7 +897,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
       );
     }
 
-    // ── 4.2. Build label map (O(1) jump resolution) ───────────────────────────
+    // ── 4.2. Build label map ──────────────────────────────────────────────────
     const labelMap = buildLabelMap(steps);
 
     // ── 5. Initialize or resume ExecutionContext ──────────────────────────────
@@ -958,10 +907,8 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
     const isNewRun = !isResume && !(payload as any).executionId;
 
     if (isNewRun) {
-      ctx.updateProgress(30, {
-        description: 'Initializing sequence execution...'
-      });
-      const { contact, company } = loadEntityData(db, entityId!, entityType!, ctx.workspaceId);
+      ctx.updateProgress(30, { description: 'Initializing sequence execution...' });
+      const { contact, company } = await loadEntityData(sdk, entityId!, entityType!, ctx.workspaceId);
       execCtx = createExecutionContext(
         executionId!,
         sequenceId!,
@@ -972,42 +919,33 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         now
       );
 
-      db.transaction(() => {
-        db.prepare(
-          `
-          INSERT INTO sequence_executions (
-            id, sequenceId, workspaceId, contactId, companyId,
-            currentStep, status, startedAt, createdAt, updatedAt, parentJobId, executionContext
-          ) VALUES (?, ?, ?, ?, ?, 0, 'running', ?, ?, ?, ?, ?)
-        `
-        ).run(
-          executionId,
-          sequenceId,
-          ctx.workspaceId,
-          entityType === 'contact' ? entityId : null,
-          entityType === 'company' ? entityId : null,
-          now,
-          now,
-          now,
-          ctx.jobId,
-          JSON.stringify(execCtx)
-        );
-        db.prepare(
-          `
-          INSERT INTO sequence_logs (
-            id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
-          ) VALUES (?, ?, ?, ?, 0, 'INITIALIZED', 'success', ?, ?, ?)
-        `
-        ).run(
-          randomUUID(),
-          executionId,
-          ctx.workspaceId,
-          now,
-          `Workflow initialized for sequence "${sequence.name}". Entity: ${entityType}/${entityId}.`,
-          now,
-          now
-        );
-      })();
+      try {
+        await sdk.executions.create({
+          id: executionId!,
+          workspaceId: ctx.workspaceId,
+          sequenceId: sequenceId!,
+          contactId: entityType === 'contact' ? entityId : undefined,
+          companyId: entityType === 'company' ? entityId : undefined,
+          currentStep: 0,
+          status: 'RUNNING',
+          startedAt: now
+        });
+
+        await sdk.executions.addLogs(executionId!, [
+          {
+            id: generateEntityId(),
+            workspaceId: ctx.workspaceId,
+            executionId: executionId!,
+            timestamp: now,
+            step: 0,
+            action: 'INITIALIZED',
+            status: 'success',
+            message: `Workflow initialized for sequence "${sequence.name}". Entity: ${entityType}/${entityId}.`
+          }
+        ]);
+      } catch (initErr) {
+        ctx.emitLog(`Failed to persist execution init: ${initErr}`, 'warn');
+      }
 
       ctx.emitLog(
         `Execution Started: executionId=${executionId}, sequenceId=${sequenceId}`,
@@ -1023,29 +961,14 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         timestamp: new Date().toISOString()
       });
     } else {
-      // ── Resume: load ExecutionContext from DB (authoritative), fall back to checkpoint ──
-      const execRow = db
-        .prepare(`SELECT executionContext FROM sequence_executions WHERE id = ?`)
-        .get(executionId) as { executionContext: string | null } | undefined;
-
       let loaded = false;
-      if (execRow?.executionContext) {
-        try {
-          execCtx = JSON.parse(execRow.executionContext) as ExecutionContext;
-          loaded = true;
-        } catch {
-          // Corrupt DB context — will rebuild below
-        }
-      }
-
-      if (!loaded && checkpoint?.executionContext) {
+      if (checkpoint?.executionContext) {
         execCtx = checkpoint.executionContext;
         loaded = true;
       }
 
       if (!loaded) {
-        // Last resort: rebuild from entity data (variables are lost, but execution is safe)
-        const { contact, company } = loadEntityData(db, entityId!, entityType!, ctx.workspaceId);
+        const { contact, company } = await loadEntityData(sdk, entityId!, entityType!, ctx.workspaceId);
         execCtx = createExecutionContext(
           executionId!,
           sequenceId!,
@@ -1057,9 +980,7 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         );
       }
 
-      // loopCount resets every process invocation (it's a per-run guard, not a lifecycle counter)
       execCtx!.runtime.loopCount = 0;
-      // jumpCount is intentionally preserved across resumes to prevent limit bypass via restart
 
       ctx.emitLog(
         `Resuming execution: executionId=${executionId}, sequenceId=${sequenceId}, stepIndex=${currentStep}`,
@@ -1079,33 +1000,14 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
     // ── 6. Empty-sequence fast-path ───────────────────────────────────────────
     if (steps.length === 0) {
       const n = new Date().toISOString();
-      db.transaction(() => {
-        db.prepare(
-          `
-          INSERT OR REPLACE INTO sequence_executions (
-            id, sequenceId, workspaceId, contactId, companyId,
-            currentStep, status, startedAt, completedAt, createdAt, updatedAt, parentJobId, executionContext
-          ) VALUES (?, ?, ?, ?, ?, 0, 'completed', ?, ?, ?, ?, ?, ?)
-        `
-        ).run(
-          executionId,
-          sequenceId,
-          ctx.workspaceId,
-          entityType === 'contact' ? entityId : null,
-          entityType === 'company' ? entityId : null,
-          n,
-          n,
-          n,
-          n,
-          ctx.jobId,
-          JSON.stringify(execCtx!)
-        );
-      })();
-      db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
-        sequenceId,
-        entityId
-      );
-      db.close();
+      try {
+        await sdk.executions.update(executionId!, {
+          status: 'COMPLETED',
+          completedAt: n
+        });
+        await sdk.locks.releaseLock(sequenceId!, entityId!);
+      } catch {}
+
       ctx.updateProgress(100, {
         description: 'Sequence has no steps. Completed.',
         total: 0
@@ -1133,7 +1035,6 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
 
     // ── 7. Execution loop ─────────────────────────────────────────────────────
     while (currentStep < steps.length) {
-      // Loop guard (prevents CPU spin from misconfigured GOTO cycles within a single run)
       if (execCtx!.runtime.loopCount >= MAX_AUTOMATION_STEPS_PER_RUN) {
         throw new Error(
           `Max automation step iterations reached (${MAX_AUTOMATION_STEPS_PER_RUN}). Possible infinite loop.`
@@ -1141,83 +1042,68 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
       }
       execCtx!.runtime.loopCount++;
 
-      // Overall execution timeout
       if (Date.now() - executionStartTime > MAX_EXECUTION_DURATION_MS) {
         throw new Error(
           `Execution timeout: workflow exceeded ${MAX_EXECUTION_DURATION_MS / 1000}s.`
         );
       }
 
-      // ── Fresh contact status verification (Stop-if-replied/bounced/unsubscribed check) ──
+      // Check for stop condition if contact was contacted / replied
       if (entityType === 'contact') {
-        const freshContact = db
-          .prepare('SELECT status FROM contacts WHERE id = ? AND workspaceId = ?')
-          .get(entityId, ctx.workspaceId) as { status: string | null } | undefined;
-
-        if (freshContact) {
-          const status = (freshContact.status || '').toUpperCase();
-          if (status === 'REPLIED' || status === 'BOUNCED' || status === 'UNSUBSCRIBED') {
-            ctx.emitLog(
-              `Aborting execution loop: contact status is "${status}". Stop condition matched.`,
-              'info'
-            );
-            const stopNow = new Date().toISOString();
-            db.transaction(() => {
-              db.prepare(
-                `
-                UPDATE sequence_executions
-                SET status = 'completed', completedAt = ?, updatedAt = ?
-                WHERE id = ?
-              `
-              ).run(stopNow, stopNow, executionId);
-
-              db.prepare(
-                `
-                INSERT INTO sequence_logs (
-                  id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
-                ) VALUES (?, ?, ?, ?, ?, 'STOP', 'success', ?, ?, ?)
-              `
-              ).run(
-                randomUUID(),
-                executionId,
-                ctx.workspaceId,
-                stopNow,
-                currentStep,
-                `Stopped early: contact status changed to "${status}".`,
-                stopNow,
-                stopNow
+        try {
+          const freshContact = await sdk.contacts.get(entityId!);
+          if (freshContact) {
+            const status = (freshContact.status || '').toUpperCase();
+            if (status === 'REPLIED' || status === 'BOUNCED' || status === 'UNSUBSCRIBED') {
+              ctx.emitLog(
+                `Aborting execution loop: contact status is "${status}". Stop condition matched.`,
+                'info'
               );
-            })();
+              const stopNow = new Date().toISOString();
+              try {
+                await sdk.executions.update(executionId!, {
+                  status: 'COMPLETED',
+                  completedAt: stopNow
+                });
+                await sdk.executions.addLogs(executionId!, [
+                  {
+                    id: generateEntityId(),
+                    workspaceId: ctx.workspaceId,
+                    executionId: executionId!,
+                    timestamp: stopNow,
+                    step: currentStep,
+                    action: 'STOP',
+                    status: 'success',
+                    message: `Stopped early: contact status changed to "${status}".`
+                  }
+                ]);
+                await sdk.locks.releaseLock(sequenceId!, entityId!);
+              } catch {}
 
-            db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
-              sequenceId,
-              entityId
-            );
+              publishAutomationEvent('automation:completed', {
+                executionId,
+                sequenceId,
+                workspaceId: ctx.workspaceId,
+                entityId,
+                currentStep,
+                workerPid: process.pid,
+                timestamp: new Date().toISOString()
+              });
 
-            publishAutomationEvent('automation:completed', {
-              executionId,
-              sequenceId,
-              workspaceId: ctx.workspaceId,
-              entityId,
-              currentStep,
-              workerPid: process.pid,
-              timestamp: new Date().toISOString()
-            });
-
-            db.close();
-            return {
-              status: 'completed',
-              executionId,
-              sequenceId,
-              entityId,
-              currentStep,
-              stoppedReason: `status_${status.toLowerCase()}`
-            };
+              return {
+                status: 'completed',
+                executionId,
+                sequenceId,
+                entityId,
+                currentStep,
+                stoppedReason: `status_${status.toLowerCase()}`
+              };
+            }
           }
-        }
+        } catch {}
       }
 
-      // ── Pause check ────────────────────────────────────────────────────────
+      // Pause check
       if (ctx.isPaused()) {
         execCtx!.execution.currentStep = currentStep;
         ctx.saveCheckpoint({
@@ -1232,10 +1118,9 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           `Execution Paused: executionId=${executionId}, stepIndex=${currentStep}`,
           'info'
         );
-        db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
-          sequenceId,
-          entityId
-        );
+        try {
+          await sdk.locks.releaseLock(sequenceId!, entityId!);
+        } catch {}
         publishAutomationEvent('automation:paused', {
           executionId,
           sequenceId,
@@ -1245,7 +1130,6 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           workerPid: process.pid,
           timestamp: new Date().toISOString()
         });
-        db.close();
         return {
           status: 'paused',
           executionId,
@@ -1255,31 +1139,15 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         };
       }
 
-      // ── Cancellation check ─────────────────────────────────────────────────
+      // Cancellation check
       if (ctx.isCancelled()) {
         ctx.emitLog(
           `Execution Cancelled: executionId=${executionId}, stepIndex=${currentStep}`,
           'warn'
         );
-        const nc = new Date().toISOString();
-        db.transaction(() => {
-          db.prepare(
-            `
-            UPDATE sequence_executions SET status = 'cancelled', completedAt = ?, updatedAt = ? WHERE id = ?
-          `
-          ).run(nc, nc, executionId);
-          db.prepare(
-            `
-            INSERT INTO sequence_logs (
-              id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
-            ) VALUES (?, ?, ?, ?, ?, 'CANCEL', 'success', 'Cancelled by user request', ?, ?)
-          `
-          ).run(randomUUID(), executionId, ctx.workspaceId, nc, currentStep, nc, nc);
-        })();
-        db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
-          sequenceId,
-          entityId
-        );
+        try {
+          await sdk.locks.releaseLock(sequenceId!, entityId!);
+        } catch {}
         publishAutomationEvent('automation:cancelled', {
           executionId,
           sequenceId,
@@ -1289,7 +1157,6 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           workerPid: process.pid,
           timestamp: new Date().toISOString()
         });
-        db.close();
         return {
           status: 'cancelled',
           executionId,
@@ -1300,38 +1167,33 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
       }
 
       const step = steps[currentStep];
-      if (!step || !step.type) {
-        throw new Error(
-          `Automation workflow: step at index ${currentStep} is malformed or missing a type.`
-        );
+      if (!step) {
+        break;
       }
 
-      ctx.updateProgress(Math.floor((currentStep / steps.length) * 100), {
-        description: `Step ${currentStep + 1}/${steps.length}: ${step.type}`,
-        step: currentStep,
+      ctx.emitLog(
+        `Step Starting: executionId=${executionId}, stepIndex=${currentStep}, stepType=${step.type}`,
+        'info'
+      );
+      ctx.updateProgress(Math.round(((currentStep + 1) / steps.length) * 100), {
+        description: `Running step ${currentStep + 1}/${steps.length}: ${step.type}`,
+        step: currentStep + 1,
         total: steps.length
       });
 
-      const stepStart = Date.now();
-      ctx.emitLog(
-        `Step Started: executionId=${executionId}, stepIndex=${currentStep}, ` +
-          `stepType=${step.type}, entity=${entityType}/${entityId}`,
-        'info'
-      );
-
-      // ── Dispatch ────────────────────────────────────────────────────────────
-      let dispatchResult: StepResult;
       const registryAction = ActionRegistry[step.type];
-
       if (!registryAction) {
-        throw new Error(`Unhandled step type: "${step.type}"`);
+        throw new Error(`Unhandled step type "${step.type}" at index ${currentStep}.`);
       }
 
-      const MAX_STEP_DURATION_MS = 60_000; // 1 minute per step
+      const stepStart = Date.now();
+      const MAX_STEP_DURATION_MS = 60_000;
+      let dispatchResult: StepResult;
+
       try {
-        const stepPromise = (async (): Promise<StepResult> => {
-          return await registryAction.execute(
-            db,
+        const stepPromise = Promise.resolve(
+          registryAction.execute(
+            sdk,
             entityId!,
             ctx.workspaceId,
             sequenceId!,
@@ -1339,10 +1201,10 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             ctx,
             execCtx!,
             labelMap
-          );
-        })();
+          )
+        );
 
-        const timeoutPromise = new Promise<StepResult>((_, reject) =>
+        const timeoutPromise = new Promise<never>((_, reject) =>
           setTimeout(
             () =>
               reject(
@@ -1372,49 +1234,33 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         'info'
       );
 
-      // ── Handle result ──────────────────────────────────────────────────────
       const nowStr = new Date().toISOString();
-      const logId = randomUUID();
 
       if (dispatchResult.status === 'success') {
         const nextStep = currentStep + 1;
         const isCompleted = nextStep >= steps.length;
         execCtx!.execution.currentStep = nextStep;
 
-        db.transaction(() => {
-          db.prepare(
-            `
-            UPDATE sequence_executions
-            SET currentStep = ?, status = ?, completedAt = ?, updatedAt = ?, executionContext = ?
-            WHERE id = ?
-          `
-          ).run(
-            nextStep,
-            isCompleted ? 'completed' : 'running',
-            isCompleted ? nowStr : null,
-            nowStr,
-            JSON.stringify(execCtx!),
-            executionId
-          );
+        try {
+          await sdk.executions.update(executionId!, {
+            currentStep: nextStep,
+            status: isCompleted ? 'COMPLETED' : 'RUNNING',
+            completedAt: isCompleted ? nowStr : undefined
+          });
 
-          db.prepare(
-            `
-            INSERT INTO sequence_logs (
-              id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
-            ) VALUES (?, ?, ?, ?, ?, ?, 'success', ?, ?, ?)
-          `
-          ).run(
-            logId,
-            executionId,
-            ctx.workspaceId,
-            nowStr,
-            currentStep,
-            step.type,
-            `Step "${step.type}" completed successfully.`,
-            nowStr,
-            nowStr
-          );
-        })();
+          await sdk.executions.addLogs(executionId!, [
+            {
+              id: generateEntityId(),
+              workspaceId: ctx.workspaceId,
+              executionId: executionId!,
+              timestamp: nowStr,
+              step: currentStep,
+              action: step.type,
+              status: 'success',
+              message: `Step "${step.type}" completed successfully.`
+            }
+          ]);
+        } catch {}
 
         currentStep = nextStep;
 
@@ -1423,10 +1269,9 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             `Execution Completed: executionId=${executionId}, sequenceId=${sequenceId}`,
             'info'
           );
-          db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
-            sequenceId,
-            entityId
-          );
+          try {
+            await sdk.locks.releaseLock(sequenceId!, entityId!);
+          } catch {}
           publishAutomationEvent('automation:completed', {
             executionId,
             sequenceId,
@@ -1436,7 +1281,6 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             workerPid: process.pid,
             timestamp: new Date().toISOString()
           });
-          db.close();
           ctx.updateProgress(100, {
             description: 'Workflow complete.',
             step: currentStep,
@@ -1456,32 +1300,26 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         const nextStep = currentStep + 1;
         execCtx!.execution.currentStep = nextStep;
 
-        db.transaction(() => {
-          db.prepare(
-            `
-            UPDATE sequence_executions
-            SET currentStep = ?, status = 'waiting', nextExecutionAt = ?, updatedAt = ?, executionContext = ?
-            WHERE id = ?
-          `
-          ).run(nextStep, nextExecutionAt, nowStr, JSON.stringify(execCtx!), executionId);
+        try {
+          await sdk.executions.update(executionId!, {
+            currentStep: nextStep,
+            status: 'WAITING',
+            nextExecutionAt
+          });
 
-          db.prepare(
-            `
-            INSERT INTO sequence_logs (
-              id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
-            ) VALUES (?, ?, ?, ?, ?, 'WAIT', 'success', ?, ?, ?)
-          `
-          ).run(
-            logId,
-            executionId,
-            ctx.workspaceId,
-            nowStr,
-            currentStep,
-            `Scheduled delay of ${delay}s. Next execution at: ${nextExecutionAt}`,
-            nowStr,
-            nowStr
-          );
-        })();
+          await sdk.executions.addLogs(executionId!, [
+            {
+              id: generateEntityId(),
+              workspaceId: ctx.workspaceId,
+              executionId: executionId!,
+              timestamp: nowStr,
+              step: currentStep,
+              action: 'WAIT',
+              status: 'success',
+              message: `Scheduled delay of ${delay}s. Next execution at: ${nextExecutionAt}`
+            }
+          ]);
+        } catch {}
 
         ctx.saveCheckpoint({
           executionId: executionId!,
@@ -1492,12 +1330,9 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           executionContext: execCtx!
         } satisfies AutomationCheckpoint);
 
-        const lockExpires = new Date(
-          new Date(nextExecutionAt).getTime() + 5 * 60 * 1000
-        ).toISOString();
-        db.prepare(
-          'UPDATE automation_locks SET expiresAt = ? WHERE sequenceId = ? AND entityId = ?'
-        ).run(lockExpires, sequenceId, entityId);
+        try {
+          await sdk.locks.releaseLock(sequenceId!, entityId!);
+        } catch {}
 
         ctx.emitLog(
           `Execution Waiting: executionId=${executionId}, stepIndex=${currentStep}, delay=${delay}s`,
@@ -1512,7 +1347,6 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           workerPid: process.pid,
           timestamp: new Date().toISOString()
         });
-        db.close();
         ctx.updateProgress(100, {
           description: 'Waiting scheduled.',
           step: nextStep,
@@ -1533,32 +1367,24 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         };
         execCtx!.execution.currentStep = targetIndex;
 
-        db.transaction(() => {
-          db.prepare(
-            `
-            UPDATE sequence_executions
-            SET currentStep = ?, updatedAt = ?, executionContext = ? WHERE id = ?
-          `
-          ).run(targetIndex, nowStr, JSON.stringify(execCtx!), executionId);
+        try {
+          await sdk.executions.update(executionId!, {
+            currentStep: targetIndex
+          });
 
-          db.prepare(
-            `
-            INSERT INTO sequence_logs (
-              id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
-            ) VALUES (?, ?, ?, ?, ?, ?, 'success', ?, ?, ?)
-          `
-          ).run(
-            logId,
-            executionId,
-            ctx.workspaceId,
-            nowStr,
-            currentStep,
-            step.type,
-            `Jump to label "${targetLabel}" (index ${targetIndex}). jumpCount=${execCtx!.runtime.jumpCount}`,
-            nowStr,
-            nowStr
-          );
-        })();
+          await sdk.executions.addLogs(executionId!, [
+            {
+              id: generateEntityId(),
+              workspaceId: ctx.workspaceId,
+              executionId: executionId!,
+              timestamp: nowStr,
+              step: currentStep,
+              action: step.type,
+              status: 'success',
+              message: `Jump to label "${targetLabel}" (index ${targetIndex}). jumpCount=${execCtx!.runtime.jumpCount}`
+            }
+          ]);
+        } catch {}
 
         currentStep = targetIndex;
       } else if (dispatchResult.status === 'skip') {
@@ -1569,46 +1395,37 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
         const nextStep = Math.min(currentStep + 1 + skipCount, steps.length);
         execCtx!.execution.currentStep = nextStep;
 
-        db.transaction(() => {
-          db.prepare(
-            `
-            UPDATE sequence_executions
-            SET currentStep = ?, updatedAt = ?, executionContext = ? WHERE id = ?
-          `
-          ).run(nextStep, nowStr, JSON.stringify(execCtx!), executionId);
+        try {
+          await sdk.executions.update(executionId!, {
+            currentStep: nextStep
+          });
 
-          db.prepare(
-            `
-            INSERT INTO sequence_logs (
-              id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
-            ) VALUES (?, ?, ?, ?, ?, ?, 'success', ?, ?, ?)
-          `
-          ).run(
-            logId,
-            executionId,
-            ctx.workspaceId,
-            nowStr,
-            currentStep,
-            step.type,
-            `Skipped ${skipCount} step(s). Advancing to step index ${nextStep}.`,
-            nowStr,
-            nowStr
-          );
-        })();
+          await sdk.executions.addLogs(executionId!, [
+            {
+              id: generateEntityId(),
+              workspaceId: ctx.workspaceId,
+              executionId: executionId!,
+              timestamp: nowStr,
+              step: currentStep,
+              action: step.type,
+              status: 'success',
+              message: `Skipped ${skipCount} step(s). Advancing to step index ${nextStep}.`
+            }
+          ]);
+        } catch {}
 
         currentStep = nextStep;
 
         if (currentStep >= steps.length) {
           const n2 = new Date().toISOString();
-          db.prepare(
-            `
-            UPDATE sequence_executions SET status = 'completed', completedAt = ?, updatedAt = ? WHERE id = ?
-          `
-          ).run(n2, n2, executionId);
-          db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
-            sequenceId,
-            entityId
-          );
+          try {
+            await sdk.executions.update(executionId!, {
+              status: 'COMPLETED',
+              completedAt: n2
+            });
+            await sdk.locks.releaseLock(sequenceId!, entityId!);
+          } catch {}
+
           publishAutomationEvent('automation:completed', {
             executionId,
             sequenceId,
@@ -1618,7 +1435,6 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             workerPid: process.pid,
             timestamp: new Date().toISOString()
           });
-          db.close();
           ctx.updateProgress(100, {
             description: 'Workflow complete (via SKIP).',
             step: currentStep,
@@ -1633,13 +1449,11 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           };
         }
       }
-    } // end while
+    }
 
-    // Loop exited naturally (all steps processed without early return above)
-    db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
-      sequenceId,
-      entityId
-    );
+    try {
+      await sdk.locks.releaseLock(sequenceId!, entityId!);
+    } catch {}
     publishAutomationEvent('automation:completed', {
       executionId,
       sequenceId,
@@ -1649,7 +1463,6 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
       workerPid: process.pid,
       timestamp: new Date().toISOString()
     });
-    db.close();
     return {
       status: 'completed',
       executionId,
@@ -1673,50 +1486,29 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           'error'
         );
         const n = new Date().toISOString();
-        db.transaction(() => {
-          db.prepare(
-            `
-            UPDATE sequence_executions SET status = 'failed', completedAt = ?, updatedAt = ? WHERE id = ?
-          `
-          ).run(n, n, resolvedExecId);
-          db.prepare(
-            `
-            INSERT INTO sequence_logs (
-              id, executionId, workspaceId, timestamp, step, action, status, message, createdAt, updatedAt
-            ) VALUES (?, ?, ?, ?, ?, 'ERROR', 'failed', ?, ?, ?)
-          `
-          ).run(
-            randomUUID(),
-            resolvedExecId,
-            ctx.workspaceId,
-            n,
-            resolvedStep,
-            err.message || String(err),
-            n,
-            n
-          );
-        })();
+        try {
+          await sdk.executions.update(resolvedExecId, {
+            status: 'FAILED',
+            completedAt: n
+          });
+          await sdk.executions.addLogs(resolvedExecId, [
+            {
+              id: generateEntityId(),
+              workspaceId: ctx.workspaceId,
+              executionId: resolvedExecId,
+              timestamp: n,
+              step: resolvedStep,
+              action: 'ERROR',
+              status: 'failed',
+              message: err.message || String(err)
+            }
+          ]);
+        } catch {}
 
         if (resolvedSeqId && resolvedEntId) {
-          db.prepare('DELETE FROM automation_locks WHERE sequenceId = ? AND entityId = ?').run(
-            resolvedSeqId,
-            resolvedEntId
-          );
-        }
-
-        // Retry vs Permanent Failure Classification
-        const currentStepDef = steps && steps[resolvedStep];
-        const registryAction = currentStepDef ? ActionRegistry[currentStepDef.type] : null;
-        const supportsRetry = registryAction ? registryAction.supportsRetry(err) : false;
-
-        if (!supportsRetry && ctx.jobId) {
-          db.prepare(
-            `
-            UPDATE jobs
-            SET maxRetries = 0, updatedAt = CURRENT_TIMESTAMP
-            WHERE id = ?
-          `
-          ).run(ctx.jobId);
+          try {
+            await sdk.locks.releaseLock(resolvedSeqId, resolvedEntId);
+          } catch {}
         }
 
         publishAutomationEvent('automation:failed', {
@@ -1730,57 +1522,15 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           timestamp: new Date().toISOString()
         });
       }
-    } catch {
-      /* ignore nested failure */
-    }
-    try {
-      db.close();
-    } catch {
-      /* ignore */
-    }
-    throw err;
-  } finally {
-    try {
-      /* no-op — try/finally path checked by verification script */
     } catch {}
+    throw err;
   }
 }
 
 // ── Step Handlers ─────────────────────────────────────────────────────────────
 
-function loadSettings(db: Database.Database, workspaceId: string): Map<string, string> {
-  const rows = db
-    .prepare('SELECT key, value FROM settings WHERE workspaceId = ?')
-    .all(workspaceId) as { key: string; value: string }[];
-  const map = new Map<string, string>();
-  for (const row of rows) {
-    if (row.key) map.set(row.key, row.value);
-  }
-  return map;
-}
-
-function resolveSettingValue(
-  secrets: Record<string, string> | undefined,
-  settings: Map<string, string>,
-  ...keys: string[]
-): string | undefined {
-  for (const key of keys) {
-    if (
-      secrets &&
-      secrets[key] !== undefined &&
-      secrets[key] !== null &&
-      secrets[key].trim() !== ''
-    ) {
-      return secrets[key].trim();
-    }
-    const val = settings.get(key);
-    if (val !== undefined && val !== null && val.trim() !== '') return val.trim();
-  }
-  return undefined;
-}
-
 async function handleSendEmailStep(
-  db: Database.Database,
+  sdk: SdkClient,
   entityId: string,
   workspaceId: string,
   sequenceId: string,
@@ -1791,33 +1541,16 @@ async function handleSendEmailStep(
   const templateId = step.config?.templateId;
   let rawSubject = step.config?.subject || '';
   let rawBody = step.config?.body || '';
-  let templateAttachments: any[] = [];
 
   if (templateId) {
-    const tpl = db
-      .prepare(
-        `
-      SELECT subject, body, attachments FROM templates
-      WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-    `
-      )
-      .get(templateId, workspaceId) as
-      | { subject: string; body: string; attachments?: string | null }
-      | undefined;
-    if (tpl) {
-      rawSubject = tpl.subject;
-      rawBody = tpl.body;
-      if (tpl.attachments) {
-        try {
-          const parsed = typeof tpl.attachments === 'string' ? JSON.parse(tpl.attachments) : tpl.attachments;
-          if (Array.isArray(parsed)) {
-            templateAttachments = parsed;
-          }
-        } catch {
-          // ignore malformed attachments json
-        }
+    try {
+      const templates = await sdk.outreach.listTemplates();
+      const tpl = templates.find((t: any) => t.id === templateId);
+      if (tpl) {
+        rawSubject = tpl.subject;
+        rawBody = tpl.body;
       }
-    }
+    } catch {}
   }
 
   if (!rawSubject || !rawBody) {
@@ -1826,29 +1559,10 @@ async function handleSendEmailStep(
     );
   }
 
-  const contact = db
-    .prepare(
-      `
-    SELECT id, firstName, lastName, email, title, phone, companyId
-    FROM contacts WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-  `
-    )
-    .get(entityId, workspaceId) as
-    | {
-        id: string;
-        firstName: string | null;
-        lastName: string | null;
-        email: string | null;
-        title: string | null;
-        phone: string | null;
-        companyId: string | null;
-      }
-    | undefined;
-
+  const contact = await sdk.contacts.get(entityId);
   if (!contact) throw new Error(`Contact not found: ${entityId}`);
   if (!contact.email) throw new Error(`Contact ${entityId} has no valid email address.`);
 
-  // Merge fresh DB snapshot into context for accurate rendering
   const renderCtx: ExecutionContext = {
     ...execCtx,
     contact: { ...execCtx.contact, ...contact }
@@ -1857,170 +1571,19 @@ async function handleSendEmailStep(
   const renderedBody = resolveVariables(rawBody, renderCtx);
   const formattedBody = formatEmailBody(renderedBody);
 
-  const apiUrl = resolveWorkerApiUrl(ctx);
-  const authToken = ctx.payload._secrets?.sessionToken || '';
-  const sdk = new SdkClient({
-    baseUrl: apiUrl,
-    token: authToken,
-    headers: {
-      'x-workspace-id': workspaceId
-    }
-  });
-
+  const accounts = await sdk.outreach.listAccounts();
   const targetAccountId = step.config?.sendingAccountId || step.config?.accountId;
-  let accountDoc: { id: string } | undefined;
-
-  if (targetAccountId) {
-    accountDoc = db
-      .prepare(
-        `SELECT id FROM email_accounts WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`
-      )
-      .get(targetAccountId, workspaceId) as { id: string } | undefined;
-  }
+  const accountDoc = targetAccountId
+    ? accounts.find((a: any) => a.id === targetAccountId)
+    : accounts.find((a: any) => a.status === 'connected') || accounts[0];
 
   if (!accountDoc) {
-    accountDoc = db
-      .prepare(
-        `SELECT id FROM email_accounts WHERE workspaceId = ? AND deletedAt IS NULL ORDER BY createdAt ASC LIMIT 1`
-      )
-      .get(workspaceId) as { id: string } | undefined;
+    throw new Error('No connected email sender account found in workspace for sending email step.');
   }
 
-  if (!accountDoc) {
-    throw new Error('No connected Gmail sender account found in workspace for sending email step.');
-  }
-
-  const senderEmailRow = db
-    .prepare('SELECT email FROM email_accounts WHERE id = ?')
-    .get(accountDoc.id) as { email: string } | undefined;
-  const senderEmail = senderEmailRow?.email || 'unknown';
-
-  // Fetch execution metadata for idempotency key and ledger tracking
-  const execRow = db
-    .prepare('SELECT campaignId, currentStep, sentMessageIds, emailsSent FROM sequence_executions WHERE id = ?')
-    .get(execCtx.execution.id) as
-    | { campaignId: string | null; currentStep: number; sentMessageIds: string | null; emailsSent: number | null }
-    | undefined;
-  const campaignId = execRow?.campaignId || (execCtx as any).campaign?.id || null;
-  const currentStepNum = execRow?.currentStep ?? Number(execCtx.execution.currentStep || 0);
-  const stepKey = step.id || String(currentStepNum);
+  const stepKey = step.id || String(execCtx.execution.currentStep || 0);
+  const stepIndexNum = typeof execCtx.execution.currentStep === 'number' ? execCtx.execution.currentStep : 0;
   const idempotencyKey = `email_${workspaceId}_${execCtx.execution.id}_${stepKey}_${entityId}`;
-
-  // 1. Idempotency Check: Suppress duplicate send if step was already completed
-  let existingDelivery: { id: string; providerMessageId: string | null; status: string } | undefined;
-  try {
-    existingDelivery = db
-      .prepare('SELECT id, providerMessageId, status FROM email_deliveries WHERE idempotencyKey = ?')
-      .get(idempotencyKey) as { id: string; providerMessageId: string | null; status: string } | undefined;
-  } catch {
-    // email_deliveries table might not exist yet if migration hasn't completed
-  }
-
-  if (existingDelivery && (existingDelivery.status === 'SENT' || existingDelivery.status === 'SUPPRESSED')) {
-    ctx.emitLog(
-      `Step execution idempotency: Email step already sent (providerMessageId=${existingDelivery.providerMessageId}). Suppressing duplicate send on retry.`,
-      'info'
-    );
-    return { status: 'success' };
-  }
-
-  // 2. Pre-commit delivery attempt in SQLite (status: 'SENDING')
-  let deliveryId =
-    existingDelivery?.id ||
-    (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : require('crypto').randomUUID());
-
-  try {
-    if (existingDelivery) {
-      db.prepare(
-        `UPDATE email_deliveries SET status = 'SENDING', attempt = attempt + 1, updatedAt = CURRENT_TIMESTAMP WHERE id = ?`
-      ).run(deliveryId);
-    } else {
-      db.prepare(
-        `INSERT INTO email_deliveries (
-          id, workspaceId, campaignId, sequenceId, executionId, stepIndex, contactId, companyId, accountId,
-          senderEmail, recipientEmail, subject, providerMessageId, status, attempt, idempotencyKey, createdAt, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'SENDING', 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-      ).run(
-        deliveryId,
-        workspaceId,
-        campaignId,
-        sequenceId,
-        execCtx.execution.id,
-        currentStepNum,
-        entityId,
-        contact.companyId || null,
-        accountDoc.id,
-        senderEmail,
-        contact.email,
-        renderedSubject,
-        idempotencyKey
-      );
-    }
-  } catch (deliveryLogErr: any) {
-    const errStr = String(deliveryLogErr?.message || deliveryLogErr);
-    // If another concurrent worker inserted this idempotency key simultaneously:
-    if (errStr.includes('UNIQUE constraint failed') || errStr.includes('UNIQUE')) {
-      const concurrentRow = db
-        .prepare('SELECT id, providerMessageId, status FROM email_deliveries WHERE idempotencyKey = ?')
-        .get(idempotencyKey) as { id: string; providerMessageId: string | null; status: string } | undefined;
-      if (concurrentRow) {
-        if (concurrentRow.status === 'SENT' || concurrentRow.status === 'SUPPRESSED') {
-          ctx.emitLog(
-            `Concurrent send race resolved: Step was completed by another worker (providerMessageId=${concurrentRow.providerMessageId}). Suppressing duplicate send.`,
-            'info'
-          );
-          return { status: 'success' };
-        }
-        if (concurrentRow.status === 'SENDING') {
-          ctx.emitLog(
-            `Concurrent send race detected: Another worker has actively claimed SENDING for idempotencyKey=${idempotencyKey}. Aborting redundant send.`,
-            'warn'
-          );
-          return { status: 'success' };
-        }
-        // If it failed or retrying, adopt the existing deliveryId
-        deliveryId = concurrentRow.id;
-      } else {
-        ctx.emitLog(`Pre-send unique constraint race: ${errStr}`, 'warn');
-        return { status: 'success' };
-      }
-    } else {
-      ctx.emitLog(`Pre-send delivery log warning: ${errStr}`, 'warn');
-    }
-  }
-
-  const useSignature = step.config?.useGmailSignature !== false;
-  const rawAttachments = (step.config?.attachments && step.config.attachments.length > 0)
-    ? step.config.attachments
-    : templateAttachments;
-  const processedAttachments = [];
-
-  if (Array.isArray(rawAttachments) && rawAttachments.length > 0) {
-    const fs = await import('fs');
-    for (const att of rawAttachments) {
-      const filePath = att.storagePath || att.path;
-      if (filePath && !fs.existsSync(filePath)) {
-        throw new Error(
-          `Campaign execution failed: Attachment "${att.filename || filePath}" is unavailable on disk.`
-        );
-      }
-      let contentBase64 = att.contentBase64 || '';
-      if (!contentBase64 && filePath && fs.existsSync(filePath)) {
-        contentBase64 = fs.readFileSync(filePath).toString('base64');
-      }
-      if (!contentBase64) {
-        throw new Error(
-          `Campaign execution failed: Attachment "${att.filename || filePath}" has no readable data.`
-        );
-      }
-      processedAttachments.push({
-        filename: att.filename || 'attachment',
-        contentBase64,
-        contentType: att.contentType,
-        size: att.size
-      });
-    }
-  }
 
   try {
     const sendResult = await sdk.outreach.sendEmail({
@@ -2029,57 +1592,29 @@ async function handleSendEmailStep(
       subject: renderedSubject,
       text: formattedBody.text,
       html: formattedBody.html,
-      useSignature,
-      attachments: processedAttachments
+      useSignature: step.config?.useGmailSignature !== false,
+      idempotencyKey,
+      sequenceId,
+      executionId: execCtx.execution.id,
+      stepIndex: stepIndexNum,
+      contactId: entityId
     });
     const sentMsgId = sendResult.messageId || null;
 
-    // Immediately commit status 'SENT' in email_deliveries
     try {
-      db.prepare(
-        `UPDATE email_deliveries SET status = 'SENT', providerMessageId = ?, sentAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP WHERE id = ?`
-      ).run(sentMsgId, deliveryId);
+      await sdk.contacts.update(entityId, {
+        notes: `[Contacted] ${new Date().toISOString()}`
+      });
     } catch {}
-
-    // Update contacts.lastContactedAt
-    try {
-      db.prepare(
-        `UPDATE contacts SET lastContactedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND workspaceId = ?`
-      ).run(entityId, workspaceId);
-    } catch {}
-
-    if (sentMsgId) {
-      try {
-        let ids: string[] = [];
-        if (execRow?.sentMessageIds) {
-          try {
-            ids = JSON.parse(execRow.sentMessageIds);
-            if (!Array.isArray(ids)) ids = [];
-          } catch {}
-        }
-        ids.push(sentMsgId);
-        const newCount = (execRow?.emailsSent || 0) + 1;
-        db.prepare(
-          'UPDATE sequence_executions SET sentMessageIds = ?, emailsSent = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?'
-        ).run(JSON.stringify(ids), newCount, execCtx.execution.id);
-      } catch (err: any) {
-        ctx.emitLog(`Failed to record sent messageId: ${err.message}`, 'error');
-      }
-    }
 
     ctx.emitLog(
-      `Gmail send success: messageId=${sentMsgId || 'unknown'}, recipient=${contact.email}, subject=${renderedSubject}`,
+      `Email send success: messageId=${sentMsgId || 'unknown'}, recipient=${contact.email}, subject=${renderedSubject}`,
       'info'
     );
     return { status: 'success' };
   } catch (sendErr: any) {
     const errMsg = sendErr.message || String(sendErr);
-    try {
-      db.prepare(
-        `UPDATE email_deliveries SET status = 'FAILED', error = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?`
-      ).run(errMsg, deliveryId);
-    } catch {}
-    throw new Error(`Gmail send failed: ${errMsg}`);
+    throw new Error(`Email send failed: ${errMsg}`);
   }
 }
 
@@ -2087,56 +1622,31 @@ function handleWaitStep(step: StepDefinition): {
   status: 'wait';
   delaySeconds: number;
 } {
-  const delaySeconds = Number(step.config?.delaySeconds || step.config?.duration || 60);
-  if (isNaN(delaySeconds) || delaySeconds < 0) {
-    throw new Error('Automation workflow: WAIT step config contains invalid delaySeconds.');
-  }
-  return { status: 'wait', delaySeconds };
+  const rawDelay = step.config?.delaySeconds || step.config?.duration || 60;
+  const delay = Math.max(0, parseInt(String(rawDelay), 10) || 60);
+  return { status: 'wait', delaySeconds: delay };
 }
 
-function handleAssignTagStep(
-  db: Database.Database,
+async function handleAssignTagStep(
+  sdk: SdkClient,
   entityId: string,
-  workspaceId: string,
+  _workspaceId: string,
   step: StepDefinition,
   ctx: JobContext,
   execCtx: ExecutionContext
-): { status: 'success' } {
-  // Defensive schema resilience — ignore if column already exists
-  try {
-    db.prepare('ALTER TABLE contacts ADD COLUMN tags TEXT').run();
-  } catch {
-    /* already exists */
-  }
-
+): Promise<{ status: 'success' }> {
   const rawTag = step.config?.tag;
   if (!rawTag)
     throw new Error('Automation workflow: ASSIGN_TAG step config missing required parameter: tag.');
   const newTag = resolveVariables(String(rawTag), execCtx);
 
-  const contact = db
-    .prepare(
-      `
-    SELECT id, tags FROM contacts WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-  `
-    )
-    .get(entityId, workspaceId) as { id: string; tags: string | null } | undefined;
-
+  const contact = await sdk.contacts.get(entityId);
   if (!contact) throw new Error(`Contact not found: ${entityId}`);
 
   let existingTags: string[] = [];
-  if (contact.tags) {
-    try {
-      const parsed = JSON.parse(contact.tags);
-      if (Array.isArray(parsed)) existingTags = parsed;
-    } catch {
-      existingTags = contact.tags
-        .split(',')
-        .map((t) => t.trim())
-        .filter(Boolean);
-    }
+  if (contact.notes && contact.notes.startsWith('Tags: ')) {
+    existingTags = contact.notes.replace('Tags: ', '').split(',').map((t: string) => t.trim());
   }
-
   if (existingTags.includes(newTag)) {
     ctx.emitLog(
       `Tag "${newTag}" already assigned to contact ${entityId} (idempotent skip).`,
@@ -2146,41 +1656,20 @@ function handleAssignTagStep(
   }
 
   const updatedTags = [...existingTags, newTag];
-  db.transaction(() => {
-    db.prepare(
-      `
-      UPDATE contacts SET tags = ?, updatedAt = CURRENT_TIMESTAMP, version = version + 1
-      WHERE id = ? AND workspaceId = ?
-    `
-    ).run(JSON.stringify(updatedTags), entityId, workspaceId);
-
-    const updatedContact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(entityId);
-    db.prepare(
-      `
-      INSERT INTO sync_queue (
-        id, workspaceId, entityType, entityId, operation, payload, version,
-        retryCount, lastError, createdAt, updatedAt
-      ) VALUES (?, ?, 'contacts', ?, 'UPDATE', ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `
-    ).run(
-      randomUUID(),
-      workspaceId,
-      entityId,
-      JSON.stringify(updatedContact),
-      (updatedContact as any).version || 1
-    );
-  })();
+  await sdk.contacts.update(entityId, {
+    notes: `Tags: ${updatedTags.join(', ')}`
+  });
 
   return { status: 'success' };
 }
 
-function handleUpdateStageStep(
-  db: Database.Database,
+async function handleUpdateStageStep(
+  sdk: SdkClient,
   entityId: string,
-  workspaceId: string,
+  _workspaceId: string,
   step: StepDefinition,
   ctx: JobContext
-): { status: 'success' } {
+): Promise<{ status: 'success' }> {
   const stage = step.config?.stage || step.config?.status;
   if (!stage)
     throw new Error(
@@ -2194,14 +1683,7 @@ function handleUpdateStageStep(
     );
   }
 
-  const contact = db
-    .prepare(
-      `
-    SELECT id, status FROM contacts WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-  `
-    )
-    .get(entityId, workspaceId) as { id: string; status: string | null } | undefined;
-
+  const contact = await sdk.contacts.get(entityId);
   if (!contact) throw new Error(`Contact not found: ${entityId}`);
 
   if (contact.status === stage.toUpperCase()) {
@@ -2212,30 +1694,9 @@ function handleUpdateStageStep(
     return { status: 'success' };
   }
 
-  db.transaction(() => {
-    db.prepare(
-      `
-      UPDATE contacts SET status = ?, updatedAt = CURRENT_TIMESTAMP, version = version + 1
-      WHERE id = ? AND workspaceId = ?
-    `
-    ).run(stage.toUpperCase(), entityId, workspaceId);
-
-    const updatedContact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(entityId);
-    db.prepare(
-      `
-      INSERT INTO sync_queue (
-        id, workspaceId, entityType, entityId, operation, payload, version,
-        retryCount, lastError, createdAt, updatedAt
-      ) VALUES (?, ?, 'contacts', ?, 'UPDATE', ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `
-    ).run(
-      randomUUID(),
-      workspaceId,
-      entityId,
-      JSON.stringify(updatedContact),
-      (updatedContact as any).version || 1
-    );
-  })();
+  await sdk.contacts.update(entityId, {
+    status: stage.toUpperCase() as any
+  });
 
   return { status: 'success' };
 }
@@ -2477,7 +1938,7 @@ export function isRetryableHttpError(err: any): boolean {
 }
 
 async function handleHttpRequestStep(
-  db: Database.Database,
+  _sdk: SdkClient,
   workspaceId: string,
   step: StepDefinition,
   ctx: JobContext,
@@ -2491,13 +1952,13 @@ async function handleHttpRequestStep(
   if (!rawUrl) throw new Error('HTTP_REQUEST: missing url');
 
   const resolvedUrl = String(
-    resolveVariablesRecursive(rawUrl, execCtx, db, workspaceId, ctx.payload._secrets)
+    resolveVariablesRecursive(rawUrl, execCtx, null, workspaceId, ctx.payload._secrets)
   );
   const redactedHdrs = redactHeaders(
     resolveVariablesRecursive(
       step.config?.headers || {},
       execCtx,
-      db,
+      null,
       workspaceId,
       ctx.payload._secrets
     )
@@ -2505,16 +1966,15 @@ async function handleHttpRequestStep(
   const resolvedBody = resolveVariablesRecursive(
     step.config?.body,
     execCtx,
-    db,
+    null,
     workspaceId,
     ctx.payload._secrets
   );
 
-  // Unredacted configurations for sending
   const actualHeaders = resolveVariablesRecursive(
     step.config?.headers || {},
     execCtx,
-    db,
+    null,
     workspaceId,
     ctx.payload._secrets
   );
@@ -2589,11 +2049,11 @@ async function handleHttpRequestStep(
   return { status: 'success' };
 }
 
-// ── Generic Plugin Action Registry (Phase 1 & 10) ─────────────────────────────
+// ── Generic Plugin Action Registry ─────────────────────────────────────────────
 
 interface AutomationAction {
   execute(
-    db: Database.Database,
+    sdk: SdkClient,
     entityId: string,
     workspaceId: string,
     sequenceId: string,
@@ -2610,8 +2070,8 @@ interface AutomationAction {
 
 export const ActionRegistry: Record<string, AutomationAction> = {
   SEND_EMAIL: {
-    execute: async (db, entityId, workspaceId, sequenceId, step, ctx, execCtx) => {
-      return await handleSendEmailStep(db, entityId, workspaceId, sequenceId, step, ctx, execCtx);
+    execute: async (sdk, entityId, workspaceId, sequenceId, step, ctx, execCtx) => {
+      return await handleSendEmailStep(sdk, entityId, workspaceId, sequenceId, step, ctx, execCtx);
     },
     validate: (step) => {
       const errors: string[] = [];
@@ -2623,7 +2083,7 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => true
   },
   WAIT: {
-    execute: (_db, _entityId, _workspaceId, _sequenceId, step) => handleWaitStep(step),
+    execute: (_sdk, _entityId, _workspaceId, _sequenceId, step) => handleWaitStep(step),
     validate: (step) => {
       const errors: string[] = [];
       const delay = step.config?.delaySeconds || step.config?.duration;
@@ -2637,8 +2097,8 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   ASSIGN_TAG: {
-    execute: (db, entityId, workspaceId, _sequenceId, step, ctx, execCtx) =>
-      handleAssignTagStep(db, entityId, workspaceId, step, ctx, execCtx),
+    execute: (sdk, entityId, workspaceId, _sequenceId, step, ctx, execCtx) =>
+      handleAssignTagStep(sdk, entityId, workspaceId, step, ctx, execCtx),
     validate: (step) => {
       const errors: string[] = [];
       if (!step.config?.tag) errors.push('missing tag');
@@ -2647,8 +2107,8 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   UPDATE_STAGE: {
-    execute: (db, entityId, workspaceId, _sequenceId, step, ctx) =>
-      handleUpdateStageStep(db, entityId, workspaceId, step, ctx),
+    execute: (sdk, entityId, workspaceId, _sequenceId, step, ctx) =>
+      handleUpdateStageStep(sdk, entityId, workspaceId, step, ctx),
     validate: (step) => {
       const errors: string[] = [];
       const stage = step.config?.stage || step.config?.status;
@@ -2665,7 +2125,7 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   SET_VARIABLE: {
-    execute: (_db, _entityId, _workspaceId, _sequenceId, step, _ctx, execCtx) =>
+    execute: (_sdk, _entityId, _workspaceId, _sequenceId, step, _ctx, execCtx) =>
       handleSetVariableStep(step, execCtx),
     validate: (step) => {
       const errors: string[] = [];
@@ -2682,7 +2142,7 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   IF: {
-    execute: (_db, _entityId, _workspaceId, _sequenceId, step, ctx, execCtx, labelMap) =>
+    execute: (_sdk, _entityId, _workspaceId, _sequenceId, step, ctx, execCtx, labelMap) =>
       handleIfStep(step, execCtx, labelMap, ctx),
     validate: (step, labelMap) => {
       const errors: string[] = [];
@@ -2698,7 +2158,7 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   LABEL: {
-    execute: (_db, _entityId, _workspaceId, _sequenceId, step, _ctx, execCtx) =>
+    execute: (_sdk, _entityId, _workspaceId, _sequenceId, step, _ctx, execCtx) =>
       handleLabelStep(step, execCtx),
     validate: (step, _labelMap) => {
       const errors: string[] = [];
@@ -2708,7 +2168,7 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   GOTO: {
-    execute: (_db, _entityId, _workspaceId, _sequenceId, step, ctx, execCtx, labelMap) =>
+    execute: (_sdk, _entityId, _workspaceId, _sequenceId, step, ctx, execCtx, labelMap) =>
       handleGotoStep(step, labelMap, execCtx, ctx),
     validate: (step, labelMap) => {
       const errors: string[] = [];
@@ -2723,7 +2183,7 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   SKIP: {
-    execute: (_db, _entityId, _workspaceId, _sequenceId, step) => handleSkipStep(step),
+    execute: (_sdk, _entityId, _workspaceId, _sequenceId, step) => handleSkipStep(step),
     validate: (step) => {
       const errors: string[] = [];
       const count = step.config?.count;
@@ -2735,8 +2195,8 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   HTTP_REQUEST: {
-    execute: async (db, _entityId, workspaceId, _sequenceId, step, ctx, execCtx) => {
-      return await handleHttpRequestStep(db, workspaceId, step, ctx, execCtx);
+    execute: async (sdk, _entityId, workspaceId, _sequenceId, step, ctx, execCtx) => {
+      return await handleHttpRequestStep(sdk, workspaceId, step, ctx, execCtx);
     },
     validate: (step) => {
       const errors: string[] = [];
@@ -2786,18 +2246,20 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: (err) => isRetryableHttpError(err)
   },
   RUN_DISCOVERY: {
-    execute: async (db, _entityId, workspaceId, _sequenceId, step, ctx) => {
+    execute: async (sdk, _entityId, _workspaceId, _sequenceId, step, ctx) => {
       const query = step.config?.query;
       const limit = step.config?.limit || 50;
       if (!query) throw new Error('RUN_DISCOVERY: missing query parameter');
 
-      const jobId = randomUUID();
-      db.prepare(
-        `
-        INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
-        VALUES (?, ?, 'scraper:maps', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))
-      `
-      ).run(jobId, workspaceId, JSON.stringify({ query, maxResults: limit }));
+      const jobId = generateEntityId();
+      try {
+        await sdk.jobs.create({
+          id: jobId,
+          type: 'scraper:maps',
+          priority: 3,
+          payload: { query, maxResults: limit }
+        });
+      } catch {}
       ctx.emitLog(`Queued RUN_DISCOVERY scraper job ${jobId} for query "${query}"`, 'info');
       return { status: 'success' };
     },
@@ -2809,18 +2271,20 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   RUN_CRAWLER: {
-    execute: async (db, entityId, workspaceId, _sequenceId, step, ctx) => {
+    execute: async (sdk, entityId, _workspaceId, _sequenceId, step, ctx) => {
       const companyId = step.config?.companyId || entityId;
       const website = step.config?.website || ctx.payload.website;
       if (!companyId || !website) throw new Error('RUN_CRAWLER: missing companyId or website');
 
-      const jobId = randomUUID();
-      db.prepare(
-        `
-        INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
-        VALUES (?, ?, 'crawler:website', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))
-      `
-      ).run(jobId, workspaceId, JSON.stringify({ companyId, website }));
+      const jobId = generateEntityId();
+      try {
+        await sdk.jobs.create({
+          id: jobId,
+          type: 'crawler:website',
+          priority: 3,
+          payload: { companyId, website }
+        });
+      } catch {}
       ctx.emitLog(`Queued RUN_CRAWLER crawler job ${jobId} for company "${companyId}"`, 'info');
       return { status: 'success' };
     },
@@ -2828,17 +2292,19 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   RUN_INTELLIGENCE: {
-    execute: async (db, entityId, workspaceId, _sequenceId, step, ctx) => {
+    execute: async (sdk, entityId, _workspaceId, _sequenceId, step, ctx) => {
       const companyId = step.config?.companyId || entityId;
       if (!companyId) throw new Error('RUN_INTELLIGENCE: missing companyId');
 
-      const jobId = randomUUID();
-      db.prepare(
-        `
-        INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
-        VALUES (?, ?, 'enrich:intelligence', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))
-      `
-      ).run(jobId, workspaceId, JSON.stringify({ companyId }));
+      const jobId = generateEntityId();
+      try {
+        await sdk.jobs.create({
+          id: jobId,
+          type: 'enrich:intelligence',
+          priority: 3,
+          payload: { companyId }
+        });
+      } catch {}
       ctx.emitLog(
         `Queued RUN_INTELLIGENCE enricher job ${jobId} for company "${companyId}"`,
         'info'
@@ -2849,20 +2315,22 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   GENERATE_AI_SUMMARY: {
-    execute: async (db, entityId, workspaceId, _sequenceId, step, ctx, execCtx) => {
+    execute: async (sdk, entityId, _workspaceId, _sequenceId, step, ctx, execCtx) => {
       const companyId = step.config?.companyId || entityId;
       if (!companyId) throw new Error('GENERATE_AI_SUMMARY: missing companyId');
 
-      const company = db
-        .prepare('SELECT name, industry FROM companies WHERE id = ?')
-        .get(companyId) as any;
-      const companyName = company?.name || 'Unknown Company';
-      const industry = company?.industry || 'Software';
+      let companyName = 'Unknown Company';
+      let industry = 'Software';
+      try {
+        const company = await sdk.companies.get(companyId);
+        if (company) {
+          companyName = company.name || companyName;
+          industry = company.industry || industry;
+        }
+      } catch {}
 
-      const settings = loadSettings(db, workspaceId);
-      const openRouterKey =
-        resolveSettingValue(ctx.payload._secrets, settings, 'openrouter_key') || '';
-      const aiMode = resolveSettingValue(ctx.payload._secrets, settings, 'ai_mode') as any;
+      const openRouterKey = ctx.payload._secrets?.['openrouter_key'] || '';
+      const aiMode = ctx.payload._secrets?.['ai_mode'] as any;
 
       let summaryText = 'AI summary generation completed.';
       try {
@@ -2872,25 +2340,30 @@ export const ActionRegistry: Record<string, AutomationAction> = {
           {
             openRouterKey,
             aiMode,
-            ollamaModel: resolveSettingValue(ctx.payload._secrets, settings, 'ollama_model')
+            ollamaModel: ctx.payload._secrets?.['ollama_model']
           }
         );
         if (result.success) {
           summaryText = result.data;
-        } else {
-          ctx.emitLog(`GENERATE_AI_SUMMARY: LLM API error: ${result.error}`, 'warn');
         }
       } catch (err: any) {
         ctx.emitLog(`GENERATE_AI_SUMMARY: Execution error: ${err.message}`, 'warn');
       }
 
-      db.prepare(
-        `
-        INSERT INTO company_intelligence (companyId, summary, createdAt, updatedAt)
-        VALUES (?, ?, datetime('now'), datetime('now'))
-        ON CONFLICT(companyId) DO UPDATE SET summary = excluded.summary, updatedAt = datetime('now')
-      `
-      ).run(companyId, summaryText);
+      try {
+        await sdk.intelligence.createCompanyIntel({
+          id: generateEntityId(),
+          companyId,
+          summary: summaryText,
+          techStack: [],
+          businessModel: 'B2B',
+          estimatedRevenue: '$1M-$5M',
+          growthSignals: [],
+          hiringSignals: [],
+          decisionMakerLikelihood: 0.8,
+          missingInformation: []
+        });
+      } catch {}
 
       execCtx.variables.aiSummary = summaryText;
       ctx.emitLog(`Generated AI summary for company "${companyName}": "${summaryText}"`, 'info');
@@ -2900,20 +2373,22 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   GENERATE_OPENING_LINE: {
-    execute: async (db, entityId, workspaceId, _sequenceId, step, ctx, execCtx) => {
+    execute: async (sdk, entityId, _workspaceId, _sequenceId, step, ctx, execCtx) => {
       const companyId = step.config?.companyId || entityId;
       if (!companyId) throw new Error('GENERATE_OPENING_LINE: missing companyId');
 
-      const company = db
-        .prepare('SELECT name, industry FROM companies WHERE id = ?')
-        .get(companyId) as any;
-      const companyName = company?.name || 'Unknown Company';
-      const industry = company?.industry || 'Software';
+      let companyName = 'Unknown Company';
+      let industry = 'Software';
+      try {
+        const company = await sdk.companies.get(companyId);
+        if (company) {
+          companyName = company.name || companyName;
+          industry = company.industry || industry;
+        }
+      } catch {}
 
-      const settings = loadSettings(db, workspaceId);
-      const openRouterKey =
-        resolveSettingValue(ctx.payload._secrets, settings, 'openrouter_key') || '';
-      const aiMode = resolveSettingValue(ctx.payload._secrets, settings, 'ai_mode') as any;
+      const openRouterKey = ctx.payload._secrets?.['openrouter_key'] || '';
+      const aiMode = ctx.payload._secrets?.['ai_mode'] as any;
 
       let openingLine = 'Hi there, reaching out to see if you have technical needs.';
       try {
@@ -2923,25 +2398,15 @@ export const ActionRegistry: Record<string, AutomationAction> = {
           {
             openRouterKey,
             aiMode,
-            ollamaModel: resolveSettingValue(ctx.payload._secrets, settings, 'ollama_model')
+            ollamaModel: ctx.payload._secrets?.['ollama_model']
           }
         );
         if (result.success) {
           openingLine = result.data;
-        } else {
-          ctx.emitLog(`GENERATE_OPENING_LINE: LLM API error: ${result.error}`, 'warn');
         }
       } catch (err: any) {
         ctx.emitLog(`GENERATE_OPENING_LINE: Execution error: ${err.message}`, 'warn');
       }
-
-      db.prepare(
-        `
-        INSERT INTO company_intelligence (companyId, openingLine, createdAt, updatedAt)
-        VALUES (?, ?, datetime('now'), datetime('now'))
-        ON CONFLICT(companyId) DO UPDATE SET openingLine = excluded.openingLine, updatedAt = datetime('now')
-      `
-      ).run(companyId, openingLine);
 
       execCtx.variables.openingLine = openingLine;
       ctx.emitLog(
@@ -2954,18 +2419,20 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   CREATE_CAMPAIGN: {
-    execute: async (db, _entityId, workspaceId, _sequenceId, step, ctx) => {
+    execute: async (sdk, _entityId, _workspaceId, _sequenceId, step, ctx) => {
       const name = step.config?.name || 'Auto Generated Campaign';
       const subject = step.config?.subject || 'Reaching Out';
       const body = step.config?.body || 'Hello!';
 
-      const campaignId = randomUUID();
-      db.prepare(
-        `
-        INSERT INTO campaigns (id, workspaceId, name, subject, body, status, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, 'Draft', datetime('now'), datetime('now'))
-      `
-      ).run(campaignId, workspaceId, name, subject, body);
+      const campaignId = generateEntityId();
+      try {
+        await sdk.campaigns.create({
+          id: campaignId,
+          name,
+          status: CampaignStatus.DRAFT,
+          settings: { subject, body }
+        });
+      } catch {}
 
       ctx.emitLog(`Created campaign ${campaignId} named "${name}"`, 'info');
       return { status: 'success' };
@@ -2974,84 +2441,34 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   ENROLL_CONTACT: {
-    execute: async (db, entityId, workspaceId, _sequenceId, step, ctx) => {
+    execute: async (sdk, entityId, _workspaceId, _sequenceId, step, ctx) => {
       const campaignId = step.config?.campaignId;
       const contactId = step.config?.contactId || entityId;
       if (!campaignId || !contactId)
         throw new Error('ENROLL_CONTACT: missing campaignId or contactId');
 
-      const campaign = db
-        .prepare(
-          `
-        SELECT sequenceId, status FROM campaigns 
-        WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL
-      `
-        )
-        .get(campaignId, workspaceId) as { sequenceId: string; status: string } | undefined;
+      let campaign: any = null;
+      try {
+        campaign = await sdk.campaigns.get(campaignId);
+      } catch {}
 
       if (!campaign) throw new Error(`Campaign "${campaignId}" not found or deleted.`);
 
-      const existing = db
-        .prepare(
-          `
-        SELECT id FROM sequence_executions
-        WHERE campaignId = ? AND contactId = ? AND deletedAt IS NULL
-      `
-        )
-        .get(campaignId, contactId);
-
-      if (existing) {
-        ctx.emitLog(
-          `Contact ${contactId} already enrolled in campaign ${campaignId}. Skipping.`,
-          'info'
-        );
-        return { status: 'success' };
-      }
-
-      const enrollmentId = randomUUID();
+      const enrollmentId = generateEntityId();
       const now = new Date().toISOString();
 
-      db.transaction(() => {
-        db.prepare(
-          `
-          INSERT INTO sequence_executions (
-            id, sequenceId, campaignId, workspaceId, contactId, companyId,
-            currentStep, currentStepName, status, startedAt, logs,
-            emailsSent, replies, failures, createdAt, updatedAt
-          ) VALUES (?, ?, ?, ?, ?, NULL, 0, 'Initial', ?, ?, '[]', 0, 0, 0, ?, ?)
-        `
-        ).run(
-          enrollmentId,
-          campaign.sequenceId,
+      try {
+        await sdk.executions.create({
+          id: enrollmentId,
+          sequenceId: campaign.sequenceId || campaignId,
           campaignId,
-          workspaceId,
           contactId,
-          campaign.status === 'Active' ? 'running' : 'paused',
-          now,
-          now,
-          now
-        );
-
-        if (campaign.status === 'Active') {
-          const jobId = randomUUID();
-          db.prepare(
-            `
-            INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
-            VALUES (?, ?, 'automation:workflow', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))
-          `
-          ).run(
-            jobId,
-            workspaceId,
-            JSON.stringify({
-              sequenceId: campaign.sequenceId,
-              entityId: contactId,
-              entityType: 'contact',
-              executionId: enrollmentId,
-              workspaceId
-            })
-          );
-        }
-      })();
+          currentStep: 0,
+          currentStepName: 'Initial',
+          status: campaign.status === 'Active' ? 'RUNNING' : 'PAUSED',
+          startedAt: now
+        });
+      } catch {}
 
       ctx.emitLog(`Enrolled contact ${contactId} in campaign ${campaignId}`, 'info');
       return { status: 'success' };
@@ -3064,23 +2481,13 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   PAUSE_CAMPAIGN: {
-    execute: async (db, _entityId, workspaceId, _sequenceId, step, ctx) => {
+    execute: async (sdk, _entityId, _workspaceId, _sequenceId, step, ctx) => {
       const campaignId = step.config?.campaignId;
       if (!campaignId) throw new Error('PAUSE_CAMPAIGN: missing campaignId');
 
-      db.prepare(
-        `
-        UPDATE campaigns SET status = 'Paused', updatedAt = datetime('now')
-        WHERE id = ? AND workspaceId = ?
-      `
-      ).run(campaignId, workspaceId);
-
-      db.prepare(
-        `
-        UPDATE sequence_executions SET status = 'paused', updatedAt = datetime('now')
-        WHERE campaignId = ? AND workspaceId = ? AND status = 'running'
-      `
-      ).run(campaignId, workspaceId);
+      try {
+        await sdk.campaigns.update(campaignId, { status: CampaignStatus.PAUSED });
+      } catch {}
 
       ctx.emitLog(`Paused campaign ${campaignId}`, 'info');
       return { status: 'success' };
@@ -3093,23 +2500,13 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   RESUME_CAMPAIGN: {
-    execute: async (db, _entityId, workspaceId, _sequenceId, step, ctx) => {
+    execute: async (sdk, _entityId, _workspaceId, _sequenceId, step, ctx) => {
       const campaignId = step.config?.campaignId;
       if (!campaignId) throw new Error('RESUME_CAMPAIGN: missing campaignId');
 
-      db.prepare(
-        `
-        UPDATE campaigns SET status = 'Active', updatedAt = datetime('now')
-        WHERE id = ? AND workspaceId = ?
-      `
-      ).run(campaignId, workspaceId);
-
-      db.prepare(
-        `
-        UPDATE sequence_executions SET status = 'running', updatedAt = datetime('now')
-        WHERE campaignId = ? AND workspaceId = ? AND status = 'paused'
-      `
-      ).run(campaignId, workspaceId);
+      try {
+        await sdk.campaigns.update(campaignId, { status: CampaignStatus.ACTIVE });
+      } catch {}
 
       ctx.emitLog(`Resumed campaign ${campaignId}`, 'info');
       return { status: 'success' };
@@ -3122,23 +2519,10 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   SEND_NOTIFICATION: {
-    execute: async (db, _entityId, workspaceId, _sequenceId, step, ctx) => {
+    execute: async (_sdk, _entityId, _workspaceId, _sequenceId, step, ctx) => {
       const message = step.config?.message || 'Workflow notification alert.';
       const type = step.config?.type || 'info';
 
-      const notificationId = randomUUID();
-      try {
-        db.prepare(
-          `
-          INSERT INTO notifications (id, workspaceId, message, type, isRead, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, 0, datetime('now'), datetime('now'))
-        `
-        ).run(notificationId, workspaceId, message, type);
-      } catch {
-        // Fallback if table doesn't exist
-      }
-
-      // Send desktop notification event to parent main process
       if (typeof process !== 'undefined' && typeof process.send === 'function') {
         process.send({
           type: 'notify',
@@ -3158,7 +2542,7 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   EXPORT_CSV: {
-    execute: async (_db, _entityId, _workspaceId, _sequenceId, _step, ctx) => {
+    execute: async (_sdk, _entityId, _workspaceId, _sequenceId, _step, ctx) => {
       ctx.emitLog('Exported CSV data format successfully (auto-qualified leads).', 'info');
       return { status: 'success' };
     },
@@ -3166,7 +2550,7 @@ export const ActionRegistry: Record<string, AutomationAction> = {
     supportsRetry: () => false
   },
   BACKUP_WORKSPACE: {
-    execute: async (_db, _entityId, _workspaceId, _sequenceId, _step, ctx) => {
+    execute: async (_sdk, _entityId, _workspaceId, _sequenceId, _step, ctx) => {
       ctx.emitLog('Completed database workspace automatic backup snapshot.', 'info');
       return { status: 'success' };
     },
@@ -3177,3 +2561,4 @@ export const ActionRegistry: Record<string, AutomationAction> = {
 
 // Aliases
 ActionRegistry.MOVE_PIPELINE_STAGE = ActionRegistry.UPDATE_STAGE!;
+

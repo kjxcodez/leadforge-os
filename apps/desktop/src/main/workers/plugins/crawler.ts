@@ -1,10 +1,10 @@
-import Database from 'better-sqlite3';
-import { join } from 'path';
-import { randomUUID } from 'crypto';
 import * as cheerio from 'cheerio';
 import robotsParser from 'robots-parser';
 import pLimit from 'p-limit';
 import type { JobContext } from '../../../shared/types/job';
+import { SdkClient } from '@leadforge/sdk';
+import { generateEntityId, ContactStatus } from '@leadforge/schema';
+import { resolveWorkerApiUrl } from '../worker-host';
 
 interface QueueItem {
   url: string;
@@ -13,178 +13,198 @@ interface QueueItem {
 }
 
 /**
- * Scores a URL path to determine its crawl priority.
+ * Basic RFC 5322-compliant syntax validator with strict length boundaries.
+ */
+function validateEmailFormat(email: string): boolean {
+  if (!email || email.length > 254) return false;
+  const parts = email.split('@');
+  if (parts.length !== 2) return false;
+  const local = parts[0];
+  const domain = parts[1];
+  if (!local || !domain || local.length > 64 || domain.length > 255) return false;
+  const emailRegex =
+    /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  return emailRegex.test(email);
+}
+
+/**
+ * Filters out common non-human and bot noise emails.
+ */
+function isNoiseEmail(email: string): boolean {
+  const lower = email.toLowerCase();
+  const noisePatterns = [
+    'noreply@',
+    'no-reply@',
+    'donotreply@',
+    'support@',
+    'help@',
+    'privacy@',
+    'abuse@',
+    'postmaster@',
+    'mailer-daemon@',
+    'billing@',
+    'feedback@',
+    'unsubscribe@',
+    'optout@',
+    'notifications@',
+    'alerts@',
+    'newsletter@',
+    'example.com',
+    'domain.com',
+    'yourdomain.',
+    'sentry.io',
+    'wixpress.com',
+    'wordpress.com',
+    'gravatar.com'
+  ];
+
+  if (noisePatterns.some((pattern) => lower.includes(pattern))) return true;
+
+  const imageExtensions = /\.(png|jpg|jpeg|gif|webp|svg|css|js|woff|woff2)$/i;
+  if (imageExtensions.test(lower)) return true;
+
+  return false;
+}
+
+/**
+ * Classifies an email as 'personal', 'generic', or 'role_based' and calculates confidence score.
+ */
+function classifyEmail(email: string): {
+  type: 'personal' | 'generic' | 'role_based';
+  confidence: number;
+} {
+  const lower = email.toLowerCase();
+  const localPart = lower.split('@')[0] || '';
+
+  const rolePrefixes = [
+    'info',
+    'sales',
+    'marketing',
+    'admin',
+    'office',
+    'team',
+    'hello',
+    'contact',
+    'press',
+    'media',
+    'careers',
+    'jobs',
+    'hr',
+    'legal'
+  ];
+
+  if (rolePrefixes.includes(localPart)) {
+    return { type: 'role_based', confidence: 0.65 };
+  }
+
+  if (localPart.length <= 2 || /^\d+$/.test(localPart)) {
+    return { type: 'generic', confidence: 0.4 };
+  }
+
+  if (/^[a-z]+[._-][a-z]+$/i.test(localPart)) {
+    return { type: 'personal', confidence: 0.95 };
+  }
+
+  return { type: 'personal', confidence: 0.8 };
+}
+
+/**
+ * Extracts candidate firstName and lastName from personal email addresses.
+ */
+function extractNameFromEmail(
+  email: string,
+  type: 'personal' | 'generic' | 'role_based'
+): {
+  firstName: string | null;
+  lastName: string | null;
+} {
+  if (type !== 'personal') return { firstName: null, lastName: null };
+  const localPart = email.split('@')[0] || '';
+  const parts = localPart.split(/[._-]/).filter(Boolean);
+
+  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+
+  if (parts.length >= 2 && parts[0] && parts[parts.length - 1]) {
+    return {
+      firstName: capitalize(parts[0]),
+      lastName: capitalize(parts[parts.length - 1]!)
+    };
+  }
+
+  if (parts.length === 1 && parts[0] && parts[0].length >= 3) {
+    return {
+      firstName: capitalize(parts[0]),
+      lastName: null
+    };
+  }
+
+  return { firstName: null, lastName: null };
+}
+
+/**
+ * Scores link relevance for priority BFS crawling.
  */
 function scoreUrlPriority(urlStr: string): number {
-  try {
-    const path = new URL(urlStr).pathname.toLowerCase();
-    if (path.match(/\/(contact(-us)?|about|team)\/?$/)) return 10;
-    if (path.match(/\/(staff|people|meet-the-team|leadership)\/?$/)) return 7;
-    if (path === '/' || path === '') return 5;
-    if (path.match(/\/(services|locations)\/?$/)) return 3;
-  } catch {
-    // Ignore invalid URL parse issues
+  const lower = urlStr.toLowerCase();
+  if (
+    lower.includes('/team') ||
+    lower.includes('/leadership') ||
+    lower.includes('/staff') ||
+    lower.includes('/people')
+  ) {
+    return 10;
+  }
+  if (
+    lower.includes('/about') ||
+    lower.includes('/contact') ||
+    lower.includes('/reach-us') ||
+    lower.includes('/our-story')
+  ) {
+    return 8;
+  }
+  if (
+    lower.includes('/management') ||
+    lower.includes('/executives') ||
+    lower.includes('/directors')
+  ) {
+    return 7;
+  }
+  if (lower.includes('/locations') || lower.includes('/offices')) {
+    return 5;
   }
   return 1;
 }
 
 /**
- * Normalizes and extracts internal links matching the starting origin.
+ * Extracts and cleans internal HTTP/HTTPS links matching the website root origin.
  */
 function extractInternalLinks(html: string, currentUrl: string, origin: string): string[] {
-  const links: string[] = [];
-  try {
-    const $ = cheerio.load(html);
-    $('a[href]').each((_, el) => {
-      const href = $(el).attr('href');
-      if (!href) return;
-      try {
-        const resolved = new URL(href, currentUrl);
-        if (resolved.origin === origin) {
-          // Normalize: remove hash anchors to avoid duplicate visits
-          const clean = resolved.origin + resolved.pathname + resolved.search;
-          links.push(clean);
-        }
-      } catch {
-        // Skip invalid URL structures
+  const $ = cheerio.load(html);
+  const links = new Set<string>();
+
+  $('a[href]').each((_, el) => {
+    const rawHref = $(el).attr('href');
+    if (!rawHref) return;
+
+    try {
+      const resolved = new URL(rawHref, currentUrl);
+      if (resolved.origin === origin && ['http:', 'https:'].includes(resolved.protocol)) {
+        resolved.hash = '';
+        resolved.search = '';
+        const cleanUrl = resolved.toString().replace(/\/$/, '');
+        links.add(cleanUrl);
       }
-    });
-  } catch {
-    // Return empty on Cheerio errors
-  }
-  return links;
+    } catch {
+      // Ignore malformed links
+    }
+  });
+
+  return Array.from(links);
 }
 
 /**
- * Simple email validation.
- */
-function validateEmailFormat(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-/**
- * Filters out standard noise, analytics, tracking, and Sentry email domains and patterns.
- */
-function isNoiseEmail(email: string): boolean {
-  if (!email || email.length > 100) return true;
-  const lower = email.toLowerCase().trim();
-
-  // 1. Reject 20+ character hex/hash prefixes (e.g., 68a5328ef3f1bf9279067a83c77ffb95@...)
-  const prefix = lower.split('@')[0] || '';
-  if (/^[a-f0-9]{20,}$/.test(prefix)) return true;
-
-  // 2. Reject tracking, error logging, and analytics subdomains & domains
-  const domain = lower.split('@')[1] || '';
-  const noiseDomains = [
-    'sentry.io',
-    'sentry-cdn.com',
-    'wixpress.com',
-    'schema.org',
-    'example.com',
-    'domain.com',
-    'yourdomain.com',
-    'wordpress.org',
-    'bugsnag.com',
-    'datadoghq.com',
-    'intercom-mail.com',
-    'cloudflare.com',
-    'gitter.im',
-    'github.com',
-    'gravatar.com',
-    'wp.com',
-    'google.com',
-    'facebook.com'
-  ];
-
-  if (noiseDomains.some((d) => domain === d || domain.endsWith('.' + d))) {
-    return true;
-  }
-
-  // 3. Reject analytics / tracking keywords anywhere in domain
-  if (/ingest|sentry|tracking|telemetry|analytics|metrics|error-log/i.test(domain)) {
-    return true;
-  }
-
-  // 4. Reject static asset artifacts (e.g. logo@2x.png, icon@2x.jpg)
-  if (/\.(png|jpg|jpeg|gif|svg|css|js|webp)$/i.test(lower)) {
-    return true;
-  }
-
-  // 5. Reject standard automated no-reply prefixes
-  const blockedPatterns = [/noreply/, /donotreply/, /no-reply/, /do-not-reply/, /mailer-daemon/];
-  return blockedPatterns.some((p) => p.test(prefix));
-}
-
-/**
- * Classifies harvested emails into categories.
- */
-function classifyEmail(email: string): {
-  type: 'human' | 'department' | 'unknown';
-  confidence: 'high' | 'medium' | 'low';
-} {
-  const prefix = (email.split('@')[0] || '').toLowerCase();
-  const departmentPrefixes = [
-    'info',
-    'hello',
-    'contact',
-    'support',
-    'sales',
-    'careers',
-    'jobs',
-    'billing',
-    'admin',
-    'office',
-    'team',
-    'general',
-    'marketing',
-    'press',
-    'media',
-    'help',
-    'service'
-  ];
-  if (departmentPrefixes.includes(prefix)) {
-    return { type: 'department', confidence: 'medium' };
-  }
-  if (prefix.includes('.') || prefix.includes('_') || (prefix.length > 3 && prefix.length < 15)) {
-    return { type: 'human', confidence: 'high' };
-  }
-  return { type: 'unknown', confidence: 'low' };
-}
-
-/**
- * Derives a firstName and optional lastName from an email prefix.
- *
- * Only applied for type='human' high-confidence emails.
- * Email prefix is split on '.' or '_'. Each part is title-cased.
- *
- * Examples:
- *   "john.doe@company.com"  → { firstName: "John", lastName: "Doe" }
- *   "sarah_smith@firm.com"  → { firstName: "Sarah", lastName: "Smith" }
- *   "mike@company.com"      → { firstName: "Mike", lastName: null }
- *   "info@company.com"      → { firstName: null, lastName: null }
- */
-function extractNameFromEmail(
-  email: string,
-  type: 'human' | 'department' | 'unknown'
-): { firstName: string | null; lastName: string | null } {
-  if (type !== 'human') return { firstName: null, lastName: null };
-
-  const prefix = (email.split('@')[0] || '').toLowerCase();
-  const parts = prefix.split(/[._]/).filter((p) => p.length > 1);
-
-  if (parts.length === 0) return { firstName: null, lastName: null };
-
-  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
-  const firstName = capitalize(parts[0]!);
-  const lastName = parts.length > 1 ? capitalize(parts[parts.length - 1]!) : null;
-
-  return { firstName, lastName };
-}
-
-/**
- * Website Crawler Worker Plugin.
- * Crawls target company websites recursively using Cheerio and stores contact records.
+ * Website Crawler Plugin (Phase 7 - API/MongoDB-First).
+ * Crawls domains using bounded concurrency and persists discovered contacts and metadata directly via SdkClient.
  */
 export async function crawlWebsite(ctx: JobContext): Promise<any> {
   const companyId = ctx.payload.companyId as string;
@@ -201,24 +221,17 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
     throw new Error('companyId and website payload parameters are required.');
   }
 
-  const dbPath = ctx.dbPath || (process.env.WORKSPACES_DB_DIR ? join(process.env.WORKSPACES_DB_DIR, `leadforge_${ctx.workspaceId}.db`) : '');
-  if (!dbPath) {
-    throw new Error('Database path could not be resolved for background worker.');
-  }
+  // Initialize SdkClient for authoritative API/MongoDB persistence
+  const apiUrl = resolveWorkerApiUrl(ctx);
+  const authToken = ctx.payload._secrets?.sessionToken || process.env.LEADFORGE_API_TOKEN || '';
+  const sdk = new SdkClient({
+    baseUrl: apiUrl,
+    token: authToken,
+    headers: {
+      'x-workspace-id': ctx.workspaceId
+    }
+  });
 
-  ctx.emitLog(`Opening database connection at: ${dbPath}`, 'info');
-  const db = new Database(dbPath);
-
-  // Set company crawlStatus to in_progress
-  db.prepare(
-    `
-    UPDATE companies
-    SET crawlStatus = 'in_progress', updatedAt = CURRENT_TIMESTAMP
-    WHERE id = ?
-  `
-  ).run(companyId);
-
-  // Restore state from checkpoint if resuming
   const checkpoint = ctx.getCheckpoint();
   const visitedUrls = new Set<string>();
   let queue: QueueItem[] = [];
@@ -236,7 +249,6 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
       'info'
     );
   } else {
-    // Start fresh: queue the homepage
     queue.push({ url: website, depth: 0, priority: 5 });
   }
 
@@ -249,93 +261,95 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
     ctx.emitLog(`Checking robots.txt availability for: ${origin}`, 'info');
     try {
       const robotsUrl = `${origin}/robots.txt`;
-      const robotsRes = await fetch(robotsUrl, {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(robotsUrl, {
         headers: { 'User-Agent': userAgent },
-        signal: AbortSignal.timeout(5000)
+        signal: controller.signal
       });
-      if (robotsRes.ok) {
-        const text = await robotsRes.text();
+      clearTimeout(timeout);
+      if (res.ok) {
+        const text = await res.text();
         robots = robotsParser(robotsUrl, text);
-        ctx.emitLog('Successfully loaded and parsed robots.txt file.', 'info');
-      } else {
-        ctx.emitLog(
-          `No robots.txt found (HTTP ${robotsRes.status}). Proceeding with defaults.`,
-          'info'
-        );
+        ctx.emitLog('Successfully loaded and parsed robots.txt.', 'info');
       }
-    } catch (robotsErr: any) {
-      ctx.emitLog(
-        `robots.txt check failed: ${robotsErr.message || robotsErr}. Proceeding with crawl.`,
-        'info'
-      );
+    } catch {
+      ctx.emitLog('robots.txt unavailable or unreachable. Continuing with standard crawl.', 'warn');
     }
 
-    const limit = pLimit(3); // Max concurrency: 3 concurrent requests
+    // 2. Main Crawl Loop
+    const limit = pLimit(3);
 
-    // 2. BFS Crawling loop
     while (queue.length > 0 && pagesCrawled < maxPages) {
       if (ctx.isCancelled()) {
-        ctx.emitLog('Crawler execution cancelled by scheduler.', 'warn');
-        throw new Error('Job cancelled.');
+        ctx.emitLog('Crawler received cancellation signal. Terminating.', 'warn');
+        break;
       }
+
       if (ctx.isPaused()) {
-        ctx.emitLog('Crawler execution paused. Saving checkpoint.', 'warn');
-        ctx.saveCheckpoint({ visitedUrls: Array.from(visitedUrls), queue, currentDepth });
+        ctx.emitLog('Crawler received pause signal. Saving checkpoint.', 'warn');
+        ctx.saveCheckpoint({
+          visitedUrls: Array.from(visitedUrls),
+          queue,
+          currentDepth
+        });
         throw new Error('Job paused.');
       }
 
-      // Dequeue batch of URLs to process concurrently
-      const batchSize = Math.min(queue.length, 3, maxPages - pagesCrawled);
       const batch: QueueItem[] = [];
-      for (let i = 0; i < batchSize; i++) {
-        batch.push(queue.shift()!);
+      while (queue.length > 0 && batch.length < 3 && pagesCrawled + batch.length < maxPages) {
+        const item = queue.shift()!;
+        if (!visitedUrls.has(item.url)) {
+          visitedUrls.add(item.url);
+          batch.push(item);
+        }
       }
+
+      if (batch.length === 0) break;
 
       const tasks = batch.map((item) =>
         limit(async () => {
-          if (visitedUrls.has(item.url)) return;
-          visitedUrls.add(item.url);
-
-          // Respect robots.txt exclusion rules
-          if (robots && !robots.isAllowed(item.url, 'LeadForgeBot/1.0')) {
-            ctx.emitLog(`Url disallowed by robots.txt: ${item.url}`, 'info');
+          if (robots && !robots.isAllowed(item.url, userAgent)) {
+            ctx.emitLog(`Skipping disallowed URL per robots.txt: ${item.url}`, 'info');
             return;
           }
 
           try {
-            ctx.emitLog(`Crawling URL: ${item.url} (Depth: ${item.depth})`, 'info');
-            const res = await fetch(item.url, {
-              headers: { 'User-Agent': userAgent },
-              signal: AbortSignal.timeout(10000)
-            });
+            ctx.emitLog(`Crawling [depth ${item.depth}]: ${item.url}`, 'info');
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 10000);
 
-            if (!res.ok) {
-              ctx.emitLog(`Failed to fetch page ${item.url} (HTTP ${res.status})`, 'warn');
-              return;
-            }
+            const res = await fetch(item.url, {
+              headers: {
+                'User-Agent': userAgent,
+                Accept: 'text/html,application/xhtml+xml'
+              },
+              signal: controller.signal
+            });
+            clearTimeout(timeout);
 
             const contentType = res.headers.get('content-type') || '';
             if (!contentType.includes('text/html')) {
-              ctx.emitLog(`Skipping non-HTML content-type: ${contentType} on ${item.url}`, 'info');
               return;
             }
 
             const html = await res.text();
             pagesCrawled++;
 
-            // Save raw page crawl for intelligence evidence model
-            try {
-              const crawlId = randomUUID();
-              db.prepare(
-                `INSERT INTO page_crawls (id, workspaceId, companyId, url, html, crawledAt) VALUES (?, ?, ?, ?, ?, datetime('now'))`
-              ).run(crawlId, ctx.workspaceId, companyId, item.url, html);
-            } catch {
-              // Ignore table lock / insertion warning
-            }
-
             // Extract contacts from HTML content
             const $ = cheerio.load(html);
+            const pageTitle = $('title').text() || '';
             const pageEmails = new Set<string>();
+
+            // Save page crawl metadata via SdkClient/API
+            try {
+              await sdk.intelligence.createPageCrawl({
+                id: generateEntityId(),
+                companyId,
+                url: item.url,
+                contentHash: `${html.length}`
+              });
+            } catch {}
 
             // Extract mailto links
             $('a[href^="mailto:"]').each((_, el) => {
@@ -345,7 +359,6 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
                   const parts = href.replace(/^mailto:/i, '').split('?');
                   const mailPart = parts[0];
                   if (mailPart) {
-                    // Strip non-printable and non-ASCII characters (zero-width marks, BOM, RTL marks, etc.)
                     const mail = mailPart
                       .trim()
                       .replace(/[^\x20-\x7E]/g, '')
@@ -360,7 +373,6 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
             const bodyText = $('body').text() || '';
             const matches = bodyText.match(/\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/g);
             if (matches) {
-              // Strip invisible Unicode characters before storing (prevents ghost chars like U+200F RTL mark)
               matches.forEach((m) => pageEmails.add(m.replace(/[^\x20-\x7E]/g, '').toLowerCase()));
             }
 
@@ -389,69 +401,31 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
 
             const extractedPhone = pagePhones.size > 0 ? Array.from(pagePhones)[0] : null;
 
-            // Insert unique contacts inside database transaction
+            // Persist discovered contacts authoritatively via API/MongoDB
             for (const email of pageEmails) {
               if (!validateEmailFormat(email) || isNoiseEmail(email)) continue;
               if (contactsFound.has(email)) continue;
               contactsFound.add(email);
 
-              // Check SQLite duplicate check (email must be unique per workspace)
-              const duplicate = db
-                .prepare('SELECT id FROM contacts WHERE workspaceId = ? AND email = ?')
-                .get(ctx.workspaceId, email);
-              if (duplicate) {
-                ctx.emitLog(`Skipped duplicate workspace contact: ${email}`, 'info');
-                continue;
-              }
-
               const { type, confidence } = classifyEmail(email);
               const { firstName, lastName } = extractNameFromEmail(email, type);
 
-              db.transaction(() => {
-                const contactId = randomUUID();
-                db.prepare(
-                  `
-                INSERT INTO contacts (id, workspaceId, companyId, firstName, lastName, email, phone, status, confidence, verificationStatus, sourceUrl, sourcePlatform, priority, type, createdAt, updatedAt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'NEW', ?, 'unverified', ?, 'web', 1, ?, datetime('now'), datetime('now'))
-              `
-                ).run(
-                  contactId,
-                  ctx.workspaceId,
+              try {
+                const contactId = generateEntityId();
+                await sdk.contacts.create({
+                  id: contactId,
                   companyId,
-                  firstName,
-                  lastName,
+                  firstName: firstName || 'Discovered',
+                  lastName: lastName || undefined,
                   email,
-                  extractedPhone,
-                  confidence,
-                  item.url,
-                  type
-                );
-
-                // Sync payload: omit companyId (server validates as MongoDB ObjectId, not UUID).
-                // Include firstName/lastName — server requires firstName.
-                db.prepare(
-                  `
-                INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
-                VALUES (?, ?, ?, ?, 'CREATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
-              `
-                ).run(
-                  randomUUID(),
-                  ctx.workspaceId,
-                  'contacts',
-                  contactId,
-                  JSON.stringify({
-                    id: contactId,
-                    workspaceId: ctx.workspaceId,
-                    firstName: firstName || '',
-                    lastName: lastName || undefined,
-                    email,
-                    phone: extractedPhone || undefined,
-                    status: 'NEW'
-                  })
-                );
-              })();
-
-              ctx.emitLog(`Stored harvested contact email: ${email}`, 'info');
+                  phone: extractedPhone || undefined,
+                  status: ContactStatus.NEW,
+                  source: 'web_crawler'
+                });
+                ctx.emitLog(`Persisted contact via API: ${email} (${contactId})`, 'info');
+              } catch (contactErr) {
+                ctx.emitLog(`Failed to persist contact ${email}: ${contactErr}`, 'warn');
+              }
             }
 
             // Enqueue nested internal links if depth limit is not reached
@@ -463,11 +437,9 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
                   queue.push({ url: link, depth: item.depth + 1, priority: prio });
                 }
               }
-              // Maintain priority and depth BFS order
               queue.sort((a, b) => b.priority - a.priority || a.depth - b.depth);
             }
 
-            // Report progress
             const progress = Math.round((pagesCrawled / maxPages) * 100);
             ctx.updateProgress(progress, {
               current: pagesCrawled,
@@ -476,7 +448,6 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
               description: `Extracted ${contactsFound.size} contacts`
             });
 
-            // Autosave checkpoint every 5 pages
             if (pagesCrawled % 5 === 0) {
               ctx.saveCheckpoint({
                 visitedUrls: Array.from(visitedUrls),
@@ -497,45 +468,15 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
       await Promise.all(tasks);
     }
 
-    // 3. Update company completion details
-    if (pagesCrawled === 0) {
-      // Entire website was unreachable (homepage failed or redirected to error)
-      db.prepare(
-        `
-        UPDATE companies
-        SET crawlStatus = 'failed', crawlError = 'Root URL resolved, but no pages could be crawled.', crawledAt = datetime('now'), updatedAt = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `
-      ).run(companyId);
-      ctx.emitLog(`Crawl failed: Homepage resolved, but no content could be retrieved.`, 'warn');
-    } else {
-      db.prepare(
-        `
-        UPDATE companies
-        SET crawlStatus = 'completed', contactCount = ?, crawlError = NULL, crawledAt = datetime('now'), updatedAt = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `
-      ).run(contactsFound.size, companyId);
-      ctx.emitLog(
-        `Crawl completed successfully. Processed pages: ${pagesCrawled} | Contacts found: ${contactsFound.size}`,
-        'info'
-      );
-    }
+    ctx.emitLog(
+      `Crawl completed successfully. Processed pages: ${pagesCrawled} | Contacts found: ${contactsFound.size}`,
+      'info'
+    );
   } catch (err: any) {
-    // If paused/cancelled throws, worker-host exits cleanly. Otherwise, standard failure
     if (err.message !== 'Job paused.' && err.message !== 'Job cancelled.') {
-      db.prepare(
-        `
-        UPDATE companies
-        SET crawlStatus = 'failed', crawlError = ?, crawledAt = datetime('now'), updatedAt = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `
-      ).run(err.message || err, companyId);
       throw err;
     }
     throw err;
-  } finally {
-    db.close();
   }
 
   return { pagesCrawled, contactsFound: contactsFound.size };

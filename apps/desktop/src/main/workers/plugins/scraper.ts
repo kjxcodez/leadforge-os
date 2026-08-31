@@ -1,9 +1,9 @@
-import Database from 'better-sqlite3';
-import { join } from 'path';
-import { randomUUID } from 'crypto';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import type { JobContext } from '../../../shared/types/job';
 import { normalizeStateName, normalizeCountryName } from '../../../shared/utils/locations';
+import { SdkClient } from '@leadforge/sdk';
+import { generateEntityId, CompanyStatus, ContactStatus } from '@leadforge/schema';
+import { resolveWorkerApiUrl } from '../worker-host';
 
 /**
  * Resolves link shorteners and redirectors (e.g. t.co, bit.ly) to find the destination URL.
@@ -85,63 +85,36 @@ async function extractRating(page: Page): Promise<number | null> {
 
 /**
  * Normalizes a raw Google Maps address string.
- *
- * Google Maps `innerText()` on `[data-item-id="address"]` returns the full rendered
- * text of the DOM node, which includes inline UI separators (· U+00B7), business hours
- * text, and phone fragments. This function strips all of that and returns only the
- * clean geographic address portion.
- *
- * Examples:
- *   "3571 S Fulton AveClosed · Opens 7am · +1 404..." → "3571 S Fulton Ave"
- *   "123 Main St · Open 24 hours" → "123 Main St"
  */
 function normalizeLocation(raw: string | null): string | null {
   if (!raw) return null;
-
-  // Split on Google Maps middle-dot separator (U+00B7) and take only the first segment (the address)
   const parts = raw.split('\u00B7');
   let address = (parts[0] || raw).trim();
-
-  // Remove business-hours keywords that sometimes bleed into the address via innerText concatenation
   address = address.replace(/\b(Closed|Open|Opens|Closes|24\s*hours?)\b.*$/i, '').trim();
-
-  // Strip any remaining non-printable or non-standard Unicode control characters
-  // (keep letters, digits, spaces, commas, hyphens, dots, slashes, parentheses)
   address = address.replace(/[^\p{L}\p{N}\s,\.\-\/()#&']/gu, '').trim();
-
-  // Collapse multiple whitespace runs
   address = address.replace(/\s{2,}/g, ' ').trim();
-
   return address.length > 0 ? address : null;
 }
 
 /**
- * Normalizes telephone numbers by stripping visual separators (spaces, hyphens, parentheses)
- * and enforcing international standard E.164-like formatting.
+ * Normalizes telephone numbers by stripping visual separators.
  */
 function normalizePhone(raw: string | null): string | null {
   if (!raw) return null;
-
-  // Strip spaces, hyphens, parentheses, and dots
   let clean = raw.replace(/[\s\-\(\)\.]/g, '');
-
-  // If it's a 10-digit US/Canada number without a country code, prefix with '+1'
   if (/^\d{10}$/.test(clean)) {
     clean = `+1${clean}`;
   } else if (/^\d{11}$/.test(clean) && clean.startsWith('1')) {
-    // If it's 11 digits starting with 1, prefix with '+'
     clean = `+${clean}`;
   } else if (/^[^\+]\d+$/.test(clean)) {
-    // Prefix '+' if it looks like it has a country code but lacks '+'
     clean = `+${clean}`;
   }
-
   return clean.length > 0 ? clean : null;
 }
 
 /**
- * Google Maps Scraper Job Plugin.
- * Queries maps listings using Playwright and populates the companies SQLite table.
+ * Google Maps Scraper Job Plugin (Phase 7 - API/MongoDB-First).
+ * Queries Google Maps listings using Playwright and persists directly via SdkClient.
  */
 export async function scrapeMaps(ctx: JobContext): Promise<any> {
   const rawQuery = ctx.payload.query || '';
@@ -168,246 +141,152 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
     'info'
   );
 
-  const dbPath = ctx.dbPath || (process.env.WORKSPACES_DB_DIR ? join(process.env.WORKSPACES_DB_DIR, `leadforge_${ctx.workspaceId}.db`) : '');
-  if (!dbPath) {
-    throw new Error('Database path could not be resolved for background worker.');
-  }
+  // Initialize SdkClient for authoritative API/MongoDB persistence
+  const apiUrl = resolveWorkerApiUrl(ctx);
+  const authToken = ctx.payload._secrets?.sessionToken || process.env.LEADFORGE_API_TOKEN || '';
+  const sdk = new SdkClient({
+    baseUrl: apiUrl,
+    token: authToken,
+    headers: {
+      'x-workspace-id': ctx.workspaceId
+    }
+  });
 
-  let db: Database.Database | null = null;
-
-  // Restore state from checkpoint if resuming
-  const checkpoint = ctx.getCheckpoint();
   let collectedCount = 0;
-  let lastScrollPosition = 0;
-  if (checkpoint) {
-    collectedCount = checkpoint.collectedCount || 0;
-    lastScrollPosition = checkpoint.lastScrollPosition || 0;
-    ctx.emitLog(
-      `Resuming scraper from checkpoint. Collected count: ${collectedCount} | Scroll offset: ${lastScrollPosition}px`,
-      'info'
-    );
-  }
-
-  let browser: Browser | null = null;
-  let context: BrowserContext | null = null;
   let storedCount = 0;
   let skippedCount = 0;
   let duplicatesCount = 0;
 
-  try {
-    ctx.emitLog(`Opening database connection at: ${dbPath}`, 'info');
-    db = new Database(dbPath);
+  let browser: Browser | null = null;
+  let browserCtx: BrowserContext | null = null;
+  let page: Page | null = null;
 
-    ctx.emitLog('Launching headless browser...', 'info');
-    try {
-      browser = await chromium.launch({ headless: true });
-    } catch {
-      ctx.emitLog('Playwright binary missing, falling back to system Chrome...', 'info');
-      browser = await chromium.launch({ headless: true, channel: 'chrome' });
-    }
-    context = await browser.newContext({
+  try {
+    ctx.updateProgress(5, { description: 'Launching browser...' });
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+    });
+
+    browserCtx = await browser.newContext({
+      viewport: { width: 1280, height: 900 },
       userAgent:
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      viewport: { width: 1280, height: 720 }
+      locale: 'en-US'
     });
 
-    const page = await context.newPage();
-    const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(effectiveQuery)}`;
+    page = await browserCtx.newPage();
 
-    ctx.emitLog(`Navigating to Google Maps search page: ${searchUrl}`, 'info');
+    const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(effectiveQuery)}`;
+    ctx.emitLog(`Navigating to Google Maps search: ${searchUrl}`, 'info');
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-    const feedSelector = 'div[role="feed"]';
-
-    // Check if directly redirected to a details page (e.g. single match query)
-    if (page.url().includes('/maps/place/')) {
-      ctx.emitLog('Query matched exactly one listing, directly scraping detail page.', 'info');
-      await scrapeDetailsAndStore(page.url(), page, db!, ctx);
-      return { storedCount: 1, skippedCount: 0, duplicatesCount: 0 };
-    }
-
-    // Otherwise scroll to collect links
-    ctx.emitLog('Waiting for results feed to load...', 'info');
-    await page.waitForSelector(feedSelector, { timeout: 15000 }).catch(() => {
-      throw new Error(
-        `Google Maps feed container ('${feedSelector}') was not found. Search may have returned no results.`
-      );
-    });
-
-    if (lastScrollPosition > 0) {
-      ctx.emitLog(`Restoring feed scroll offset to ${lastScrollPosition}px`, 'info');
-      await page.evaluate(
-        ({ selector, pos }) => {
-          const el = document.querySelector(selector);
-          if (el) el.scrollTo(0, pos);
-        },
-        { selector: feedSelector, pos: lastScrollPosition }
-      );
-      await page.waitForTimeout(2000);
-    }
-
-    const listingSelector = 'a[href*="/maps/place/"]';
-    const collectedUrls = new Set<string>();
-    let isEnd = false;
-    let consecutiveNoNewListings = 0;
-
-    ctx.emitLog('Starting results infinite scroll loop...', 'info');
-    while (collectedUrls.size < maxResults && !isEnd) {
-      if (ctx.isCancelled()) {
-        ctx.emitLog('Scraper execution cancelled during scroll loop.', 'warn');
-        throw new Error('Job cancelled.');
+    // Handle cookie banners if present
+    try {
+      const consentBtn = page.locator('button[aria-label*="Accept all"], button[aria-label*="Agree"]').first();
+      if (await consentBtn.isVisible({ timeout: 3000 })) {
+        await consentBtn.click();
       }
-      if (ctx.isPaused()) {
-        ctx.emitLog('Scraper execution paused during scroll loop. Saving checkpoint.', 'warn');
-        const scrollPos = await page.evaluate((selector) => {
-          const el = document.querySelector(selector);
-          return el ? el.scrollTop : 0;
-        }, feedSelector);
-        ctx.saveCheckpoint({ collectedCount, lastScrollPosition: scrollPos });
-        throw new Error('Job paused.');
-      }
+    } catch {}
 
-      const prevSize = collectedUrls.size;
-      const urls = await page
-        .locator(listingSelector)
-        .evaluateAll(
-          (elements) => elements.map((el) => el.getAttribute('href')).filter(Boolean) as string[]
-        );
+    const feedLocator = page.locator('div[role="feed"]');
+    const hasFeed = await feedLocator.isVisible({ timeout: 10000 }).catch(() => false);
 
-      for (const url of urls) {
-        if (collectedUrls.size < maxResults) {
-          collectedUrls.add(url);
-        }
-      }
-
-      ctx.emitLog(`Listing links collected so far: ${collectedUrls.size}/${maxResults}`, 'info');
-
-      if (collectedUrls.size >= maxResults) {
-        break;
-      }
-
-      // Scroll down
-      const feedElement = await page.$(feedSelector);
-      if (feedElement) {
-        const prevHeight = await page.evaluate((el) => el.scrollHeight, feedElement);
-        await page.evaluate((el) => el.scrollTo(0, el.scrollHeight), feedElement);
-        // Wait for network response/render delay
-        await page.waitForTimeout(2000 + Math.random() * 1000);
-        const newHeight = await page.evaluate((el) => el.scrollHeight, feedElement);
-
-        if (collectedUrls.size === prevSize) {
-          consecutiveNoNewListings++;
-        } else {
-          consecutiveNoNewListings = 0;
-        }
-
-        // Stop if we hit the bottom of the feed or no new listings load repeatedly
-        if (newHeight === prevHeight || consecutiveNoNewListings >= 5) {
-          ctx.emitLog('Reached end of Google Maps results feed.', 'info');
-          isEnd = true;
-        }
+    if (!hasFeed) {
+      // Single listing or direct result
+      const isSingleListing = await page.locator('h1').first().isVisible({ timeout: 3000 }).catch(() => false);
+      if (isSingleListing) {
+        await scrapeDetailsAndStore(page.url(), page, sdk, ctx);
       } else {
-        isEnd = true;
+        ctx.emitLog('No Google Maps search feed or listing found for query.', 'warn');
       }
-    }
+    } else {
+      // Scroll feed and extract items
+      const seenUrls = new Set<string>();
+      let scrollAttempts = 0;
+      const MAX_SCROLL_ATTEMPTS = 50;
 
-    const linksArray = Array.from(collectedUrls);
-    ctx.emitLog(
-      `Completed scroll discovery phase. Total unique links found: ${linksArray.length}`,
-      'info'
-    );
-
-    // Scrape details sequentially
-    let index = 0;
-    for (const url of linksArray) {
-      if (index < collectedCount) {
-        index++;
-        continue;
-      }
-
-      if (ctx.isCancelled()) {
-        ctx.emitLog('Scraper execution cancelled during details extraction.', 'warn');
-        throw new Error('Job cancelled.');
-      }
-      if (ctx.isPaused()) {
-        ctx.emitLog(
-          'Scraper execution paused during details extraction. Saving checkpoint.',
-          'warn'
-        );
-        const scrollPos = await page.evaluate((selector) => {
-          const el = document.querySelector(selector);
-          return el ? el.scrollTop : 0;
-        }, feedSelector);
-        ctx.saveCheckpoint({ collectedCount: index, lastScrollPosition: scrollPos });
-        throw new Error('Job paused.');
-      }
-
-      try {
-        const absoluteUrl = url.startsWith('http') ? url : `https://www.google.com${url}`;
-        await scrapeDetailsAndStore(absoluteUrl, page, db!, ctx);
-      } catch (err: any) {
-        ctx.emitLog(
-          `Failed to extract details from listing ${index + 1}: ${err.message || err}`,
-          'error'
-        );
-        // Continue to remaining listings
-      }
-
-      index++;
-      collectedCount = index;
-
-      const progress = Math.round((collectedCount / linksArray.length) * 100);
-      ctx.updateProgress(progress, { current: collectedCount, total: linksArray.length });
-    }
-
-    // Auto-chain Stage 2 (Website Crawler) for newly discovered companies with websites
-    if (storedCount > 0 && db) {
-      try {
-        const companiesToEnrich = db
-          .prepare(
-            `
-          SELECT id, website FROM companies
-          WHERE workspaceId = ? AND website IS NOT NULL AND website != ''
-          ORDER BY createdAt DESC LIMIT ?
-        `
-          )
-          .all(ctx.workspaceId, storedCount) as { id: string; website: string }[];
-
-        for (const comp of companiesToEnrich) {
-          const crawlerJobId = randomUUID();
-          db.prepare(
-            `
-            INSERT INTO jobs (id, workspaceId, type, payload, status, priority, maxRetries, retryCount, progress, createdAt, updatedAt)
-            VALUES (?, ?, 'crawler:website', ?, 'queued', 5, 3, 0, 0, datetime('now'), datetime('now'))
-          `
-          ).run(
-            crawlerJobId,
-            ctx.workspaceId,
-            JSON.stringify({ companyId: comp.id, website: comp.website, maxDepth: 2, maxPages: 10 })
-          );
+      while (seenUrls.size < maxResults && scrollAttempts < MAX_SCROLL_ATTEMPTS) {
+        if (ctx.isCancelled()) {
+          ctx.emitLog('Scraper received cancellation signal. Terminating.', 'warn');
+          break;
         }
-        ctx.emitLog(
-          `Auto-chained website contact crawler jobs for ${companiesToEnrich.length} companies.`,
-          'info'
-        );
-      } catch (chainErr: any) {
-        ctx.emitLog(`Failed to auto-chain crawler jobs: ${chainErr.message || chainErr}`, 'warn');
+
+        const anchors = await page.locator('div[role="feed"] a[href*="/maps/place/"]').all();
+        for (const anchor of anchors) {
+          if (seenUrls.size >= maxResults) break;
+          const href = await anchor.getAttribute('href').catch(() => null);
+          if (href && !seenUrls.has(href)) {
+            seenUrls.add(href);
+          }
+        }
+
+        collectedCount = seenUrls.size;
+        ctx.updateProgress(Math.min(10 + Math.round((collectedCount / maxResults) * 40), 50), {
+          description: `Collecting URLs: ${collectedCount} found`,
+          current: collectedCount,
+          total: maxResults
+        });
+
+        // Scroll feed down
+        await feedLocator.evaluate((el) => {
+          el.scrollTop = el.scrollHeight;
+        }).catch(() => {});
+
+        await page.waitForTimeout(1000);
+        scrollAttempts++;
+      }
+
+      ctx.emitLog(`Found ${seenUrls.size} listings to scrape. Beginning detail extraction.`, 'info');
+
+      // Scrape detail pages
+      const urlList = Array.from(seenUrls);
+      for (let i = 0; i < urlList.length; i++) {
+        if (ctx.isCancelled()) {
+          ctx.emitLog('Scraper received cancellation signal during detail extraction.', 'warn');
+          break;
+        }
+
+        const placeUrl = urlList[i];
+        if (!placeUrl) continue;
+        try {
+          await scrapeDetailsAndStore(placeUrl, page, sdk, ctx);
+        } catch (err: any) {
+          ctx.emitLog(`Failed to extract listing details (${placeUrl}): ${err?.message || err}`, 'warn');
+          skippedCount++;
+        }
+
+        const progressPercent = 50 + Math.round(((i + 1) / urlList.length) * 45);
+        ctx.updateProgress(progressPercent, {
+          description: `Extracting details (${i + 1}/${urlList.length})`,
+          current: i + 1,
+          total: urlList.length
+        });
+
+        ctx.saveCheckpoint({
+          lastProcessedIndex: i,
+          storedCount,
+          duplicatesCount
+        });
       }
     }
+
+    ctx.updateProgress(100, { description: `Scrape completed: ${storedCount} stored` });
+    ctx.emitLog(`Google Maps scraper finished. Stored: ${storedCount} | Duplicates: ${duplicatesCount}`, 'info');
+  } catch (err: any) {
+    ctx.emitLog(`Google Maps scraper encounter fatal error: ${err?.message || err}`, 'error');
+    throw err;
   } finally {
-    ctx.emitLog('Shutting down Playwright browser contexts', 'info');
-    if (context) await context.close().catch(() => {});
+    if (page) await page.close().catch(() => {});
+    if (browserCtx) await browserCtx.close().catch(() => {});
     if (browser) await browser.close().catch(() => {});
-    if (db) db.close();
   }
 
-  return { storedCount, skippedCount, duplicatesCount };
-
-  // Inner details scraper helper
+  // Helper function to extract and persist company & contact directly via API/MongoDB
   async function scrapeDetailsAndStore(
     url: string,
     page: Page,
-    db: Database.Database,
+    sdk: SdkClient,
     ctx: JobContext
   ) {
     ctx.emitLog(`Opening listing details: ${url}`, 'info');
@@ -420,59 +299,41 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
         .innerText({ timeout: 5000 })
         .catch(() => '')
     ).trim();
+
     if (!name) {
       ctx.emitLog('Skipped listing: Failed to retrieve business name.', 'warn');
       return;
     }
 
-    // Extract details via data-item-id
     let website = await page
       .locator('a[data-item-id="authority"]')
       .first()
       .getAttribute('href', { timeout: 2000 })
       .catch(() => null);
+
     const rawPhone = await page
       .locator('[data-item-id^="phone:tel:"]')
       .first()
       .getAttribute('data-item-id', { timeout: 2000 })
       .then((id) => (id ? id.replace('phone:tel:', '').trim() : null))
       .catch(() => null);
+
     const phone = normalizePhone(rawPhone);
-    // Normalize address: strip Google Maps UI separators and business hours text from raw innerText
     const rawLocation = await page
       .locator('[data-item-id="address"]')
       .first()
       .innerText({ timeout: 2000 })
       .catch(() => null);
+
     const location = normalizeLocation(rawLocation);
     const rating = await extractRating(page);
 
-    // Follow redirect for link shorteners
     if (website) {
       website = await resolveRedirect(website);
     }
 
     const domain = website ? extractDomain(website) : null;
 
-    if (domain) {
-      const duplicate = db.prepare('SELECT id FROM companies WHERE workspaceId = ? AND domain = ?').get(ctx.workspaceId, domain) as any;
-      if (duplicate) {
-        duplicatesCount++;
-        ctx.emitLog(`Skipped duplicate domain: "${domain}" (Company: "${name}")`, 'info');
-        if (discoveryRunId) {
-          const provId = randomUUID();
-          try {
-            db.prepare(`
-              INSERT INTO company_discovery_runs (id, workspaceId, companyId, discoveryRunId, requiresReview, syncStatus, createdAt, updatedAt)
-              VALUES (?, ?, ?, ?, 0, 'pending', datetime('now'), datetime('now'))
-            `).run(provId, ctx.workspaceId, duplicate.id, discoveryRunId);
-          } catch {}
-        }
-        return;
-      }
-    }
-
-    // Parse location components into structured city, state, country
     let companyCity: string | null = city || null;
     let companyState: string | null = state || null;
     let companyCountry: string | null = country || null;
@@ -483,7 +344,6 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
         const lastToken = tokens[tokens.length - 1] || '';
         const secondLastToken = tokens[tokens.length - 2] || '';
 
-        // Check if last token is country
         if (!companyCountry && lastToken) {
           const detectedCountry = normalizeCountryName(lastToken);
           if (detectedCountry) companyCountry = detectedCountry;
@@ -496,7 +356,6 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
             companyCity = tokens[tokens.length - 3] || null;
           }
         } else {
-          // If second last token is a known region name or code for the country
           const possibleRegion = normalizeStateName(secondLastToken, companyCountry || undefined);
           if (possibleRegion && possibleRegion !== secondLastToken) {
             if (!companyState) companyState = possibleRegion;
@@ -517,147 +376,51 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
       companyState = normalizeStateName(companyState, companyCountry || undefined);
     }
 
-    // Store in database in atomic transaction
-    db.transaction(() => {
-      const companyId = randomUUID();
-      db.prepare(
-        `
-        INSERT INTO companies (id, workspaceId, name, domain, website, location, city, state, country, phone, rating, status, syncStatus, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'LEAD', 'pending', datetime('now'), datetime('now'))
-      `
-      ).run(
-        companyId,
-        ctx.workspaceId,
-        name,
-        domain || null,
-        website || null,
-        location || null,
-        companyCity,
-        companyState,
-        companyCountry,
-        phone || null,
-        rating || null
-      );
+    // Persist company authoritatively via SdkClient -> API -> MongoDB
+    const companyId = generateEntityId();
+    const loc = [companyCity, companyState, companyCountry].filter(Boolean).join(', ') || location || undefined;
+    const createdCompany = await sdk.companies.create({
+      id: companyId,
+      name,
+      domain: domain || undefined,
+      location: loc,
+      status: CompanyStatus.LEAD
+    });
 
-      db.prepare(
-        `
-        INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, 'CREATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
-      `
-      ).run(
-        randomUUID(),
-        ctx.workspaceId,
-        'companies',
-        companyId,
-        JSON.stringify({
-          id: companyId,
-          workspaceId: ctx.workspaceId,
-          name,
-          domain,
-          website,
-          location,
-          city: companyCity,
-          state: companyState,
-          country: companyCountry,
+    storedCount++;
+    ctx.emitLog(
+      `Persisted company via API: "${name}" (${createdCompany.id}) | Domain: ${domain || 'N/A'} | Phone: ${phone || 'N/A'}`,
+      'info'
+    );
+
+    // Auto-create primary contact if phone is available
+    if (phone) {
+      try {
+        const contactId = generateEntityId();
+        await sdk.contacts.create({
+          id: contactId,
+          companyId: createdCompany.id,
+          firstName: name,
           phone,
-          status: 'LEAD'
-        })
-      );
-
-      if (discoveryRunId) {
-        const provId = randomUUID();
-        db.prepare(
-          `
-          INSERT INTO company_discovery_runs (id, workspaceId, companyId, discoveryRunId, requiresReview, syncStatus, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, 0, 'pending', datetime('now'), datetime('now'))
-        `
-        ).run(provId, ctx.workspaceId, companyId, discoveryRunId);
-
-        db.prepare(
-          `
-          INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, 'CREATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
-        `
-        ).run(
-          randomUUID(),
-          ctx.workspaceId,
-          'company_discovery_runs',
-          provId,
-          JSON.stringify({
-            id: provId,
-            workspaceId: ctx.workspaceId,
-            companyId,
-            discoveryRunId
-          })
-        );
+          status: ContactStatus.NEW
+        });
+      } catch (contactErr) {
+        ctx.emitLog(`Failed to create contact for company ${createdCompany.id}: ${contactErr}`, 'warn');
       }
+    }
 
-      // Auto-generate primary contact record for the company if phone is available.
-      // Deduplication guard: skip if a contact for this company already exists (prevents re-scrape duplicates).
-      if (phone) {
-        const existingContact = db
-          .prepare('SELECT id FROM contacts WHERE workspaceId = ? AND companyId = ?')
-          .get(ctx.workspaceId, companyId);
-        if (!existingContact) {
-          const contactId = randomUUID();
-          db.prepare(
-            `
-            INSERT INTO contacts (id, workspaceId, companyId, phone, status, syncStatus, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, 'NEW', 'pending', datetime('now'), datetime('now'))
-          `
-          ).run(contactId, ctx.workspaceId, companyId, phone);
-
-          // Sync payload: omit companyId (server expects MongoDB ObjectId, not UUID).
-          // firstName defaults to '' — server requires the field.
-          db.prepare(
-            `
-            INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, 'CREATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
-          `
-          ).run(
-            randomUUID(),
-            ctx.workspaceId,
-            'contacts',
-            contactId,
-            JSON.stringify({
-              id: contactId,
-              workspaceId: ctx.workspaceId,
-              firstName: '',
-              phone,
-              status: 'NEW'
-            })
-          );
-        }
-      }
-
-      storedCount++;
-      ctx.emitLog(
-        `Stored company: "${name}" | Website: ${website || 'N/A'} | Phone: ${phone || 'N/A'} | Rating: ${rating || 'N/A'}`,
-        'info'
-      );
-
-      if (discoveryRunId) {
-        db.prepare(
-          `
-          UPDATE discovery_runs
-          SET resultCount = resultCount + 1, updatedAt = datetime('now')
-          WHERE id = ? AND workspaceId = ?
-        `
-        ).run(discoveryRunId, ctx.workspaceId);
-      }
-    })();
+    // Link discovery run if requested
+    if (discoveryRunId) {
+      try {
+        await sdk.companyDiscoveryRuns.create({
+          id: generateEntityId(),
+          workspaceId: ctx.workspaceId,
+          companyId: createdCompany.id,
+          discoveryRunId
+        });
+      } catch {}
+    }
   }
 
-  // Update discovery run status on completion
-  if (discoveryRunId && db) {
-    try {
-      (db as Database.Database).prepare(
-        `
-        UPDATE discovery_runs
-        SET status = 'completed', finishedAt = datetime('now'), updatedAt = datetime('now')
-        WHERE id = ? AND workspaceId = ?
-      `
-      ).run(discoveryRunId, ctx.workspaceId);
-    } catch {}
-  }
+  return { storedCount, skippedCount, duplicatesCount };
 }
