@@ -174,7 +174,7 @@ export class OutreachService {
 
     const template = new EmailTemplateModel({
       _id: data.id || data._id || undefined,
-      workspaceId: new mongoose.Types.ObjectId(this.workspaceId),
+      workspaceId: this.workspaceId,
       name: data.name,
       subject: data.subject,
       body: data.body,

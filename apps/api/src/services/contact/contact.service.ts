@@ -3,8 +3,11 @@ import type { ContactDocument } from '../../db/models/contact.model.js';
 import {
   createContactDtoSchema,
   updateContactDtoSchema,
+  bulkContactDtoSchema,
   type CreateContactDto,
-  type UpdateContactDto
+  type UpdateContactDto,
+  type BulkContactDto,
+  type BulkOperationResult
 } from '@leadforge/schema';
 
 export class ContactService {
@@ -28,6 +31,11 @@ export class ContactService {
   public async createContact(dto: CreateContactDto): Promise<ContactDocument> {
     const validated = createContactDtoSchema.parse(dto);
     return this.contactRepository.create(validated);
+  }
+
+  public async createBulk(dto: BulkContactDto): Promise<BulkOperationResult<ContactDocument>> {
+    const validated = bulkContactDtoSchema.parse(dto);
+    return this.contactRepository.bulkInsert(validated.contacts);
   }
 
   public async updateContact(id: string, dto: UpdateContactDto): Promise<ContactDocument> {

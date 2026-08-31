@@ -117,4 +117,20 @@ export class AutomationService {
       executionId
     } as any).sort({ timestamp: 1 });
   }
+
+  public async addExecutionLogs(executionId: string, logs: any[]): Promise<any[]> {
+    const docs = logs.map((l) => ({
+      _id: l.id || undefined,
+      workspaceId: this.workspaceId,
+      executionId,
+      step: l.step ?? 0,
+      action: l.action || 'LOG',
+      status: l.status || 'info',
+      message: l.message || '',
+      error: l.error || null,
+      timestamp: l.timestamp ? new Date(l.timestamp) : new Date()
+    }));
+    await SequenceLogModel.insertMany(docs);
+    return docs;
+  }
 }

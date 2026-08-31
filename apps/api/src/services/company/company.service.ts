@@ -3,8 +3,11 @@ import type { CompanyDocument } from '../../db/models/company.model.js';
 import {
   createCompanyDtoSchema,
   updateCompanyDtoSchema,
+  bulkCompanyDtoSchema,
   type CreateCompanyDto,
-  type UpdateCompanyDto
+  type UpdateCompanyDto,
+  type BulkCompanyDto,
+  type BulkOperationResult
 } from '@leadforge/schema';
 
 export class CompanyService {
@@ -31,6 +34,11 @@ export class CompanyService {
       ...validated,
       tags: []
     });
+  }
+
+  public async createBulk(dto: BulkCompanyDto): Promise<BulkOperationResult<CompanyDocument>> {
+    const validated = bulkCompanyDtoSchema.parse(dto);
+    return this.companyRepository.bulkInsert(validated.companies);
   }
 
   public async updateCompany(id: string, dto: UpdateCompanyDto): Promise<CompanyDocument> {

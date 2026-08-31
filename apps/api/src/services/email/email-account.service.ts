@@ -1,17 +1,13 @@
 import { randomUUID, randomBytes, createHash } from 'crypto';
+import { generateEntityId } from '@leadforge/schema';
 import { EmailAccountModel } from '../../db/models/email-account.model.js';
+import { GoogleConnectionModel } from '../../db/models/google-connection.model.js';
 import { OAuthTransactionModel } from '../../db/models/oauth-transaction.model.js';
 import { encrypt, decrypt } from '../../utils/encryption.js';
-import { env } from '../../config/index.js';
+import { env, logger } from '../../config/index.js';
 import { EmailDomainError, type SafeEmailAccount } from './types.js';
-import {
-  getServerGmailOAuthClient,
-  type GoogleOAuthClient
-} from './providers/google-oauth.js';
-import {
-  GmailProvider,
-  type GmailProviderConfig
-} from './providers/gmail-provider.js';
+import { GoogleAuthService, GMAIL_DEFAULT_SCOPES, DRIVE_FILE_SCOPE } from '../google/auth.service.js';
+import { GmailProvider } from '../google/gmail.provider.js';
 import type { EmailProvider } from './providers/types.js';
 
 /**
@@ -21,7 +17,11 @@ import type { EmailProvider } from './providers/types.js';
  * `SafeEmailAccount` objects.
  */
 export class EmailAccountService {
-  constructor(private readonly workspaceId: string) {}
+  private readonly authService: GoogleAuthService;
+
+  constructor(private readonly workspaceId: string) {
+    this.authService = new GoogleAuthService();
+  }
 
   // ── Queries ──────────────────────────────────────────────────────────────
 
@@ -41,12 +41,12 @@ export class EmailAccountService {
 
   /**
    * Initiates a short-lived Gmail OAuth transaction on the server.
-   * Generates state & codeVerifier PKCE tokens, creates an OAuthTransaction record,
-   * builds the Google authorization URL, and returns transactionId + authorizationUrl.
+   * Uses prompt='select_account consent' and PKCE.
    */
   async initiateGmailOAuth(
     userId: string,
-    callbackRedirectUri?: string
+    callbackRedirectUri?: string,
+    scopes?: string[]
   ): Promise<{ transactionId: string; authorizationUrl: string }> {
     const transactionId = randomUUID();
     const state = randomBytes(32).toString('hex');
@@ -56,8 +56,13 @@ export class EmailAccountService {
     const baseUrl = env.BETTER_AUTH_URL.replace(/\/auth\/?$/, '');
     const redirectUri = callbackRedirectUri || `${baseUrl}/email/accounts/gmail/oauth/callback`;
 
-    const oauth = this.buildOAuthClient(redirectUri);
-    const authorizationUrl = oauth.buildAuthUrl(state, codeChallenge);
+    const authorizationUrl = this.authService.buildAuthUrl({
+      state,
+      codeChallenge,
+      redirectUri,
+      scopes: scopes || GMAIL_DEFAULT_SCOPES,
+      prompt: 'select_account consent'
+    });
 
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minute TTL
 
@@ -77,8 +82,8 @@ export class EmailAccountService {
 
   /**
    * Handles the Google OAuth redirect callback on the API.
-   * Exchanges the authorization code for tokens using server-side client credentials,
-   * encrypts & saves the tokens in MongoDB, and marks the transaction completed.
+   * Exchanges authorization code for tokens, resolves Google identity,
+   * creates/updates GoogleConnection, and creates/updates EmailAccount.
    */
   static async handleGmailOAuthCallback(
     code: string,
@@ -97,11 +102,10 @@ export class EmailAccountService {
     const baseUrl = env.BETTER_AUTH_URL.replace(/\/auth\/?$/, '');
     const redirectUri = `${baseUrl}/email/accounts/gmail/oauth/callback`;
 
-    const accountService = new EmailAccountService(transaction.workspaceId);
-    const oauth = accountService.buildOAuthClient(redirectUri);
+    const authService = new GoogleAuthService({ redirectUri });
 
     try {
-      const tokens = await oauth.exchangeCodeForTokens(code, transaction.codeVerifier);
+      const tokens = await authService.exchangeCodeForTokens(code, transaction.codeVerifier, redirectUri);
       if (!tokens.refreshToken) {
         throw new EmailDomainError(
           'GMAIL_OAUTH_FAILED',
@@ -109,36 +113,87 @@ export class EmailAccountService {
         );
       }
 
-      const info = await oauth.getTokenInfo(tokens.accessToken);
-      const email = info.email;
-      if (!email) {
-        throw new EmailDomainError('GMAIL_OAUTH_FAILED', 'Google did not return the authorized email address.');
-      }
+      const info = await authService.getIdentityInfo(tokens.accessToken);
+      const email = info.email.toLowerCase().trim();
+      const sub = info.sub;
 
       const tokenExpiresAt = new Date(Date.now() + tokens.expiresIn * 1000);
-      const existing = await EmailAccountModel.findOne({
+      const grantedScopes = tokens.scope
+        ? tokens.scope.split(' ').map((s) => s.trim()).filter(Boolean)
+        : (info.scope ? info.scope.split(' ').map((s) => s.trim()).filter(Boolean) : GMAIL_DEFAULT_SCOPES);
+
+      const hasDrive = grantedScopes.includes(DRIVE_FILE_SCOPE) || grantedScopes.includes('https://www.googleapis.com/auth/drive');
+
+      // 1. Find or create GoogleConnection for this (workspaceId, googleAccountId)
+      let connection = await GoogleConnectionModel.findOne({
         workspaceId: transaction.workspaceId,
-        email: email.toLowerCase()
+        googleAccountId: sub
+      });
+
+      if (connection) {
+        connection.email = email;
+        if (info.name) connection.name = info.name;
+        if (info.picture) connection.picture = info.picture;
+        connection.encryptedRefreshToken = encrypt(tokens.refreshToken);
+        connection.encryptedAccessToken = encrypt(tokens.accessToken);
+        connection.tokenExpiresAt = tokenExpiresAt;
+        connection.grantedScopes = Array.from(new Set([...connection.grantedScopes, ...grantedScopes]));
+        connection.gmailStatus = 'connected';
+        if (hasDrive) connection.driveStatus = 'authorized';
+        connection.status = 'active';
+        connection.lastVerifiedAt = new Date();
+        connection.lastError = null;
+        await connection.save();
+      } else {
+        connection = await GoogleConnectionModel.create({
+          _id: generateEntityId(),
+          workspaceId: transaction.workspaceId,
+          userId: transaction.userId,
+          googleAccountId: sub,
+          email,
+          name: info.name || null,
+          picture: info.picture || null,
+          encryptedRefreshToken: encrypt(tokens.refreshToken),
+          encryptedAccessToken: encrypt(tokens.accessToken),
+          tokenExpiresAt,
+          grantedScopes,
+          gmailStatus: 'connected',
+          driveStatus: hasDrive ? 'authorized' : 'not_authorized',
+          status: 'active',
+          lastVerifiedAt: new Date()
+        });
+      }
+
+      // 2. Find or create EmailAccount linked to this GoogleConnection
+      let accountDoc = await EmailAccountModel.findOne({
+        workspaceId: transaction.workspaceId,
+        $or: [
+          { googleConnectionId: connection._id.toString() },
+          { email }
+        ]
       } as any);
 
-      let accountDoc: any;
-      if (existing) {
-        existing.provider = 'gmail_oauth';
-        existing.status = 'connected';
-        existing.encryptedRefreshToken = encrypt(tokens.refreshToken);
-        existing.encryptedAccessToken = encrypt(tokens.accessToken);
-        existing.tokenExpiresAt = tokenExpiresAt;
-        existing.googleAccountId = info.sub || existing.googleAccountId || null;
-        existing.lastVerifiedAt = new Date();
-        existing.lastError = null;
-        await existing.save();
-        accountDoc = existing;
+      if (accountDoc) {
+        accountDoc.provider = 'gmail';
+        accountDoc.status = 'connected';
+        accountDoc.googleConnectionId = connection._id.toString();
+        accountDoc.googleAccountId = sub;
+        accountDoc.email = email;
+        accountDoc.encryptedRefreshToken = encrypt(tokens.refreshToken);
+        accountDoc.encryptedAccessToken = encrypt(tokens.accessToken);
+        accountDoc.tokenExpiresAt = tokenExpiresAt;
+        accountDoc.lastVerifiedAt = new Date();
+        accountDoc.lastError = null;
+        await accountDoc.save();
       } else {
         accountDoc = await EmailAccountModel.create({
+          _id: generateEntityId(),
           workspaceId: transaction.workspaceId as any,
-          name: email.split('@')[0] || 'Gmail',
-          email: email.toLowerCase(),
-          provider: 'gmail_oauth',
+          name: info.name || email.split('@')[0] || 'Gmail',
+          email,
+          provider: 'gmail',
+          googleConnectionId: connection._id.toString(),
+          googleAccountId: sub,
           status: 'connected',
           isDefault: false,
           dailyLimit: 200,
@@ -146,7 +201,6 @@ export class EmailAccountService {
           encryptedRefreshToken: encrypt(tokens.refreshToken),
           encryptedAccessToken: encrypt(tokens.accessToken),
           tokenExpiresAt,
-          googleAccountId: info.sub || null,
           lastVerifiedAt: new Date()
         });
       }
@@ -194,24 +248,56 @@ export class EmailAccountService {
     userId: string,
     id: string
   ): Promise<{ transactionId: string; authorizationUrl: string }> {
-    await this.findAccount(id);
-    return this.initiateGmailOAuth(userId);
+    const account = await this.findAccount(id);
+    const transactionId = randomUUID();
+    const state = randomBytes(32).toString('hex');
+    const codeVerifier = randomBytes(32).toString('hex');
+    const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
+
+    const baseUrl = env.BETTER_AUTH_URL.replace(/\/auth\/?$/, '');
+    const redirectUri = `${baseUrl}/email/accounts/gmail/oauth/callback`;
+
+    const authorizationUrl = this.authService.buildAuthUrl({
+      state,
+      codeChallenge,
+      redirectUri,
+      scopes: GMAIL_DEFAULT_SCOPES,
+      prompt: 'select_account consent',
+      loginHint: account.email
+    });
+
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    await OAuthTransactionModel.create({
+      transactionId,
+      workspaceId: this.workspaceId,
+      userId,
+      state,
+      codeVerifier,
+      provider: 'gmail',
+      status: 'pending',
+      expiresAt
+    });
+
+    return { transactionId, authorizationUrl };
   }
 
   /**
-   * Disconnects a mailbox: revokes any Gmail refresh token and clears stored
-   * credentials, marking the account 'disconnected'.
+   * Disconnects a mailbox and revokes credentials.
    */
   async disconnect(id: string): Promise<{ success: boolean }> {
     const account = await this.findAccount(id);
 
-    if (account.provider === 'gmail_oauth' && account.encryptedRefreshToken) {
+    if (account.googleConnectionId) {
+      await this.authService.disconnectConnection(account.googleConnectionId);
+    } else if (account.encryptedRefreshToken) {
       try {
         const refreshToken = decrypt(account.encryptedRefreshToken);
-        await this.buildOAuthClient('http://127.0.0.1').revokeToken(refreshToken);
-      } catch (err) {
-        // Revocation is best-effort; disconnect proceeds regardless.
-      }
+        await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(refreshToken)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+      } catch {}
     }
 
     account.status = 'disconnected';
@@ -254,10 +340,17 @@ export class EmailAccountService {
   }
 
   /**
-   * Verifies mailbox health and returns an EmailProvider for sending.
+   * Returns a provider for sending email. Rejects legacy SMTP accounts.
    */
   async buildProvider(id: string): Promise<EmailProvider> {
     const account = await this.findAccount(id);
+
+    if (account.provider === 'smtp' || account.status === 'unsupported') {
+      throw new EmailDomainError(
+        'MAILBOX_NOT_SUPPORTED',
+        'SMTP is permanently removed. Please connect a Gmail account.'
+      );
+    }
 
     if (account.status === 'disconnected' || account.status === 'disabled') {
       throw new EmailDomainError(
@@ -266,45 +359,71 @@ export class EmailAccountService {
       );
     }
 
-    if (account.provider === 'gmail_oauth') {
-      if (!account.encryptedRefreshToken) {
+    if (account.provider === 'gmail' || account.provider === 'gmail_oauth') {
+      let connectionId = account.googleConnectionId;
+
+      if (!connectionId) {
+        // Fallback: lookup GoogleConnection by googleAccountId or email
+        const connection = await GoogleConnectionModel.findOne({
+          workspaceId: this.workspaceId,
+          $or: [
+            ...(account.googleAccountId ? [{ googleAccountId: account.googleAccountId }] : []),
+            { email: account.email }
+          ]
+        });
+        if (connection) {
+          connectionId = connection._id.toString();
+          account.googleConnectionId = connectionId;
+          await account.save();
+        }
+      }
+
+      if (!connectionId && !account.encryptedRefreshToken) {
         throw new EmailDomainError(
           'MAILBOX_NOT_AUTHORIZED',
           'Gmail mailbox is missing OAuth credentials.'
         );
       }
-      const config: GmailProviderConfig = {
-        email: account.email,
-        clientId: env.GOOGLE_CLIENT_ID || '',
-        clientSecret: env.GOOGLE_CLIENT_SECRET || '',
-        encryptedRefreshToken: account.encryptedRefreshToken,
-        encryptedAccessToken: account.encryptedAccessToken,
-        tokenExpiresAt: account.tokenExpiresAt?.toISOString(),
-        onTokenRefresh: async (refreshed) => {
-          const updates: any = {
-            encryptedAccessToken: encrypt(refreshed.accessToken),
-            tokenExpiresAt: new Date(refreshed.tokenExpiresAt),
-            status: 'connected',
-            lastError: null
-          };
-          if (refreshed.refreshToken) {
-            updates.encryptedRefreshToken = encrypt(refreshed.refreshToken);
+
+      const gmailProvider = new GmailProvider(this.authService);
+
+      return {
+        kind: 'gmail_oauth',
+        async send(options: any) {
+          const attachments = options.attachments?.map((att: any) => ({
+            filename: att.filename,
+            contentType: att.contentType,
+            data: att.contentBase64 || att.data
+          }));
+
+          const result = await gmailProvider.sendMessage({
+            connectionId: connectionId!,
+            from: options.from || account.email,
+            to: options.to,
+            subject: options.subject,
+            text: options.text,
+            html: options.html,
+            attachments
+          });
+
+          return { messageId: result.messageId, accepted: [options.to] };
+        },
+        async verify() {
+          try {
+            const accessToken = await new GoogleAuthService().getValidAccessToken(connectionId!);
+            const info = await new GoogleAuthService().getIdentityInfo(accessToken);
+            return info.email ? 'healthy' : 'failed';
+          } catch {
+            return 'reauth_required';
           }
-          await EmailAccountModel.updateOne({ _id: id } as any, updates);
-        }
+        },
+        close() {}
       };
-      if (!config.clientId || !config.clientSecret) {
-        throw new EmailDomainError(
-          'GMAIL_OAUTH_NOT_CONFIGURED',
-          'Gmail OAuth is not configured on the API.'
-        );
-      }
-      return new GmailProvider(config);
     }
 
     throw new EmailDomainError(
       'MAILBOX_NOT_SUPPORTED',
-      `Unsupported email account provider: ${account.provider}`
+      `Unsupported email account provider: ${account.provider}. Only Gmail is supported.`
     );
   }
 
@@ -319,10 +438,6 @@ export class EmailAccountService {
       throw new EmailDomainError('MAILBOX_NOT_FOUND', 'Email Account not found.');
     }
     return account;
-  }
-
-  private buildOAuthClient(redirectUri: string): GoogleOAuthClient {
-    return getServerGmailOAuthClient(redirectUri);
   }
 }
 
