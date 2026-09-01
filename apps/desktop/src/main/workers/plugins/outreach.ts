@@ -210,7 +210,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
             name: companyRow.name,
             domain: companyRow.domain || companyRow.website,
             industry: companyRow.industry,
-            location: companyRow.address,
+            location: companyRow.location || companyRow.address || '',
             website: companyRow.website
           }
         : null,
