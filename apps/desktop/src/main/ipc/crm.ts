@@ -271,29 +271,13 @@ export function registerCrmIpc() {
       campaign.pausedCount = stats.paused;
       campaign.completedCount = stats.completed;
 
-      // Auto-calculate campaign status unless it's explicitly 'DRAFT' or 'ARCHIVED'
-      const upperStatus = String(campaign.status || '').toUpperCase();
-      if (upperStatus !== 'DRAFT' && upperStatus !== 'ARCHIVED') {
-        if (stats.total === 0) {
-          campaign.status = 'DRAFT';
-        } else if (stats.running > 0 || stats.waiting > 0) {
-          campaign.status = 'ACTIVE';
-        } else if (stats.paused > 0) {
-          campaign.status = 'PAUSED';
-        } else if (
-          stats.total > 0 &&
-          stats.completed + stats.replied + stats.failed === stats.total
-        ) {
-          campaign.status = 'COMPLETED';
-        } else {
-          campaign.status = upperStatus || 'DRAFT';
-        }
-
-        // Save the updated status to the database so it's persisted
-        db.prepare("UPDATE campaigns SET status = ?, updatedAt = datetime('now') WHERE id = ?").run(
-          campaign.status,
-          campaign.id
-        );
+      // Canonical status is preserved from authoritative store; provide computed execution status for UI
+      const upperStatus = String(campaign.status || 'DRAFT').toUpperCase();
+      campaign.status = upperStatus;
+      if (stats.total > 0 && (stats.completed + stats.replied + stats.failed === stats.total) && upperStatus === 'ACTIVE') {
+        campaign.executionState = 'COMPLETED';
+      } else {
+        campaign.executionState = upperStatus;
       }
     }
 

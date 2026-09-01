@@ -382,9 +382,17 @@ export function registerCampaignsIpc(): void {
 
     if (!campaign) throw new Error(`Campaign "${campaignId}" not found or deleted.`);
 
-    // 1. Set campaign status to ACTIVE
-    db.prepare(`UPDATE campaigns SET status = 'ACTIVE', updatedAt = ? WHERE id = ? AND workspaceId = ?`)
-      .run(now, campaignId, runtime.workspaceId);
+    // 1. Set campaign status to ACTIVE authoritatively in MongoDB via SDK
+    try {
+      const updatedCampaign = await sdk.campaigns.update(campaignId, { status: 'ACTIVE' as any });
+      if (updatedCampaign) {
+        await LocalCRMRepository.saveFromServer('campaigns', updatedCampaign);
+      }
+    } catch (err) {
+      console.warn(`[IPC] Server campaign status update warning for ${campaignId}:`, err);
+      db.prepare(`UPDATE campaigns SET status = 'ACTIVE', updatedAt = ? WHERE id = ? AND workspaceId = ?`)
+        .run(now, campaignId, runtime.workspaceId);
+    }
 
     // 2. Fetch sequence_executions for this campaign that are not completed
     const enrollments = db

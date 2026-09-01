@@ -179,9 +179,24 @@ export class ProjectionService {
         }
       }
 
-      // 3. Campaign Outreach Outcome -> Reconcile Campaign & Executions
-      if (jobType === 'outreach:campaign' || payload?.campaignId) {
-        const campaignId = payload?.campaignId;
+      // 3. Campaign / Workflow Outreach Outcome -> Reconcile Campaign & Executions
+      if (jobType === 'outreach:campaign' || jobType === 'automation:workflow' || payload?.campaignId) {
+        let campaignId = payload?.campaignId;
+        const executionId = payload?.executionId;
+
+        // If executionId is present, project the individual execution
+        if (executionId) {
+          try {
+            const ex = await sdk.executions.get(executionId).catch(() => null);
+            if (ex) {
+              await this.projectEntity('sequence_executions', ex, workspaceId);
+              if (!campaignId && ex.campaignId) {
+                campaignId = ex.campaignId;
+              }
+            }
+          } catch {}
+        }
+
         if (campaignId) {
           try {
             const campaign = await sdk.campaigns.get(campaignId).catch(() => null);
@@ -190,8 +205,25 @@ export class ProjectionService {
             }
             const executions = await sdk.executions.list().catch(() => []);
             const exList = Array.isArray(executions) ? executions : (executions as any)?.data || [];
-            if (exList.length > 0) {
-              await this.projectEntities('sequence_executions', exList, workspaceId);
+            const campaignExecs = exList.filter((e: any) => e.campaignId === campaignId);
+            if (campaignExecs.length > 0) {
+              await this.projectEntities('sequence_executions', campaignExecs, workspaceId);
+
+              // Check if all executions for this active campaign are now in terminal states
+              const allTerminal = campaignExecs.every((e: any) =>
+                ['completed', 'failed', 'replied'].includes(String(e.status || '').toLowerCase())
+              );
+              if (allTerminal && campaign && String(campaign.status).toUpperCase() === 'ACTIVE') {
+                try {
+                  const completedCamp = await sdk.campaigns.update(campaignId, { status: 'COMPLETED' as any });
+                  if (completedCamp) {
+                    await this.projectEntity('campaigns', completedCamp, workspaceId);
+                    AppLogger.info('ProjectionService', `Campaign "${campaignId}" transitioned to COMPLETED authoritatively`, workspaceId);
+                  }
+                } catch (updateErr: any) {
+                  AppLogger.warn('ProjectionService', `Authoritative campaign status update error: ${updateErr.message}`, workspaceId);
+                }
+              }
             }
           } catch (campErr: any) {
             AppLogger.warn('ProjectionService', `Failed to reconcile campaign "${campaignId}": ${campErr.message}`, workspaceId);
