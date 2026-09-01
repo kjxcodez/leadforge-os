@@ -419,8 +419,29 @@ companiesRouter.get('/', async (c) => {
   const wsId = getWorkspaceId(c);
   const page = parseInt(c.req.query('page') || '1');
   const limit = parseInt(c.req.query('limit') || '100');
+  const status = c.req.query('status');
+  const industry = c.req.query('industry');
+  const city = c.req.query('city');
+  const state = c.req.query('state');
+  const country = c.req.query('country');
+  const location = c.req.query('location');
+  const name = c.req.query('name');
+  const domain = c.req.query('domain');
+  const search = c.req.query('search');
+
+  const filter: any = {};
+  if (status && status !== 'undefined' && status !== 'null') filter.status = status;
+  if (industry && industry !== 'undefined' && industry !== 'null') filter.industry = industry;
+  if (city && city !== 'undefined' && city !== 'null') filter.city = city;
+  if (state && state !== 'undefined' && state !== 'null') filter.state = state;
+  if (country && country !== 'undefined' && country !== 'null') filter.country = country;
+  if (location && location !== 'undefined' && location !== 'null') filter.location = location;
+  if (name && name !== 'undefined' && name !== 'null') filter.name = name;
+  if (domain && domain !== 'undefined' && domain !== 'null') filter.domain = domain;
+  if (search && search !== 'undefined' && search !== 'null') filter.search = search;
+
   const service = new CompanyService(wsId);
-  const result = await service.listCompanies(page, limit);
+  const result = await service.listCompanies(page, limit, filter);
   return c.json(successResponse(result.data));
 });
 
@@ -471,8 +492,23 @@ contactsRouter.get('/', async (c) => {
   const wsId = getWorkspaceId(c);
   const page = parseInt(c.req.query('page') || '1');
   const limit = parseInt(c.req.query('limit') || '100');
+  const companyId = c.req.query('companyId');
+  const status = c.req.query('status');
+  const email = c.req.query('email');
+  const title = c.req.query('title');
+  const source = c.req.query('source');
+  const search = c.req.query('search');
+
+  const filter: any = {};
+  if (companyId && companyId !== 'undefined' && companyId !== 'null') filter.companyId = companyId;
+  if (status && status !== 'undefined' && status !== 'null') filter.status = status;
+  if (email && email !== 'undefined' && email !== 'null') filter.email = email;
+  if (title && title !== 'undefined' && title !== 'null') filter.title = title;
+  if (source && source !== 'undefined' && source !== 'null') filter.source = source;
+  if (search && search !== 'undefined' && search !== 'null') filter.search = search;
+
   const service = new ContactService(wsId);
-  const result = await service.listContacts(page, limit);
+  const result = await service.listContacts(page, limit, filter);
   return c.json(successResponse(result.data));
 });
 

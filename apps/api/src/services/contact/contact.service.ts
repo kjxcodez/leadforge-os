@@ -23,9 +23,27 @@ export class ContactService {
 
   public async listContacts(
     page?: number,
-    limit?: number
+    limit?: number,
+    filter?: any
   ): Promise<{ data: ContactDocument[]; total: number }> {
-    return this.contactRepository.paginate({}, page, limit);
+    const query: any = {};
+    if (filter) {
+      if (filter.companyId) query.companyId = filter.companyId;
+      if (filter.status) query.status = filter.status;
+      if (filter.email) query.email = { $regex: filter.email, $options: 'i' };
+      if (filter.title) query.title = { $regex: filter.title, $options: 'i' };
+      if (filter.source) query.source = filter.source;
+      if (filter.search) {
+        const searchRegex = { $regex: filter.search, $options: 'i' };
+        query.$or = [
+          { firstName: searchRegex },
+          { lastName: searchRegex },
+          { email: searchRegex },
+          { title: searchRegex }
+        ];
+      }
+    }
+    return this.contactRepository.paginate(query, page, limit, { createdAt: -1 });
   }
 
   public async createContact(dto: CreateContactDto): Promise<ContactDocument> {

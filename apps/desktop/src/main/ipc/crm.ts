@@ -109,7 +109,7 @@ export function registerCrmIpc() {
     return LocalCRMRepository.findMany('contacts', workspaceId, filter);
   });
 
-  safeRegister('contacts:query', async (_event, { workspaceId, search, status, companyId, title, source, discoveryRunId }) => {
+  safeRegister('contacts:query', async (_event, { workspaceId, search, status, companyId, title, source, discoveryRunId, location, city, state, country }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     const db = getDatabase(workspaceId);
 
@@ -117,6 +117,11 @@ export function registerCrmIpc() {
     const params: any[] = [];
     const conditions: string[] = ['c.workspaceId = ?', 'c.deletedAt IS NULL'];
     params.push(workspaceId);
+
+    const hasGeoFilter = Boolean(city || state || country || location);
+    if (hasGeoFilter) {
+      query += ' INNER JOIN companies comp ON c.companyId = comp.id AND comp.deletedAt IS NULL';
+    }
 
     if (discoveryRunId) {
       query += ' INNER JOIN company_discovery_runs cdr ON c.companyId = cdr.companyId';
@@ -148,6 +153,26 @@ export function registerCrmIpc() {
     if (source) {
       conditions.push('c.source LIKE ?');
       params.push(`%${source}%`);
+    }
+
+    if (location) {
+      conditions.push('comp.location LIKE ?');
+      params.push(`%${location}%`);
+    }
+
+    if (city) {
+      conditions.push('(comp.city LIKE ? OR comp.location LIKE ?)');
+      params.push(`%${city}%`, `%${city}%`);
+    }
+
+    if (state) {
+      conditions.push('(comp.state LIKE ? OR comp.location LIKE ?)');
+      params.push(`%${state}%`, `%${state}%`);
+    }
+
+    if (country) {
+      conditions.push('(comp.country LIKE ? OR comp.location LIKE ?)');
+      params.push(`%${country}%`, `%${country}%`);
     }
 
     query += ' WHERE ' + conditions.join(' AND ') + ' ORDER BY c.createdAt DESC';

@@ -482,6 +482,9 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
       name,
       domain: domain || undefined,
       location: loc,
+      city: companyCity || undefined,
+      state: companyState || undefined,
+      country: companyCountry || undefined,
       status: CompanyStatus.LEAD
     });
 

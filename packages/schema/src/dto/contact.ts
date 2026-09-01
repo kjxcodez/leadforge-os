@@ -32,7 +32,15 @@ export type UpdateContactDto = z.infer<typeof updateContactDtoSchema>;
 export const contactFiltersSchema = paginationParamsSchema.extend({
   companyId: entityIdField.optional(),
   email: z.string().optional(),
-  status: contactStatusSchema.optional()
+  status: contactStatusSchema.optional(),
+  search: z.string().optional(),
+  title: z.string().optional(),
+  source: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  country: z.string().optional(),
+  location: z.string().optional(),
+  discoveryRunId: z.string().optional()
 });
 export type ContactFilters = z.infer<typeof contactFiltersSchema>;
 
