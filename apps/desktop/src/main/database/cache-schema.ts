@@ -13,7 +13,7 @@ import Database from 'better-sqlite3';
  *  4. Database can be dropped (rm leadforge_<wsId>.db) and fully recreated without data loss.
  */
 
-export const CACHE_SCHEMA_VERSION = 2;
+export const CACHE_SCHEMA_VERSION = 3;
 
 export const CACHE_TABLES = [
   'workspaces',
@@ -27,6 +27,10 @@ export const CACHE_TABLES = [
   'audiences',
   'discovery_runs',
   'company_discovery_runs',
+  'company_intelligence',
+  'website_intelligence',
+  'contact_intelligence',
+  'opportunity_scores',
   'cache_metadata'
 ] as const;
 
@@ -425,7 +429,73 @@ export function initCacheSchema(db: Database.Database): void {
     `).run();
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_intel_inf_ws ON intelligence_inferences(workspaceId)`).run();
 
-    // 17. Settings Cache
+    // 17. Company Intelligence Cache (lead scoring summary + opening line + tech stack)
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS company_intelligence (
+        companyId TEXT PRIMARY KEY,
+        workspaceId TEXT,
+        summary TEXT,
+        openingLine TEXT,
+        techStack TEXT,
+        painPoints TEXT,
+        useCases TEXT,
+        createdAt DATETIME,
+        updatedAt DATETIME
+      )
+    `).run();
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_comp_intel_ws ON company_intelligence(workspaceId)`).run();
+
+    // 18. Website Intelligence Cache (scraped site signals)
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS website_intelligence (
+        companyId TEXT PRIMARY KEY,
+        workspaceId TEXT,
+        headline TEXT,
+        description TEXT,
+        services TEXT,
+        techStack TEXT,
+        scrapedAt DATETIME,
+        createdAt DATETIME,
+        updatedAt DATETIME
+      )
+    `).run();
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_web_intel_ws ON website_intelligence(workspaceId)`).run();
+
+    // 19. Contact Intelligence Cache (individual contact enrichment)
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS contact_intelligence (
+        contactId TEXT PRIMARY KEY,
+        workspaceId TEXT,
+        companyId TEXT,
+        summary TEXT,
+        openingLine TEXT,
+        linkedinData TEXT,
+        createdAt DATETIME,
+        updatedAt DATETIME
+      )
+    `).run();
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_cont_intel_ws ON contact_intelligence(workspaceId)`).run();
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_cont_intel_comp ON contact_intelligence(companyId)`).run();
+
+    // 20. Opportunity Scores Cache (ICP scoring per company)
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS opportunity_scores (
+        companyId TEXT PRIMARY KEY,
+        workspaceId TEXT,
+        overallScore REAL,
+        fitScore REAL,
+        sizeScore REAL,
+        intentScore REAL,
+        urgencyScore REAL,
+        explanation TEXT,
+        scoredAt DATETIME,
+        createdAt DATETIME,
+        updatedAt DATETIME
+      )
+    `).run();
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_opp_score_ws ON opportunity_scores(workspaceId)`).run();
+
+    // 21. Settings Cache
     db.prepare(`
       CREATE TABLE IF NOT EXISTS settings (
         id TEXT PRIMARY KEY,

@@ -58,7 +58,11 @@ export function registerSchedulerIpc() {
           ? runtime.sdk
           : WorkspaceManager.getSdk();
       const result = await sdk.jobs.list({ limit: 100 }).catch(() => ({ data: [] }));
-      jobs = Array.isArray(result?.data) ? result.data : [];
+      // The Outbound Queue is strictly for outreach workflows.
+      // Discovery/enrichment/scraper jobs surface in the Active Jobs tab.
+      const OUTBOUND_JOB_TYPES = new Set(['outreach:campaign', 'automation:workflow', 'outreach:imap-poll']);
+      const allFetched = Array.isArray(result?.data) ? result.data : [];
+      jobs = allFetched.filter((j: any) => OUTBOUND_JOB_TYPES.has(j.type));
     } catch {
       jobs = [];
     }
