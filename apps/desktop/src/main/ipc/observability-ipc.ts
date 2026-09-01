@@ -26,37 +26,40 @@ export function logDevModeEvent(type: string, message: string, meta?: any) {
 }
 
 export function registerObservabilityIpc() {
-  // Query structured system logs
+  // Query structured system logs via SdkClient
   safeRegister(
     'system-logs:query',
     async (_event, { workspaceId, query, severity, limit = 100 }) => {
       if (!workspaceId) throw new Error('workspaceId is required.');
-      const db = getDatabase(workspaceId);
-      let sql = 'SELECT * FROM system_logs WHERE workspaceId = ?';
-      const params: any[] = [workspaceId];
-      if (query) {
-        sql += ' AND (message LIKE ? OR task LIKE ?)';
-        params.push(`%${query}%`, `%${query}%`);
+      const sdk = WorkspaceManager.getSdk();
+      try {
+        const logs = await sdk.systemLogs.listRecent(limit, severity !== 'all' ? severity : undefined);
+        let result = logs || [];
+        if (query) {
+          const q = query.toLowerCase();
+          result = result.filter(
+            (l: any) =>
+              (l.message && l.message.toLowerCase().includes(q)) ||
+              (l.task && l.task.toLowerCase().includes(q))
+          );
+        }
+        return result;
+      } catch (err) {
+        console.warn('[IPC] Error fetching system logs via SDK:', err);
+        return [];
       }
-      if (severity && severity !== 'all') {
-        sql += ' AND severity = ?';
-        params.push(severity);
-      }
-      sql += ' ORDER BY timestamp DESC LIMIT ?';
-      params.push(limit);
-      return db.prepare(sql).all(...params);
     }
   );
 
-  // Query audit trail logs
+  // Query audit trail logs via SdkClient
   safeRegister('audit-logs:list', async (_event, { workspaceId, limit = 100 }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
-    const db = getDatabase(workspaceId);
+    const sdk = WorkspaceManager.getSdk();
     try {
-      return db
-        .prepare('SELECT * FROM audit_logs WHERE workspaceId = ? ORDER BY timestamp DESC LIMIT ?')
-        .all(workspaceId, limit);
-    } catch {
+      const res = await sdk.auditLogs.list(1, limit);
+      return res?.data || [];
+    } catch (err) {
+      console.warn('[IPC] Error fetching audit logs via SDK:', err);
       return [];
     }
   });

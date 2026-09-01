@@ -110,7 +110,6 @@ export function registerOutreachIpc(sdk: SdkClient) {
 
     const fs = await import('fs');
     const path = await import('path');
-    const { app } = await import('electron');
 
     if (!fs.existsSync(filePath)) {
       throw new Error(`File does not exist at path: ${filePath}`);
@@ -121,22 +120,46 @@ export function registerOutreachIpc(sdk: SdkClient) {
       throw new Error(`File size (${(stat.size / 1024 / 1024).toFixed(1)} MB) exceeds 25 MB limit.`);
     }
 
-    const attachmentsDir = path.join(app.getPath('userData'), 'attachments', runtime.workspaceId);
-    if (!fs.existsSync(attachmentsDir)) {
-      fs.mkdirSync(attachmentsDir, { recursive: true });
+    const buffer = fs.readFileSync(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeMap: Record<string, string> = {
+      '.pdf': 'application/pdf',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.csv': 'text/csv',
+      '.txt': 'text/plain'
+    };
+    const mimeType = mimeMap[ext] || 'application/octet-stream';
+    const safeFilename = filename || path.basename(filePath);
+
+    const sdk = WorkspaceManager.getSdk();
+    const connections = await sdk.googleConnections.list().catch(() => []);
+    const activeConn = connections.find((c: any) => c.status === 'connected') || connections[0];
+
+    if (!activeConn) {
+      throw new Error(
+        'No connected Google account found in this workspace. Please connect a Gmail/Google account in Settings before uploading Drive attachments.'
+      );
     }
 
-    const fileId = require('crypto').randomUUID();
-    const safeName = (filename || path.basename(filePath)).replace(/[^a-zA-Z0-9._-]/g, '_');
-    const managedPath = path.join(attachmentsDir, `${fileId}_${safeName}`);
-
-    fs.copyFileSync(filePath, managedPath);
+    const createdAttachment = await sdk.attachments.upload({
+      googleConnectionId: activeConn.id,
+      filename: safeFilename,
+      mimeType,
+      contentBase64: buffer.toString('base64'),
+      metadata: { size: stat.size }
+    });
 
     return {
-      id: fileId,
-      filename: filename || path.basename(filePath),
-      size: stat.size,
-      storagePath: managedPath
+      id: createdAttachment.id,
+      filename: createdAttachment.filename,
+      size: createdAttachment.size,
+      mimeType: createdAttachment.mimeType,
+      provider: createdAttachment.provider,
+      fileId: createdAttachment.fileId
     };
   });
 
@@ -258,33 +281,47 @@ export function registerOutreachIpc(sdk: SdkClient) {
   safeRegister('email-deliveries:list', async (_event, payload) => {
     const targetWsId = payload?.workspaceId || WorkspaceManager.getActiveRuntime()?.workspaceId;
     if (!targetWsId) throw new Error('workspaceId is required.');
-    const db = getDatabase(targetWsId);
-    let query = `
-      SELECT ed.*, c.firstName, c.lastName, c.email as contactEmail, comp.name as companyName, camp.name as campaignName
-      FROM email_deliveries ed
-      LEFT JOIN contacts c ON ed.contactId = c.id
-      LEFT JOIN companies comp ON c.companyId = comp.id
-      LEFT JOIN campaigns camp ON ed.campaignId = camp.id
-      WHERE ed.workspaceId = ?
-    `;
-    const params: any[] = [targetWsId];
-    if (payload?.campaignId) {
-      query += ` AND ed.campaignId = ?`;
-      params.push(payload.campaignId);
-    }
-    if (payload?.contactId) {
-      query += ` AND ed.contactId = ?`;
-      params.push(payload.contactId);
-    }
-    if (payload?.status) {
-      query += ` AND ed.status = ?`;
-      params.push(payload.status);
-    }
-    query += ` ORDER BY ed.createdAt DESC LIMIT 100`;
+
     try {
-      return db.prepare(query).all(...params);
+      const sdk = WorkspaceManager.getSdk();
+      const res = await sdk.emailDeliveries.list({
+        campaignId: payload?.campaignId,
+        sequenceId: payload?.sequenceId,
+        status: payload?.status,
+        page: payload?.page || 1,
+        limit: payload?.limit || 100
+      });
+      return res?.data || [];
     } catch {
-      return [];
+      // Fallback to local cache query if API is temporarily unavailable
+      const db = getDatabase(targetWsId);
+      let query = `
+        SELECT ed.*, c.firstName, c.lastName, c.email as contactEmail, comp.name as companyName, camp.name as campaignName
+        FROM email_deliveries ed
+        LEFT JOIN contacts c ON ed.contactId = c.id
+        LEFT JOIN companies comp ON c.companyId = comp.id
+        LEFT JOIN campaigns camp ON ed.campaignId = camp.id
+        WHERE ed.workspaceId = ?
+      `;
+      const params: any[] = [targetWsId];
+      if (payload?.campaignId) {
+        query += ` AND ed.campaignId = ?`;
+        params.push(payload.campaignId);
+      }
+      if (payload?.contactId) {
+        query += ` AND ed.contactId = ?`;
+        params.push(payload.contactId);
+      }
+      if (payload?.status) {
+        query += ` AND ed.status = ?`;
+        params.push(payload.status);
+      }
+      query += ` ORDER BY ed.createdAt DESC LIMIT 100`;
+      try {
+        return db.prepare(query).all(...params);
+      } catch {
+        return [];
+      }
     }
   });
 }

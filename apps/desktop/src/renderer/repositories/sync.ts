@@ -180,7 +180,3 @@ export const SyncSequenceExecutionRepository = new BaseSyncRepository<any>(
   'sequence_executions',
   RemoteSequenceExecutionRepository
 );
-export const SyncSequenceLogRepository = new BaseSyncRepository<any>(
-  'sequence_logs',
-  RemoteSequenceLogRepository
-);

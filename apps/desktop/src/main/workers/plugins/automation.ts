@@ -743,7 +743,15 @@ async function loadEntityData(
   if (entityType === 'contact') {
     try {
       const row = await sdk.contacts.get(entityId);
-      if (row) contact = row;
+      if (row) {
+        contact = row;
+        if (row.companyId) {
+          try {
+            const compRow = await sdk.companies.get(row.companyId);
+            if (compRow) company = compRow;
+          } catch {}
+        }
+      }
     } catch {}
   } else if (entityType === 'company') {
     try {

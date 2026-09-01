@@ -168,6 +168,10 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
     }
 
     // F. Contact Intelligence
+    let contactsAttempted = contactIntels.length;
+    let contactsPersisted = 0;
+    let contactsFailed = 0;
+
     for (const ci of contactIntels) {
       try {
         await sdk.intelligence.createContactIntel({
@@ -178,12 +182,15 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
           personalizationOpportunities: ci.personalizationOpportunities || [],
           relationshipStrength: ci.relationshipStrength
         });
+        contactsPersisted++;
       } catch (err) {
-        ctx.emitLog(`Failed to persist contact intelligence: ${err}`, 'warn');
+        contactsFailed++;
+        ctx.emitLog(`Failed to persist contact intelligence for ${(ci as any).contactId}: ${err}`, 'warn');
       }
     }
 
     // G. Opportunity Scores
+    let scorePersisted = false;
     try {
       await sdk.intelligence.createOpportunityScore({
         id: generateEntityId(),
@@ -196,21 +203,28 @@ export async function executeIntelligenceEnrichment(ctx: JobContext): Promise<an
         explanation: opportunityScore.explanation,
         provenance: { details: opportunityScore.provenance || [] }
       });
+      scorePersisted = true;
     } catch (err) {
       ctx.emitLog(`Failed to persist opportunity score: ${err}`, 'warn');
     }
 
+    const outcome = contactsFailed === 0 && scorePersisted ? 'SUCCESS' : scorePersisted ? 'PARTIAL_SUCCESS' : 'FAILED';
+
     ctx.updateProgress(100, {
-      description: 'Grounded intelligence enrichment successfully persisted to MongoDB via API.'
+      description: `Intelligence enrichment finished (${outcome}). Score: ${opportunityScore.overallScore}% | Contacts updated: ${contactsPersisted}/${contactsAttempted}`
     });
     ctx.emitLog(
-      `Lead Intelligence enrichment completed for Company: ${companyId}. Honest Score: ${opportunityScore.overallScore}%`,
-      'info'
+      `Lead Intelligence enrichment completed for Company: ${companyId} (Outcome: ${outcome}). Contacts enriched: ${contactsPersisted}/${contactsAttempted}, Score: ${opportunityScore.overallScore}%`,
+      outcome === 'FAILED' ? 'warn' : 'info'
     );
 
     return {
-      success: true,
+      success: outcome !== 'FAILED',
+      outcome,
       overallScore: opportunityScore.overallScore,
+      contactsAttempted,
+      contactsPersisted,
+      contactsFailed,
       aiInsights
     };
   } catch (err: any) {

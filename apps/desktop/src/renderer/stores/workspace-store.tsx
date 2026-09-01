@@ -91,24 +91,24 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const setWorkspaces = useCallback(
     (workspaces: Workspace[], active: Workspace | null) => {
       dispatch({ type: 'WORKSPACES_LOADED', payload: { workspaces, active } });
-      if (state.activeWorkspace?.id !== active?.id) {
-        WorkspaceService.syncActiveWorkspace(active?.id || null);
-      }
     },
-    [state.activeWorkspace]
+    []
   );
 
   const switchWorkspace = useCallback(
     async (workspace: Workspace) => {
       const workspaceId = workspace.id || null;
 
-      // 1. Sync token to main process headers and config storage
+      // 1. Cancel in-flight queries before switching workspace
+      await queryClient.cancelQueries();
+
+      // 2. Sync token to main process headers and runtime manager
       await WorkspaceService.syncActiveWorkspace(workspaceId);
 
-      // 2. Commit to react state
+      // 3. Commit to react state
       dispatch({ type: 'WORKSPACE_SWITCHED', payload: workspace });
 
-      // 3. Clear all cached data across all queries to prevent leakages
+      // 4. Clear all cached data across all queries to prevent cross-workspace leakages
       await queryClient.resetQueries();
     },
     [queryClient]

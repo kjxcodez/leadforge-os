@@ -13,6 +13,29 @@ interface QueueItem {
 }
 
 /**
+ * Normalizes raw extracted phone strings into canonical E.164 format.
+ */
+function normalizePhone(raw: string | null | undefined): string | undefined {
+  if (!raw) return undefined;
+  const trimmed = raw.trim();
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return undefined;
+  if (digits.length === 10) {
+    return `+1${digits}`;
+  }
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `+${digits}`;
+  }
+  if (trimmed.startsWith('+') && digits.length >= 7 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+  if (digits.length >= 7 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+  return undefined;
+}
+
+/**
  * Basic RFC 5322-compliant syntax validator with strict length boundaries.
  */
 function validateEmailFormat(email: string): boolean {
@@ -238,6 +261,9 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
   let currentDepth = 0;
   let pagesCrawled = 0;
   const contactsFound = new Set<string>();
+  let contactsExtracted = 0;
+  let contactsPersisted = 0;
+  let contactsRejected = 0;
 
   if (checkpoint) {
     checkpoint.visitedUrls?.forEach((u: string) => visitedUrls.add(u));
@@ -399,13 +425,15 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
               bodyPhones.forEach((p) => pagePhones.add(p.trim()));
             }
 
-            const extractedPhone = pagePhones.size > 0 ? Array.from(pagePhones)[0] : null;
+            const rawExtractedPhone = pagePhones.size > 0 ? Array.from(pagePhones)[0] : null;
+            const normalizedPhone = normalizePhone(rawExtractedPhone);
 
             // Persist discovered contacts authoritatively via API/MongoDB
             for (const email of pageEmails) {
               if (!validateEmailFormat(email) || isNoiseEmail(email)) continue;
               if (contactsFound.has(email)) continue;
               contactsFound.add(email);
+              contactsExtracted++;
 
               const { type, confidence } = classifyEmail(email);
               const { firstName, lastName } = extractNameFromEmail(email, type);
@@ -418,12 +446,14 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
                   firstName: firstName || 'Discovered',
                   lastName: lastName || undefined,
                   email,
-                  phone: extractedPhone || undefined,
+                  phone: normalizedPhone,
                   status: ContactStatus.NEW,
                   source: 'web_crawler'
                 });
+                contactsPersisted++;
                 ctx.emitLog(`Persisted contact via API: ${email} (${contactId})`, 'info');
               } catch (contactErr) {
+                contactsRejected++;
                 ctx.emitLog(`Failed to persist contact ${email}: ${contactErr}`, 'warn');
               }
             }
@@ -468,10 +498,26 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
       await Promise.all(tasks);
     }
 
+    let outcome = 'SUCCESS';
+    if (contactsPersisted === 0 && contactsExtracted > 0) {
+      outcome = 'FAILED';
+    } else if (contactsRejected > 0) {
+      outcome = 'PARTIAL_SUCCESS';
+    }
+
     ctx.emitLog(
-      `Crawl completed successfully. Processed pages: ${pagesCrawled} | Contacts found: ${contactsFound.size}`,
-      'info'
+      `Crawl completed with outcome "${outcome}". Processed pages: ${pagesCrawled} | Contacts extracted: ${contactsExtracted} | Persisted: ${contactsPersisted} | Rejected: ${contactsRejected}`,
+      outcome === 'FAILED' ? 'warn' : 'info'
     );
+
+    return {
+      status: 'completed',
+      outcome,
+      pagesCrawled,
+      contactsExtracted,
+      contactsPersisted,
+      contactsRejected
+    };
   } catch (err: any) {
     if (err.message !== 'Job paused.' && err.message !== 'Job cancelled.') {
       throw err;

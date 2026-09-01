@@ -4,6 +4,7 @@ import { saveSession, loadSession, clearSession } from '../lib/session';
 import { performGoogleOAuth } from '../lib/google-oauth';
 import { detectChrome } from '../lib/chrome-detect';
 import { AppLogger } from '../lib/logger';
+import { ConnectivityService } from '../services/connectivity-service';
 
 /**
  * Registers authentication and API test IPC channels.
@@ -162,10 +163,21 @@ export function registerAuthIpc(
     return { success: true };
   });
 
+  safeRegister('system:connectivity-status', async () => {
+    return ConnectivityService.getState();
+  });
+
+  safeRegister('system:connectivity-check', async () => {
+    const savedWorkspaceId = getPersistedActiveWorkspace();
+    return ConnectivityService.recoverConnection(sdk, savedWorkspaceId);
+  });
+
   safeRegister('system:status', async () => {
+    const connState = ConnectivityService.getState();
+    const isOnline = connState.status === 'ONLINE';
     return [
-      { name: 'API Server', status: 'online' },
-      { name: 'Database', status: 'connected' }
+      { name: 'API Server', status: isOnline ? 'online' : 'offline' },
+      { name: 'Database', status: isOnline ? 'connected' : 'disconnected' }
     ];
   });
 

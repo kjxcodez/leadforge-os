@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { CampaignStatus } from '@leadforge/schema';
 import { useWorkspace } from '../hooks/useWorkspace';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -572,7 +573,7 @@ export default function CampaignsScreen() {
         sendingAccountId: campAccId,
         dailyLimit: campLimit,
         timezone: campTimezone,
-        status: 'Active'
+        status: 'ACTIVE'
       });
 
       // 3. Resolve Audience & Enroll Contacts
@@ -643,26 +644,27 @@ export default function CampaignsScreen() {
   });
 
   const getCampaignStatusBadge = (status: string) => {
-    switch (status) {
-      case 'Active':
+    const s = (status || '').toUpperCase();
+    switch (s) {
+      case 'ACTIVE':
         return (
           <Badge className="bg-success-muted text-success border border-success/20 text-[9px] font-bold px-2 rounded-none">
             Active
           </Badge>
         );
-      case 'Paused':
+      case 'PAUSED':
         return (
           <Badge className="bg-warning-muted text-warning border border-warning/20 text-[9px] font-semibold px-2 rounded-none">
             Paused
           </Badge>
         );
-      case 'Completed':
+      case 'COMPLETED':
         return (
           <Badge className="bg-info-muted text-info border border-info/20 text-[9px] font-semibold px-2 rounded-none">
             Completed
           </Badge>
         );
-      case 'Archived':
+      case 'ARCHIVED':
         return (
           <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[9px] font-semibold px-2 rounded-none">
             Archived
@@ -941,14 +943,14 @@ export default function CampaignsScreen() {
                               onClick={(e) => e.stopPropagation()}
                             >
                               <div className="flex justify-end gap-1.5">
-                                {camp.status === 'Paused' || camp.status === 'Draft' ? (
+                                {camp.status?.toUpperCase() === 'PAUSED' || camp.status?.toUpperCase() === 'DRAFT' ? (
                                   <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() =>
                                       updateCampaignStatusMutation.mutate({
                                         id: camp.id,
-                                        status: 'Active'
+                                        status: CampaignStatus.ACTIVE
                                       })
                                     }
                                     className="h-7 text-success hover:bg-success-muted gap-0.5 rounded-none"
@@ -956,14 +958,14 @@ export default function CampaignsScreen() {
                                     <Play className="h-3 w-3" />
                                     Resume
                                   </Button>
-                                ) : camp.status === 'Active' ? (
+                                ) : camp.status?.toUpperCase() === 'ACTIVE' ? (
                                   <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() =>
                                       updateCampaignStatusMutation.mutate({
                                         id: camp.id,
-                                        status: 'Paused'
+                                        status: CampaignStatus.PAUSED
                                       })
                                     }
                                     className="h-7 text-warning hover:bg-warning-muted gap-0.5 rounded-none"
@@ -1069,14 +1071,14 @@ export default function CampaignsScreen() {
                     </Button>
 
                     <div className="flex items-center gap-2">
-                      {campaign.status === 'Active' ? (
+                      {campaign.status?.toUpperCase() === 'ACTIVE' ? (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() =>
                             updateCampaignStatusMutation.mutate({
                               id: campaign.id,
-                              status: 'Paused'
+                              status: CampaignStatus.PAUSED
                             })
                           }
                           className="h-8 text-[10px] text-warning border-warning/20 gap-1 hover:bg-warning-muted rounded-none"
@@ -1091,7 +1093,7 @@ export default function CampaignsScreen() {
                           onClick={() =>
                             updateCampaignStatusMutation.mutate({
                               id: campaign.id,
-                              status: 'Active'
+                              status: CampaignStatus.ACTIVE
                             })
                           }
                           className="h-8 text-[10px] text-success border-success/20 gap-1 hover:bg-success-muted rounded-none"
@@ -1108,7 +1110,7 @@ export default function CampaignsScreen() {
                           if (confirm('Archive this campaign?')) {
                             updateCampaignStatusMutation.mutate({
                               id: campaign.id,
-                              status: 'Archived'
+                              status: CampaignStatus.COMPLETED
                             });
                           }
                         }}

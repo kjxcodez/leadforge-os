@@ -135,6 +135,13 @@ export class CacheHydrator {
           const res = await sdk.discovery.listRuns();
           return Array.isArray(res) ? res : (res as any)?.data || [];
         }
+      },
+      {
+        table: 'company_discovery_runs',
+        fetch: async () => {
+          const res = await sdk.companyDiscoveryRuns.list();
+          return Array.isArray(res) ? res : (res as any)?.data || [];
+        }
       }
     ];
 
@@ -223,6 +230,7 @@ export class CacheHydrator {
       else if (table === 'email_accounts') list = await sdk.outreach.listAccounts();
       else if (table === 'audiences') list = await sdk.audiences.list();
       else if (table === 'discovery_runs') list = await sdk.discovery.listRuns();
+      else if (table === 'company_discovery_runs') list = await sdk.companyDiscoveryRuns.list();
 
       if (Array.isArray(list) && list.length > 0) {
         const records = list.map((item: any) => ({

@@ -146,8 +146,8 @@ export function registerCrmIpc() {
     }
 
     if (source) {
-      conditions.push('(c.source LIKE ? OR c.sourcePlatform LIKE ?)');
-      params.push(`%${source}%`, `%${source}%`);
+      conditions.push('c.source LIKE ?');
+      params.push(`%${source}%`);
     }
 
     query += ' WHERE ' + conditions.join(' AND ') + ' ORDER BY c.createdAt DESC';
@@ -182,15 +182,13 @@ export function registerCrmIpc() {
     if (!workspaceId) throw new Error('workspaceId is required.');
     const db = getDatabase(workspaceId);
     const titleRows = db.prepare(`SELECT DISTINCT title FROM contacts WHERE workspaceId = ? AND deletedAt IS NULL AND title IS NOT NULL AND title != '' ORDER BY title ASC`).all(workspaceId) as Array<{ title: string }>;
-    const sourceRows = db.prepare(`SELECT DISTINCT source FROM contacts WHERE workspaceId = ? AND deletedAt IS NULL AND source IS NOT NULL AND source != ''`).all(workspaceId) as Array<{ source: string }>;
-    const platformRows = db.prepare(`SELECT DISTINCT sourcePlatform FROM contacts WHERE workspaceId = ? AND deletedAt IS NULL AND sourcePlatform IS NOT NULL AND sourcePlatform != ''`).all(workspaceId) as Array<{ sourcePlatform: string }>;
+    const sourceRows = db.prepare(`SELECT DISTINCT source FROM contacts WHERE workspaceId = ? AND deletedAt IS NULL AND source IS NOT NULL AND source != '' ORDER BY source ASC`).all(workspaceId) as Array<{ source: string }>;
 
     const set = new Set<string>();
     sourceRows.forEach((r) => set.add(r.source));
-    platformRows.forEach((r) => set.add(r.sourcePlatform));
 
     if (set.size === 0) {
-      ['google_maps', 'linkedin', 'crawler', 'manual'].forEach((s) => set.add(s));
+      ['google_maps', 'web_crawler', 'linkedin', 'manual'].forEach((s) => set.add(s));
     }
 
     return {
@@ -273,21 +271,22 @@ export function registerCrmIpc() {
       campaign.pausedCount = stats.paused;
       campaign.completedCount = stats.completed;
 
-      // Auto-calculate campaign status unless it's explicitly 'Draft' or 'Archived'
-      if (campaign.status !== 'Draft' && campaign.status !== 'Archived') {
+      // Auto-calculate campaign status unless it's explicitly 'DRAFT' or 'ARCHIVED'
+      const upperStatus = String(campaign.status || '').toUpperCase();
+      if (upperStatus !== 'DRAFT' && upperStatus !== 'ARCHIVED') {
         if (stats.total === 0) {
-          campaign.status = 'Draft';
+          campaign.status = 'DRAFT';
         } else if (stats.running > 0 || stats.waiting > 0) {
-          campaign.status = 'Active';
+          campaign.status = 'ACTIVE';
         } else if (stats.paused > 0) {
-          campaign.status = 'Paused';
+          campaign.status = 'PAUSED';
         } else if (
           stats.total > 0 &&
           stats.completed + stats.replied + stats.failed === stats.total
         ) {
-          campaign.status = 'Completed';
+          campaign.status = 'COMPLETED';
         } else {
-          campaign.status = campaign.status || 'Draft';
+          campaign.status = upperStatus || 'DRAFT';
         }
 
         // Save the updated status to the database so it's persisted
@@ -313,12 +312,12 @@ export function registerCrmIpc() {
         `
       SELECT 
         COUNT(id) as total,
-        SUM(CASE WHEN status IN ('running', 'queued', 'starting') THEN 1 ELSE 0 END) as running,
-        SUM(CASE WHEN status = 'waiting' THEN 1 ELSE 0 END) as waiting,
-        SUM(CASE WHEN status IN ('replied', 'REPLIED') THEN 1 ELSE 0 END) as replied,
-        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
-        SUM(CASE WHEN status = 'paused' THEN 1 ELSE 0 END) as paused,
-        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
+        SUM(CASE WHEN UPPER(status) IN ('RUNNING', 'QUEUED', 'STARTING') THEN 1 ELSE 0 END) as running,
+        SUM(CASE WHEN UPPER(status) = 'WAITING' THEN 1 ELSE 0 END) as waiting,
+        SUM(CASE WHEN UPPER(status) = 'REPLIED' THEN 1 ELSE 0 END) as replied,
+        SUM(CASE WHEN UPPER(status) = 'FAILED' THEN 1 ELSE 0 END) as failed,
+        SUM(CASE WHEN UPPER(status) = 'PAUSED' THEN 1 ELSE 0 END) as paused,
+        SUM(CASE WHEN UPPER(status) = 'COMPLETED' THEN 1 ELSE 0 END) as completed
       FROM sequence_executions
       WHERE campaignId = ? AND deletedAt IS NULL
     `
@@ -367,9 +366,13 @@ export function registerCrmIpc() {
   safeRegister('campaigns:create', async (_event, record) => {
     if (!record.workspaceId) throw new Error('workspaceId is required.');
     const sdk = WorkspaceManager.getSdk();
+    const rawStatus = record.status ? String(record.status).toUpperCase() : 'DRAFT';
+    const validStatus = ['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED'].includes(rawStatus)
+      ? rawStatus
+      : 'DRAFT';
     const payload = {
       ...record,
-      status: record.status || 'Draft'
+      status: validStatus
     };
     const created = await sdk.campaigns.create(payload);
     await LocalCRMRepository.saveFromServer('campaigns', created);
@@ -380,7 +383,16 @@ export function registerCrmIpc() {
     const workspaceId = dto.workspaceId || dto.workspace_id;
     if (!workspaceId) throw new Error('workspaceId is required.');
     const sdk = WorkspaceManager.getSdk();
-    const updated = await sdk.campaigns.update(id, dto);
+    const rawStatus = dto.status ? String(dto.status).toUpperCase() : undefined;
+    const validStatus =
+      rawStatus && ['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED'].includes(rawStatus)
+        ? rawStatus
+        : rawStatus;
+    const payload = {
+      ...dto,
+      ...(validStatus ? { status: validStatus } : {})
+    };
+    const updated = await sdk.campaigns.update(id, payload);
     await LocalCRMRepository.saveFromServer('campaigns', updated);
     return updated;
   });
@@ -495,15 +507,15 @@ export function registerCrmIpc() {
     if (!workspaceId) throw new Error('workspaceId is required.');
     if (!companyId) throw new Error('companyId is required.');
 
-    const db = getDatabase(workspaceId);
+    const sdk = WorkspaceManager.getSdk();
     const jobId = require('crypto').randomUUID();
 
-    db.prepare(
-      `
-      INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
-      VALUES (?, ?, 'enrich:intelligence', 'queued', 5, ?, 0, 0, 3, datetime('now'), datetime('now'))
-    `
-    ).run(jobId, workspaceId, JSON.stringify({ companyId }));
+    await sdk.jobs.create({
+      id: jobId,
+      type: 'enrich:intelligence',
+      priority: 5,
+      payload: { companyId }
+    });
 
     return { success: true, jobId };
   });

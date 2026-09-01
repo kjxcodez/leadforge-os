@@ -2,8 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkspace } from './useWorkspace';
 import {
   SyncSequenceRepository,
-  SyncSequenceExecutionRepository,
-  SyncSequenceLogRepository
+  SyncSequenceExecutionRepository
 } from '../repositories/sync';
 import { toast } from 'sonner';
 
@@ -65,7 +64,7 @@ export function useSequenceLogs(executionId: string) {
     queryKey: ['sequence_logs', 'list', workspaceId, executionId],
     queryFn: async () => {
       if (!workspaceId || !executionId) return [];
-      return SyncSequenceLogRepository.listAndSync(workspaceId, { executionId });
+      return window.ipc.invoke('execution:logs', executionId);
     },
     enabled: !!workspaceId && !!executionId
   });

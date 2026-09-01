@@ -13,7 +13,7 @@ import Database from 'better-sqlite3';
  *  4. Database can be dropped (rm leadforge_<wsId>.db) and fully recreated without data loss.
  */
 
-export const CACHE_SCHEMA_VERSION = 1;
+export const CACHE_SCHEMA_VERSION = 2;
 
 export const CACHE_TABLES = [
   'workspaces',
@@ -52,6 +52,15 @@ export function initCacheSchema(db: Database.Database): void {
       )
     `).run();
 
+    try {
+      const metaCols = (db.pragma('table_info(cache_metadata)') as Array<{ name: string }>).map((c) => c.name);
+      if (!metaCols.includes('updatedAt')) {
+        db.prepare(`ALTER TABLE cache_metadata ADD COLUMN updatedAt DATETIME`).run();
+      }
+    } catch (err) {
+      console.warn('[CacheSchema] Failed to add updatedAt to cache_metadata:', err);
+    }
+
     // 2. Workspaces Cache
     db.prepare(`
       CREATE TABLE IF NOT EXISTS workspaces (
@@ -65,6 +74,16 @@ export function initCacheSchema(db: Database.Database): void {
         updatedAt DATETIME
       )
     `).run();
+
+    // Ensure plan column exists if table existed from an earlier version
+    try {
+      const wsCols = (db.pragma('table_info(workspaces)') as Array<{ name: string }>).map(
+        (c) => c.name
+      );
+      if (!wsCols.includes('plan')) {
+        db.prepare(`ALTER TABLE workspaces ADD COLUMN plan TEXT DEFAULT 'free'`).run();
+      }
+    } catch {}
 
     // 3. Companies Cache
     db.prepare(`
@@ -405,6 +424,19 @@ export function initCacheSchema(db: Database.Database): void {
       )
     `).run();
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_intel_inf_ws ON intelligence_inferences(workspaceId)`).run();
+
+    // 17. Settings Cache
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS settings (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        key TEXT NOT NULL,
+        value TEXT,
+        createdAt DATETIME,
+        updatedAt DATETIME
+      )
+    `).run();
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_settings_ws ON settings(workspaceId, key)`).run();
 
     // Store schema version in metadata
     db.prepare(`

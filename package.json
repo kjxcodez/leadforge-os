@@ -10,6 +10,7 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
+    "rebuild": "pnpm -F @leadforge/desktop rebuild",
     "doctor": "npx tsx scripts/doctor.ts",
     "test:ai": "npx tsx scripts/test-ai.ts",
     "release:check": "npx tsx scripts/release-check.ts",

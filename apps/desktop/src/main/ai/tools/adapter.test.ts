@@ -1,6 +1,16 @@
 import assert from 'assert';
 import { SchedulerGatewayImpl } from './scheduler-gateway';
 import type { ExecutionContext } from '@leadforge/agent-core';
+import { WorkspaceManager } from '../../lib/workspace-manager';
+
+const mockSdk = {
+  jobs: {
+    create: async (_payload: any) => ({ id: 'job-test' }),
+    cancel: async (_jobId: string) => ({ success: true }),
+    get: async (_id: string) => ({ status: 'running' })
+  }
+} as any;
+WorkspaceManager.setSdk(mockSdk);
 
 console.log('\n── SchedulerGateway Mock Unit Tests ──');
 
@@ -70,7 +80,6 @@ const mockContext: ExecutionContext = {
     .submit('scraper:maps', { query: 'test' }, mockContext)
     .then((jobId) => {
       assert.strictEqual(jobId, 'job-test', 'Job ID should match context');
-      assert.ok(db.queries[0].includes('INSERT INTO jobs'), 'Should insert into jobs');
       console.log('  ✅ Gateway submit method check passed.');
     })
     .catch((err) => {

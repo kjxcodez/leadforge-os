@@ -19,12 +19,11 @@ export function registerSchedulerIpc() {
     if (!workspaceId) throw new Error('workspaceId is required to submit a job.');
     if (!type) throw new Error('type is required to submit a job.');
 
-    const runtime = WorkspaceManager.getActiveRuntime();
-    if (!runtime || runtime.workspaceId !== workspaceId) {
-      throw new Error(`Workspace runtime for "${workspaceId}" is not currently active.`);
-    }
+    const sdk = WorkspaceManager.getActiveRuntime()?.workspaceId === workspaceId
+      ? WorkspaceManager.getActiveRuntime()!.sdk
+      : WorkspaceManager.getSdk();
 
-    const job = await runtime.sdk.jobs.create({
+    const job = await sdk.jobs.create({
       id: params.id,
       type,
       priority,
@@ -45,16 +44,71 @@ export function registerSchedulerIpc() {
     };
   });
 
-  // 2. List all jobs inside a workspace
+  // 2. List queue (jobs + waiting sequence executions)
+  safeRegister('scheduler:queue:list', async (_event, { workspaceId }) => {
+    if (!workspaceId) throw new Error('workspaceId is required to query queue.');
+
+    let jobs: any[] = [];
+    try {
+      const runtime = WorkspaceManager.getActiveRuntime();
+      const sdk =
+        runtime && runtime.workspaceId === workspaceId
+          ? runtime.sdk
+          : WorkspaceManager.getSdk();
+      const result = await sdk.jobs.list({ limit: 100 }).catch(() => ({ data: [] }));
+      jobs = Array.isArray(result?.data) ? result.data : [];
+    } catch {
+      jobs = [];
+    }
+
+    let waiting: any[] = [];
+    try {
+      const { getDatabase } = await import('../database/connection');
+      const db = getDatabase(workspaceId);
+      const rows = db
+        .prepare(
+          `SELECT 
+            se.id, se.sequenceId, se.campaignId, se.contactId, se.companyId,
+            se.status, se.currentStep, se.currentStepName, se.nextExecutionAt,
+            se.createdAt, se.updatedAt,
+            c.firstName, c.lastName, c.email as contactEmail,
+            comp.name as companyName,
+            s.name as sequenceName
+           FROM sequence_executions se
+           LEFT JOIN contacts c ON se.contactId = c.id
+           LEFT JOIN companies comp ON se.companyId = comp.id
+           LEFT JOIN sequences s ON se.sequenceId = s.id
+           WHERE se.workspaceId = ? AND UPPER(se.status) = 'WAITING' AND se.deletedAt IS NULL
+           ORDER BY se.nextExecutionAt ASC LIMIT 50`
+        )
+        .all(workspaceId) as any[];
+      waiting = Array.isArray(rows) ? rows : [];
+    } catch {
+      waiting = [];
+    }
+
+    return {
+      jobs,
+      waiting
+    };
+  });
+
+  // 2b. List all jobs inside a workspace (raw list)
   safeRegister('scheduler:jobs:list', async (_event, { workspaceId }) => {
     if (!workspaceId) throw new Error('workspaceId is required to query jobs.');
     const runtime = WorkspaceManager.getActiveRuntime();
-    if (!runtime || runtime.workspaceId !== workspaceId) {
-      throw new Error(`Workspace runtime for "${workspaceId}" is not currently active.`);
+    if (runtime && runtime.workspaceId === workspaceId) {
+      const result = await runtime.sdk.jobs.list({ limit: 100 }).catch(() => ({ data: [] }));
+      return result.data;
     }
 
-    const result = await runtime.sdk.jobs.list({ limit: 100 });
-    return result.data;
+    try {
+      const sdk = WorkspaceManager.getSdk();
+      const result = await sdk.jobs.list({ limit: 100 }).catch(() => ({ data: [] }));
+      return result.data;
+    } catch {
+      return [];
+    }
   });
 
   // 3. Cancel a running/queued job
@@ -63,12 +117,12 @@ export function registerSchedulerIpc() {
     if (!jobId) throw new Error('jobId is required.');
 
     const runtime = WorkspaceManager.getActiveRuntime();
-    if (!runtime || runtime.workspaceId !== workspaceId) {
-      throw new Error(`Workspace runtime for "${workspaceId}" is not currently active.`);
+    if (runtime && runtime.workspaceId === workspaceId) {
+      await runtime.scheduler.cancelJob(jobId).catch(() => {});
     }
 
-    await runtime.scheduler.cancelJob(jobId);
-    await runtime.sdk.jobs.cancel(jobId).catch(() => {});
+    const sdk = WorkspaceManager.getSdk();
+    await sdk.jobs.cancel(jobId).catch(() => {});
     AppLogger.info('JobScheduler', `Cancelled job "${jobId}" via API.`, workspaceId);
   });
 
@@ -78,12 +132,12 @@ export function registerSchedulerIpc() {
     if (!jobId) throw new Error('jobId is required.');
 
     const runtime = WorkspaceManager.getActiveRuntime();
-    if (!runtime || runtime.workspaceId !== workspaceId) {
-      throw new Error(`Workspace runtime for "${workspaceId}" is not currently active.`);
+    if (runtime && runtime.workspaceId === workspaceId) {
+      await runtime.scheduler.pauseJob(jobId).catch(() => {});
     }
 
-    await runtime.scheduler.pauseJob(jobId);
-    await runtime.sdk.jobs.updateStatus(jobId, { status: 'paused' }).catch(() => {});
+    const sdk = WorkspaceManager.getSdk();
+    await sdk.jobs.updateStatus(jobId, { status: 'paused' }).catch(() => {});
     AppLogger.info('JobScheduler', `Paused job "${jobId}" via API.`, workspaceId);
   });
 
@@ -92,12 +146,8 @@ export function registerSchedulerIpc() {
     if (!workspaceId) throw new Error('workspaceId is required.');
     if (!jobId) throw new Error('jobId is required.');
 
-    const runtime = WorkspaceManager.getActiveRuntime();
-    if (!runtime || runtime.workspaceId !== workspaceId) {
-      throw new Error(`Workspace runtime for "${workspaceId}" is not currently active.`);
-    }
-
-    await runtime.sdk.jobs.updateStatus(jobId, { status: 'queued' });
+    const sdk = WorkspaceManager.getSdk();
+    await sdk.jobs.updateStatus(jobId, { status: 'queued' }).catch(() => {});
     AppLogger.info('JobScheduler', `Resumed job "${jobId}" (queued) via API.`, workspaceId);
   });
 }

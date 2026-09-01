@@ -112,6 +112,16 @@ function normalizePhone(raw: string | null): string | null {
   return clean.length > 0 ? clean : null;
 }
 
+export type DiscoveryOutcome =
+  | 'SUCCESS_WITH_RESULTS'
+  | 'SUCCESS_ZERO_RESULTS'
+  | 'BLOCKED'
+  | 'CAPTCHA'
+  | 'RATE_LIMITED'
+  | 'PROVIDER_FAILURE'
+  | 'EXTRACTION_FAILURE'
+  | 'WORKER_FAILURE';
+
 /**
  * Google Maps Scraper Job Plugin (Phase 7 - API/MongoDB-First).
  * Queries Google Maps listings using Playwright and persists directly via SdkClient.
@@ -156,6 +166,7 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
   let storedCount = 0;
   let skippedCount = 0;
   let duplicatesCount = 0;
+  let outcome: DiscoveryOutcome = 'WORKER_FAILURE';
 
   let browser: Browser | null = null;
   let browserCtx: BrowserContext | null = null;
@@ -181,27 +192,84 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
     ctx.emitLog(`Navigating to Google Maps search: ${searchUrl}`, 'info');
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-    // Handle cookie banners if present
+    // Check for bot detection, captcha, or IP block
+    const pageUrl = page.url();
+    const pageTitle = await page.title().catch(() => '');
+    if (
+      pageUrl.includes('/sorry/') ||
+      pageTitle.toLowerCase().includes('unusual traffic') ||
+      pageTitle.toLowerCase().includes('captcha')
+    ) {
+      outcome = 'CAPTCHA';
+      ctx.emitLog(
+        `Google Maps returned bot detection / CAPTCHA challenge. URL: ${pageUrl} | Title: "${pageTitle}"`,
+        'error'
+      );
+      throw new Error(`Google Maps search blocked by bot detection/CAPTCHA challenge.`);
+    }
+
+    // Handle cookie / consent banners if present
     try {
-      const consentBtn = page.locator('button[aria-label*="Accept all"], button[aria-label*="Agree"]').first();
+      const consentBtn = page.locator('button[aria-label*="Accept all"], button[aria-label*="Agree"], form[action*="consent"] button').first();
       if (await consentBtn.isVisible({ timeout: 3000 })) {
         await consentBtn.click();
+        await page.waitForTimeout(1000);
       }
     } catch {}
 
-    const feedLocator = page.locator('div[role="feed"]');
-    const hasFeed = await feedLocator.isVisible({ timeout: 10000 }).catch(() => false);
+    // Multi-selector feed resolution
+    const feedSelectors = [
+      'div[role="feed"]',
+      'div.m6QErb[aria-label*="Results"]',
+      'div[aria-label*="Results for"]',
+      'div.m6QErb.DJAybe'
+    ];
 
-    if (!hasFeed) {
-      // Single listing or direct result
-      const isSingleListing = await page.locator('h1').first().isVisible({ timeout: 3000 }).catch(() => false);
-      if (isSingleListing) {
+    let activeFeedSelector: string | null = null;
+    for (const sel of feedSelectors) {
+      const visible = await page.locator(sel).first().isVisible({ timeout: 3000 }).catch(() => false);
+      if (visible) {
+        activeFeedSelector = sel;
+        break;
+      }
+    }
+
+    if (!activeFeedSelector) {
+      // Check if this navigated directly to a single business listing
+      const hasSingleListingHeader = await page
+        .locator('h1.DUwDvf, div.TIHn2 h1, h1.fontHeadlineLarge')
+        .first()
+        .isVisible({ timeout: 3000 })
+        .catch(() => false);
+
+      if (hasSingleListingHeader) {
+        ctx.emitLog('Direct single listing detected. Extracting business details.', 'info');
         await scrapeDetailsAndStore(page.url(), page, sdk, ctx);
+        outcome = storedCount > 0 ? 'SUCCESS_WITH_RESULTS' : 'SUCCESS_ZERO_RESULTS';
       } else {
-        ctx.emitLog('No Google Maps search feed or listing found for query.', 'warn');
+        // Check for explicit zero results indicators
+        const zeroResultsFound = await page
+          .locator('div:has-text("can\'t find"), div:has-text("No results found"), div:has-text("Google Maps can\'t find")')
+          .first()
+          .isVisible({ timeout: 2000 })
+          .catch(() => false);
+
+        if (zeroResultsFound) {
+          outcome = 'SUCCESS_ZERO_RESULTS';
+          ctx.emitLog(`Google Maps returned 0 results for query: "${effectiveQuery}"`, 'info');
+        } else {
+          outcome = 'EXTRACTION_FAILURE';
+          const title = await page.title().catch(() => 'unknown');
+          ctx.emitLog(
+            `Extraction failure: Unable to locate result feed or listing details. Page Title: "${title}" | URL: ${page.url()}`,
+            'error'
+          );
+          throw new Error(`Google Maps feed extraction failure for query "${effectiveQuery}".`);
+        }
       }
     } else {
-      // Scroll feed and extract items
+      // Feed found: scroll and collect place URLs
+      const feedLocator = page.locator(activeFeedSelector).first();
       const seenUrls = new Set<string>();
       let scrollAttempts = 0;
       const MAX_SCROLL_ATTEMPTS = 50;
@@ -212,7 +280,7 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
           break;
         }
 
-        const anchors = await page.locator('div[role="feed"] a[href*="/maps/place/"]').all();
+        const anchors = await page.locator('a[href*="/maps/place/"]').all();
         for (const anchor of anchors) {
           if (seenUrls.size >= maxResults) break;
           const href = await anchor.getAttribute('href').catch(() => null);
@@ -239,42 +307,72 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
 
       ctx.emitLog(`Found ${seenUrls.size} listings to scrape. Beginning detail extraction.`, 'info');
 
-      // Scrape detail pages
-      const urlList = Array.from(seenUrls);
-      for (let i = 0; i < urlList.length; i++) {
-        if (ctx.isCancelled()) {
-          ctx.emitLog('Scraper received cancellation signal during detail extraction.', 'warn');
-          break;
+      if (seenUrls.size === 0) {
+        outcome = 'SUCCESS_ZERO_RESULTS';
+      } else {
+        // Scrape detail pages
+        const urlList = Array.from(seenUrls);
+        for (let i = 0; i < urlList.length; i++) {
+          if (ctx.isCancelled()) {
+            ctx.emitLog('Scraper received cancellation signal during detail extraction.', 'warn');
+            break;
+          }
+
+          const placeUrl = urlList[i];
+          if (!placeUrl) continue;
+          try {
+            await scrapeDetailsAndStore(placeUrl, page, sdk, ctx);
+          } catch (err: any) {
+            ctx.emitLog(`Failed to extract listing details (${placeUrl}): ${err?.message || err}`, 'warn');
+            skippedCount++;
+          }
+
+          const progressPercent = 50 + Math.round(((i + 1) / urlList.length) * 45);
+          ctx.updateProgress(progressPercent, {
+            description: `Extracting details (${i + 1}/${urlList.length})`,
+            current: i + 1,
+            total: urlList.length
+          });
+
+          ctx.saveCheckpoint({
+            lastProcessedIndex: i,
+            storedCount,
+            duplicatesCount
+          });
         }
 
-        const placeUrl = urlList[i];
-        if (!placeUrl) continue;
-        try {
-          await scrapeDetailsAndStore(placeUrl, page, sdk, ctx);
-        } catch (err: any) {
-          ctx.emitLog(`Failed to extract listing details (${placeUrl}): ${err?.message || err}`, 'warn');
-          skippedCount++;
-        }
+        outcome = storedCount > 0 ? 'SUCCESS_WITH_RESULTS' : 'SUCCESS_ZERO_RESULTS';
+      }
+    }
 
-        const progressPercent = 50 + Math.round(((i + 1) / urlList.length) * 45);
-        ctx.updateProgress(progressPercent, {
-          description: `Extracting details (${i + 1}/${urlList.length})`,
-          current: i + 1,
-          total: urlList.length
+    if (discoveryRunId) {
+      try {
+        await sdk.discovery.updateRun(discoveryRunId, {
+          status: 'completed',
+          resultCount: storedCount,
+          finishedAt: new Date().toISOString()
         });
-
-        ctx.saveCheckpoint({
-          lastProcessedIndex: i,
-          storedCount,
-          duplicatesCount
-        });
+      } catch (updErr) {
+        ctx.emitLog(`Failed to update discovery run status: ${updErr}`, 'warn');
       }
     }
 
     ctx.updateProgress(100, { description: `Scrape completed: ${storedCount} stored` });
-    ctx.emitLog(`Google Maps scraper finished. Stored: ${storedCount} | Duplicates: ${duplicatesCount}`, 'info');
+    ctx.emitLog(
+      `Google Maps scraper finished (${outcome}). Stored: ${storedCount} | Duplicates: ${duplicatesCount} | Skipped: ${skippedCount}`,
+      'info'
+    );
   } catch (err: any) {
-    ctx.emitLog(`Google Maps scraper encounter fatal error: ${err?.message || err}`, 'error');
+    if (discoveryRunId) {
+      try {
+        await sdk.discovery.updateRun(discoveryRunId, {
+          status: 'failed',
+          error: err?.message || String(err),
+          finishedAt: new Date().toISOString()
+        });
+      } catch {}
+    }
+    ctx.emitLog(`Google Maps scraper encountered fatal error (${outcome}): ${err?.message || err}`, 'error');
     throw err;
   } finally {
     if (page) await page.close().catch(() => {});
@@ -402,6 +500,7 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
           companyId: createdCompany.id,
           firstName: name,
           phone,
+          source: 'google_maps',
           status: ContactStatus.NEW
         });
       } catch (contactErr) {
@@ -419,6 +518,30 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
           discoveryRunId
         });
       } catch {}
+    }
+
+    // Auto-chain website crawler job if website or domain is present
+    if (website || domain) {
+      try {
+        const crawlUrl = website || `https://${domain}`;
+        const crawlerJobId = generateEntityId();
+        await sdk.jobs.create({
+          id: crawlerJobId,
+          type: 'crawler:website',
+          priority: 2,
+          payload: {
+            companyId: createdCompany.id,
+            website: crawlUrl,
+            discoveryRunId: discoveryRunId || undefined,
+            maxDepth: 2,
+            maxPages: 10
+          },
+          maxRetries: 2
+        });
+        ctx.emitLog(`Auto-chained website crawler for "${name}" -> ${crawlUrl}`, 'info');
+      } catch (crawlErr) {
+        ctx.emitLog(`Failed to enqueue crawler job for ${createdCompany.id}: ${crawlErr}`, 'warn');
+      }
     }
   }
 

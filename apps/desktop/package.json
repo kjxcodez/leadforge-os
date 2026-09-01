@@ -7,6 +7,7 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
+    "rebuild": "electron-builder install-app-deps",
     "build": "node ../../scripts/clean-tsbuildinfo.js && electron-vite build && electron-builder",
     "build:dir": "node ../../scripts/clean-tsbuildinfo.js && electron-vite build && electron-builder --dir",
     "package": "node ../../scripts/clean-tsbuildinfo.js && pnpm -r build && electron-vite build && electron-builder",

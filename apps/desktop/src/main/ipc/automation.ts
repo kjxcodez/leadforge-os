@@ -168,22 +168,7 @@ export function registerAutomationIpc(sdk: SdkClient) {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
 
-    // 1. Query local SQLite sequence_logs table first
-    try {
-      const stmtLogs = runtime.sqliteDb.prepare(`
-        SELECT * FROM sequence_logs
-        WHERE workspaceId = ? AND executionId = ?
-        ORDER BY timestamp ASC
-      `);
-      const localLogs = stmtLogs.all(runtime.workspaceId, id);
-      if (localLogs && localLogs.length > 0) {
-        return localLogs;
-      }
-    } catch (err) {
-      console.warn('[IPC] Error querying local sequence_logs:', err);
-    }
-
-    // 2. Fallback to parsing embedded logs column on sequence_executions record
+    // 1. Read embedded logs column from cached sequence_executions record
     const execRecord = await LocalCRMRepository.findById(
       'sequence_executions',
       runtime.workspaceId,
@@ -197,7 +182,7 @@ export function registerAutomationIpc(sdk: SdkClient) {
       } catch {}
     }
 
-    // 3. Fallback to remote SDK if offline cache is empty
+    // 2. Fallback to authoritative remote SDK
     try {
       return await sdk.executions.getLogs(id);
     } catch {

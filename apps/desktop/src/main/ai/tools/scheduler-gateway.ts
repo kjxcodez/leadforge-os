@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto';
 import type Database from 'better-sqlite3';
-import type { LocalEventBus } from '../../lib/event-bus';
+import type { LocalEventBus, AppEvent } from '../../lib/event-bus';
 import type { SchedulerGateway, ToolResult, ExecutionContext } from '@leadforge/agent-core';
+import { WorkspaceManager } from '../../lib/workspace-manager';
 
 export class SchedulerGatewayImpl implements SchedulerGateway {
   private readonly db: Database.Database;
@@ -13,7 +14,7 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
   }
 
   /**
-   * Submits a background worker task and returns the queued Job ID immediately.
+   * Submits a background worker task via SdkClient and returns the queued Job ID immediately.
    */
   public async submit(
     jobType: string,
@@ -21,17 +22,24 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
     context: ExecutionContext
   ): Promise<string> {
     const jobId = context.jobId || randomUUID();
+    const sdk = WorkspaceManager.getSdk();
 
-    this.db
-      .prepare(
-        `
-      INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
-      VALUES (?, ?, ?, 'queued', 5, ?, 0, 0, 3, datetime('now'), datetime('now'))
-    `
-      )
-      .run(jobId, context.workspaceId, jobType, JSON.stringify(payload || {}));
+    await sdk.jobs.create({
+      id: jobId,
+      type: jobType,
+      priority: 5,
+      payload: (payload || {}) as Record<string, unknown>
+    });
 
     return jobId;
+  }
+
+  /**
+   * Cancels a queued or running background job.
+   */
+  public async cancel(jobId: string, _workspaceId: string): Promise<void> {
+    const sdk = WorkspaceManager.getSdk();
+    await sdk.jobs.cancel(jobId);
   }
 
   /**
@@ -53,7 +61,7 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
         success: false,
         error: {
           code: 'SCHEDULER_ERROR',
-          message: `Database submission failed: ${dbErr.message}`,
+          message: `Job submission failed: ${dbErr.message}`,
           isRetryable: true
         },
         metadata: {
@@ -76,9 +84,9 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
       let unsubscribeCancelled: () => void;
 
       const cleanup = () => {
-        unsubscribeCompleted();
-        unsubscribeFailed();
-        unsubscribeCancelled();
+        if (unsubscribeCompleted) unsubscribeCompleted();
+        if (unsubscribeFailed) unsubscribeFailed();
+        if (unsubscribeCancelled) unsubscribeCancelled();
       };
 
       const timeoutMs = 600_000; // 10 minute safeguard timeout
@@ -156,13 +164,13 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
         });
       }
 
-      unsubscribeCompleted = this.eventBus.subscribe('job:completed', (event) => {
-        if (event.payload.jobId === jobId) {
+      unsubscribeCompleted = this.eventBus.subscribe('job:completed', (event: AppEvent) => {
+        if (event.payload?.jobId === jobId) {
           clearTimeout(timeoutTimer);
           cleanup();
           resolve({
             success: true,
-            data: event.payload.result as TOutput,
+            data: event.payload?.result as TOutput,
             metadata: {
               startedAt,
               completedAt: new Date().toISOString(),
@@ -178,16 +186,16 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
         }
       });
 
-      unsubscribeFailed = this.eventBus.subscribe('job:failed', (event) => {
-        if (event.payload.jobId === jobId) {
+      unsubscribeFailed = this.eventBus.subscribe('job:failed', (event: AppEvent) => {
+        if (event.payload?.jobId === jobId) {
           clearTimeout(timeoutTimer);
           cleanup();
           resolve({
             success: false,
             error: {
               code: 'WORKER_ERROR',
-              message: event.payload.error || 'Worker execution failed',
-              isRetryable: true
+              message: event.payload?.error || 'Job failed without an explicit error message.',
+              isRetryable: false
             },
             metadata: {
               startedAt,
@@ -204,15 +212,15 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
         }
       });
 
-      unsubscribeCancelled = this.eventBus.subscribe('job:cancelled', (event) => {
-        if (event.payload.jobId === jobId) {
+      unsubscribeCancelled = this.eventBus.subscribe('job:cancelled', (event: AppEvent) => {
+        if (event.payload?.jobId === jobId) {
           clearTimeout(timeoutTimer);
           cleanup();
           resolve({
             success: false,
             error: {
               code: 'CANCELLED_BY_USER',
-              message: 'Job was cancelled.',
+              message: 'Job was cancelled before completion.',
               isRetryable: false
             },
             metadata: {
@@ -233,37 +241,11 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
   }
 
   /**
-   * Cancels a queued or running background job.
-   */
-  public async cancel(jobId: string, workspaceId: string): Promise<void> {
-    try {
-      const { WorkspaceManager } = require('../../lib/workspace-manager');
-      const runtime = WorkspaceManager.getActiveRuntime();
-      if (runtime && runtime.workspaceId === workspaceId) {
-        await runtime.scheduler.cancelJob(jobId);
-        return;
-      }
-    } catch {
-      // workspace manager not initialized or other shell error
-    }
-
-    this.db
-      .prepare(
-        `
-      UPDATE jobs
-      SET status = 'cancelled', finishedAt = datetime('now'), updatedAt = datetime('now')
-      WHERE id = ?
-    `
-      )
-      .run(jobId);
-  }
-
-  /**
    * Queries the current status of a background job.
    */
   public async status(
     jobId: string,
-    workspaceId: string
+    _workspaceId: string
   ): Promise<
     | 'queued'
     | 'running'
@@ -276,9 +258,12 @@ export class SchedulerGatewayImpl implements SchedulerGateway {
     | 'interrupted'
     | 'unknown'
   > {
-    const row = this.db
-      .prepare('SELECT status FROM jobs WHERE id = ? AND workspaceId = ?')
-      .get(jobId, workspaceId) as { status: string } | undefined;
-    return (row?.status as any) || 'unknown';
+    try {
+      const sdk = WorkspaceManager.getSdk();
+      const job = await sdk.jobs.get(jobId);
+      return (job?.status as any) || 'unknown';
+    } catch {
+      return 'unknown';
+    }
   }
 }
