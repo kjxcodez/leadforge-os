@@ -85,20 +85,21 @@ export function registerDiscoveryIpc() {
     return LocalCRMRepository.findById('discovery_runs', workspaceId, id);
   });
 
-  safeRegister('discovery:run:companies', async (_event, { workspaceId, runId }) => {
+  safeRegister('discovery:run:companies', async (_event, { workspaceId, runId, forceSync }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     if (!runId) throw new Error('runId is required.');
 
     const connState = ConnectivityService.getState();
     const isOnline = connState.status === 'ONLINE';
 
-    if (isOnline) {
+    // Only do a full MongoDB reconcile when explicitly requested (e.g. after a job completes).
+    // Regular polling reads from the local SQLite projection to avoid a reconcile→broadcast→refetch loop.
+    if (isOnline && forceSync) {
       const sdk = WorkspaceManager.getSdk();
-      // Authoritatively reconcile companies and links from MongoDB
       return await ProjectionService.reconcileDiscoveryRun(workspaceId, runId, sdk);
     }
 
-    // Offline / degraded fallback: query existing projected SQLite rows
+    // Default: serve from the existing SQLite projection (fast, no broadcast side-effect)
     const db = getDatabase(workspaceId);
     const rows = db
       .prepare(

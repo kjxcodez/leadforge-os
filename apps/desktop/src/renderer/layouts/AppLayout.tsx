@@ -49,15 +49,24 @@ export function AppLayout() {
     }
   }, [activeWorkspace]);
 
-  // Invalidate all queries when a sync completes or connection is recovered
+  // Invalidate all queries when a sync completes or connection is recovered.
+  // Debounced to 500 ms to prevent rapid-fire sync:completed events (e.g. from a
+  // scraper job streaming progress) from cascading back into a reconciliation loop.
   useEffect(() => {
     const workspaceId = activeWorkspace?.id;
     if (!workspaceId) return;
 
-    const unsubscribeSync = window.ipc.on('sync:completed', () => {
-      console.log('[Renderer] Sync completed — invalidating queries.');
-      queryClient.invalidateQueries();
-    });
+    let syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const debouncedInvalidate = () => {
+      if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
+      syncDebounceTimer = setTimeout(() => {
+        console.log('[Renderer] Sync completed — invalidating queries.');
+        queryClient.invalidateQueries();
+      }, 500);
+    };
+
+    const unsubscribeSync = window.ipc.on('sync:completed', debouncedInvalidate);
 
     const unsubscribeConn = window.ipc.on('system:connectivity-changed' as any, (state: any) => {
       if (state?.status === 'ONLINE') {
@@ -67,6 +76,7 @@ export function AppLayout() {
     });
 
     return () => {
+      if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
       unsubscribeSync();
       unsubscribeConn();
     };
