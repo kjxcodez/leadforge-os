@@ -21,6 +21,7 @@ export interface LogRecord {
  */
 class AppLoggerClass {
   private logDir: string = '';
+  private memoryLogs: LogRecord[] = [];
 
   constructor() {
     try {
@@ -64,6 +65,12 @@ class AppLoggerClass {
       timestamp
     };
 
+    // 0. In-memory circular buffer
+    this.memoryLogs.push(record);
+    if (this.memoryLogs.length > 500) {
+      this.memoryLogs.shift();
+    }
+
     // 1. Standard Streams
     const consoleMsg = `[${timestamp}] [${record.severity.toUpperCase()}] [${record.task}] ${record.message}`;
     if (record.severity === 'error') {
@@ -86,7 +93,35 @@ class AppLoggerClass {
       }
     }
 
-    // 4. IPC Broadcast to Renderer BrowserWindow
+    // 3. Dev Mode event stream
+    try {
+      const { logDevModeEvent } = require('../ipc/observability-ipc');
+      if (typeof logDevModeEvent === 'function') {
+        logDevModeEvent('LOG', `[${record.severity.toUpperCase()}] [${record.task}] ${record.message}`, record);
+      }
+    } catch {}
+
+    // 4. Asynchronously append to authoritative MongoDB system-logs
+    if (workspaceId && workspaceId !== 'global') {
+      try {
+        const { WorkspaceManager } = require('./workspace-manager');
+        const sdk = WorkspaceManager.getSdk();
+        if (sdk && typeof sdk.systemLogs?.append === 'function') {
+          sdk.systemLogs
+            .append({
+              workspaceId,
+              severity: record.severity,
+              task: record.task,
+              message: record.message,
+              durationMs: record.durationMs || undefined,
+              metadata: record.metadata || undefined
+            })
+            .catch(() => {});
+        }
+      } catch {}
+    }
+
+    // 5. IPC Broadcast to Renderer BrowserWindow
     try {
       BrowserWindow.getAllWindows().forEach((win) => {
         if (!win.isDestroyed()) {
@@ -96,6 +131,14 @@ class AppLoggerClass {
     } catch (err) {
       // IPC window context not yet active
     }
+  }
+
+  public getRecentLogs(workspaceId?: string, limit = 100): LogRecord[] {
+    let logs = this.memoryLogs;
+    if (workspaceId && workspaceId !== 'global') {
+      logs = logs.filter((l) => l.workspaceId === workspaceId || l.workspaceId === 'global');
+    }
+    return logs.slice(-limit).reverse();
   }
 
   public info(task: string, message: string, workspaceId?: string, metadata?: any): void {

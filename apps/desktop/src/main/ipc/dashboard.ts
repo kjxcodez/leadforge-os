@@ -126,7 +126,10 @@ export function registerDashboardIpc(): void {
     const sdk = WorkspaceManager.getSdk();
 
     try {
-      const logs = await sdk.systemLogs.listRecent(limit).catch(() => []);
+      let logs = await sdk.systemLogs.listRecent(limit).catch(() => []);
+      if (!Array.isArray(logs) || logs.length === 0) {
+        logs = AppLogger.getRecentLogs(workspaceId, limit);
+      }
 
       return (logs || []).map((l: any) => ({
         id: l.id || l._id || Math.random().toString(),
@@ -134,11 +137,20 @@ export function registerDashboardIpc(): void {
         type: l.severity || l.category || 'info',
         message: l.message || 'Operation executed',
         timestamp: l.timestamp || l.createdAt || new Date().toISOString(),
-        entity: l.context?.service || 'system',
+        entity: l.task || l.context?.service || 'system',
         status: l.severity === 'error' || l.severity === 'fatal' ? 'error' : 'success'
       }));
     } catch {
-      return [];
+      const localLogs = AppLogger.getRecentLogs(workspaceId, limit);
+      return (localLogs || []).map((l: any) => ({
+        id: l.id,
+        log_type: 'system',
+        type: l.severity || 'info',
+        message: l.message,
+        timestamp: l.timestamp,
+        entity: l.task || 'system',
+        status: l.severity === 'error' ? 'error' : 'success'
+      }));
     }
   });
 

@@ -26,28 +26,42 @@ export function logDevModeEvent(type: string, message: string, meta?: any) {
 }
 
 export function registerObservabilityIpc() {
-  // Query structured system logs via SdkClient
+  // Query dev-mode in-memory logs
+  safeRegister('dev-mode:log', async (_event, { limit = 100 } = {}) => {
+    return devModeEvents.slice(-limit).reverse();
+  });
+
+  // Query structured system logs via SdkClient with local fallback
   safeRegister(
     'system-logs:query',
     async (_event, { workspaceId, query, severity, limit = 100 }) => {
       if (!workspaceId) throw new Error('workspaceId is required.');
-      const sdk = WorkspaceManager.getSdk();
+      let logs: any[] = [];
       try {
-        const logs = await sdk.systemLogs.listRecent(limit, severity !== 'all' ? severity : undefined);
-        let result = logs || [];
-        if (query) {
-          const q = query.toLowerCase();
-          result = result.filter(
-            (l: any) =>
-              (l.message && l.message.toLowerCase().includes(q)) ||
-              (l.task && l.task.toLowerCase().includes(q))
-          );
-        }
-        return result;
+        const sdk = WorkspaceManager.getSdk();
+        const apiLogs = await sdk.systemLogs.listRecent(limit, severity !== 'all' ? severity : undefined);
+        logs = Array.isArray(apiLogs) ? apiLogs : [];
       } catch (err) {
-        console.warn('[IPC] Error fetching system logs via SDK:', err);
-        return [];
+        logs = [];
       }
+
+      if (logs.length === 0) {
+        logs = AppLogger.getRecentLogs(workspaceId, limit);
+        if (severity && severity !== 'all') {
+          logs = logs.filter((l: any) => l.severity === severity);
+        }
+      }
+
+      let result = logs || [];
+      if (query) {
+        const q = query.toLowerCase();
+        result = result.filter(
+          (l: any) =>
+            (l.message && l.message.toLowerCase().includes(q)) ||
+            (l.task && l.task.toLowerCase().includes(q))
+        );
+      }
+      return result;
     }
   );
 

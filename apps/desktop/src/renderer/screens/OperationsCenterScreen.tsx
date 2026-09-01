@@ -170,6 +170,39 @@ export function OperationsCenterScreen() {
     refetchInterval: 5000
   });
 
+  // 7. Fetch Developer Mode events when Dev Mode is active
+  useQuery({
+    queryKey: ['dev_mode_events', workspaceId, devModeActive],
+    queryFn: async () => {
+      if (!devModeActive) return [];
+      const events = await window.ipc.invoke('dev-mode:log' as any, { workspaceId, limit: 200 });
+      if (Array.isArray(events)) {
+        setDevEvents(events);
+      }
+      return events;
+    },
+    enabled: devModeActive,
+    refetchInterval: 2000
+  });
+
+  // Live system:log:event subscription for real-time telemetry
+  useEffect(() => {
+    const unsubLog = (window.ipc as any).on?.('system:log:event', (record: any) => {
+      setDevEvents((prev) => [
+        {
+          timestamp: record.timestamp || new Date().toISOString(),
+          type: record.severity?.toUpperCase() || 'LOG',
+          message: `[${record.task}] ${record.message}`,
+          meta: record.metadata
+        },
+        ...prev.slice(0, 499)
+      ]);
+    });
+    return () => {
+      if (typeof unsubLog === 'function') unsubLog();
+    };
+  }, []);
+
   // SRE recovery execution mutation
   const recoveryMutation = useMutation({
     mutationFn: async (params: { action: string; targetId?: string }) => {
