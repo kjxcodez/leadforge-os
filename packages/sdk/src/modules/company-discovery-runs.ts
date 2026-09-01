@@ -1,4 +1,5 @@
 import { HttpClient } from '../http/client.js';
+import { toQueryString } from '../utils/query.js';
 
 export interface CompanyDiscoveryRun {
   id: string;
@@ -14,7 +15,7 @@ export class CompanyDiscoveryRunsModule {
   constructor(private client: HttpClient) {}
 
   public async list(params?: { page?: number; limit?: number; discoveryRunId?: string }): Promise<CompanyDiscoveryRun[]> {
-    const query = params ? '?' + new URLSearchParams(params as any).toString() : '';
+    const query = toQueryString(params);
     return this.client.get<CompanyDiscoveryRun[]>(`/company-discovery-runs${query}`);
   }
 

@@ -1,4 +1,5 @@
 import { HttpClient } from '../http/client.js';
+import { toQueryString } from '../utils/query.js';
 import type {
   SystemLog,
   CreateSystemLogDto,
@@ -18,9 +19,7 @@ export class SystemLogsModule {
   }
 
   public async listRecent(limit = 100, severity?: string): Promise<SystemLog[]> {
-    const params = new URLSearchParams();
-    params.set('limit', String(limit));
-    if (severity) params.set('severity', severity);
-    return this.client.get<SystemLog[]>(`/system-logs?${params.toString()}`);
+    const query = toQueryString({ limit, severity });
+    return this.client.get<SystemLog[]>(`/system-logs${query}`);
   }
 }

@@ -1,4 +1,5 @@
 import { HttpClient } from '../http/client.js';
+import { toQueryString } from '../utils/query.js';
 import type {
   Contact,
   CreateContactDto,
@@ -12,7 +13,7 @@ export class ContactsModule {
   constructor(private client: HttpClient) {}
 
   public async list(filters?: ContactFilters): Promise<Contact[]> {
-    const queryParams = filters ? '?' + new URLSearchParams(filters as any).toString() : '';
+    const queryParams = toQueryString(filters as any);
     return this.client.get<Contact[]>(`/contacts${queryParams}`);
   }
 

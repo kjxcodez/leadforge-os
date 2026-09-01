@@ -1,4 +1,5 @@
 import { HttpClient } from '../http/client.js';
+import { toQueryString } from '../utils/query.js';
 import type {
   EmailDelivery,
   CreateEmailDeliveryDto,
@@ -19,7 +20,7 @@ export class EmailDeliveriesModule {
     sequenceId?: string;
     status?: string;
   }): Promise<{ data: EmailDelivery[]; total: number }> {
-    const queryParams = params ? '?' + new URLSearchParams(params as any).toString() : '';
+    const queryParams = toQueryString(params);
     return this.client.get<{ data: EmailDelivery[]; total: number }>(`/email-deliveries${queryParams}`);
   }
 

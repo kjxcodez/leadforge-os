@@ -1,4 +1,5 @@
 import { HttpClient } from '../http/client.js';
+import { toQueryString } from '../utils/query.js';
 import type {
   Job,
   CreateJobDto,
@@ -18,7 +19,7 @@ export class JobsModule {
     type?: string;
     workerId?: string;
   }): Promise<{ data: Job[]; total: number }> {
-    const queryParams = params ? '?' + new URLSearchParams(params as any).toString() : '';
+    const queryParams = toQueryString(params);
     return this.client.get<{ data: Job[]; total: number }>(`/jobs${queryParams}`);
   }
 

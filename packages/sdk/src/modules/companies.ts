@@ -1,4 +1,5 @@
 import { HttpClient } from '../http/client.js';
+import { toQueryString } from '../utils/query.js';
 import type {
   Company,
   CreateCompanyDto,
@@ -12,7 +13,7 @@ export class CompaniesModule {
   constructor(private client: HttpClient) {}
 
   public async list(filters?: CompanyFilters): Promise<Company[]> {
-    const queryParams = filters ? '?' + new URLSearchParams(filters as any).toString() : '';
+    const queryParams = toQueryString(filters as any);
     return this.client.get<Company[]>(`/companies${queryParams}`);
   }
 

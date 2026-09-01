@@ -1,4 +1,5 @@
 import { HttpClient } from '../http/client.js';
+import { toQueryString } from '../utils/query.js';
 import type {
   Outreach,
   CreateOutreachDto,
@@ -50,7 +51,7 @@ export class OutreachModule {
   // ── Outbound Log Listing ────────────────────────────────────────────────
 
   public async list(filters?: OutreachFilters): Promise<Outreach[]> {
-    const queryParams = filters ? '?' + new URLSearchParams(filters as any).toString() : '';
+    const queryParams = toQueryString(filters as any);
     return this.client.get<Outreach[]>(`/outreach${queryParams}`);
   }
 

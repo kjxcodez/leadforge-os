@@ -1,4 +1,5 @@
 import { HttpClient } from '../http/client.js';
+import { toQueryString } from '../utils/query.js';
 
 export interface DiscoveryJob {
   id: string;
@@ -107,7 +108,7 @@ export class DiscoveryModule {
    * Retrieves workspace-wide discovery jobs list.
    */
   public async listJobs(filters?: Record<string, any>): Promise<DiscoveryJob[]> {
-    const query = filters ? '?' + new URLSearchParams(filters as any).toString() : '';
+    const query = toQueryString(filters);
     return this.client.get<DiscoveryJob[]>(`/discovery/jobs${query}`);
   }
 

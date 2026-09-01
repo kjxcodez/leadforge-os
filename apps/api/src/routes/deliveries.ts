@@ -23,9 +23,9 @@ deliveriesRouter.get('/', async (c) => {
   const status = c.req.query('status');
 
   const filter: any = {};
-  if (campaignId) filter.campaignId = campaignId;
-  if (sequenceId) filter.sequenceId = sequenceId;
-  if (status) filter.status = status;
+  if (campaignId && campaignId !== 'undefined' && campaignId !== 'null') filter.campaignId = campaignId;
+  if (sequenceId && sequenceId !== 'undefined' && sequenceId !== 'null') filter.sequenceId = sequenceId;
+  if (status && status !== 'undefined' && status !== 'null') filter.status = status;
 
   const repo = new EmailDeliveryRepository(wsId);
   const result = await repo.paginate(filter, page, limit, { createdAt: -1 });
