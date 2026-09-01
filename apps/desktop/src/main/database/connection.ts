@@ -153,6 +153,27 @@ export function getDatabase(workspaceId?: string): Database.Database {
                     return Array.from(uniqueCompanyIds).map((id) => compTable.get(id)).filter(Boolean);
                   }
 
+                  if (/contacts/i.test(trimmed) && /companies/i.test(trimmed)) {
+                    const contTable = getTable('contacts');
+                    const compTable = getTable('companies');
+                    const wsId = params[0];
+                    const filterCity = params[1];
+                    const rows = Array.from(contTable.values()).filter((c) => !wsId || c.workspaceId === wsId);
+                    return rows
+                      .map((c) => {
+                        const comp = compTable.get(c.companyId);
+                        return {
+                          ...c,
+                          companyName: comp?.name,
+                          companyCity: comp?.city,
+                          companyState: comp?.state,
+                          companyCountry: comp?.country,
+                          companyLocation: comp?.location
+                        };
+                      })
+                      .filter((c) => !filterCity || c.companyCity === filterCity || c.companyLocation?.includes(filterCity));
+                  }
+
                   const fromMatch = trimmed.match(/FROM\s+([a-zA-Z0-9_]+)/i);
                   if (!fromMatch || !fromMatch[1]) return [];
                   const table = getTable(fromMatch[1]);
@@ -162,8 +183,42 @@ export function getDatabase(workspaceId?: string): Database.Database {
                     return rows.filter((r) => (!wsId || r.workspaceId === wsId) && (!runId || r.discoveryRunId === runId));
                   }
                   if (params.length > 0) {
-                    const wsId = params[0];
-                    return rows.filter((r) => !wsId || r.workspaceId === wsId);
+                    const wsId =
+                      params.find(
+                        (p) =>
+                          typeof p === 'string' &&
+                          (p.startsWith('ws_') || p.startsWith('workspace_') || p === 'test_ws' || p === 'global')
+                      ) || params[0];
+                    let filtered = rows.filter((r) => !wsId || r.workspaceId === wsId);
+                    if (/\bid\s+IN\s+\(/i.test(trimmed)) {
+                      const idList = params.filter((p) => p !== wsId).map(String);
+                      filtered = filtered.filter((r) => idList.includes(r.id));
+                    }
+                    if (/\bcompanyId\s+IN\s+\(/i.test(trimmed)) {
+                      const compIdList = params.filter((p) => p !== wsId).map(String);
+                      filtered = filtered.filter((r) => compIdList.includes(r.companyId));
+                    }
+                    if (/industry\s+LIKE/i.test(trimmed)) {
+                      const ind = String(params.find((p) => typeof p === 'string' && p.startsWith('%')) || '')
+                        .replace(/%/g, '')
+                        .toLowerCase();
+                      if (ind) filtered = filtered.filter((r) => r.industry?.toLowerCase().includes(ind));
+                    }
+                    if (/(?:city\s+LIKE|location\s+LIKE)/i.test(trimmed)) {
+                      const geo = String(params.find((p) => typeof p === 'string' && p.startsWith('%')) || '')
+                        .replace(/%/g, '')
+                        .toLowerCase();
+                      if (geo) {
+                        filtered = filtered.filter(
+                          (r) => r.city?.toLowerCase().includes(geo) || r.location?.toLowerCase().includes(geo)
+                        );
+                      }
+                    }
+                    if (/status\s*=\s*\?/i.test(trimmed)) {
+                      const st = params.find((p) => typeof p === 'string' && !p.startsWith('%') && p !== wsId);
+                      if (st) filtered = filtered.filter((r) => r.status === st);
+                    }
+                    return filtered;
                   }
                   return rows;
                 },
