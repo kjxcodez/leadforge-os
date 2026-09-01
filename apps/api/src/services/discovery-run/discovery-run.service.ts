@@ -1,14 +1,19 @@
 import { DiscoveryRunRepository } from '../../repositories/discovery-run/discovery-run.repository.js';
 import { CompanyDiscoveryRunRepository } from '../../repositories/company-discovery-run/company-discovery-run.repository.js';
+import { CompanyRepository } from '../../repositories/company/company.repository.js';
 import type { DiscoveryRunDocument } from '../../db/models/discovery-run.model.js';
+import type { CompanyDiscoveryRunDocument } from '../../db/models/company-discovery-run.model.js';
+import type { CompanyDocument } from '../../db/models/company.model.js';
 
 export class DiscoveryRunService {
   private discoveryRunRepository: DiscoveryRunRepository;
   private companyDiscoveryRunRepository: CompanyDiscoveryRunRepository;
+  private companyRepository: CompanyRepository;
 
   constructor(workspaceId: string) {
     this.discoveryRunRepository = new DiscoveryRunRepository(workspaceId);
     this.companyDiscoveryRunRepository = new CompanyDiscoveryRunRepository(workspaceId);
+    this.companyRepository = new CompanyRepository(workspaceId);
   }
 
   public async getRunById(id: string): Promise<DiscoveryRunDocument> {
@@ -46,8 +51,22 @@ export class DiscoveryRunService {
     });
   }
 
+  public async listProvenance(
+    filter?: any,
+    page?: number,
+    limit?: number
+  ): Promise<{ data: CompanyDiscoveryRunDocument[]; total: number }> {
+    return this.companyDiscoveryRunRepository.paginate(filter || {}, page, limit);
+  }
+
   public async listCompaniesForRun(discoveryRunId: string): Promise<string[]> {
     const records = await this.companyDiscoveryRunRepository.findMany({ discoveryRunId });
     return records.map((r) => r.companyId);
+  }
+
+  public async getCompaniesForRun(discoveryRunId: string): Promise<CompanyDocument[]> {
+    const companyIds = await this.listCompaniesForRun(discoveryRunId);
+    if (!companyIds.length) return [];
+    return this.companyRepository.findMany({ _id: { $in: companyIds } } as any);
   }
 }

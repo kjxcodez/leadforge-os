@@ -23,7 +23,7 @@ export class WorkspaceMemoryRepository extends BaseRepository<WorkspaceMemoryDoc
         $set: { value, updatedAt: new Date() },
         $setOnInsert: { _id: generateEntityId(), workspaceId: this.workspaceId, scope, key, createdAt: new Date() }
       },
-      { upsert: true, new: true, runValidators: true }
+      { upsert: true, returnDocument: 'after', runValidators: true }
     );
     return doc as unknown as WorkspaceMemoryDocument;
   }

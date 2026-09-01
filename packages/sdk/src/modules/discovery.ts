@@ -74,6 +74,10 @@ export class DiscoveryModule {
     return this.client.get<DiscoveryRun>(`/discovery-runs/${id}`);
   }
 
+  public async listCompaniesForRun(id: string): Promise<any[]> {
+    return this.client.get<any[]>(`/discovery-runs/${id}/companies`);
+  }
+
   public async updateRun(id: string, payload: Partial<DiscoveryRun>): Promise<DiscoveryRun> {
     return this.client.patch<DiscoveryRun>(`/discovery-runs/${id}`, payload);
   }

@@ -31,17 +31,26 @@ export class CampaignService {
     return this.campaignRepository.create({
       ...(clientRecord.id || clientRecord._id ? { _id: clientRecord.id || clientRecord._id } : {}),
       name: validated.name,
+      description: validated.description || null,
+      sequenceId: validated.sequenceId || null,
+      sendingAccountId: validated.sendingAccountId || null,
       steps: validated.steps || [],
-      status: validated.status || 'draft',
+      status: (validated.status ? String(validated.status).toUpperCase() : 'DRAFT') as any,
       template: validated.template || null,
       schedule: validated.schedule || null,
+      timezone: validated.timezone || 'UTC',
+      dailyLimit: validated.dailyLimit !== undefined ? validated.dailyLimit : 0,
       settings: validated.settings || null
     });
   }
 
   public async updateCampaign(id: string, dto: UpdateCampaignDto): Promise<CampaignDocument> {
     const validated = updateCampaignDtoSchema.parse(dto);
-    return this.campaignRepository.update(id, validated);
+    const updatePayload: any = { ...validated };
+    if (updatePayload.status) {
+      updatePayload.status = String(updatePayload.status).toUpperCase();
+    }
+    return this.campaignRepository.update(id, updatePayload);
   }
 
   public async deleteCampaign(id: string): Promise<boolean> {

@@ -88,7 +88,7 @@ intelligenceRouter.post('/contact', async (c) => {
   const body = await c.req.json();
   const validated = createContactIntelligenceDtoSchema.parse(body);
   const repo = new ContactIntelligenceRepository(wsId);
-  const intel = await repo.create(validated);
+  const intel = await repo.upsertByContactId(validated);
   return c.json(successResponse(intel), 201);
 });
 

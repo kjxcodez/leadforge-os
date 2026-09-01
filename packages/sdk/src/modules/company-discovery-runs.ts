@@ -13,6 +13,11 @@ export interface CompanyDiscoveryRun {
 export class CompanyDiscoveryRunsModule {
   constructor(private client: HttpClient) {}
 
+  public async list(params?: { page?: number; limit?: number; discoveryRunId?: string }): Promise<CompanyDiscoveryRun[]> {
+    const query = params ? '?' + new URLSearchParams(params as any).toString() : '';
+    return this.client.get<CompanyDiscoveryRun[]>(`/company-discovery-runs${query}`);
+  }
+
   public async create(payload: Partial<CompanyDiscoveryRun>): Promise<CompanyDiscoveryRun> {
     return this.client.post<CompanyDiscoveryRun>('/company-discovery-runs', payload);
   }

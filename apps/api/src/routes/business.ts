@@ -679,6 +679,14 @@ discoveryRunsRouter.get('/:id', async (c) => {
   return c.json(successResponse(run));
 });
 
+discoveryRunsRouter.get('/:id/companies', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const service = new DiscoveryRunService(wsId);
+  const companies = await service.getCompaniesForRun(id);
+  return c.json(successResponse(companies));
+});
+
 discoveryRunsRouter.post('/', async (c) => {
   const wsId = getWorkspaceId(c);
   const body = await c.req.json();
@@ -705,6 +713,18 @@ discoveryRunsRouter.delete('/:id', async (c) => {
 });
 
 // ── Company Discovery Runs (Provenance) Router ──────────────────────────────
+
+companyDiscoveryRunsRouter.get('/', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const page = parseInt(c.req.query('page') || '1');
+  const limit = parseInt(c.req.query('limit') || '100');
+  const discoveryRunId = c.req.query('discoveryRunId');
+  const service = new DiscoveryRunService(wsId);
+  const filter: any = {};
+  if (discoveryRunId) filter.discoveryRunId = discoveryRunId;
+  const result = await service.listProvenance(filter, page, limit);
+  return c.json(successResponse(result.data));
+});
 
 companyDiscoveryRunsRouter.post('/', async (c) => {
   const wsId = getWorkspaceId(c);

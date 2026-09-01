@@ -135,7 +135,7 @@ export class BaseRepository<T extends Document<any>> {
       delete sanitizedUpdate._id;
       delete sanitizedUpdate.id;
 
-      const options: any = { new: true, runValidators: true };
+      const options: any = { returnDocument: 'after', runValidators: true };
       if (session) {
         options.session = session;
       }
@@ -235,7 +235,7 @@ export class BaseRepository<T extends Document<any>> {
       }
 
       return (await this.model.findOneAndUpdate(scopedFilter, sanitizedUpdate, {
-        new: true,
+        returnDocument: 'after',
         runValidators: true,
         ...options
       })) as unknown as T | null;

@@ -40,6 +40,9 @@ export class GmailProvider {
   public async sendMessage(
     options: SendGmailMessageOptions
   ): Promise<{ messageId: string; threadId?: string }> {
+    if (!options.connectionId) {
+      throw new EmailDomainError('MAILBOX_NOT_AUTHORIZED', 'No Google Connection specified for message send.');
+    }
     const connection = await GoogleConnectionModel.findById(options.connectionId);
     if (!connection) {
       throw new EmailDomainError('MAILBOX_NOT_FOUND', `Google connection "${options.connectionId}" not found.`);

@@ -363,7 +363,7 @@ export class EmailAccountService {
       let connectionId = account.googleConnectionId;
 
       if (!connectionId) {
-        // Fallback: lookup GoogleConnection by googleAccountId or email
+        // Fallback 1: lookup GoogleConnection by googleAccountId or email
         const connection = await GoogleConnectionModel.findOne({
           workspaceId: this.workspaceId,
           $or: [
@@ -375,13 +375,37 @@ export class EmailAccountService {
           connectionId = connection._id.toString();
           account.googleConnectionId = connectionId;
           await account.save();
+        } else if (account.encryptedRefreshToken) {
+          // Fallback 2: auto-synthesize GoogleConnection from valid stored account tokens
+          const newConnection: any = await GoogleConnectionModel.create({
+            _id: generateEntityId(),
+            workspaceId: this.workspaceId,
+            userId: this.workspaceId,
+            email: account.email,
+            status: 'active',
+            gmailStatus: 'connected',
+            driveStatus: 'authorized',
+            encryptedRefreshToken: account.encryptedRefreshToken,
+            encryptedAccessToken: account.encryptedAccessToken,
+            tokenExpiresAt: account.tokenExpiresAt || new Date(Date.now() + 3600 * 1000),
+            googleAccountId: account.googleAccountId || account.email,
+            grantedScopes: [
+              'https://www.googleapis.com/auth/gmail.send',
+              'https://www.googleapis.com/auth/gmail.compose',
+              'https://www.googleapis.com/auth/userinfo.email',
+              'https://www.googleapis.com/auth/userinfo.profile'
+            ]
+          });
+          connectionId = newConnection._id.toString();
+          account.googleConnectionId = connectionId;
+          await account.save();
         }
       }
 
-      if (!connectionId && !account.encryptedRefreshToken) {
+      if (!connectionId) {
         throw new EmailDomainError(
           'MAILBOX_NOT_AUTHORIZED',
-          'Gmail mailbox is missing OAuth credentials.'
+          `Gmail account "${account.email}" is missing OAuth credentials. Please connect via Google OAuth in Settings.`
         );
       }
 

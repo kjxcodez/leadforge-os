@@ -14,10 +14,15 @@ export type CreateCampaignStepDto = z.infer<typeof createCampaignStepDtoSchema>;
 export const createCampaignDtoSchema = z.object({
   id: entityIdField.optional(),
   name: nameField,
+  description: z.string().nullable().optional(),
+  sequenceId: entityIdField.nullable().optional(),
+  sendingAccountId: entityIdField.nullable().optional(),
   status: campaignStatusSchema.optional(),
   steps: z.array(createCampaignStepDtoSchema).optional(),
   template: z.string().nullable().optional(),
   schedule: z.any().nullable().optional(),
+  timezone: z.string().optional(),
+  dailyLimit: z.number().int().nonnegative().optional(),
   settings: z.any().nullable().optional()
 });
 export type CreateCampaignDto = z.infer<typeof createCampaignDtoSchema>;

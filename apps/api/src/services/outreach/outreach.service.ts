@@ -211,7 +211,7 @@ export class OutreachService {
         workspaceId: this.workspaceId
       } as any,
       { $set: updatePayload },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!updated) throw new Error('Template not found or does not belong to this workspace.');
     return updated;

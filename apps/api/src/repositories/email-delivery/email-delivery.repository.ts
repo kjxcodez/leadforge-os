@@ -8,10 +8,10 @@ export const VALID_DELIVERY_TRANSITIONS: Record<EmailDeliveryStatus, EmailDelive
   QUEUED: ['SENDING', 'SENT', 'FAILED', 'CANCELLED', 'SUPPRESSED'],
   SENDING: ['SENT', 'FAILED', 'RETRYING', 'AMBIGUOUS', 'CANCELLED'],
   RETRYING: ['SENDING', 'SENT', 'CANCELLED', 'FAILED'],
-  AMBIGUOUS: ['SENT', 'FAILED', 'RETRYING', 'CANCELLED'],
+  AMBIGUOUS: ['SENT', 'FAILED', 'RETRYING', 'CANCELLED', 'SENDING'],
+  FAILED: ['SENDING', 'RETRYING'], // Allow retry on failed deliveries
   SENT: [], // Terminal
-  FAILED: [], // Terminal
-  CANCELLED: [], // Terminal
+  CANCELLED: ['QUEUED', 'SENDING'],
   SUPPRESSED: [] // Terminal
 };
 

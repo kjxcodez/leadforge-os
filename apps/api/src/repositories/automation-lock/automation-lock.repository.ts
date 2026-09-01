@@ -54,7 +54,7 @@ export class AutomationLockRepository extends BaseRepository<AutomationLockDocum
         },
         {
           upsert: true,
-          new: true,
+          returnDocument: 'after',
           runValidators: true
         }
       );
@@ -98,7 +98,7 @@ export class AutomationLockRepository extends BaseRepository<AutomationLockDocum
     const updated = await this.model.findOneAndUpdate(
       filter,
       { $set: { expiresAt } },
-      { new: true }
+      { returnDocument: 'after' }
     );
     return !!updated;
   }

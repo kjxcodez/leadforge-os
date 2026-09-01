@@ -368,6 +368,7 @@ export class EmailService {
       accountId,
       to: normalizedTo,
       subject: 'LeadForge OS — Mailbox Verification Test',
+      idempotencyKey: `test_${accountId}_${Date.now()}_${crypto.randomUUID()}`,
       html: `
         <div style="font-family: sans-serif; padding: 20px; line-height: 1.5; color: #111827;">
           <h2 style="color: #4f46e5; margin-bottom: 8px;">Mailbox Verification Successful</h2>

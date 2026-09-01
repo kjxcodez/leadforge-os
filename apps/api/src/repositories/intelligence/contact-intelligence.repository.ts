@@ -9,4 +9,14 @@ export class ContactIntelligenceRepository extends BaseRepository<ContactIntelli
   public async findByContactId(contactId: string): Promise<ContactIntelligenceDocument | null> {
     return this.findOne({ contactId });
   }
+
+  public async upsertByContactId(data: any): Promise<ContactIntelligenceDocument> {
+    const { contactId, ...rest } = data;
+    const filter = this.workspaceId ? { workspaceId: this.workspaceId, contactId } : { contactId };
+    return this.model.findOneAndUpdate(
+      filter,
+      { $set: { ...rest, updatedAt: new Date() } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    ) as unknown as ContactIntelligenceDocument;
+  }
 }

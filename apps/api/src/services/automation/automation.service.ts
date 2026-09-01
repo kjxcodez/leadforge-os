@@ -42,7 +42,7 @@ export class AutomationService {
     const seq = await SequenceModel.findOneAndUpdate(
       { _id: id, workspaceId: this.workspaceId } as any,
       { $set: data },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!seq) throw new Error('Sequence not found.');
     return seq;
@@ -85,7 +85,7 @@ export class AutomationService {
     const exec = await SequenceExecutionModel.findOneAndUpdate(
       { _id: id, workspaceId: this.workspaceId } as any,
       { $set: updateData },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!exec) throw new Error('Sequence execution not found.');
     return exec;

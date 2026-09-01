@@ -14,25 +14,40 @@ import { errorResponse } from '../utils/index.js';
 export function errorHandler(error: Error, c: Context): Response {
   const reqId = c.get('requestId') || 'unknown';
 
+  // Handle ApiError application exceptions cleanly
+  if (error instanceof ApiError) {
+    const statusCode = error.statusCode || 500;
+    const errorCode = error.errorCode || 'INTERNAL_SERVER_ERROR';
+    if (statusCode >= 500) {
+      logger.error({ reqId, statusCode, errorCode, message: error.message, stack: error.stack }, `ApiError: ${error.message}`);
+    } else {
+      logger.warn({ reqId, statusCode, errorCode, message: error.message }, `ApiError handled: ${error.message}`);
+    }
+    return c.json(errorResponse(errorCode, error.message, error.details || null), statusCode as any);
+  }
+
   // Handle EmailDomainError domain exceptions cleanly
   if (
     error.name === 'EmailDomainError' ||
+    (error as any).code === 'TRANSACTION_NOT_FOUND' ||
     (error as any).code?.startsWith?.('ATTACHMENT') ||
     (error as any).code?.startsWith?.('TEST_RECIPIENT') ||
     (error as any).code?.startsWith?.('MAILBOX') ||
-    (error as any).code?.startsWith?.('EMAIL')
+    (error as any).code?.startsWith?.('EMAIL') ||
+    (error as any).code?.startsWith?.('GMAIL') ||
+    (error as any).code?.startsWith?.('DRIVE')
   ) {
     const domainErr = error as any;
     const code = domainErr.code || 'BAD_REQUEST';
     let statusCode = 400;
 
-    if (code === 'MAILBOX_NOT_FOUND' || code === 'ATTACHMENT_NOT_FOUND') {
+    if (code === 'MAILBOX_NOT_FOUND' || code === 'ATTACHMENT_NOT_FOUND' || code === 'TRANSACTION_NOT_FOUND') {
       statusCode = 404;
-    } else if (code === 'EMAIL_RATE_LIMITED' || code === 'TEST_RECIPIENT_LIMIT_REACHED') {
+    } else if (code === 'EMAIL_RATE_LIMITED' || code === 'TEST_RECIPIENT_LIMIT_REACHED' || code === 'SENDER_RATE_LIMITED') {
       statusCode = 429;
-    } else if (code === 'MAILBOX_REAUTH_REQUIRED' || code === 'MAILBOX_NOT_AUTHORIZED') {
+    } else if (code === 'MAILBOX_REAUTH_REQUIRED' || code === 'MAILBOX_NOT_AUTHORIZED' || code === 'GMAIL_AUTH_REVOKED') {
       statusCode = 401;
-    } else if (code === 'MAILBOX_DISCONNECTED') {
+    } else if (code === 'MAILBOX_DISCONNECTED' || code === 'ATTACHMENT_ACCESS_DENIED' || code === 'DRIVE_ATTACHMENT_ACCESS_DENIED') {
       statusCode = 403;
     }
 
