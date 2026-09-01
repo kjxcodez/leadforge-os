@@ -2,6 +2,8 @@ import { safeRegister } from './helper';
 import { LocalCRMRepository } from '../database/repositories/local-crm';
 import { getDatabase } from '../database/connection';
 import { WorkspaceManager } from '../lib/workspace-manager';
+import { ProjectionService } from '../services/projection-service';
+import { ConnectivityService } from '../services/connectivity-service';
 
 export function registerDiscoveryIpc() {
   safeRegister('discovery:run:create', async (_event, payload) => {
@@ -59,6 +61,21 @@ export function registerDiscoveryIpc() {
 
   safeRegister('discovery:run:list', async (_event, { workspaceId }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
+    
+    // Sync latest discovery runs from MongoDB to keep statuses and counts up to date
+    const connState = ConnectivityService.getState();
+    if (connState.status === 'ONLINE') {
+      try {
+        const sdk = WorkspaceManager.getSdk();
+        const serverRuns = await sdk.discovery.listRuns().catch(() => []);
+        if (Array.isArray(serverRuns) && serverRuns.length > 0) {
+          await ProjectionService.projectEntities('discovery_runs', serverRuns, workspaceId);
+        }
+      } catch {
+        // Fallback to existing SQLite cache if network/API is temporarily unavailable
+      }
+    }
+
     return LocalCRMRepository.findMany('discovery_runs', workspaceId);
   });
 
@@ -67,4 +84,32 @@ export function registerDiscoveryIpc() {
     if (!id) throw new Error('id is required.');
     return LocalCRMRepository.findById('discovery_runs', workspaceId, id);
   });
+
+  safeRegister('discovery:run:companies', async (_event, { workspaceId, runId }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    if (!runId) throw new Error('runId is required.');
+
+    const connState = ConnectivityService.getState();
+    const isOnline = connState.status === 'ONLINE';
+
+    if (isOnline) {
+      const sdk = WorkspaceManager.getSdk();
+      // Authoritatively reconcile companies and links from MongoDB
+      return await ProjectionService.reconcileDiscoveryRun(workspaceId, runId, sdk);
+    }
+
+    // Offline / degraded fallback: query existing projected SQLite rows
+    const db = getDatabase(workspaceId);
+    const rows = db
+      .prepare(
+        `SELECT DISTINCT c.* FROM companies c
+         INNER JOIN company_discovery_runs cdr ON c.id = cdr.companyId
+         WHERE cdr.workspaceId = ? AND cdr.discoveryRunId = ? AND c.deletedAt IS NULL
+         ORDER BY c.createdAt DESC`
+      )
+      .all(workspaceId, runId) as any[];
+
+    return rows || [];
+  });
 }
+
