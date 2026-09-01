@@ -2,6 +2,7 @@ import { OpenAPIHono, z } from '@hono/zod-openapi';
 import { GoogleConnectionRepository } from '../repositories/google-connection/google-connection.repository.js';
 import { EmailAccountService } from '../services/email/email-account.service.js';
 import { GoogleAuthService, GMAIL_DEFAULT_SCOPES, DRIVE_FILE_SCOPE } from '../services/google/auth.service.js';
+import { GoogleDriveProvider } from '../services/google/drive.provider.js';
 import { successResponse } from '../utils/index.js';
 import { ForbiddenError } from '../errors/index.js';
 import { logger } from '../config/index.js';
@@ -132,6 +133,45 @@ googleConnectionsRouter.post('/:id/reauthorize', async (c) => {
   const requestedScopes = body.scopes || [...GMAIL_DEFAULT_SCOPES, DRIVE_FILE_SCOPE];
   const result = await service.initiateGmailOAuth(userId, undefined, requestedScopes);
   return c.json(successResponse(result));
+});
+
+// ── Google Drive Browsing & Picker Endpoints ──────────────────────────────────
+
+googleConnectionsRouter.get('/:id/drive/files', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const folderId = c.req.query('folderId') || undefined;
+  const search = c.req.query('search') || undefined;
+  const pageToken = c.req.query('pageToken') || undefined;
+  const pageSize = parseInt(c.req.query('pageSize') || '50');
+
+  const repo = new GoogleConnectionRepository(wsId);
+  const connection = await repo.findById(id);
+  if (!connection) {
+    return c.json({ error: 'Connection not found' }, 404);
+  }
+
+  const authService = new GoogleAuthService();
+  const driveProvider = new GoogleDriveProvider(authService);
+  const result = await driveProvider.listFiles(id, { folderId, search, pageToken, pageSize });
+  return c.json(successResponse(result));
+});
+
+googleConnectionsRouter.get('/:id/drive/files/:fileId', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const fileId = c.req.param('fileId');
+
+  const repo = new GoogleConnectionRepository(wsId);
+  const connection = await repo.findById(id);
+  if (!connection) {
+    return c.json({ error: 'Connection not found' }, 404);
+  }
+
+  const authService = new GoogleAuthService();
+  const driveProvider = new GoogleDriveProvider(authService);
+  const metadata = await driveProvider.getFileMetadata(id, fileId);
+  return c.json(successResponse(metadata));
 });
 
 function sanitizeConnection(doc: any): any {

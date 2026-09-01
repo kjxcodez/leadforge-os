@@ -6,7 +6,7 @@ export * from './campaigns.js';
 export * from './outreach.js';
 export * from './workspaces.js';
 export * from './discovery.js';
-export * from './activities.js';
+export * from './drive.js';
 export * from './automation.js';
 export * from './audiences.js';
 export * from './company-discovery-runs.js';

@@ -9,7 +9,7 @@ import {
   OutreachModule,
   WorkspacesModule,
   DiscoveryModule,
-  ActivitiesModule,
+  DriveModule,
   SequencesModule,
   ExecutionsModule,
   AudiencesModule,
@@ -36,7 +36,7 @@ export class SdkClient {
   public readonly outreach: OutreachModule;
   public readonly workspaces: WorkspacesModule;
   public readonly discovery: DiscoveryModule;
-  public readonly activities: ActivitiesModule;
+  public readonly drive: DriveModule;
   public readonly sequences: SequencesModule;
   public readonly executions: ExecutionsModule;
   public readonly audiences: AudiencesModule;
@@ -62,7 +62,7 @@ export class SdkClient {
     this.outreach = new OutreachModule(this.httpClient);
     this.workspaces = new WorkspacesModule(this.httpClient);
     this.discovery = new DiscoveryModule(this.httpClient);
-    this.activities = new ActivitiesModule(this.httpClient);
+    this.drive = new DriveModule(this.httpClient);
     this.sequences = new SequencesModule(this.httpClient);
     this.executions = new ExecutionsModule(this.httpClient);
     this.audiences = new AudiencesModule(this.httpClient);

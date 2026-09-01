@@ -20,6 +20,30 @@ export interface DriveUploadResult {
   size: number;
 }
 
+export interface DriveFileItem {
+  id: string;
+  name: string;
+  mimeType: string;
+  size?: number;
+  modifiedTime?: string;
+  webViewLink?: string;
+  iconLink?: string;
+  parents?: string[];
+  isFolder: boolean;
+}
+
+export interface ListDriveFilesResult {
+  files: DriveFileItem[];
+  nextPageToken?: string;
+}
+
+export interface ListDriveFilesOptions {
+  folderId?: string | undefined;
+  search?: string | undefined;
+  pageToken?: string | undefined;
+  pageSize?: number | undefined;
+}
+
 export class GoogleDriveProvider {
   constructor(private readonly authService: GoogleAuthService) {}
 
@@ -157,6 +181,65 @@ export class GoogleDriveProvider {
     if (!res.ok && res.status !== 404) {
       throw new Error(`Google Drive deleteFile failed (HTTP ${res.status})`);
     }
+  }
+
+  /**
+   * Lists files and folders from Google Drive, supporting folder navigation and search.
+   */
+  public async listFiles(
+    connectionId: string,
+    options?: ListDriveFilesOptions
+  ): Promise<ListDriveFilesResult> {
+    const isAuth = await this.isDriveAuthorized(connectionId);
+    if (!isAuth) {
+      throw new Error('Drive authorization required: Connection has not granted the drive.file scope.');
+    }
+
+    const accessToken = await this.authService.getValidAccessToken(connectionId);
+
+    const queries: string[] = ['trashed = false'];
+    if (options?.search) {
+      queries.push(`name contains '${options.search.replace(/'/g, "\\'")}'`);
+    } else if (options?.folderId) {
+      queries.push(`'${options.folderId.replace(/'/g, "\\'")}' in parents`);
+    }
+
+    const q = queries.join(' and ');
+    const params = new URLSearchParams({
+      q,
+      fields: 'nextPageToken, files(id, name, mimeType, size, modifiedTime, webViewLink, iconLink, parents)',
+      pageSize: String(options?.pageSize || 50),
+      orderBy: 'folder, name'
+    });
+    if (options?.pageToken) {
+      params.set('pageToken', options.pageToken);
+    }
+
+    const res = await fetch(`${DRIVE_FILES_URL}?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    const body: any = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(`Google Drive listFiles failed (HTTP ${res.status}): ${body?.error?.message || 'unknown'}`);
+    }
+
+    const files: DriveFileItem[] = (body.files || []).map((f: any) => ({
+      id: f.id,
+      name: f.name || 'unnamed',
+      mimeType: f.mimeType || 'application/octet-stream',
+      size: f.size ? Number(f.size) : undefined,
+      modifiedTime: f.modifiedTime,
+      webViewLink: f.webViewLink,
+      iconLink: f.iconLink,
+      parents: f.parents,
+      isFolder: f.mimeType === 'application/vnd.google-apps.folder'
+    }));
+
+    return {
+      files,
+      nextPageToken: body.nextPageToken || undefined
+    };
   }
 
   /**
