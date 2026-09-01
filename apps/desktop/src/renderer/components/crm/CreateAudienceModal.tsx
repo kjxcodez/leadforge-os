@@ -112,25 +112,30 @@ export const CreateAudienceModal: React.FC<CreateAudienceModalProps> = ({
 
   // Live dynamic audience resolve preview
   useEffect(() => {
-    if (isOpen && workspaceId && mode === 'dynamic' && (window as any).ipc) {
-      const timer = setTimeout(() => {
-        (window as any).ipc.invoke('audiences:resolve', {
+    if (!isOpen || !workspaceId || mode !== 'dynamic' || !(window as any).ipc) {
+      setPreviewCount(null);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      (window as any).ipc
+        .invoke('audiences:resolve', {
           workspaceId,
           filterDefinition: filters,
           mode: 'dynamic'
-        }).then((res: any) => {
+        })
+        .then((res: any) => {
           setPreviewCount({
             contactCount: res?.contactIds?.length || 0,
             companyCount: res?.companyIds?.length || 0
           });
-        }).catch(() => {
+        })
+        .catch(() => {
           setPreviewCount(null);
         });
-      }, 200);
-      return () => clearTimeout(timer);
-    } else {
-      setPreviewCount(null);
-    }
+    }, 200);
+
+    return () => clearTimeout(timer);
   }, [isOpen, workspaceId, mode, filters]);
 
   if (!isOpen) return null;

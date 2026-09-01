@@ -345,8 +345,8 @@ export interface IpcChannelMap {
     output: void;
   };
   'audiences:resolve': {
-    input: { workspaceId: string; id?: string; filterDefinition?: any };
-    output: { contactIds: string[]; companyIds: string[] };
+    input: { workspaceId: string; id?: string; filterDefinition?: any; mode?: string; staticMemberIds?: string[] };
+    output: { contactIds: string[]; companyIds: string[]; contactCount?: number; companyCount?: number };
   };
   'companies:query': {
     input: {
@@ -373,11 +373,27 @@ export interface IpcChannelMap {
   };
   'companies:distinct-values': {
     input: { workspaceId: string };
-    output: { industries: string[]; locations: string[] };
+    output: { industries: string[]; locations: string[]; cities?: string[]; states?: string[]; countries?: string[] };
   };
   'contacts:distinct-values': {
     input: { workspaceId: string };
     output: { titles: string[]; sources: string[] };
+  };
+  'drive:status': {
+    input: { transactionId: string };
+    output: { status: string; error?: string; connection?: any };
+  };
+  'drive:connect': {
+    input: void | { workspaceId?: string };
+    output: { transactionId?: string; authorizationUrl?: string };
+  };
+  'drive:reconnect': {
+    input: { id: string };
+    output: { transactionId?: string; authorizationUrl?: string };
+  };
+  'drive:disconnect': {
+    input: { id: string };
+    output: { success: boolean };
   };
 
 
@@ -827,7 +843,7 @@ export interface IpcChannelMap {
     output: { success: boolean; message: string };
   };
   'dev-mode:log': {
-    input: { workspaceId: string };
+    input: { workspaceId?: string; limit?: number };
     output: any[];
   };
   'drive:connections:list': {

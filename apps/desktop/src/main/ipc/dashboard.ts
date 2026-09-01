@@ -1,6 +1,7 @@
 import { safeRegister } from './helper';
 import { getDatabase } from '../database/connection';
 import { WorkspaceManager } from '../lib/workspace-manager';
+import { AppLogger } from '../lib/logger';
 
 /**
  * Registers dashboard telemetry, stats, and real-time infrastructure tracking IPC channels.
@@ -126,7 +127,7 @@ export function registerDashboardIpc(): void {
     const sdk = WorkspaceManager.getSdk();
 
     try {
-      let logs = await sdk.systemLogs.listRecent(limit).catch(() => []);
+      let logs: any[] = await sdk.systemLogs.listRecent(limit).catch(() => []);
       if (!Array.isArray(logs) || logs.length === 0) {
         logs = AppLogger.getRecentLogs(workspaceId, limit);
       }
