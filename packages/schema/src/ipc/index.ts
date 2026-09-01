@@ -5,6 +5,29 @@ import type { CreateWorkspaceDto, UpdateWorkspaceDto, InviteMemberDto } from '..
 import type { Workspace, WorkspaceMember } from '../entities/workspace.js';
 import type { WorkspaceRole } from '../enums/index.js';
 
+export type ConnectivityStatus = 'CHECKING' | 'ONLINE' | 'DEGRADED' | 'AUTHENTICATION_REQUIRED';
+
+export type ConnectivityErrorCode =
+  | 'NETWORK_UNREACHABLE'
+  | 'TIMEOUT'
+  | 'HTTP_5XX'
+  | 'HTTP_401'
+  | 'HTTP_403'
+  | 'HEALTH_CHECK_INVALID_RESPONSE'
+  | 'UNKNOWN';
+
+export interface RuntimeConnectivityState {
+  status: ConnectivityStatus;
+  apiUrl: string;
+  error: {
+    code: ConnectivityErrorCode;
+    message: string;
+    statusCode?: number;
+  } | null;
+  lastCheckedAt: string;
+  activeWorkspaceId: string | null;
+}
+
 export interface IpcChannelMap {
   'diagnostics:get-system-info': {
     input: { workspaceId?: string };
@@ -13,6 +36,18 @@ export interface IpcChannelMap {
   'diagnostics:export-support-bundle': {
     input: { workspaceId?: string };
     output: { success: boolean; message: string };
+  };
+  'system:connectivity-status': {
+    input: void;
+    output: RuntimeConnectivityState;
+  };
+  'system:connectivity-check': {
+    input: void;
+    output: RuntimeConnectivityState;
+  };
+  'system:connectivity-changed': {
+    input: void;
+    output: RuntimeConnectivityState;
   };
   'companies:list': {
     input: CompanyFilters;
@@ -284,6 +319,10 @@ export interface IpcChannelMap {
   'discovery:run:get': {
     input: { workspaceId: string; id: string };
     output: any;
+  };
+  'discovery:run:companies': {
+    input: { workspaceId: string; runId: string };
+    output: any[];
   };
   'audiences:list': {
     input: { workspaceId: string };

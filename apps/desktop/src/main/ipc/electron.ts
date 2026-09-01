@@ -122,7 +122,8 @@ export function registerElectronIpc(
 
     // 7. System Logs (recent 100)
     try {
-      result.logs = db.prepare('SELECT * FROM system_logs ORDER BY timestamp DESC LIMIT 100').all();
+      const sdk = WorkspaceManager.getSdk();
+      result.logs = await sdk.systemLogs.listRecent(100).catch(() => []);
     } catch (e) {
       result.logs = [];
     }

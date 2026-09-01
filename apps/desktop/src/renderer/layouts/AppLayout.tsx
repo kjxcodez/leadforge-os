@@ -13,6 +13,7 @@ import ProductTour from '../components/onboarding/ProductTour';
 import { CommandPalette } from '../components/common/CommandPalette';
 import { NotificationCenter } from '../components/common/NotificationCenter';
 import { WhatsNewDialog } from '../components/common/WhatsNewDialog';
+import { ConnectivityBanner } from '../components/common/ConnectivityBanner';
 
 /**
  * AppLayout — the authenticated application shell.
@@ -48,18 +49,26 @@ export function AppLayout() {
     }
   }, [activeWorkspace]);
 
-  // Invalidate all queries when a sync completes
+  // Invalidate all queries when a sync completes or connection is recovered
   useEffect(() => {
     const workspaceId = activeWorkspace?.id;
     if (!workspaceId) return;
 
-    const unsubscribe = window.ipc.on('sync:completed', () => {
+    const unsubscribeSync = window.ipc.on('sync:completed', () => {
       console.log('[Renderer] Sync completed — invalidating queries.');
       queryClient.invalidateQueries();
     });
 
+    const unsubscribeConn = window.ipc.on('system:connectivity-changed' as any, (state: any) => {
+      if (state?.status === 'ONLINE') {
+        console.log('[Renderer] Connection restored to ONLINE — invalidating queries.');
+        queryClient.invalidateQueries();
+      }
+    });
+
     return () => {
-      unsubscribe();
+      unsubscribeSync();
+      unsubscribeConn();
     };
   }, [activeWorkspace?.id, queryClient]);
 
@@ -94,6 +103,7 @@ export function AppLayout() {
 
         <SidebarInset className="flex flex-col min-w-0">
           <AppHeader onOpenNotifications={() => setNotificationsOpen(true)} />
+          <ConnectivityBanner />
           <main className="flex-1 overflow-y-auto p-4 max-h-[calc(100vh-44px)]">
             <Suspense fallback={<AppContentSkeleton />}>
               <AnimatePresence mode="wait" initial={false}>
