@@ -291,7 +291,8 @@ export function registerOutreachIpc(sdk: SdkClient) {
         page: payload?.page || 1,
         limit: payload?.limit || 100
       });
-      return res?.data || [];
+      const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      return list;
     } catch {
       // Fallback to local cache query if API is temporarily unavailable
       const db = getDatabase(targetWsId);

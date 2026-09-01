@@ -267,10 +267,10 @@ export function QueueMonitor() {
               <Table>
                 <TableHeader className="bg-surface-3/30">
                   <TableRow>
-                    <TableHead className="py-2">Contact</TableHead>
-                    <TableHead className="py-2">Campaign</TableHead>
+                    <TableHead className="py-2">Recipient</TableHead>
+                    <TableHead className="py-2">Sequence / Company</TableHead>
+                    <TableHead className="py-2">Current Step</TableHead>
                     <TableHead className="py-2">Next Scheduled Send</TableHead>
-                    <TableHead className="py-2">Emails Sent</TableHead>
                     <TableHead className="py-2">Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -282,18 +282,22 @@ export function QueueMonitor() {
                     return (
                       <TableRow key={wait.id} className="hover:bg-surface-3/10">
                         <TableCell className="py-2 font-medium">
-                          {wait.firstName} {wait.lastName || ''}
+                          {wait.firstName || wait.lastName
+                            ? `${wait.firstName || ''} ${wait.lastName || ''}`.trim()
+                            : wait.contactEmail || '—'}
                           <span className="block text-[9px] text-muted-foreground font-mono mt-0.5">
-                            {wait.email}
+                            {wait.contactEmail || wait.contactId || '—'}
                           </span>
                         </TableCell>
                         <TableCell className="py-2 text-muted-foreground">
-                          {wait.campaignName || '—'}
+                          {wait.companyName || wait.sequenceName || '—'}
+                        </TableCell>
+                        <TableCell className="py-2 text-foreground font-mono text-[10px]">
+                          {wait.currentStepName || `Step ${(wait.currentStep || 0) + 1}`}
                         </TableCell>
                         <TableCell className="py-2 text-foreground font-mono">
                           in {nextSend}
                         </TableCell>
-                        <TableCell className="py-2 font-mono">{wait.emailsSent || 0}</TableCell>
                         <TableCell className="py-2">{getStatusBadge(wait.status)}</TableCell>
                       </TableRow>
                     );
@@ -311,77 +315,91 @@ export function QueueMonitor() {
             </div>
           </div>
 
-          {/* Queued, Retrying, Failed & Cancelled Email Jobs */}
+          {/* Queued, Retrying, Failed & Active Scheduler Jobs */}
           <div className="space-y-2">
             <h4 className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
               <AlertCircle className="h-3.5 w-3.5 text-primary" />
-              Email Job Queue History ({queueData.jobs.length})
+              Scheduler Operation & Execution Queue ({queueData.jobs.length})
             </h4>
             <div className="bg-card border border-border-subtle rounded-none overflow-hidden shadow-sm">
               <Table>
                 <TableHeader className="bg-surface-3/30">
                   <TableRow>
-                    <TableHead className="py-2">Contact</TableHead>
-                    <TableHead className="py-2">Campaign</TableHead>
+                    <TableHead className="py-2">Task Type</TableHead>
+                    <TableHead className="py-2">Target / Details</TableHead>
                     <TableHead className="py-2">Status</TableHead>
-                    <TableHead className="py-2">Attempts</TableHead>
-                    <TableHead className="py-2">Errors / Logs</TableHead>
+                    <TableHead className="py-2">Progress / Retries</TableHead>
+                    <TableHead className="py-2">Details / Error</TableHead>
                     <TableHead className="py-2 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {queueData.jobs.map((job) => (
-                    <TableRow key={job.jobId} className="hover:bg-surface-3/10">
-                      <TableCell className="py-2 font-medium">
-                        {job.firstName} {job.lastName || ''}
-                        <span className="block text-[9px] text-muted-foreground font-mono mt-0.5">
-                          {job.email}
-                        </span>
-                      </TableCell>
-                      <TableCell className="py-2 text-muted-foreground">
-                        {job.campaignName || '—'}
-                      </TableCell>
-                      <TableCell className="py-2">{getStatusBadge(job.status)}</TableCell>
-                      <TableCell className="py-2 font-mono">{job.retryCount || 0} / 3</TableCell>
-                      <TableCell className="py-2 text-danger font-mono text-[9px] max-w-xs truncate">
-                        {job.status === 'failed'
-                          ? 'Max retries exhausted'
-                          : job.status === 'cancelled'
-                            ? 'Job Cancelled'
-                            : '—'}
-                      </TableCell>
-                      <TableCell className="py-2 text-right">
-                        {['failed', 'cancelled'].includes(job.status) && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => retryJobMutation.mutate(job.jobId)}
-                            className="h-6 px-1.5 text-[9px] text-success hover:bg-success-muted gap-0.5 rounded-none"
-                          >
-                            <RotateCcw className="h-3 w-3" />
-                            Retry
-                          </Button>
-                        )}
-                        {['running', 'queued', 'retrying'].includes(job.status) && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => cancelJobMutation.mutate(job.jobId)}
-                            className="h-6 px-1.5 text-[9px] text-danger hover:bg-danger-muted rounded-none"
-                          >
-                            Cancel
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {queueData.jobs.map((job) => {
+                    const jobId = job.id || job.jobId || '';
+                    const targetName =
+                      job.payload?.campaignName ||
+                      job.payload?.query ||
+                      job.payload?.domain ||
+                      job.payload?.to ||
+                      job.payload?.entityId ||
+                      (job.payload?.location ? `Location: ${job.payload.location}` : '—');
+
+                    return (
+                      <TableRow key={jobId} className="hover:bg-surface-3/10">
+                        <TableCell className="py-2 font-medium">
+                          {getJobName(job.type)}
+                          <span className="block text-[9px] text-muted-foreground font-mono mt-0.5">
+                            ID: {jobId.substring(0, 8)}...
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-2 text-muted-foreground truncate max-w-xs">
+                          {targetName}
+                        </TableCell>
+                        <TableCell className="py-2">{getStatusBadge(job.status)}</TableCell>
+                        <TableCell className="py-2 font-mono text-[10px]">
+                          {job.progress || 0}% ({job.retryCount || 0}/{job.maxRetries || 3})
+                        </TableCell>
+                        <TableCell className="py-2 text-danger font-mono text-[9px] max-w-xs truncate">
+                          {job.error ||
+                            (job.status === 'completed'
+                              ? 'Completed successfully'
+                              : job.status === 'running'
+                                ? 'Active in worker process'
+                                : '—')}
+                        </TableCell>
+                        <TableCell className="py-2 text-right">
+                          {['failed', 'cancelled'].includes(job.status) && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => retryJobMutation.mutate(jobId)}
+                              className="h-6 px-1.5 text-[9px] text-success hover:bg-success-muted gap-0.5 rounded-none"
+                            >
+                              <RotateCcw className="h-3 w-3" />
+                              Retry
+                            </Button>
+                          )}
+                          {['running', 'queued', 'retrying'].includes(job.status) && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => cancelJobMutation.mutate(jobId)}
+                              className="h-6 px-1.5 text-[9px] text-danger hover:bg-danger-muted rounded-none"
+                            >
+                              Cancel
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
 
                   {queueData.jobs.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
-                        No email jobs in the queue.
+                        No background jobs in the scheduler queue.
                       </TableCell>
                     </TableRow>
                   )}
