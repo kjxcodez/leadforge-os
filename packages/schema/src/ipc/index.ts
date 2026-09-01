@@ -830,6 +830,18 @@ export interface IpcChannelMap {
     input: { workspaceId: string };
     output: any[];
   };
+  'drive:connections:list': {
+    input: void | { workspaceId?: string };
+    output: any[];
+  };
+  'drive:files:list': {
+    input: { connectionId: string; folderId?: string; search?: string; pageToken?: string; pageSize?: number };
+    output: { files: any[]; nextPageToken?: string };
+  };
+  'drive:files:get': {
+    input: { connectionId: string; fileId: string };
+    output: any;
+  };
 }
 
 export interface IpcRequest<T> {
