@@ -108,6 +108,31 @@ export const CreateAudienceModal: React.FC<CreateAudienceModalProps> = ({
     }
   }, [isOpen, workspaceId]);
 
+  const [previewCount, setPreviewCount] = useState<{ contactCount: number; companyCount: number } | null>(null);
+
+  // Live dynamic audience resolve preview
+  useEffect(() => {
+    if (isOpen && workspaceId && mode === 'dynamic' && (window as any).ipc) {
+      const timer = setTimeout(() => {
+        (window as any).ipc.invoke('audiences:resolve', {
+          workspaceId,
+          filterDefinition: filters,
+          mode: 'dynamic'
+        }).then((res: any) => {
+          setPreviewCount({
+            contactCount: res?.contactIds?.length || 0,
+            companyCount: res?.companyIds?.length || 0
+          });
+        }).catch(() => {
+          setPreviewCount(null);
+        });
+      }, 200);
+      return () => clearTimeout(timer);
+    } else {
+      setPreviewCount(null);
+    }
+  }, [isOpen, workspaceId, mode, filters]);
+
   if (!isOpen) return null;
 
   const handleRemoveContact = (id: string) => {
@@ -467,6 +492,17 @@ export const CreateAudienceModal: React.FC<CreateAudienceModalProps> = ({
                   <Label htmlFor="allowUnfiltered" className="text-[11px] text-foreground font-medium cursor-pointer">
                     Allow unfiltered audience (Include ALL CRM records)
                   </Label>
+                </div>
+              )}
+
+              {/* Live Preview Size */}
+              {previewCount !== null && (
+                <div className="pt-2 border-t border-border-subtle/60 flex items-center justify-between text-[11px] font-mono">
+                  <span className="text-muted-foreground">Audience Preview:</span>
+                  <span className="font-bold text-foreground">
+                    <strong className="text-primary">{previewCount.contactCount}</strong> contacts across{' '}
+                    <strong className="text-foreground">{previewCount.companyCount}</strong> companies
+                  </span>
                 </div>
               )}
             </div>
