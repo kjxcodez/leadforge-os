@@ -91,7 +91,8 @@ export function getDatabase(workspaceId?: string): Database.Database {
           'status', 'query', 'country', 'state', 'city', 'provider', 'resultCount', 'progress',
           'companyId', 'discoveryRunId', 'requiresReview', 'tags', 'notes', 'steps', 'variables',
           'firstName', 'lastName', 'email', 'source', 'type', 'key', 'value', 'updatedAt',
-          'createdAt', 'deletedAt', 'finishedAt', 'startedAt', 'payload', 'error'
+          'createdAt', 'deletedAt', 'finishedAt', 'startedAt', 'payload', 'error',
+          'campaignId', 'contactId', 'sequenceId', 'toAddress', 'sentAt', 'currentStepIndex'
         ].map((name) => ({ name }));
 
         const stubDb: any = {
@@ -103,7 +104,7 @@ export function getDatabase(workspaceId?: string): Database.Database {
           },
           prepare: (sql: string) => {
             const trimmed = sql.trim();
-            const insertMatch = trimmed.match(/INSERT\s+OR\s+REPLACE\s+INTO\s+([a-zA-Z0-9_]+)\s*\(([^)]+)\)/i);
+            const insertMatch = trimmed.match(/INSERT(?:\s+OR\s+REPLACE)?\s+INTO\s+([a-zA-Z0-9_]+)\s*\(([^)]+)\)/i);
             if (insertMatch && insertMatch[1] && insertMatch[2]) {
               const tableName = insertMatch[1];
               const cols = insertMatch[2].split(',').map((c) => c.trim());
