@@ -38,6 +38,8 @@ export function registerSchedulerIpc() {
       workspaceId
     );
 
+    WorkspaceManager.wakeScheduler();
+
     return {
       deduplicated: false,
       job

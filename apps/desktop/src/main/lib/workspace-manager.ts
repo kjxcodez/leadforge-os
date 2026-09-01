@@ -116,6 +116,22 @@ class WorkspaceManagerClass {
   }
 
   /**
+   * Retrieves the JobScheduler for the currently active runtime.
+   */
+  public getScheduler(): any | null {
+    return this.activeRuntime ? this.activeRuntime.scheduler : null;
+  }
+
+  /**
+   * Wakes up the active scheduler immediately on newly submitted jobs.
+   */
+  public wakeScheduler(): void {
+    if (this.activeRuntime && this.activeRuntime.scheduler) {
+      this.activeRuntime.scheduler.wakeUp();
+    }
+  }
+
+  /**
    * Returns aggregated lifecycle metrics of the workspace manager runtime.
    */
   public getLifecycleMetrics() {

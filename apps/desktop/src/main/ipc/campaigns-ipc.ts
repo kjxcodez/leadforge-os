@@ -109,6 +109,10 @@ export function registerCampaignsIpc(): void {
       enrolledIds.push(created.id);
     }
 
+    if (isActive && enrolledIds.length > 0) {
+      WorkspaceManager.wakeScheduler();
+    }
+
     console.log(`[IPC] Enrolled ${enrolledIds.length} contact(s) into campaign: ${campaignId}`);
     return { success: true, enrolledCount: enrolledIds.length };
   });

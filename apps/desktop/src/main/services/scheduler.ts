@@ -38,14 +38,28 @@ function injectGmailOAuthSecrets(secrets: Record<string, string>, acc: GmailOAut
   secrets['gmail.user'] = acc.email || '';
 }
 
+export type SchedulerState =
+  | 'STOPPED'
+  | 'ACTIVE'
+  | 'IDLE'
+  | 'BACKING_OFF'
+  | 'PAUSED_OFFLINE';
+
 /**
  * JobScheduler acts as an ephemeral execution coordinator for background tasks,
  * dispatching jobs claimed atomically from the authoritative MongoDB store
  * into sandboxed child processes.
  */
 export class JobScheduler {
-  private intervalId: NodeJS.Timeout | null = null;
+  private timerId: NodeJS.Timeout | null = null;
   private isTickRunning = false;
+  private state: SchedulerState = 'STOPPED';
+  private consecutiveEmptyClaims = 0;
+  private readonly activePollingInterval = 1500; // 1.5s when active work present
+  private readonly baseIdleInterval = 2000; // 2s base idle
+  private readonly maxIdleInterval = 15000; // 15s max backoff
+  private currentInterval = 2000;
+  private totalClaimRequests = 0;
   private activeWorkers = new Map<string, ChildProcess>();
   /** Tracks pending hard-kill timeouts for soft-cancel fallback. */
   private cancelTimeouts = new Map<string, NodeJS.Timeout>();
@@ -69,14 +83,33 @@ export class JobScheduler {
   ) {}
 
   public get isActive(): boolean {
-    return this.intervalId !== null;
+    return this.state !== 'STOPPED' && this.state !== 'PAUSED_OFFLINE';
+  }
+
+  public getState(): SchedulerState {
+    return this.state;
+  }
+
+  public getCurrentInterval(): number {
+    return this.currentInterval;
+  }
+
+  public getConsecutiveEmptyClaims(): number {
+    return this.consecutiveEmptyClaims;
+  }
+
+  public getTotalClaimRequests(): number {
+    return this.totalClaimRequests;
   }
 
   /**
    * Starts periodic polling loop and triggers startup recovery of stale leases.
    */
   public async start(): Promise<void> {
-    if (this.intervalId) return;
+    if (this.state !== 'STOPPED') return;
+    this.state = 'ACTIVE';
+    this.consecutiveEmptyClaims = 0;
+    this.currentInterval = this.baseIdleInterval;
 
     // Reconcile stale jobs on startup via authoritative MongoDB API
     try {
@@ -105,11 +138,7 @@ export class JobScheduler {
       );
     }
 
-    this.intervalId = setInterval(() => {
-      this.tick().catch((err) => {
-        AppLogger.error('JobScheduler', 'Unhandled error in scheduler tick', this.workspaceId, err);
-      });
-    }, 3000);
+    this.scheduleNextTick(0);
 
     AppLogger.info(
       'JobScheduler',
@@ -119,12 +148,98 @@ export class JobScheduler {
   }
 
   /**
+   * Immediately wakes up the scheduler to check for and claim newly submitted jobs.
+   * Resets idle backoff to ACTIVE mode and executes a claim tick immediately (<50ms).
+   */
+  public wakeUp(): void {
+    if (this.state === 'STOPPED' || this.state === 'PAUSED_OFFLINE') {
+      return;
+    }
+
+    this.consecutiveEmptyClaims = 0;
+    this.state = 'ACTIVE';
+    this.currentInterval = this.activePollingInterval;
+    this.scheduleNextTick(0);
+  }
+
+  /**
+   * Pauses the scheduler loop during offline or degraded connectivity.
+   */
+  public pauseOffline(): void {
+    if (this.state === 'STOPPED') return;
+    if (this.timerId) {
+      clearTimeout(this.timerId);
+      this.timerId = null;
+    }
+    this.state = 'PAUSED_OFFLINE';
+    AppLogger.info('JobScheduler', 'Scheduler paused while connectivity is offline/degraded', this.workspaceId);
+  }
+
+  /**
+   * Resumes the scheduler loop when connectivity is restored to ONLINE.
+   */
+  public resumeOnline(): void {
+    if (this.state !== 'PAUSED_OFFLINE') return;
+    this.state = 'ACTIVE';
+    this.consecutiveEmptyClaims = 0;
+    this.currentInterval = this.activePollingInterval;
+    AppLogger.info('JobScheduler', 'Scheduler resumed following connection recovery', this.workspaceId);
+    this.scheduleNextTick(0);
+  }
+
+  /**
+   * Schedules the next polling tick with adaptive backoff calculation.
+   */
+  private scheduleNextTick(customDelay?: number): void {
+    if (this.state === 'STOPPED' || this.state === 'PAUSED_OFFLINE') {
+      return;
+    }
+
+    if (this.timerId) {
+      clearTimeout(this.timerId);
+      this.timerId = null;
+    }
+
+    let delay: number;
+    if (customDelay !== undefined) {
+      delay = customDelay;
+    } else if (this.activeWorkers.size > 0) {
+      this.state = 'ACTIVE';
+      this.consecutiveEmptyClaims = 0;
+      this.currentInterval = this.activePollingInterval;
+      delay = this.activePollingInterval;
+    } else {
+      if (this.consecutiveEmptyClaims === 0) {
+        this.state = 'IDLE';
+        this.currentInterval = this.baseIdleInterval; // 2s
+      } else if (this.consecutiveEmptyClaims === 1) {
+        this.state = 'BACKING_OFF';
+        this.currentInterval = 4000; // 4s
+      } else if (this.consecutiveEmptyClaims === 2) {
+        this.state = 'BACKING_OFF';
+        this.currentInterval = 8000; // 8s
+      } else {
+        this.state = 'BACKING_OFF';
+        this.currentInterval = this.maxIdleInterval; // 15s
+      }
+      delay = this.currentInterval;
+    }
+
+    this.timerId = setTimeout(() => {
+      this.tick().catch((err) => {
+        AppLogger.error('JobScheduler', 'Unhandled error in scheduler tick', this.workspaceId, err);
+      });
+    }, delay);
+  }
+
+  /**
    * Stops the polling loop and terminates all active child workers.
    */
   public async stop(): Promise<void> {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
+    this.state = 'STOPPED';
+    if (this.timerId) {
+      clearTimeout(this.timerId);
+      this.timerId = null;
     }
 
     // Clear any pending hard-kill fallback timeouts before shutdown.
@@ -161,6 +276,7 @@ export class JobScheduler {
    */
   private async tick(): Promise<void> {
     if (this.isTickRunning) return;
+    if (this.state === 'STOPPED' || this.state === 'PAUSED_OFFLINE') return;
     this.isTickRunning = true;
 
     try {
@@ -186,10 +302,22 @@ export class JobScheduler {
 
         if (supportedTypes.length > 0) {
           const workerId = `desktop-${this.workspaceId.slice(0, 8)}-${Date.now()}-${randomUUID().slice(0, 4)}`;
+          this.totalClaimRequests++;
           const claimed = await this.sdk.jobs.claim(supportedTypes, workerId).catch(() => null);
 
           if (claimed) {
+            this.consecutiveEmptyClaims = 0;
+            this.state = 'ACTIVE';
             this.runJob(claimed, workerId);
+
+            // If capacity still remains, quickly schedule another tick to claim further jobs
+            const remainingCapacity = config.globalMaxConcurrency - this.activeWorkers.size;
+            if (remainingCapacity > 0) {
+              this.scheduleNextTick(50);
+              return;
+            }
+          } else {
+            this.consecutiveEmptyClaims++;
           }
         }
       }
@@ -197,6 +325,7 @@ export class JobScheduler {
       AppLogger.error('JobScheduler', 'Error in scheduler dispatch phase', this.workspaceId, err);
     } finally {
       this.isTickRunning = false;
+      this.scheduleNextTick();
     }
   }
 
