@@ -90,6 +90,17 @@ export function OperationsCenterScreen() {
     refetchInterval: 3000
   });
 
+  // 1b. Fetch authoritative infrastructure status
+  const infraQuery = useQuery({
+    queryKey: ['infrastructure-status', workspaceId],
+    queryFn: async () => {
+      if (!workspaceId) return null;
+      return window.ipc.invoke('system:infrastructure-status' as any, { workspaceId });
+    },
+    enabled: !!workspaceId,
+    refetchInterval: 4000
+  });
+
   // 2. Fetch structured logs
   const logsQuery = useQuery({
     queryKey: ['system_logs', workspaceId, logSearch, logSeverity],
@@ -327,9 +338,21 @@ export function OperationsCenterScreen() {
               <Terminal className="h-3 w-3 mr-1" />
               Developer Mode: {devModeActive ? 'ON' : 'OFF'}
             </Button>
-            <Badge className="bg-success-muted text-success border border-success/20 font-semibold rounded-none">
-              Scheduler Status: Active
-            </Badge>
+            {(() => {
+              const schedulerStatus = infraQuery.data?.scheduler?.status;
+              const isSchedulerActive = schedulerStatus === 'Running' || schedulerStatus === 'Active' || schedulerStatus === 'ACTIVE';
+              return (
+                <Badge
+                  className={
+                    isSchedulerActive
+                      ? 'bg-success-muted text-success border border-success/20 font-semibold rounded-none'
+                      : 'bg-muted-muted text-muted-foreground border border-border-subtle font-semibold rounded-none'
+                  }
+                >
+                  Scheduler Status: {isSchedulerActive ? 'Active' : 'Stopped'}
+                </Badge>
+              );
+            })()}
           </div>
         }
       />

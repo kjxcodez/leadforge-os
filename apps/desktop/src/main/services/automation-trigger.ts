@@ -253,7 +253,9 @@ export class AutomationTriggerEvaluator {
     `);
   }
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────────
+  public get isRunning(): boolean {
+    return this.unsubscribers.length > 0;
+  }
 
   /**
    * Starts the evaluator: registers all EventBus subscriptions.

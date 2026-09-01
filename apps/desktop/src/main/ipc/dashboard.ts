@@ -269,9 +269,17 @@ export function registerDashboardIpc(): void {
     if (runtime && runtime.workspaceId === workspaceId) {
       // Scheduler
       const scheduler = runtime.scheduler as any;
-      const isSchedulerRunning = !!scheduler.intervalId;
+      const schedulerState = scheduler ? scheduler.getState() : 'STOPPED';
+      const isSchedulerRunning = scheduler ? scheduler.isActive : false;
+      const schedulerStatus = isSchedulerRunning
+        ? schedulerState === 'ACTIVE' || schedulerState === 'IDLE' || schedulerState === 'BACKING_OFF'
+          ? 'Running'
+          : schedulerState
+        : 'Stopped';
+
       stats.scheduler = {
-        status: isSchedulerRunning ? 'Running' : 'Stopped',
+        status: schedulerStatus,
+        state: schedulerState,
         uptimeMs: runtime.startedAt ? Date.now() - runtime.startedAt.getTime() : 0,
         latencyMs: 10,
         restartCount: runtime.restartCount
@@ -286,15 +294,18 @@ export function registerDashboardIpc(): void {
 
       // Automation Runtime
       const triggerEvaluator = runtime.triggerEvaluator as any;
-      const isEvaluatorRunning =
-        triggerEvaluator.unsubscribers && triggerEvaluator.unsubscribers.length > 0;
+      const isEvaluatorRunning = triggerEvaluator
+        ? triggerEvaluator.isRunning ?? (triggerEvaluator.unsubscribers && triggerEvaluator.unsubscribers.length > 0)
+        : false;
       stats.automationRuntime = {
         status: isEvaluatorRunning ? 'Running' : 'Stopped',
         uptimeMs: runtime.startedAt ? Date.now() - runtime.startedAt.getTime() : 0
       };
 
       // Worker Host (from scheduler active workers)
-      const workerCount = scheduler.activeWorkers ? scheduler.activeWorkers.size : 0;
+      const workerCount = scheduler
+        ? (scheduler.activeWorkerCount ?? (scheduler.activeWorkers ? scheduler.activeWorkers.size : 0))
+        : 0;
       stats.workerHost = {
         status: workerCount > 0 ? 'Running' : isSchedulerRunning ? 'Running' : 'Stopped',
         activeWorkers: workerCount

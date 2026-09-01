@@ -104,6 +104,10 @@ export class JobScheduler {
     return this.totalClaimRequests;
   }
 
+  public get activeWorkerCount(): number {
+    return this.activeWorkers.size;
+  }
+
   /**
    * Starts periodic polling loop and triggers startup recovery of stale leases.
    */
