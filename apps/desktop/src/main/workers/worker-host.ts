@@ -89,6 +89,40 @@ let isPausedState = false;
 let lastCheckpoint: any = null;
 
 // ---------------------------------------------------------------------------
+// Global Process Error & Disconnect Handlers
+// Guarantees structured error propagation to Main and prevents orphan processes.
+// ---------------------------------------------------------------------------
+
+process.on('uncaughtException', (err: any) => {
+  const errorMsg = err instanceof Error ? err.message : String(err);
+  try {
+    process.send?.({
+      type: 'error',
+      error: `Uncaught exception in worker: ${errorMsg}`,
+      recoverable: false
+    } as WorkerToMainMsg);
+  } catch {}
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason: any) => {
+  const errorMsg = reason instanceof Error ? reason.message : String(reason);
+  try {
+    process.send?.({
+      type: 'error',
+      error: `Unhandled rejection in worker: ${errorMsg}`,
+      recoverable: false
+    } as WorkerToMainMsg);
+  } catch {}
+  process.exit(1);
+});
+
+process.on('disconnect', () => {
+  // Parent Main process disconnected or terminated; exit immediately to prevent orphan zombie workers.
+  process.exit(1);
+});
+
+// ---------------------------------------------------------------------------
 // READY Handshake
 // Send immediately on process initialisation — before the 'start' command.
 // Main transitions the job from 'starting' to 'running' on receipt.
