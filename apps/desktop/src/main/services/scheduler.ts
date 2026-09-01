@@ -75,6 +75,8 @@ export class JobScheduler {
   private readonly defaultMaxConcurrency = 3;
   /** Tracks the number of currently active workers for each job type. */
   private typeActiveCount = new Map<string, number>();
+  /** Tracks terminal jobs to guard against duplicate completion callbacks or late crash events. */
+  private terminalJobs = new Set<string>();
 
   constructor(
     private workspaceId: string,
@@ -264,6 +266,7 @@ export class JobScheduler {
     }
     this.activeWorkers.clear();
     this.typeActiveCount.clear();
+    this.terminalJobs.clear();
     AppLogger.info(
       'JobScheduler',
       `Scheduler stopped for workspace: ${this.workspaceId}`,
@@ -592,6 +595,11 @@ export class JobScheduler {
     jobType?: string,
     payload?: any
   ): Promise<void> {
+    if (this.terminalJobs.has(jobId)) {
+      return;
+    }
+    this.terminalJobs.add(jobId);
+
     AppLogger.info('JobScheduler', `Job "${jobId}" completed successfully.`, this.workspaceId, {
       jobId
     });
@@ -665,6 +673,10 @@ export class JobScheduler {
     error: string,
     workerId?: string
   ): Promise<void> {
+    if (this.terminalJobs.has(jobId)) {
+      return;
+    }
+
     this.clearHeartbeat(jobId);
     const nextRetry = currentRetry + 1;
     const worker = this.activeWorkers.get(jobId);
@@ -694,6 +706,7 @@ export class JobScheduler {
         .catch(() => {});
       this.eventBus.publish('job:failed', { jobId, error, willRetry: true });
     } else {
+      this.terminalJobs.add(jobId);
       AppLogger.error(
         'JobScheduler',
         `Job "${jobId}" failed permanently after ${maxRetries} retries. Error: ${error}`,
