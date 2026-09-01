@@ -390,10 +390,22 @@ export function registerCrmIpc() {
     return { success: true };
   });
 
-  // Activities log
+  // Activities / Audit log
   safeRegister('activities:list', async (_event, { workspaceId, filter }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
-    return LocalCRMRepository.findMany('activities', workspaceId, filter);
+    const sdk = WorkspaceManager.getSdk();
+    const page = filter?.page || 1;
+    const limit = filter?.limit || 50;
+
+    if (filter?.entityType && filter?.entityId) {
+      return sdk.auditLogs.listByEntity(filter.entityType, filter.entityId, limit);
+    }
+    if (filter?.actorId || filter?.userId) {
+      return sdk.auditLogs.listByActor(filter.actorId || filter.userId, limit);
+    }
+
+    const res = await sdk.auditLogs.list(page, limit);
+    return res?.data || [];
   });
 
   safeRegister('intelligence:get', async (_event, { workspaceId, companyId }) => {
