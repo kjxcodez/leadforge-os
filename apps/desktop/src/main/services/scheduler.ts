@@ -13,6 +13,7 @@ import { AppLogger } from '../lib/logger';
 import { decryptSecret } from '../lib/crypto';
 import { loadSession } from '../lib/session';
 import { loadConfig } from '../lib/config';
+import { ProjectionService } from './projection-service';
 import type { SchedulerConfig } from '../../shared/types/job';
 import type { MainToWorkerMsg } from '../../shared/types/ipc';
 
@@ -108,7 +109,7 @@ export class JobScheduler {
       this.tick().catch((err) => {
         AppLogger.error('JobScheduler', 'Unhandled error in scheduler tick', this.workspaceId, err);
       });
-    }, 2000);
+    }, 3000);
 
     AppLogger.info(
       'JobScheduler',
@@ -496,7 +497,30 @@ export class JobScheduler {
 
     this.activeWorkers.delete(jobId);
     if (jobType) this.decrementTypeCount(jobType);
-    this.eventBus.publish('job:completed', { jobId, result });
+
+    // Reconcile worker mutations authoritatively into workspace SQLite projection
+    await ProjectionService.reconcileJobOutcome(
+      this.workspaceId,
+      jobType,
+      payload,
+      result,
+      this.sdk
+    ).catch((projErr) => {
+      AppLogger.warn('JobScheduler', `Projection reconciliation note: ${projErr.message}`, this.workspaceId);
+    });
+
+    const entityId = payload?.entityId || payload?.companyId || payload?.contactId || '';
+    const entityType = payload?.entityType || (payload?.companyId ? 'company' : payload?.contactId ? 'contact' : '');
+
+    this.eventBus.publish('job:completed', {
+      jobId,
+      jobType,
+      type: jobType,
+      entityId,
+      entityType,
+      result,
+      payload
+    });
 
     const resolveCancel = this.pendingCancels.get(jobId);
     if (resolveCancel) {
