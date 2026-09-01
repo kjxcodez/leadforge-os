@@ -1,8 +1,9 @@
+import { shell } from 'electron';
 import { WorkspaceManager } from '../lib/workspace-manager';
 import { safeRegister } from './helper';
 
 /**
- * Registers Google Drive file browsing IPC channels.
+ * Registers Google Drive file browsing and connection lifecycle IPC channels.
  */
 export function registerDriveIpc(): void {
   safeRegister('drive:connections:list', async (_event: any, payload?: { workspaceId?: string }) => {
@@ -11,6 +12,60 @@ export function registerDriveIpc(): void {
     const sdk = WorkspaceManager.getSdk();
     const connections = await sdk.googleConnections.list();
     return connections;
+  });
+
+  safeRegister('drive:connect', async () => {
+    const runtime = WorkspaceManager.getActiveRuntime();
+    if (!runtime) throw new Error('No active workspace runtime');
+    const sdk = WorkspaceManager.getSdk();
+    const result = await sdk.googleConnections.connect({
+      scopes: [
+        'openid',
+        'email',
+        'https://www.googleapis.com/auth/gmail.send',
+        'https://www.googleapis.com/auth/gmail.settings.basic',
+        'https://www.googleapis.com/auth/drive.file'
+      ]
+    });
+    if (result.authorizationUrl) {
+      console.log(`[IPC] Opening Google Drive OAuth in Chrome: ${result.authorizationUrl}`);
+      await shell.openExternal(result.authorizationUrl);
+    }
+    return result;
+  });
+
+  safeRegister('drive:status', async (_event: any, { transactionId }: { transactionId: string }) => {
+    const runtime = WorkspaceManager.getActiveRuntime();
+    if (!runtime) throw new Error('No active workspace runtime');
+    const sdk = WorkspaceManager.getSdk();
+    return sdk.googleConnections.getStatus(transactionId);
+  });
+
+  safeRegister('drive:disconnect', async (_event: any, { id }: { id: string }) => {
+    const runtime = WorkspaceManager.getActiveRuntime();
+    if (!runtime) throw new Error('No active workspace runtime');
+    const sdk = WorkspaceManager.getSdk();
+    return sdk.googleConnections.disconnect(id);
+  });
+
+  safeRegister('drive:reconnect', async (_event: any, { id }: { id: string }) => {
+    const runtime = WorkspaceManager.getActiveRuntime();
+    if (!runtime) throw new Error('No active workspace runtime');
+    const sdk = WorkspaceManager.getSdk();
+    const result = await sdk.googleConnections.reauthorize(id, {
+      scopes: [
+        'openid',
+        'email',
+        'https://www.googleapis.com/auth/gmail.send',
+        'https://www.googleapis.com/auth/gmail.settings.basic',
+        'https://www.googleapis.com/auth/drive.file'
+      ]
+    });
+    if (result.authorizationUrl) {
+      console.log(`[IPC] Opening Google Drive Reconnect OAuth in Chrome: ${result.authorizationUrl}`);
+      await shell.openExternal(result.authorizationUrl);
+    }
+    return result;
   });
 
   safeRegister(
