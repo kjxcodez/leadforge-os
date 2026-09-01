@@ -1,7 +1,9 @@
 import { safeRegister } from './helper';
 import { getDatabase } from '../database/connection';
+import { resetWorkspaceCache } from '../database/cache-schema';
 import { AppLogger } from '../lib/logger';
 import { WorkspaceManager } from '../lib/workspace-manager';
+import { CacheHydrator } from '../services/cache-hydrator';
 import dns from 'dns';
 import net from 'net';
 import fs from 'fs';
@@ -327,8 +329,6 @@ export function registerObservabilityIpc() {
     }
 
     if (action === 'restore-backup' || action === 'rebuild-cache') {
-      const { resetWorkspaceCache } = require('../database/cache-schema');
-      const { CacheHydrator } = require('../services/cache-hydrator');
       resetWorkspaceCache(workspaceId, 'manual_reset');
       CacheHydrator.hydrateWorkspaceCache(workspaceId, sdk).catch(() => {});
       return { success: true, message: 'Local SQLite cache rebuilt successfully from MongoDB.' };
@@ -377,7 +377,6 @@ export function registerObservabilityIpc() {
           }
         }
 
-        const { WorkspaceManager } = require('../lib/workspace-manager');
         const activeRuntime = WorkspaceManager.getActiveRuntime();
         if (activeRuntime && activeRuntime.workspaceId === workspaceId) {
           schedulerStatus = activeRuntime.scheduler.isActive ? 'Active' : 'Stopped';

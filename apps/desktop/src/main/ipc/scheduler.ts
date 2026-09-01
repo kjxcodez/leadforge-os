@@ -1,6 +1,7 @@
 import { safeRegister } from './helper';
 import { WorkspaceManager } from '../lib/workspace-manager';
 import { AppLogger } from '../lib/logger';
+import { getDatabase } from '../database/connection';
 
 /**
  * Registers IPC channels for submitting, listing, and cancelling scheduler tasks via MongoDB SDK.
@@ -69,7 +70,6 @@ export function registerSchedulerIpc() {
 
     let waiting: any[] = [];
     try {
-      const { getDatabase } = await import('../database/connection');
       const db = getDatabase(workspaceId);
       const rows = db
         .prepare(

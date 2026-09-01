@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { join } from 'path';
 import { app } from 'electron';
 import fs from 'fs';
-import { initCacheSchema, ensureCleanCache } from './cache-schema';
+import { initCacheSchema, ensureCleanCache, registerResetWorkspaceCache } from './cache-schema';
 
 let globalDb: Database.Database | null = null;
 const workspaceDbs = new Map<string, Database.Database>();
@@ -67,10 +67,22 @@ export function getDatabase(workspaceId?: string): Database.Database {
       db.pragma('busy_timeout = 5000');
       db.pragma('foreign_keys = ON');
 
-      // Guarantee schema initialization and verification on connection open
-      ensureCleanCache(db, workspaceId);
-
+      // Register the DB in the map BEFORE calling ensureCleanCache.
+      // ensureCleanCache may call resetWorkspaceCache which deletes and
+      // reopens the file; pre-registering prevents an infinite loop where
+      // getDatabase re-enters and creates a second instance for the same id.
       workspaceDbs.set(workspaceId, db);
+
+      // Guarantee schema initialization and verification on connection open.
+      // If the cache is LEGACY/CORRUPT, ensureCleanCache returns a new DB.
+      const cleanDb = ensureCleanCache(db, workspaceId);
+      if (cleanDb !== db) {
+        // Cache was rebuilt — update the map and return the fresh instance.
+        workspaceDbs.set(workspaceId, cleanDb);
+        logSQLite(`Workspace database rebuilt at: ${dbPath}`, workspaceId);
+        return cleanDb;
+      }
+
       logSQLite(`Workspace database initialized at: ${dbPath}`, workspaceId);
       return db;
     } catch (err: any) {
@@ -327,3 +339,67 @@ export function closeDatabase(workspaceId?: string): void {
     workspaceDbs.clear();
   }
 }
+
+/**
+ * Safely resets a workspace cache database.
+ * Archives the old file with a timestamped .bak extension, removes SQLite
+ * lockfiles, and initializes a fresh, clean cache schema.
+ *
+ * Lives in connection.ts (not cache-schema.ts) to avoid the circular
+ * dependency: connection.ts → cache-schema.ts → connection.ts.
+ *
+ * IMPORTANT: This function must NOT call getDatabase() — doing so would
+ * re-enter ensureCleanCache and cause an infinite loop. Instead it opens
+ * the replacement database directly and registers it in the map.
+ */
+export function resetWorkspaceCache(
+  workspaceId: string,
+  archivePrefix: string = 'legacy_archive'
+): Database.Database {
+  // Retrieve the path from the currently-registered (stale) DB handle,
+  // then close it cleanly before deleting the file.
+  let dbPath: string;
+  const existingDb = workspaceDbs.get(workspaceId);
+  if (existingDb) {
+    dbPath = (existingDb as any).name as string;
+    try { existingDb.close(); } catch {}
+    workspaceDbs.delete(workspaceId);
+  } else {
+    // Fallback: compute path without opening a DB (avoids re-entry)
+    const workspacesPath = process.env.WORKSPACES_DB_DIR || getWorkspacesDir();
+    dbPath = join(workspacesPath, `leadforge_${workspaceId}.db`);
+  }
+
+  // Archive the stale file and clean up WAL/SHM lockfiles.
+  if (fs.existsSync(dbPath)) {
+    const archivePath = `${dbPath}.${archivePrefix}_${Date.now()}.bak`;
+    try {
+      fs.copyFileSync(dbPath, archivePath);
+    } catch (err) {
+      console.warn(`[CacheReset] Failed to create backup archive for ${workspaceId}:`, err);
+    }
+    try { fs.unlinkSync(dbPath); } catch {}
+    try {
+      if (fs.existsSync(`${dbPath}-wal`)) fs.unlinkSync(`${dbPath}-wal`);
+      if (fs.existsSync(`${dbPath}-shm`)) fs.unlinkSync(`${dbPath}-shm`);
+    } catch {}
+  }
+
+  // Open the fresh database directly — do NOT call getDatabase() here.
+  const newDb = new Database(dbPath);
+  newDb.pragma('journal_mode = WAL');
+  newDb.pragma('synchronous = NORMAL');
+  newDb.pragma('busy_timeout = 5000');
+  newDb.pragma('foreign_keys = ON');
+  initCacheSchema(newDb);
+
+  // Register the new instance so subsequent getDatabase() calls return it.
+  workspaceDbs.set(workspaceId, newDb);
+  logSQLite(`Workspace database reset and rebuilt at: ${dbPath}`, workspaceId);
+  return newDb;
+}
+
+// Register the concrete implementation into cache-schema.ts so that
+// ensureCleanCache() (which lives in cache-schema.ts) can call resetWorkspaceCache
+// without creating a circular import.
+registerResetWorkspaceCache(resetWorkspaceCache);

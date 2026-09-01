@@ -601,50 +601,31 @@ export function detectCacheState(dbOrPath: Database.Database | string): CacheSta
 }
 
 /**
- * Safely resets a workspace cache database:
- * Archives the old file with a timestamped .bak extension, removes SQLite lockfiles,
- * and initializes a fresh, clean cache schema.
+ * Safely resets a workspace cache database.
+ * IMPORTANT: Implementation lives in connection.ts to avoid the circular
+ * dependency: connection.ts → cache-schema.ts → connection.ts.
+ * This export is intentionally a forward declaration that gets replaced
+ * by the concrete implementation injected from connection.ts at startup.
+ * Callers within connection.ts call the real implementation directly.
  */
-export function resetWorkspaceCache(
+export let resetWorkspaceCache: (
   workspaceId: string,
-  archivePrefix: string = 'legacy_archive'
-): Database.Database {
-  // Dynamically import connection helpers to avoid circular dependencies
-  const { getDatabase, closeDatabase } = require('./connection');
+  archivePrefix?: string
+) => Database.Database = (_workspaceId: string, _archivePrefix?: string): Database.Database => {
+  throw new Error(
+    '[CacheSchema] resetWorkspaceCache was called before connection module initialized. ' +
+    'This is a boot-order bug — ensure getDatabase() has been called first.'
+  );
+};
 
-  let dbPath: string;
-  try {
-    const existingDb = getDatabase(workspaceId);
-    dbPath = existingDb.name;
-    closeDatabase(workspaceId);
-  } catch {
-    // If opening failed (e.g. corrupt), compute fallback path
-    const { join } = require('path');
-    const workspacesPath = process.env.WORKSPACES_DB_DIR || require('path').join(process.cwd(), 'report/temp-workspaces');
-    dbPath = join(workspacesPath, `leadforge_${workspaceId}.db`);
-  }
-
-  const fs = require('fs');
-  if (fs.existsSync(dbPath)) {
-    const archivePath = `${dbPath}.${archivePrefix}_${Date.now()}.bak`;
-    try {
-      fs.copyFileSync(dbPath, archivePath);
-    } catch (err) {
-      console.warn(`[CacheReset] Failed to create backup archive for ${workspaceId}:`, err);
-    }
-
-    try {
-      fs.unlinkSync(dbPath);
-    } catch {}
-    try {
-      if (fs.existsSync(`${dbPath}-wal`)) fs.unlinkSync(`${dbPath}-wal`);
-      if (fs.existsSync(`${dbPath}-shm`)) fs.unlinkSync(`${dbPath}-shm`);
-    } catch {}
-  }
-
-  const newDb = getDatabase(workspaceId);
-  initCacheSchema(newDb);
-  return newDb;
+/**
+ * Called by connection.ts on module load to inject the concrete resetWorkspaceCache
+ * implementation. Breaks the circular dependency without a runtime require().
+ */
+export function registerResetWorkspaceCache(
+  impl: (workspaceId: string, archivePrefix?: string) => Database.Database
+): void {
+  resetWorkspaceCache = impl;
 }
 
 /**
