@@ -321,7 +321,7 @@ export interface IpcChannelMap {
     output: any;
   };
   'discovery:run:companies': {
-    input: { workspaceId: string; runId: string };
+    input: { workspaceId: string; runId: string; forceSync?: boolean };
     output: any[];
   };
   'audiences:list': {
@@ -857,6 +857,37 @@ export interface IpcChannelMap {
   'drive:files:get': {
     input: { connectionId: string; fileId: string };
     output: any;
+  };
+
+  // ── Attachment management ────────────────────────────────────────────────
+  'attachments:save': {
+    input: { filePath?: string; filename?: string; contentBase64?: string; contentType?: string };
+    output: { path: string; filename: string; size: number; contentType: string };
+  };
+
+  // ── System / Infrastructure ──────────────────────────────────────────────
+  'system:infrastructure-status': {
+    input: { workspaceId?: string };
+    output: {
+      api: { status: string; latencyMs?: number };
+      database: { status: string };
+      workers: { status: string; activeCount: number };
+      scheduler: { status: string };
+    };
+  };
+
+  // ── Push-event channels (main → renderer via ipc.on) ────────────────────
+  'workspace:boot-progress': {
+    input: void;
+    output: { stage: string; message: string; progress?: number };
+  };
+  'scheduler:tick': {
+    input: void;
+    output: { workspaceId: string; timestamp: string };
+  };
+  'agent:workflow:progress': {
+    input: void;
+    output: { executionId: string; step: number; status: string; message?: string };
   };
 }
 
