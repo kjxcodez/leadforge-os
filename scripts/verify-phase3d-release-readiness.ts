@@ -142,13 +142,17 @@ async function runSuite() {
 
   // Test 7: Cache Schema Table Inventory & Invariants
   {
-    assert.strictEqual(CACHE_SCHEMA_VERSION, 2, 'Cache schema version is 2');
+    assert.strictEqual(CACHE_SCHEMA_VERSION, 3, 'Cache schema version is 3 (bumped when intelligence tables added in Phase 4A Bug H)');
     assert(CACHE_TABLES.includes('companies'), 'Cache schema includes companies table');
     assert(CACHE_TABLES.includes('contacts'), 'Cache schema includes contacts table');
     assert(CACHE_TABLES.includes('campaigns'), 'Cache schema includes campaigns table');
     assert(CACHE_TABLES.includes('discovery_runs'), 'Cache schema includes discovery_runs table');
     assert(CACHE_TABLES.includes('cache_metadata'), 'Cache schema includes cache_metadata table');
-    pass('Cache schema invariants verified for all 12 core tables', 6);
+    assert(CACHE_TABLES.includes('company_intelligence'), 'Cache schema includes company_intelligence table (Phase 4A Bug H fix)');
+    assert(CACHE_TABLES.includes('website_intelligence'), 'Cache schema includes website_intelligence table (Phase 4A Bug H fix)');
+    assert(CACHE_TABLES.includes('contact_intelligence'), 'Cache schema includes contact_intelligence table (Phase 4A Bug H fix)');
+    assert(CACHE_TABLES.includes('opportunity_scores'), 'Cache schema includes opportunity_scores table (Phase 4A Bug H fix)');
+    pass('Cache schema invariants verified for all 16 core tables (v3 schema)', 10);
   }
 
   // Test 8: Self-Healing Cache Initialization
