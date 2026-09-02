@@ -137,7 +137,13 @@ export function registerOutreachIpc(sdk: SdkClient) {
 
     const sdk = WorkspaceManager.getSdk();
     const connections = await sdk.googleConnections.list().catch(() => []);
-    const activeConn = connections.find((c: any) => c.status === 'connected') || connections[0];
+    const activeConn =
+      connections.find(
+        (c: any) =>
+          c.status === 'active' ||
+          c.gmailStatus === 'connected' ||
+          c.driveStatus === 'authorized'
+      ) || connections[0];
 
     if (!activeConn) {
       throw new Error(

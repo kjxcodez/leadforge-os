@@ -1549,14 +1549,22 @@ async function handleSendEmailStep(
   const templateId = step.config?.templateId;
   let rawSubject = step.config?.subject || '';
   let rawBody = step.config?.body || '';
+  let rawAttachments: any[] = step.config?.attachments || [];
 
   if (templateId) {
     try {
       const templates = await sdk.outreach.listTemplates();
       const tpl = templates.find((t: any) => t.id === templateId);
       if (tpl) {
-        rawSubject = tpl.subject;
-        rawBody = tpl.body;
+        if (!rawSubject) rawSubject = tpl.subject;
+        if (!rawBody) rawBody = tpl.body;
+        if (!rawAttachments || rawAttachments.length === 0) {
+          rawAttachments = Array.isArray(tpl.attachments)
+            ? tpl.attachments
+            : typeof tpl.attachments === 'string'
+            ? JSON.parse(tpl.attachments)
+            : [];
+        }
       }
     } catch {}
   }
@@ -1601,6 +1609,7 @@ async function handleSendEmailStep(
       text: formattedBody.text,
       html: formattedBody.html,
       useSignature: step.config?.useGmailSignature !== false,
+      attachments: rawAttachments,
       idempotencyKey,
       sequenceId,
       executionId: execCtx.execution.id,

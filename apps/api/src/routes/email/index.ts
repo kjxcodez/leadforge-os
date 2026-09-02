@@ -29,13 +29,22 @@ const sendSchema = z.object({
   useSignature: z.boolean().optional(),
   attachments: z
     .array(
-      z.object({
-        filename: z.string(),
-        contentBase64: z.string().optional(),
-        path: z.string().optional(),
-        contentType: z.string().optional(),
-        size: z.number().optional()
-      })
+      z
+        .object({
+          id: z.string().optional(),
+          attachmentId: z.string().optional(),
+          fileId: z.string().nullable().optional(),
+          provider: z.string().optional(),
+          filename: z.string(),
+          contentBase64: z.string().optional(),
+          data: z.any().optional(),
+          path: z.string().optional(),
+          contentType: z.string().optional(),
+          mimeType: z.string().nullable().optional(),
+          size: z.number().optional(),
+          driveUrl: z.string().nullable().optional()
+        })
+        .passthrough()
     )
     .optional()
 });

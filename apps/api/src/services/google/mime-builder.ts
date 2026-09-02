@@ -141,15 +141,18 @@ export class MimeBuilder {
       for (const att of options.attachments || []) {
         const rawFilename = MimeBuilder.sanitizeHeader(att.filename, 'attachment filename');
         const encodedFilename = MimeBuilder.encodeHeaderValue(rawFilename);
-        const contentType = att.contentType || 'application/octet-stream';
+        const contentType = att.contentType || (att as any).mimeType || 'application/octet-stream';
         let base64Data: string;
 
-        if (Buffer.isBuffer(att.data)) {
-          base64Data = att.data.toString('base64');
-        } else if (typeof att.data === 'string') {
-          base64Data = /^[A-Za-z0-9+/=]+$/.test(att.data) && att.data.length % 4 === 0
-            ? att.data
-            : Buffer.from(att.data, 'utf8').toString('base64');
+        const rawData = att.data ?? (att as any).contentBase64 ?? (att as any).content;
+
+        if (Buffer.isBuffer(rawData)) {
+          base64Data = rawData.toString('base64');
+        } else if (typeof rawData === 'string' && rawData.length > 0) {
+          // If already clean base64 string, use directly; otherwise encode from utf8
+          base64Data = /^[A-Za-z0-9+/=\r\n]+$/.test(rawData.trim()) && rawData.trim().length % 4 === 0
+            ? rawData.trim().replace(/[\r\n]/g, '')
+            : Buffer.from(rawData, 'utf8').toString('base64');
         } else {
           base64Data = '';
         }

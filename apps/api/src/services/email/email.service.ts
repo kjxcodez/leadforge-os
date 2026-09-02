@@ -151,20 +151,25 @@ export class EmailService {
     if (Array.isArray(input.attachments)) {
       for (const att of input.attachments) {
         const attId = (att as any).id || (att as any).attachmentId;
-        if (attId && !att.contentBase64) {
+        const fileId = (att as any).fileId;
+        const hasDirectData = Boolean(att.contentBase64 || (att as any).data);
+
+        if (!hasDirectData && (attId || fileId)) {
           const { AttachmentModel } = await import('../../db/models/attachment.model.js');
           const { GoogleDriveProvider } = await import('../google/drive.provider.js');
           const { GoogleAuthService } = await import('../google/auth.service.js');
-          const attDoc = await AttachmentModel.findById(attId);
+
+          const query: any[] = [];
+          if (attId && !attId.startsWith('att_')) query.push({ _id: attId });
+          if (fileId) query.push({ fileId });
+          if (attId) query.push({ fileId: attId });
+
+          const attDoc = query.length > 0 ? await AttachmentModel.findOne({ $or: query }) : null;
 
           if (!attDoc) {
-            await this.accountRepo.releaseSendSlot(input.accountId);
-            await this.deliveryRepo.failDelivery(
-              deliveryRecord._id.toString(),
-              `Attachment ID "${attId}" not found in workspace attachments.`,
-              { classification: 'attachment_missing', retryable: false }
-            );
-            throw new EmailDomainError('ATTACHMENT_NOT_FOUND', `Attachment "${attId}" not found.`);
+            // If attachment has neither data nor a valid Drive record, log warning and continue without failing the send
+            console.warn(`[EmailService] Attachment "${att.filename || attId}" not found in Drive records; skipping attachment.`);
+            continue;
           }
 
           const driveProvider = new GoogleDriveProvider(new GoogleAuthService());
@@ -189,6 +194,7 @@ export class EmailService {
               filename: attDoc.filename,
               contentType: attDoc.mimeType,
               size: attDoc.size,
+              data: buffer,
               contentBase64: buffer.toString('base64')
             });
           } catch (err: any) {
@@ -202,7 +208,16 @@ export class EmailService {
           }
           continue;
         }
-        processedAttachments.push(att);
+
+        if (hasDirectData) {
+          processedAttachments.push({
+            filename: att.filename,
+            contentType: att.contentType || (att as any).mimeType || 'application/octet-stream',
+            size: att.size,
+            data: (att as any).data,
+            contentBase64: att.contentBase64
+          });
+        }
       }
     }
 

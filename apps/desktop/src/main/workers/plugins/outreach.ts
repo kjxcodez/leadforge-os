@@ -77,6 +77,13 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
       if (tpl) {
         if (!subject) subject = tpl.subject;
         if (!body) body = tpl.body;
+        if (!rawAttachments || rawAttachments.length === 0) {
+          rawAttachments = Array.isArray(tpl.attachments)
+            ? tpl.attachments
+            : typeof tpl.attachments === 'string'
+            ? JSON.parse(tpl.attachments)
+            : [];
+        }
       }
     } catch {}
   }

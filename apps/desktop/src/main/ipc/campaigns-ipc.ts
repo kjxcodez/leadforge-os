@@ -433,6 +433,10 @@ export function registerCampaignsIpc(): void {
       }
     }
 
+    if (enqueuedJobsCount > 0) {
+      WorkspaceManager.wakeScheduler();
+    }
+
     console.log(`[IPC] Campaign "${campaignId}" scheduled successfully. Enqueued ${enqueuedJobsCount} workflow job(s).`);
     return { success: true, campaignId, enqueuedJobsCount };
   });
