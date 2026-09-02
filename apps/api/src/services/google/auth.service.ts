@@ -324,7 +324,71 @@ export class GoogleAuthService {
   }
 
   /**
-   * Disconnects a Google connection and marks linked accounts disconnected.
+   * Disconnects only Google Drive integration for a connection without touching Gmail.
+   */
+  public async disconnectDrive(connectionId: string): Promise<void> {
+    const connection = await GoogleConnectionModel.findById(connectionId);
+    if (!connection) return;
+
+    const remainingScopes = (connection.grantedScopes || []).filter(
+      (s: string) => !s.includes('drive')
+    );
+
+    const isGmailActive = connection.gmailStatus === 'connected';
+
+    if (isGmailActive) {
+      // Gmail is still connected: keep connection active, only mark Drive revoked
+      await GoogleConnectionModel.updateOne(
+        { _id: connectionId },
+        {
+          $set: {
+            driveStatus: 'revoked',
+            grantedScopes: remainingScopes,
+            status: 'active',
+            updatedAt: new Date()
+          }
+        }
+      );
+    } else {
+      // Neither Gmail nor Drive are active: revoke connection completely
+      await this.revokeConnection(connectionId);
+    }
+  }
+
+  /**
+   * Disconnects only Gmail integration for a connection without touching Google Drive.
+   */
+  public async disconnectGmail(connectionId: string): Promise<void> {
+    const connection = await GoogleConnectionModel.findById(connectionId);
+    if (!connection) return;
+
+    const remainingScopes = (connection.grantedScopes || []).filter(
+      (s: string) => !s.includes('gmail')
+    );
+
+    const isDriveActive = connection.driveStatus === 'authorized';
+
+    if (isDriveActive) {
+      // Drive is still authorized: keep connection active, only mark Gmail revoked
+      await GoogleConnectionModel.updateOne(
+        { _id: connectionId },
+        {
+          $set: {
+            gmailStatus: 'revoked',
+            grantedScopes: remainingScopes,
+            status: 'active',
+            updatedAt: new Date()
+          }
+        }
+      );
+    } else {
+      // Neither Gmail nor Drive are active: revoke connection completely
+      await this.revokeConnection(connectionId);
+    }
+  }
+
+  /**
+   * Disconnects a Google connection completely.
    */
   public async disconnectConnection(connectionId: string): Promise<void> {
     await this.revokeConnection(connectionId);

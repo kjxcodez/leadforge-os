@@ -6,6 +6,7 @@ import {
   Search,
   Layers,
   BarChart3,
+  HardDrive,
   Settings,
   Activity
 } from 'lucide-react';
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
   { to: '/contacts',    label: 'Contacts',           icon: Users },
   { to: '/audiences',   label: 'Audiences',          icon: Layers },
   { to: '/campaigns',   label: 'Outreach',           icon: Megaphone },
+  { to: '/media',       label: 'Media Library',      icon: HardDrive },
   { to: '/reports',     label: 'Reports',            icon: BarChart3 },
   { to: '/settings',    label: 'Settings',           icon: Settings },
   { to: '/operations',  label: 'Operations Center',  icon: Activity }

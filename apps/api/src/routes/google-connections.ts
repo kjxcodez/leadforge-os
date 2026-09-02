@@ -114,7 +114,7 @@ googleConnectionsRouter.post('/:id/disconnect', async (c) => {
   const wsId = getWorkspaceId(c);
   const id = c.req.param('id');
   const authService = new GoogleAuthService();
-  await authService.disconnectConnection(id);
+  await authService.disconnectDrive(id);
   return c.json(successResponse({ success: true }));
 });
 
@@ -130,7 +130,7 @@ googleConnectionsRouter.post('/:id/reauthorize', async (c) => {
 
   const service = new EmailAccountService(wsId);
   const body = await c.req.json().catch(() => ({}));
-  const requestedScopes = body.scopes || [...GMAIL_DEFAULT_SCOPES, DRIVE_FILE_SCOPE];
+  const requestedScopes = body.scopes || ['openid', 'email', 'https://www.googleapis.com/auth/userinfo.profile', DRIVE_FILE_SCOPE];
   const result = await service.initiateGmailOAuth(userId, undefined, requestedScopes);
   return c.json(successResponse(result));
 });
@@ -151,10 +151,19 @@ googleConnectionsRouter.get('/:id/drive/files', async (c) => {
     return c.json({ error: 'Connection not found' }, 404);
   }
 
+  if (connection.driveStatus !== 'authorized' || connection.status === 'disconnected') {
+    return c.json(successResponse({ files: [], nextPageToken: undefined }));
+  }
+
   const authService = new GoogleAuthService();
   const driveProvider = new GoogleDriveProvider(authService);
-  const result = await driveProvider.listFiles(id, { folderId, search, pageToken, pageSize });
-  return c.json(successResponse(result));
+  try {
+    const result = await driveProvider.listFiles(id, { folderId, search, pageToken, pageSize });
+    return c.json(successResponse(result));
+  } catch (err: any) {
+    logger.warn({ err, connectionId: id }, 'Failed to list Google Drive files');
+    return c.json(successResponse({ files: [], nextPageToken: undefined }));
+  }
 });
 
 googleConnectionsRouter.get('/:id/drive/files/:fileId', async (c) => {
@@ -168,10 +177,39 @@ googleConnectionsRouter.get('/:id/drive/files/:fileId', async (c) => {
     return c.json({ error: 'Connection not found' }, 404);
   }
 
+  if (connection.driveStatus !== 'authorized' || connection.status === 'disconnected') {
+    return c.json({ error: 'Google Drive is not authorized for this connection' }, 400);
+  }
+
   const authService = new GoogleAuthService();
   const driveProvider = new GoogleDriveProvider(authService);
   const metadata = await driveProvider.getFileMetadata(id, fileId);
   return c.json(successResponse(metadata));
+});
+
+googleConnectionsRouter.get('/:id/drive/about', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+
+  const repo = new GoogleConnectionRepository(wsId);
+  const connection = await repo.findById(id);
+  if (!connection) {
+    return c.json({ error: 'Connection not found' }, 404);
+  }
+
+  if (connection.driveStatus !== 'authorized' || connection.status === 'disconnected') {
+    return c.json(successResponse({ user: {}, storageQuota: {} }));
+  }
+
+  const authService = new GoogleAuthService();
+  const driveProvider = new GoogleDriveProvider(authService);
+  try {
+    const about = await driveProvider.getDriveAbout(id);
+    return c.json(successResponse(about));
+  } catch (err: any) {
+    logger.warn({ err, connectionId: id }, 'Failed to fetch Google Drive about/quota');
+    return c.json(successResponse({ user: {}, storageQuota: {} }));
+  }
 });
 
 function sanitizeConnection(doc: any): any {

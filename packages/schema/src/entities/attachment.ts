@@ -14,6 +14,8 @@ export const attachmentSchema = z.object({
   filename: z.string().min(1),
   mimeType: z.string().min(1),
   size: z.number().int().nonnegative(),
+  driveUrl: z.string().nullable().optional(),
+  thumbnailUrl: z.string().nullable().optional(),
   contentHash: z.string().nullable().optional(),
   metadata: z.record(z.any()).optional().default({}),
   createdAt: z.union([z.date(), z.string()]),
@@ -31,6 +33,8 @@ export const createAttachmentDtoSchema = z.object({
   filename: z.string().min(1),
   mimeType: z.string().min(1),
   size: z.number().int().nonnegative(),
+  driveUrl: z.string().nullable().optional(),
+  thumbnailUrl: z.string().nullable().optional(),
   contentHash: z.string().optional(),
   metadata: z.record(z.any()).optional()
 });
@@ -42,7 +46,8 @@ export const uploadAttachmentDtoSchema = z.object({
   filename: z.string().min(1),
   mimeType: z.string().min(1),
   contentBase64: z.string().min(1),
-  idempotencyKey: z.string().optional()
+  idempotencyKey: z.string().optional(),
+  metadata: z.record(z.any()).optional()
 });
 
 export type UploadAttachmentDto = z.infer<typeof uploadAttachmentDtoSchema>;

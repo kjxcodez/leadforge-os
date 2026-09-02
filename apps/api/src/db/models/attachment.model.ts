@@ -10,6 +10,8 @@ export interface AttachmentDocument extends mongoose.Document, WorkspaceScopedDo
   filename: string;
   mimeType: string;
   size: number;
+  driveUrl?: string | null;
+  thumbnailUrl?: string | null;
   contentHash?: string | null;
   metadata?: Record<string, any>;
   createdAt: Date;
@@ -25,6 +27,8 @@ const attachmentSchema = new Schema<AttachmentDocument>(
     filename: { type: String, required: true },
     mimeType: { type: String, required: true },
     size: { type: Number, required: true, min: 0 },
+    driveUrl: { type: String, default: null },
+    thumbnailUrl: { type: String, default: null },
     contentHash: { type: String, default: null },
     metadata: { type: Schema.Types.Mixed, default: () => ({}) }
   },
@@ -39,6 +43,7 @@ attachmentSchema.plugin(workspacePlugin);
 attachmentSchema.index({ workspaceId: 1, fileId: 1 });
 attachmentSchema.index({ workspaceId: 1, googleConnectionId: 1 });
 attachmentSchema.index({ workspaceId: 1, contentHash: 1 });
+attachmentSchema.index({ workspaceId: 1, createdAt: -1 });
 
 export const AttachmentModel = mongoose.models.Attachment
   ? (mongoose.models.Attachment as mongoose.Model<AttachmentDocument>)

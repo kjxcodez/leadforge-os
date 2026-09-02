@@ -71,6 +71,24 @@ export class MimeBuilder {
   }
 
   /**
+   * Encodes and line-wraps base64 payload at 76 characters per RFC 2045 with CRLF line breaks.
+   */
+  public static formatBase64(data: Buffer | string): string {
+    let base64Data: string;
+    if (Buffer.isBuffer(data)) {
+      base64Data = data.toString('base64');
+    } else if (typeof data === 'string' && data.length > 0) {
+      const trimmed = data.trim();
+      base64Data = /^[A-Za-z0-9+/=\r\n]+$/.test(trimmed) && trimmed.length % 4 === 0
+        ? trimmed.replace(/[\r\n]/g, '')
+        : Buffer.from(data, 'utf8').toString('base64');
+    } else {
+      return '';
+    }
+    return base64Data.match(/.{1,76}/g)?.join('\r\n') || base64Data;
+  }
+
+  /**
    * Constructs an RFC 2822 compliant message and encodes it as Base64URL without padding.
    */
   public static buildRaw(options: MimeMessageOptions): string {
@@ -110,7 +128,7 @@ export class MimeBuilder {
             'Content-Type: text/plain; charset=UTF-8',
             'Content-Transfer-Encoding: base64',
             '',
-            Buffer.from(options.text, 'utf8').toString('base64')
+            MimeBuilder.formatBase64(Buffer.from(options.text, 'utf8'))
           ].join('\r\n')
         );
       }
@@ -120,7 +138,7 @@ export class MimeBuilder {
             'Content-Type: text/html; charset=UTF-8',
             'Content-Transfer-Encoding: base64',
             '',
-            Buffer.from(options.html, 'utf8').toString('base64')
+            MimeBuilder.formatBase64(Buffer.from(options.html, 'utf8'))
           ].join('\r\n')
         );
       }
@@ -142,23 +160,20 @@ export class MimeBuilder {
         const rawFilename = MimeBuilder.sanitizeHeader(att.filename, 'attachment filename');
         const encodedFilename = MimeBuilder.encodeHeaderValue(rawFilename);
         const contentType = att.contentType || (att as any).mimeType || 'application/octet-stream';
-        let base64Data: string;
 
         const rawData = att.data ?? (att as any).contentBase64 ?? (att as any).content;
 
-        if (Buffer.isBuffer(rawData)) {
-          base64Data = rawData.toString('base64');
-        } else if (typeof rawData === 'string' && rawData.length > 0) {
-          // If already clean base64 string, use directly; otherwise encode from utf8
-          base64Data = /^[A-Za-z0-9+/=\r\n]+$/.test(rawData.trim()) && rawData.trim().length % 4 === 0
-            ? rawData.trim().replace(/[\r\n]/g, '')
-            : Buffer.from(rawData, 'utf8').toString('base64');
-        } else {
-          base64Data = '';
+        if (Buffer.isBuffer(rawData) && rawData.length === 0) {
+          throw new EmailDomainError('ATTACHMENT_BINARY_EMPTY', `Attachment "${rawFilename}" binary data is empty.`);
+        }
+        if (typeof rawData === 'string' && rawData.trim().length === 0) {
+          throw new EmailDomainError('ATTACHMENT_BINARY_EMPTY', `Attachment "${rawFilename}" binary data is empty or missing.`);
+        }
+        if (!rawData) {
+          throw new EmailDomainError('ATTACHMENT_BINARY_EMPTY', `Attachment "${rawFilename}" binary data is empty or missing.`);
         }
 
-        // Line-wrap base64 payload at 76 characters per RFC 2045
-        const chunkedBase64 = base64Data.match(/.{1,76}/g)?.join('\r\n') || base64Data;
+        const chunkedBase64 = MimeBuilder.formatBase64(rawData);
 
         mixedParts.push(
           [
@@ -187,7 +202,7 @@ export class MimeBuilder {
             'Content-Type: text/plain; charset=UTF-8',
             'Content-Transfer-Encoding: base64',
             '',
-            Buffer.from(options.text, 'utf8').toString('base64')
+            MimeBuilder.formatBase64(Buffer.from(options.text, 'utf8'))
           ].join('\r\n')
         );
       }
@@ -197,7 +212,7 @@ export class MimeBuilder {
             'Content-Type: text/html; charset=UTF-8',
             'Content-Transfer-Encoding: base64',
             '',
-            Buffer.from(options.html, 'utf8').toString('base64')
+            MimeBuilder.formatBase64(Buffer.from(options.html, 'utf8'))
           ].join('\r\n')
         );
       }
@@ -217,7 +232,7 @@ export class MimeBuilder {
         mimeContent = [
           headers.join('\r\n'),
           '',
-          Buffer.from(options.html, 'utf8').toString('base64')
+          MimeBuilder.formatBase64(Buffer.from(options.html, 'utf8'))
         ].join('\r\n');
       } else {
         headers.push('Content-Type: text/plain; charset=UTF-8');
@@ -225,7 +240,7 @@ export class MimeBuilder {
         mimeContent = [
           headers.join('\r\n'),
           '',
-          Buffer.from(options.text || '', 'utf8').toString('base64')
+          MimeBuilder.formatBase64(Buffer.from(options.text || '', 'utf8'))
         ].join('\r\n');
       }
     }

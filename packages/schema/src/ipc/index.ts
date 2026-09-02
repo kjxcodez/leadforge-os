@@ -859,10 +859,26 @@ export interface IpcChannelMap {
     output: any;
   };
 
-  // ── Attachment management ────────────────────────────────────────────────
+  // ── Attachment & Media management ─────────────────────────────────────────
   'attachments:save': {
-    input: { filePath?: string; filename?: string; contentBase64?: string; contentType?: string };
-    output: { path: string; filename: string; size: number; contentType: string };
+    input: { filePath?: string; filename?: string; contentBase64?: string; contentType?: string; googleConnectionId?: string };
+    output: { id?: string; path?: string; filename: string; size: number; contentType?: string; mimeType?: string; provider?: string; fileId?: string; driveUrl?: string };
+  };
+  'media:list': {
+    input: { search?: string; category?: string; page?: number; limit?: number } | void;
+    output: any[];
+  };
+  'media:upload': {
+    input: { filename: string; mimeType: string; contentBase64: string; googleConnectionId?: string; metadata?: Record<string, any> };
+    output: any;
+  };
+  'media:delete': {
+    input: { id: string };
+    output: { success: boolean };
+  };
+  'media:link': {
+    input: { googleConnectionId: string; fileId: string };
+    output: any;
   };
 
   // ── System / Infrastructure ──────────────────────────────────────────────
