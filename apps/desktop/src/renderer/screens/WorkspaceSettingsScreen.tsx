@@ -1082,6 +1082,24 @@ function EmailAccountsSection() {
   };
 
   const [testModalAccount, setTestModalAccount] = useState<any | null>(null);
+  const [syncingSigId, setSyncingSigId] = useState<string | null>(null);
+
+  const handleSyncSignature = async (id: string) => {
+    setSyncingSigId(id);
+    try {
+      const res = await window.ipc.invoke('email-accounts:sync-signature', { id });
+      if (res.synced && res.signature) {
+        toast.success('Gmail web signature synced successfully!');
+      } else {
+        toast.info('No signature found in your Gmail web settings.');
+      }
+      fetchAccounts();
+    } catch (err: any) {
+      toast.error(`Failed to sync signature: ${err.message || err}`);
+    } finally {
+      setSyncingSigId(null);
+    }
+  };
 
   const handleDisconnect = async (id: string) => {
     if (!confirm('Are you sure you want to disconnect this Gmail account?')) return;
@@ -1155,6 +1173,15 @@ function EmailAccountsSection() {
                       Disconnected
                     </Badge>
                   )}
+                  {acc.signature ? (
+                    <Badge className="bg-primary/10 text-primary border border-primary/20 text-[9px] font-mono rounded-none">
+                      Signature: Active
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-muted text-muted-foreground border border-border-subtle text-[9px] font-mono rounded-none">
+                      Signature: None
+                    </Badge>
+                  )}
                 </div>
                 <div className="text-[10px] text-muted-foreground font-mono flex items-center gap-3">
                   <span>Name: {acc.name}</span>
@@ -1173,15 +1200,28 @@ function EmailAccountsSection() {
                     Reconnect Gmail
                   </Button>
                 ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleSendTest(acc)}
-                    disabled={actionId === acc.id || acc.status !== 'connected'}
-                    className="rounded-none h-7 text-[10px] font-semibold"
-                  >
-                    Send Test
-                  </Button>
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleSyncSignature(acc.id)}
+                      disabled={syncingSigId === acc.id || acc.status !== 'connected'}
+                      className="rounded-none h-7 text-[10px] font-semibold gap-1"
+                      title="Refresh web signature from Gmail settings"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${syncingSigId === acc.id ? 'animate-spin' : ''}`} />
+                      <span>Sync Sig</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleSendTest(acc)}
+                      disabled={actionId === acc.id || acc.status !== 'connected'}
+                      className="rounded-none h-7 text-[10px] font-semibold"
+                    >
+                      Send Test
+                    </Button>
+                  </>
                 )}
 
                 <Button

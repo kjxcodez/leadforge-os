@@ -23,9 +23,9 @@ console.log('✅ Variable interpolation passed.');
 const html = plainTextToHtml(rendered);
 assert.ok(html.startsWith('<div style="font-family:sans-serif;line-height:107%;">'));
 assert.ok(html.endsWith('</div>'));
-assert.ok(html.includes('<p style="margin:0 0 16px 0;line-height:107%;">Hello Sarah,</p>'));
-assert.ok(html.includes('<p style="margin:0 0 16px 0;line-height:107%;">I noticed Cyberdyne Systems is hiring.<br/>Let me know if you are open to chatting.</p>'));
-assert.ok(html.includes('<p style="margin:0 0 16px 0;line-height:107%;">Best,<br/>John Doe</p>'));
+assert.ok(html.includes('<p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:11pt;font-family:Calibri,sans-serif">Hello Sarah,</p>'));
+assert.ok(html.includes('<p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:11pt;font-family:Calibri,sans-serif">I noticed Cyberdyne Systems is hiring.<br/>Let me know if you are open to chatting.</p>'));
+assert.ok(html.includes('<p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:11pt;font-family:Calibri,sans-serif">Best,<br/>John Doe</p>'));
 console.log('✅ plainTextToHtml paragraph blocks, line breaks, and default typography passed.');
 
 // Test 3: formatEmailBody returns both text and html
@@ -71,5 +71,14 @@ assert.strictEqual(wrappedSnippet, '<div style="font-family:sans-serif;line-heig
 const doubleWrapped = wrapHtmlWithDefaultTypography(wrappedSnippet);
 assert.strictEqual(doubleWrapped, wrappedSnippet);
 console.log('✅ wrapHtmlWithDefaultTypography passed.');
+
+// Test 8: normalizeEmailSignature handles entity-escaped and bare td table cells
+const { normalizeEmailSignature } = await import('./variable-resolver.js');
+const rawEscapedSig = '<div dir="ltr"><pre><code>&lt;td style=&quot;padding-left:18px;&quot;&gt;&lt;div&gt;&lt;strong&gt;Test Company&lt;/strong&gt;&lt;/div&gt;&lt;/td&gt;</code></pre></div>';
+const normalized = normalizeEmailSignature(rawEscapedSig);
+assert.ok(normalized.includes('<table'), 'Bare td should be wrapped in table');
+assert.ok(normalized.includes('<strong>Test Company</strong>'), 'Entities should be decoded to HTML');
+assert.ok(!normalized.includes('<pre>'), 'Pre tags should be stripped');
+console.log('✅ normalizeEmailSignature passed.');
 
 console.log('[SDK Test] All variable-resolver and formatting tests PASSED!');

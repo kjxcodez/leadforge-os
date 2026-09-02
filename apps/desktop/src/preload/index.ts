@@ -89,6 +89,7 @@ contextBridge.exposeInMainWorld('ipc', {
       'email-accounts:gmail:status',
       'email-accounts:gmail:disconnect',
       'email-accounts:gmail:reconnect',
+      'email-accounts:sync-signature',
       'email-accounts:send-test',
       'email-accounts:test-recipients',
       'attachments:save',

@@ -104,6 +104,12 @@ export function registerOutreachIpc(sdk: SdkClient) {
     return result;
   });
 
+  safeRegister('email-accounts:sync-signature', async (_event, { id }: { id: string }) => {
+    const runtime = WorkspaceManager.getActiveRuntime();
+    if (!runtime) throw new Error('No active workspace runtime');
+    return sdk.outreach.syncAccountSignature(id);
+  });
+
   safeRegister('email-accounts:send-test', async (_event, payload) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');

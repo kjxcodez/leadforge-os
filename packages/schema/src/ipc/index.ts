@@ -457,6 +457,10 @@ export interface IpcChannelMap {
     input: { id: string };
     output: { transactionId: string; authorizationUrl: string };
   };
+  'email-accounts:sync-signature': {
+    input: { id: string };
+    output: { signature: string | null; synced: boolean };
+  };
   'email-accounts:send-test': {
     input: {
       id: string;

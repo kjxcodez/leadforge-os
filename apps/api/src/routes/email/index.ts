@@ -158,6 +158,14 @@ emailRouter.post('/accounts/:id/disconnect', async (c) => {
   return c.json(successResponse(result));
 });
 
+emailRouter.post('/accounts/:id/sync-signature', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const service = new EmailAccountService(wsId);
+  const result = await service.syncSignature(id);
+  return c.json(successResponse(result));
+});
+
 // ── Global Test Recipients ───────────────────────────────────────────────
 
 emailRouter.get('/test-recipients', async (c) => {

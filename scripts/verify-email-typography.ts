@@ -40,7 +40,7 @@ async function runTypographyVerification() {
     testAssert(html.includes('line-height:107%'), 'HTML output contains line-height:107%');
     testAssert(html.startsWith('<div style="font-family:sans-serif;line-height:107%;">'), 'Root container has inline style with sans-serif and 107% line-height');
     testAssert(html.endsWith('</div>'), 'HTML ends with root container closing tag');
-    testAssert(html.includes('<p style="margin:0 0 16px 0;line-height:107%;">Dear Alex,</p>'), 'Child paragraph styles use line-height:107% (no overriding 1.5 or 150%)');
+    testAssert(html.includes('<p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:11pt;font-family:Calibri,sans-serif">Dear Alex,</p>'), 'Child paragraph styles use MsoNormal Calibri typography');
   }
 
   // ---------------------------------------------------------------------------

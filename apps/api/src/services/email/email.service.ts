@@ -2,7 +2,7 @@ import { EmailAccountModel } from '../../db/models/email-account.model.js';
 import { UserTestRecipientModel } from '../../db/models/user-test-recipient.model.js';
 import { EmailDeliveryRepository } from '../../repositories/email-delivery/email-delivery.repository.js';
 import { EmailAccountRepository } from '../../repositories/email-account/email-account.repository.js';
-import { plainTextToHtml, wrapHtmlWithDefaultTypography } from '@leadforge/sdk';
+import { plainTextToHtml, wrapHtmlWithDefaultTypography, normalizeEmailSignature } from '@leadforge/sdk';
 import {
   EmailDomainError,
   type SendEmailInput,
@@ -155,9 +155,35 @@ export class EmailService {
     } else if (finalHtml) {
       finalHtml = wrapHtmlWithDefaultTypography(finalHtml);
     }
-    if (input.useSignature !== false && finalHtml && account.signature) {
-      if (!finalHtml.includes('class="gmail_signature"')) {
-        finalHtml = `${finalHtml}<br/><hr style="border: 0; border-top: 1px solid #e4e4e7; margin: 16px 0;" /><div class="gmail_signature">${account.signature}</div>`;
+
+    if (input.useSignature !== false && finalHtml) {
+      let signatureHtml = account.signature;
+
+      // On-demand lazy fetch: If account has no signature stored yet and provider is Gmail, fetch once from Gmail API
+      if (!signatureHtml && (account.provider === 'gmail' || account.provider === 'gmail_oauth')) {
+        try {
+          const provider: any = await this.accounts.buildProvider(input.accountId);
+          if (provider && typeof provider.fetchSignature === 'function') {
+            const fetched = await provider.fetchSignature();
+            if (fetched) {
+              const normalized = normalizeEmailSignature(fetched);
+              signatureHtml = normalized;
+              await EmailAccountModel.updateOne(
+                { _id: input.accountId } as any,
+                { signature: normalized }
+              );
+              account.signature = normalized;
+              logger.info({ accountId: input.accountId }, 'Lazily fetched and stored Gmail signature on send');
+            }
+          }
+        } catch (sigErr) {
+          logger.warn({ sigErr, accountId: input.accountId }, 'Failed on-demand signature fetch in send()');
+        }
+      }
+
+      if (signatureHtml && !finalHtml.includes('class="gmail_signature"')) {
+        const cleanSig = normalizeEmailSignature(signatureHtml);
+        finalHtml = `${finalHtml}<br/><span class="gmail_signature_prefix">-- </span><br/><div class="gmail_signature" dir="ltr" data-smartmail="gmail_signature">${cleanSig}</div>`;
       }
     }
 
@@ -479,22 +505,31 @@ export class EmailService {
       subject: 'LeadForge OS — Mailbox Verification Test',
       idempotencyKey: `test_${accountId}_${Date.now()}_${crypto.randomUUID()}`,
       html: `
-        <div style="font-family: sans-serif; line-height: 107%; padding: 20px; color: #111827;">
-          <h2 style="color: #4f46e5; margin-bottom: 8px;">Mailbox Verification Successful</h2>
-          <p style="margin: 0 0 16px 0; line-height: 107%;">This is an automated test email confirming that your Gmail account <strong>${accountDoc.email}</strong> is properly connected via Google OAuth.</p>
-          <p style="font-size: 12px; color: #6b7280; margin-top: 24px; line-height: 107%;">Sent securely from LeadForge OS</p>
+        <div dir="ltr">
+          <div dir="ltr">
+            <p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:13pt;font-family:Calibri,sans-serif;color:#4f46e5;"><strong>Mailbox Verification Successful</strong></p>
+            <p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:11pt;font-family:Calibri,sans-serif;color:#111827;">This is an automated test email confirming that your Gmail account <strong>${accountDoc.email}</strong> is properly connected via Google OAuth.</p>
+            <p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:10pt;font-family:Calibri,sans-serif;color:#6b7280;">Sent securely from LeadForge OS</p>
+          </div>
         </div>
       `,
       useSignature: options.useSignature,
       attachments: options.attachments
     });
 
+    const refreshedAccount = await EmailAccountModel.findById(accountId);
+    const hasSignature = Boolean(refreshedAccount?.signature);
+
     const result: { messageId: string; sentTo: string; signatureNotice?: string } = {
       messageId: res.messageId,
       sentTo: normalizedTo
     };
-    if (accountDoc.signature) {
-      result.signatureNotice = 'Gmail signature included';
+    if (options.useSignature !== false) {
+      if (hasSignature) {
+        result.signatureNotice = 'Gmail signature included';
+      } else {
+        result.signatureNotice = 'No signature detected in Gmail settings';
+      }
     }
     return result;
   }

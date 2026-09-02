@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Button } from '../components/ui/button';
+import { Checkbox } from '../components/ui/checkbox';
 import { Badge } from '../components/ui/badge';
 import { Textarea } from '../components/ui/textarea';
 import {
@@ -104,6 +105,7 @@ export default function CampaignsScreen() {
   const [campAccId, setCampAccId] = useState('');
   const [campLimit, setCampLimit] = useState(200);
   const [campTimezone, setCampTimezone] = useState('UTC');
+  const [campUseSignature, setCampUseSignature] = useState(true);
 
   const [selectedAudienceId, setSelectedAudienceId] = useState(initialAudienceId);
   const [sequenceSteps, setSequenceSteps] = useState<SequenceStepItem[]>([
@@ -557,6 +559,7 @@ export default function CampaignsScreen() {
             type: stepType,
             config: {
               ...stepConfig,
+              useGmailSignature: campUseSignature,
               sendingAccountId: stepConfig.sendingAccountId || campAccId
             }
           };
@@ -580,7 +583,10 @@ export default function CampaignsScreen() {
         sendingAccountId: campAccId,
         dailyLimit: campLimit,
         timezone: campTimezone,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        settings: {
+          useSignature: campUseSignature
+        }
       });
 
       // 3. Resolve Audience & Enroll Contacts
@@ -611,6 +617,7 @@ export default function CampaignsScreen() {
       setCampDesc('');
       setCampSeqId('');
       setCampAccId('');
+      setCampUseSignature(true);
       setSelectedAudienceId('');
       setSequenceSteps([
         {
@@ -2177,6 +2184,18 @@ export default function CampaignsScreen() {
                   />
                 </div>
               </div>
+
+              {/* Signature Option */}
+              <div className="flex items-center space-x-2 pt-1 pb-1">
+                <Checkbox
+                  id="camp-use-signature"
+                  checked={campUseSignature}
+                  onCheckedChange={(c) => setCampUseSignature(!!c)}
+                />
+                <Label htmlFor="camp-use-signature" className="text-xs cursor-pointer select-none font-medium text-foreground">
+                  Include Gmail signature on outbound emails
+                </Label>
+              </div>
             </div>
 
             {/* Section 5: Review & Safety Summary */}
@@ -2200,6 +2219,10 @@ export default function CampaignsScreen() {
                 </div>
                 <div>
                   <span className="text-foreground font-semibold">Daily Limit:</span> {campLimit} emails/day
+                </div>
+                <div>
+                  <span className="text-foreground font-semibold">Signature:</span>{' '}
+                  {campUseSignature ? 'Enabled (Gmail)' : 'Disabled'}
                 </div>
               </div>
             </div>

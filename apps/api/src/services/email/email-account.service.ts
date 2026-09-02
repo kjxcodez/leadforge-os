@@ -8,6 +8,7 @@ import { env, logger } from '../../config/index.js';
 import { EmailDomainError, type SafeEmailAccount } from './types.js';
 import { GoogleAuthService, GMAIL_DEFAULT_SCOPES, DRIVE_FILE_SCOPE } from '../google/auth.service.js';
 import { GmailProvider } from '../google/gmail.provider.js';
+import { normalizeEmailSignature } from '@leadforge/sdk';
 import type { EmailProvider } from './providers/types.js';
 
 /**
@@ -207,6 +208,19 @@ export class EmailAccountService {
             lastVerifiedAt: new Date()
           });
         }
+
+        // Fetch and cache user's Gmail web signature immediately upon connection
+        try {
+          const gmailProvider = new GmailProvider(authService);
+          const signature = await gmailProvider.getSendAsSignature(connection._id.toString(), email);
+          if (signature) {
+            accountDoc.signature = normalizeEmailSignature(signature);
+            await accountDoc.save();
+            logger.info({ email, accountId: accountDoc._id }, 'Synced Gmail web signature during OAuth connection');
+          }
+        } catch (sigErr) {
+          logger.warn({ sigErr, email }, 'Could not fetch signature during Gmail OAuth connection');
+        }
       }
 
       transaction.status = 'completed';
@@ -359,6 +373,21 @@ export class EmailAccountService {
   }
 
   /**
+   * Syncs and updates the Gmail web signature for an email account.
+   */
+  public async syncSignature(id: string): Promise<{ signature: string | null; synced: boolean }> {
+    const account = await this.findAccount(id);
+    const provider: any = await this.buildProvider(id);
+    const rawSig = typeof provider.fetchSignature === 'function' ? await provider.fetchSignature() : null;
+    const signature = rawSig ? normalizeEmailSignature(rawSig) : null;
+    await EmailAccountModel.updateOne(
+      { _id: id } as any,
+      { signature: signature || null }
+    );
+    return { signature: signature || null, synced: !!signature };
+  }
+
+  /**
    * Returns a provider for sending email. Rejects legacy SMTP accounts.
    */
   async buildProvider(id: string): Promise<EmailProvider> {
@@ -460,8 +489,11 @@ export class EmailAccountService {
             return 'reauth_required';
           }
         },
+        async fetchSignature(): Promise<string | null> {
+          return gmailProvider.getSendAsSignature(connectionId!, account.email);
+        },
         close() {}
-      };
+      } as any;
     }
 
     throw new EmailDomainError(

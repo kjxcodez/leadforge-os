@@ -213,6 +213,7 @@ export class GmailProvider {
 
   /**
    * Fetches the web signature configured in Gmail for the user's sendAs address.
+   * First queries the direct sendAs endpoint by email; falls back to listing all sendAs aliases.
    */
   public async getSendAsSignature(connectionId: string, email: string): Promise<string | null> {
     try {
@@ -222,9 +223,27 @@ export class GmailProvider {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
 
-      if (!res.ok) return null;
-      const data: any = await res.json().catch(() => ({}));
-      return data?.signature ? String(data.signature).trim() : null;
+      if (res.ok) {
+        const data: any = await res.json().catch(() => ({}));
+        return data?.signature ? String(data.signature).trim() : null;
+      }
+
+      // Fallback: list all sendAs aliases to match lowercase, primary, or default
+      const listUrl = 'https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs';
+      const listRes = await this.transportFn(listUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+
+      if (!listRes.ok) return null;
+      const listData: any = await listRes.json().catch(() => ({}));
+      const sendAsList: any[] = Array.isArray(listData?.sendAs) ? listData.sendAs : [];
+      const norm = (email || '').toLowerCase().trim();
+      const match =
+        sendAsList.find((s) => (s.sendAsEmail || '').toLowerCase().trim() === norm) ||
+        sendAsList.find((s) => s.isPrimary || s.isDefault) ||
+        sendAsList[0];
+
+      return match?.signature ? String(match.signature).trim() : null;
     } catch {
       return null;
     }

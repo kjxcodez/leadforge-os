@@ -265,7 +265,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
         subject: renderedSubject,
         text: formattedBody.text,
         html: formattedBody.html,
-        useSignature: true,
+        useSignature: campaign.settings?.useSignature !== false,
         attachments: processedAttachments,
         idempotencyKey,
         campaignId,

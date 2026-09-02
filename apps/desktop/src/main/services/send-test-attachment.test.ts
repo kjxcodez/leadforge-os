@@ -128,7 +128,33 @@ async function runTests() {
   assert.strictEqual(capturedOpts.attachments[0].fileId, 'file_google_888');
   assert.strictEqual(capturedOpts.attachments[0].googleConnectionId, 'gconn_123');
 
-  console.log('[Desktop Test] PASS: All Send Test Attachment Boundary Tests Passed!');
+  // Test 6: Signature option forwarding and signatureNotice return
+  sdkCalled = false;
+  capturedOpts = null;
+  const mockSdkWithNotice: any = {
+    outreach: {
+      sendTestEmail: async (_id: string, opts: any) => {
+        sdkCalled = true;
+        capturedOpts = opts;
+        return {
+          messageId: 'msg_sig_123',
+          sentTo: opts.to,
+          signatureNotice: 'Gmail signature included'
+        };
+      }
+    }
+  };
+
+  const res6 = await sendTestEmail(mockSdkWithNotice, {
+    id: 'acc_123',
+    to: 'test@example.com',
+    useSignature: true
+  });
+  assert.strictEqual(sdkCalled, true);
+  assert.strictEqual(capturedOpts.useSignature, true, 'useSignature option MUST be forwarded to SDK');
+  assert.strictEqual(res6.signatureNotice, 'Gmail signature included', 'signatureNotice MUST be propagated');
+
+  console.log('[Desktop Test] PASS: All Send Test Attachment & Signature Boundary Tests Passed!');
 }
 
 runTests();

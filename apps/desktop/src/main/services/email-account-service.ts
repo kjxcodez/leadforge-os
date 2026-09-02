@@ -90,7 +90,7 @@ export async function sendTestEmail(
       googleConnectionId?: string;
     }>;
   }
-): Promise<{ sent: boolean; messageId?: string; sentTo?: string }> {
+): Promise<{ sent: boolean; messageId?: string; sentTo?: string; signatureNotice?: string }> {
   const processedAttachments: Array<{
     filename: string;
     contentBase64?: string;
@@ -154,5 +154,10 @@ export async function sendTestEmail(
   }
 
   const res = await sdk.outreach.sendTestEmail(payload.id, sendOpts);
-  return { sent: true, messageId: res.messageId, sentTo: res.sentTo };
+  return {
+    sent: true,
+    messageId: res.messageId,
+    sentTo: res.sentTo,
+    ...(res.signatureNotice ? { signatureNotice: res.signatureNotice } : {})
+  };
 }

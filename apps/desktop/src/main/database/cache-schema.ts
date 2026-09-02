@@ -260,6 +260,13 @@ export function initCacheSchema(db: Database.Database): void {
         email TEXT NOT NULL,
         displayName TEXT,
         dailyLimit INTEGER DEFAULT 50,
+        hourlyLimit INTEGER DEFAULT 50,
+        dailySent INTEGER DEFAULT 0,
+        hourlySent INTEGER DEFAULT 0,
+        signature TEXT,
+        lastVerifiedAt DATETIME,
+        lastError TEXT,
+        googleAccountId TEXT,
         status TEXT DEFAULT 'ACTIVE',
         smtpHost TEXT,
         smtpPort INTEGER,
@@ -270,6 +277,34 @@ export function initCacheSchema(db: Database.Database): void {
         deletedAt DATETIME DEFAULT NULL
       )
     `).run();
+
+    // Safe column migrations for email_accounts table
+    try {
+      const emailAccCols = (db.pragma('table_info(email_accounts)') as Array<{ name: string }>).map((c) => c.name);
+      if (!emailAccCols.includes('signature')) {
+        db.prepare('ALTER TABLE email_accounts ADD COLUMN signature TEXT').run();
+      }
+      if (!emailAccCols.includes('googleAccountId')) {
+        db.prepare('ALTER TABLE email_accounts ADD COLUMN googleAccountId TEXT').run();
+      }
+      if (!emailAccCols.includes('hourlyLimit')) {
+        db.prepare('ALTER TABLE email_accounts ADD COLUMN hourlyLimit INTEGER DEFAULT 50').run();
+      }
+      if (!emailAccCols.includes('dailySent')) {
+        db.prepare('ALTER TABLE email_accounts ADD COLUMN dailySent INTEGER DEFAULT 0').run();
+      }
+      if (!emailAccCols.includes('hourlySent')) {
+        db.prepare('ALTER TABLE email_accounts ADD COLUMN hourlySent INTEGER DEFAULT 0').run();
+      }
+      if (!emailAccCols.includes('lastVerifiedAt')) {
+        db.prepare('ALTER TABLE email_accounts ADD COLUMN lastVerifiedAt DATETIME').run();
+      }
+      if (!emailAccCols.includes('lastError')) {
+        db.prepare('ALTER TABLE email_accounts ADD COLUMN lastError TEXT').run();
+      }
+    } catch {
+      // Ignored if table was just created or already migrated
+    }
 
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_email_acc_ws ON email_accounts(workspaceId)`).run();
 

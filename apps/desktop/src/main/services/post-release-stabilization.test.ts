@@ -29,9 +29,9 @@ export async function runPostReleaseStabilizationTests() {
   // Verify HTML structure
   assert.ok(formatted.html.startsWith('<div style="font-family:sans-serif;line-height:107%;">'));
   assert.ok(formatted.html.endsWith('</div>'));
-  assert.ok(formatted.html.includes('<p style="margin:0 0 16px 0;line-height:107%;">Hi Alice,</p>'));
-  assert.ok(formatted.html.includes('<p style="margin:0 0 16px 0;line-height:107%;">I noticed Acme Corp is expanding.<br/>Are you free for a quick chat tomorrow?</p>'));
-  assert.ok(formatted.html.includes('<p style="margin:0 0 16px 0;line-height:107%;">Best regards,<br/>Bob</p>'));
+  assert.ok(formatted.html.includes('<p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:11pt;font-family:Calibri,sans-serif">Hi Alice,</p>'));
+  assert.ok(formatted.html.includes('<p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:11pt;font-family:Calibri,sans-serif">I noticed Acme Corp is expanding.<br/>Are you free for a quick chat tomorrow?</p>'));
+  assert.ok(formatted.html.includes('<p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:11pt;font-family:Calibri,sans-serif">Best regards,<br/>Bob</p>'));
 
   // Test HTML character escaping
   const unsafeText = '5 < 10 & 20 > 15 "quote" \'single\'\n\nNext paragraph';

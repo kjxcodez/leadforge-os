@@ -228,13 +228,62 @@ export function plainTextToHtml(text: string): string {
   // 3. Split into paragraphs on blank lines (two or more consecutive newlines)
   const paragraphs = normalised.split(/\n{2,}/);
 
-  // 4 & 5. Within each paragraph, convert single \n to <br/> and wrap with 107% line-height
+  // 4 & 5. Within each paragraph, convert single \n to <br/> and wrap with Outlook/Gmail MsoNormal typography
   const htmlParagraphs = paragraphs.map((para) => {
     const withBreaks = para.replace(/\n/g, '<br/>');
-    return `<p style="margin:0 0 16px 0;line-height:107%;">${withBreaks}</p>`;
+    return `<p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:11pt;font-family:Calibri,sans-serif">${withBreaks}</p>`;
   });
 
   return `<div style="font-family:sans-serif;line-height:107%;">${htmlParagraphs.join('\n')}</div>`;
+}
+
+/**
+ * Normalizes an email signature (e.g. from Gmail web settings).
+ * - Decodes entity-escaped HTML (e.g. &lt;td&gt; wrapped in <pre><code>)
+ * - Cleans nested linkifier artifacts in attributes
+ * - Wraps bare <td> or <tr> table elements in a proper <table>
+ */
+export function normalizeEmailSignature(sig: string): string {
+  if (!sig) return '';
+  let result = sig.trim();
+
+  // 1. Detect if signature contains escaped HTML tags (e.g. &lt;td, &lt;div, etc.)
+  if (/&lt;\/?(td|tr|table|tbody|div|span|p|b|strong|i|em|a|img|br|hr|ul|ol|li)\b/i.test(result)) {
+    // Strip wrapping <pre> and <code>
+    result = result.replace(/<pre[^>]*>/gi, '').replace(/<\/pre>/gi, '');
+    result = result.replace(/<code[^>]*>/gi, '').replace(/<\/code>/gi, '');
+
+    // Clean up Gmail auto-linkifier inserting nested <a> tags inside attributes
+    result = result.replace(/<a\b[^>]*href=["']([^"']*)["'][^>]*>(.*?)<\/a>/gi, (_match, href, text) => {
+      return text || href;
+    });
+
+    // Decode HTML entities
+    result = result
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&');
+  }
+
+  result = result.trim();
+
+  // 2. Unwrap outer <div> if it directly wraps bare <td or <tr
+  if (/^<div[^>]*>\s*<(td|tr)\b/i.test(result)) {
+    result = result.replace(/^<div[^>]*>/i, '').replace(/<\/div>$/i, '').trim();
+  }
+
+  // 3. If it contains <td or <tr without an enclosing <table, wrap in a table
+  if (/<(td|tr)\b/i.test(result) && !/<table\b/i.test(result)) {
+    if (!/<tr\b/i.test(result)) {
+      result = `<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:0;"><tr>${result}</tr></table>`;
+    } else {
+      result = `<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:0;">${result}</table>`;
+    }
+  }
+
+  return result;
 }
 
 /**

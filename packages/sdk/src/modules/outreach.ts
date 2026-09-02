@@ -102,6 +102,15 @@ export class OutreachModule {
     return this.client.post<{ messageId: string; sentTo: string; signatureNotice?: string }>(`/email/accounts/${id}/test`, payload);
   }
 
+  public async syncAccountSignature(
+    id: string
+  ): Promise<{ signature: string | null; synced: boolean }> {
+    return this.client.post<{ signature: string | null; synced: boolean }>(
+      `/email/accounts/${id}/sync-signature`,
+      {}
+    );
+  }
+
   public async getTestRecipients(): Promise<Array<{ email: string; firstUsedAt?: string; lastUsedAt?: string }>> {
     return this.client.get<Array<{ email: string; firstUsedAt?: string; lastUsedAt?: string }>>('/email/test-recipients');
   }
