@@ -109,7 +109,40 @@ class WorkspaceManagerClass {
   }
 
   /**
-   * Retrieves the currently active WorkspaceRuntime.
+   * Retrieves the currently active WorkspaceRuntime, awaiting any in-flight transitions
+   * or eagerly activating the target workspace if provided and not yet active.
+   */
+  public async getOrAwaitActiveRuntime(
+    workspaceId?: string | null
+  ): Promise<WorkspaceRuntime | null> {
+    if (this.transitionPromise) {
+      try {
+        await this.transitionPromise;
+      } catch (err) {
+        console.warn('[WorkspaceManager] In-flight workspace transition threw:', err);
+      }
+    }
+
+    if (this.activeRuntime) {
+      if (!workspaceId || this.activeRuntime.workspaceId === workspaceId) {
+        return this.activeRuntime;
+      }
+    }
+
+    if (workspaceId) {
+      try {
+        return await this.setActiveWorkspace(workspaceId);
+      } catch (err) {
+        console.error(`[WorkspaceManager] Failed to eagerly activate workspace ${workspaceId}:`, err);
+        return null;
+      }
+    }
+
+    return this.activeRuntime;
+  }
+
+  /**
+   * Retrieves the currently active WorkspaceRuntime synchronously.
    */
   public getActiveRuntime(): WorkspaceRuntime | null {
     return this.activeRuntime;

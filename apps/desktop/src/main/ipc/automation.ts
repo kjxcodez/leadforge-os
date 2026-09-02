@@ -9,9 +9,10 @@ import { randomUUID } from 'crypto';
  */
 export function registerAutomationIpc(sdk: SdkClient) {
   // Sequences CRUD
-  safeRegister('sequence:list', async () => {
-    const runtime = WorkspaceManager.getActiveRuntime();
-    if (!runtime) throw new Error('No active workspace runtime');
+  safeRegister('sequence:list', async (_event, payload) => {
+    const wsId = typeof payload === 'string' ? payload : payload?.workspaceId;
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime(wsId);
+    if (!runtime) return [];
     try {
       const list = await sdk.sequences.list();
       await LocalCRMRepository.saveMany(

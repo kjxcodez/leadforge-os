@@ -151,8 +151,11 @@ export function resolveAudienceLocally(
 }
 
 export function registerAudiencesIpc() {
-  safeRegister('audiences:list', async (_event, { workspaceId }) => {
-    if (!workspaceId) throw new Error('workspaceId is required.');
+  safeRegister('audiences:list', async (_event, payload) => {
+    const workspaceId = payload?.workspaceId || WorkspaceManager.getActiveRuntime()?.workspaceId;
+    if (!workspaceId) return [];
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime(workspaceId);
+    if (!runtime) return [];
     const audiences = await LocalCRMRepository.findMany('audiences', workspaceId);
 
     return audiences.map((audience) => {

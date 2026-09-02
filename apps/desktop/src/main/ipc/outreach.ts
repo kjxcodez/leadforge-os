@@ -17,9 +17,9 @@ import { getDatabase } from '../database/connection';
  */
 export function registerOutreachIpc(sdk: SdkClient) {
   // Email Accounts
-  safeRegister('email-accounts:list', async () => {
-    const runtime = WorkspaceManager.getActiveRuntime();
-    if (!runtime) throw new Error('No active workspace runtime');
+  safeRegister('email-accounts:list', async (_event, payload) => {
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime(payload?.workspaceId);
+    if (!runtime) return [];
 
     const localAccounts = await LocalCRMRepository.findMany('email_accounts', runtime.workspaceId);
 
@@ -45,16 +45,20 @@ export function registerOutreachIpc(sdk: SdkClient) {
   });
 
   safeRegister('email-accounts:delete', async (_event, id) => {
-    const runtime = WorkspaceManager.getActiveRuntime();
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
     await disconnectGmailAccount(sdk, id);
     await LocalCRMRepository.softDeleteFromServer('email_accounts', runtime.workspaceId, id);
+    const { BrowserWindow } = await import('electron');
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.send('email-accounts:changed');
+    });
     return { success: true };
   });
 
   // Initiate Gmail OAuth via API and open external Chrome browser
   safeRegister('email-accounts:gmail:connect', async () => {
-    const runtime = WorkspaceManager.getActiveRuntime();
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
     const result = await connectGmailAccount(sdk);
     if (result.authorizationUrl) {
@@ -66,15 +70,27 @@ export function registerOutreachIpc(sdk: SdkClient) {
 
   // Poll status of an OAuth transaction
   safeRegister('email-accounts:gmail:status', async (_event, { transactionId }) => {
-    const runtime = WorkspaceManager.getActiveRuntime();
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    return getOAuthTransactionStatus(sdk, transactionId);
+    const status = await getOAuthTransactionStatus(sdk, transactionId);
+    if (status && status.status === 'completed') {
+      const { BrowserWindow } = await import('electron');
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed()) win.webContents.send('email-accounts:changed');
+      });
+    }
+    return status;
   });
 
   safeRegister('email-accounts:gmail:disconnect', async (_event, { id }) => {
-    const runtime = WorkspaceManager.getActiveRuntime();
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    return disconnectGmailAccount(sdk, id);
+    const res = await disconnectGmailAccount(sdk, id);
+    const { BrowserWindow } = await import('electron');
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.send('email-accounts:changed');
+    });
+    return res;
   });
 
   safeRegister('email-accounts:gmail:reconnect', async (_event, { id }) => {
@@ -104,75 +120,100 @@ export function registerOutreachIpc(sdk: SdkClient) {
     }
   });
 
-  safeRegister('attachments:save', async (_event, { filePath, filename }) => {
+  safeRegister('attachments:save', async (_event, payload: { filePath?: string; filename?: string; contentBase64?: string; contentType?: string; googleConnectionId?: string }) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
 
-    const fs = await import('fs');
-    const path = await import('path');
+    let buffer: Buffer;
+    let mimeType: string = payload.contentType || 'application/octet-stream';
+    let safeFilename: string = payload.filename || 'attachment';
+    let size = 0;
 
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`File does not exist at path: ${filePath}`);
+    if (payload.filePath) {
+      const fs = await import('fs');
+      const path = await import('path');
+
+      if (!fs.existsSync(payload.filePath)) {
+        throw new Error(`File does not exist at path: ${payload.filePath}`);
+      }
+
+      const stat = fs.statSync(payload.filePath);
+      if (stat.size > 25 * 1024 * 1024) {
+        throw new Error(`File size (${(stat.size / 1024 / 1024).toFixed(1)} MB) exceeds 25 MB limit.`);
+      }
+
+      buffer = fs.readFileSync(payload.filePath);
+      size = stat.size;
+      const ext = path.extname(payload.filePath).toLowerCase();
+      const mimeMap: Record<string, string> = {
+        '.pdf': 'application/pdf',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        '.csv': 'text/csv',
+        '.txt': 'text/plain'
+      };
+      mimeType = payload.contentType || mimeMap[ext] || 'application/octet-stream';
+      safeFilename = payload.filename || path.basename(payload.filePath);
+    } else if (payload.contentBase64) {
+      buffer = Buffer.from(payload.contentBase64, 'base64');
+      size = buffer.length;
+      if (size > 25 * 1024 * 1024) {
+        throw new Error(`File size (${(size / 1024 / 1024).toFixed(1)} MB) exceeds 25 MB limit.`);
+      }
+    } else {
+      throw new Error('Either filePath or contentBase64 is required to save an attachment.');
     }
-
-    const stat = fs.statSync(filePath);
-    if (stat.size > 25 * 1024 * 1024) {
-      throw new Error(`File size (${(stat.size / 1024 / 1024).toFixed(1)} MB) exceeds 25 MB limit.`);
-    }
-
-    const buffer = fs.readFileSync(filePath);
-    const ext = path.extname(filePath).toLowerCase();
-    const mimeMap: Record<string, string> = {
-      '.pdf': 'application/pdf',
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      '.csv': 'text/csv',
-      '.txt': 'text/plain'
-    };
-    const mimeType = mimeMap[ext] || 'application/octet-stream';
-    const safeFilename = filename || path.basename(filePath);
 
     const sdk = WorkspaceManager.getSdk();
-    const connections = await sdk.googleConnections.list().catch(() => []);
-    const activeConn =
-      connections.find(
-        (c: any) =>
-          c.status === 'active' ||
-          c.gmailStatus === 'connected' ||
-          c.driveStatus === 'authorized'
-      ) || connections[0];
+    let connId = payload.googleConnectionId;
+    if (!connId) {
+      const connections = await sdk.googleConnections.list().catch(() => []);
+      const activeConn =
+        connections.find(
+          (c: any) =>
+            c.status === 'active' ||
+            c.gmailStatus === 'connected' ||
+            c.driveStatus === 'authorized'
+        ) || connections[0];
 
-    if (!activeConn) {
-      throw new Error(
-        'No connected Google account found in this workspace. Please connect a Gmail/Google account in Settings before uploading Drive attachments.'
-      );
+      if (!activeConn) {
+        throw new Error(
+          'No connected Google account found in this workspace. Please connect a Gmail/Google account in Settings before uploading Drive attachments.'
+        );
+      }
+      connId = activeConn.id;
     }
 
     const createdAttachment = await sdk.attachments.upload({
-      googleConnectionId: activeConn.id,
+      googleConnectionId: connId,
       filename: safeFilename,
       mimeType,
       contentBase64: buffer.toString('base64'),
-      metadata: { size: stat.size }
+      metadata: { size }
     });
+
+    const driveUrl = (createdAttachment as any).driveUrl || (createdAttachment.fileId ? `https://drive.google.com/file/d/${createdAttachment.fileId}/view` : undefined);
 
     return {
       id: createdAttachment.id,
       filename: createdAttachment.filename,
       size: createdAttachment.size,
       mimeType: createdAttachment.mimeType,
+      contentType: createdAttachment.mimeType,
       provider: createdAttachment.provider,
-      fileId: createdAttachment.fileId
+      fileId: createdAttachment.fileId,
+      driveUrl,
+      googleConnectionId: (createdAttachment as any).googleConnectionId || connId
     };
   });
 
   // Templates
-  safeRegister('templates:list', async () => {
-    const runtime = WorkspaceManager.getActiveRuntime();
-    if (!runtime) throw new Error('No active workspace runtime');
+  safeRegister('templates:list', async (_event, payload) => {
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime(payload?.workspaceId);
+    if (!runtime) return [];
     const localTemplates = await LocalCRMRepository.findMany('templates', runtime.workspaceId);
     try {
       const list = await sdk.outreach.listTemplates();

@@ -256,8 +256,12 @@ export function registerCrmIpc() {
 
 
   // Campaigns
-  safeRegister('campaigns:list', async (_event, { workspaceId, filter }) => {
-    if (!workspaceId) throw new Error('workspaceId is required.');
+  safeRegister('campaigns:list', async (_event, payload) => {
+    const workspaceId = payload?.workspaceId || WorkspaceManager.getActiveRuntime()?.workspaceId;
+    if (!workspaceId) return [];
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime(workspaceId);
+    if (!runtime) return [];
+    const filter = payload?.filter;
     const campaigns = await LocalCRMRepository.findMany('campaigns', workspaceId, filter);
     const db = getDatabase(workspaceId);
 
