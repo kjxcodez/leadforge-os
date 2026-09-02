@@ -106,6 +106,28 @@ async function runTests() {
     assert.ok(err.message.includes('exceeds the 25 MB limit'), 'Must reject oversized attachment');
   }
 
+  // Test 5: Drive-backed attachment metadata without contentBase64
+  sdkCalled = false;
+  capturedOpts = null;
+  const res5 = await sendTestEmail(mockSdk, {
+    id: 'acc_123',
+    to: 'test@example.com',
+    attachments: [
+      {
+        id: 'att_drive_999',
+        fileId: 'file_google_888',
+        filename: 'Quarterly_Report.pdf',
+        driveUrl: 'https://drive.google.com/file/d/file_google_888/view',
+        googleConnectionId: 'gconn_123',
+        size: 2048
+      }
+    ]
+  });
+  assert.strictEqual(sdkCalled, true, 'SDK MUST be called for Drive-backed attachment');
+  assert.strictEqual(res5.sent, true);
+  assert.strictEqual(capturedOpts.attachments[0].fileId, 'file_google_888');
+  assert.strictEqual(capturedOpts.attachments[0].googleConnectionId, 'gconn_123');
+
   console.log('[Desktop Test] PASS: All Send Test Attachment Boundary Tests Passed!');
 }
 

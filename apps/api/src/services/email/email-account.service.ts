@@ -123,6 +123,7 @@ export class EmailAccountService {
         : (info.scope ? info.scope.split(' ').map((s) => s.trim()).filter(Boolean) : GMAIL_DEFAULT_SCOPES);
 
       const hasDrive = grantedScopes.includes(DRIVE_FILE_SCOPE) || grantedScopes.includes('https://www.googleapis.com/auth/drive');
+      const hasGmail = grantedScopes.includes('https://www.googleapis.com/auth/gmail.send') || grantedScopes.includes('https://www.googleapis.com/auth/gmail.modify');
 
       // 1. Find or create GoogleConnection for this (workspaceId, googleAccountId)
       let connection = await GoogleConnectionModel.findOne({
@@ -138,7 +139,7 @@ export class EmailAccountService {
         connection.encryptedAccessToken = encrypt(tokens.accessToken);
         connection.tokenExpiresAt = tokenExpiresAt;
         connection.grantedScopes = Array.from(new Set([...connection.grantedScopes, ...grantedScopes]));
-        connection.gmailStatus = 'connected';
+        if (hasGmail) connection.gmailStatus = 'connected';
         if (hasDrive) connection.driveStatus = 'authorized';
         connection.status = 'active';
         connection.lastVerifiedAt = new Date();
@@ -157,59 +158,67 @@ export class EmailAccountService {
           encryptedAccessToken: encrypt(tokens.accessToken),
           tokenExpiresAt,
           grantedScopes,
-          gmailStatus: 'connected',
+          gmailStatus: hasGmail ? 'connected' : 'revoked',
           driveStatus: hasDrive ? 'authorized' : 'not_authorized',
           status: 'active',
           lastVerifiedAt: new Date()
         });
       }
 
-      // 2. Find or create EmailAccount linked to this GoogleConnection
-      let accountDoc = await EmailAccountModel.findOne({
-        workspaceId: transaction.workspaceId,
-        $or: [
-          { googleConnectionId: connection._id.toString() },
-          { email }
-        ]
-      } as any);
+      // 2. Find or create EmailAccount linked to this GoogleConnection ONLY IF hasGmail is true
+      let accountDoc: any = null;
+      if (hasGmail) {
+        accountDoc = await EmailAccountModel.findOne({
+          workspaceId: transaction.workspaceId,
+          $or: [
+            { googleConnectionId: connection._id.toString() },
+            { email }
+          ]
+        } as any);
 
-      if (accountDoc) {
-        accountDoc.provider = 'gmail';
-        accountDoc.status = 'connected';
-        accountDoc.googleConnectionId = connection._id.toString();
-        accountDoc.googleAccountId = sub;
-        accountDoc.email = email;
-        accountDoc.encryptedRefreshToken = encrypt(tokens.refreshToken);
-        accountDoc.encryptedAccessToken = encrypt(tokens.accessToken);
-        accountDoc.tokenExpiresAt = tokenExpiresAt;
-        accountDoc.lastVerifiedAt = new Date();
-        accountDoc.lastError = null;
-        await accountDoc.save();
-      } else {
-        accountDoc = await EmailAccountModel.create({
-          _id: generateEntityId(),
-          workspaceId: transaction.workspaceId as any,
-          name: info.name || email.split('@')[0] || 'Gmail',
-          email,
-          provider: 'gmail',
-          googleConnectionId: connection._id.toString(),
-          googleAccountId: sub,
-          status: 'connected',
-          isDefault: false,
-          dailyLimit: 200,
-          hourlyLimit: 50,
-          encryptedRefreshToken: encrypt(tokens.refreshToken),
-          encryptedAccessToken: encrypt(tokens.accessToken),
-          tokenExpiresAt,
-          lastVerifiedAt: new Date()
-        });
+        if (accountDoc) {
+          accountDoc.provider = 'gmail';
+          accountDoc.status = 'connected';
+          accountDoc.googleConnectionId = connection._id.toString();
+          accountDoc.googleAccountId = sub;
+          accountDoc.email = email;
+          accountDoc.encryptedRefreshToken = encrypt(tokens.refreshToken);
+          accountDoc.encryptedAccessToken = encrypt(tokens.accessToken);
+          accountDoc.tokenExpiresAt = tokenExpiresAt;
+          accountDoc.lastVerifiedAt = new Date();
+          accountDoc.lastError = null;
+          await accountDoc.save();
+        } else {
+          accountDoc = await EmailAccountModel.create({
+            _id: generateEntityId(),
+            workspaceId: transaction.workspaceId as any,
+            name: info.name || email.split('@')[0] || 'Gmail',
+            email,
+            provider: 'gmail',
+            googleConnectionId: connection._id.toString(),
+            googleAccountId: sub,
+            status: 'connected',
+            isDefault: false,
+            dailyLimit: 200,
+            hourlyLimit: 50,
+            encryptedRefreshToken: encrypt(tokens.refreshToken),
+            encryptedAccessToken: encrypt(tokens.accessToken),
+            tokenExpiresAt,
+            lastVerifiedAt: new Date()
+          });
+        }
       }
 
       transaction.status = 'completed';
-      transaction.emailAccountId = accountDoc._id.toString();
+      if (accountDoc) {
+        transaction.emailAccountId = accountDoc._id.toString();
+      }
       await transaction.save();
 
-      return { transactionId: transaction.transactionId, account: sanitize(accountDoc.toObject()) };
+      return {
+        transactionId: transaction.transactionId,
+        account: accountDoc ? sanitize(accountDoc.toObject()) : ({ email, status: 'connected' } as any)
+      };
     } catch (err: any) {
       transaction.status = 'failed';
       transaction.error = err.message || String(err);
@@ -288,8 +297,23 @@ export class EmailAccountService {
   async disconnect(id: string): Promise<{ success: boolean }> {
     const account = await this.findAccount(id);
 
+    account.status = 'disconnected';
+    account.encryptedAccessToken = null;
+    account.tokenExpiresAt = null;
+    account.lastError = 'Disconnected by user';
+    await account.save();
+
     if (account.googleConnectionId) {
-      await this.authService.disconnectConnection(account.googleConnectionId);
+      // Check if any other email accounts in this workspace are using the connection
+      const otherAccounts = await EmailAccountModel.countDocuments({
+        _id: { $ne: account._id },
+        googleConnectionId: account.googleConnectionId,
+        status: 'connected'
+      });
+
+      if (otherAccounts === 0) {
+        await this.authService.disconnectGmail(account.googleConnectionId);
+      }
     } else if (account.encryptedRefreshToken) {
       try {
         const refreshToken = decrypt(account.encryptedRefreshToken);
@@ -300,11 +324,6 @@ export class EmailAccountService {
       } catch {}
     }
 
-    account.status = 'disconnected';
-    account.encryptedAccessToken = null;
-    account.tokenExpiresAt = null;
-    account.lastError = null;
-    await account.save();
     return { success: true };
   }
 

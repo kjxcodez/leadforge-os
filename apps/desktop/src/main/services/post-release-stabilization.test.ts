@@ -27,9 +27,11 @@ export async function runPostReleaseStabilizationTests() {
   assert.strictEqual(formatted.text, interpolated, 'formatted.text must preserve raw plain-text with newlines');
 
   // Verify HTML structure
-  assert.ok(formatted.html.includes('<p style="margin:0 0 16px 0;line-height:1.5;">Hi Alice,</p>'));
-  assert.ok(formatted.html.includes('<p style="margin:0 0 16px 0;line-height:1.5;">I noticed Acme Corp is expanding.<br/>Are you free for a quick chat tomorrow?</p>'));
-  assert.ok(formatted.html.includes('<p style="margin:0 0 16px 0;line-height:1.5;">Best regards,<br/>Bob</p>'));
+  assert.ok(formatted.html.startsWith('<div style="font-family:sans-serif;line-height:107%;">'));
+  assert.ok(formatted.html.endsWith('</div>'));
+  assert.ok(formatted.html.includes('<p style="margin:0 0 16px 0;line-height:107%;">Hi Alice,</p>'));
+  assert.ok(formatted.html.includes('<p style="margin:0 0 16px 0;line-height:107%;">I noticed Acme Corp is expanding.<br/>Are you free for a quick chat tomorrow?</p>'));
+  assert.ok(formatted.html.includes('<p style="margin:0 0 16px 0;line-height:107%;">Best regards,<br/>Bob</p>'));
 
   // Test HTML character escaping
   const unsafeText = '5 < 10 & 20 > 15 "quote" \'single\'\n\nNext paragraph';
@@ -39,9 +41,11 @@ export async function runPostReleaseStabilizationTests() {
   assert.ok(safeHtml.includes('&amp;'), '& must be escaped to &amp;');
   assert.ok(safeHtml.includes('&quot;'), '" must be escaped to &quot;');
   assert.ok(safeHtml.includes('&#39;'), "' must be escaped to &#39;");
+  assert.ok(safeHtml.includes('font-family:sans-serif'));
+  assert.ok(safeHtml.includes('line-height:107%'));
   assert.ok(!safeHtml.includes('< 10'), 'Raw unescaped < must not be present');
 
-  console.log('✅ Formatting tests passed: single newlines convert to <br/>, blank lines to <p>, entities escaped safely.');
+  console.log('✅ Formatting tests passed: single newlines convert to <br/>, blank lines to <p>, entities escaped safely, and typography is default sans-serif at 107% line-height.');
 
   // ── 2. MIGRATION 031 & TEMPLATE ATTACHMENTS ────────────────────────────────
   console.log('\n[Test 2] Testing SQLite Migration 031 (templates.attachments column)...');

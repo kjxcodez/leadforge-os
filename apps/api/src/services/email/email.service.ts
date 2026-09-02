@@ -2,13 +2,14 @@ import { EmailAccountModel } from '../../db/models/email-account.model.js';
 import { UserTestRecipientModel } from '../../db/models/user-test-recipient.model.js';
 import { EmailDeliveryRepository } from '../../repositories/email-delivery/email-delivery.repository.js';
 import { EmailAccountRepository } from '../../repositories/email-account/email-account.repository.js';
-import { plainTextToHtml } from '@leadforge/sdk';
+import { plainTextToHtml, wrapHtmlWithDefaultTypography } from '@leadforge/sdk';
 import {
   EmailDomainError,
   type SendEmailInput,
   type SendEmailResult
 } from './types.js';
 import { EmailAccountService } from './email-account.service.js';
+import { logger } from '../../config/index.js';
 import crypto from 'crypto';
 
 /**
@@ -44,12 +45,14 @@ export class EmailService {
    */
   private generateDeterministicIdempotencyKey(input: SendEmailInput): string {
     if (input.idempotencyKey) return input.idempotencyKey;
+    const executionPart = input.executionId || `send_${Date.now()}_${crypto.randomUUID().substring(0, 8)}`;
+    const stepPart = input.stepIndex !== undefined ? `_step${input.stepIndex}` : '';
     const hash = crypto
       .createHash('sha256')
       .update(`${this.workspaceId}:${input.accountId}:${input.to.toLowerCase().trim()}:${input.subject.trim()}`)
       .digest('hex')
-      .substring(0, 32);
-    return `send_${input.accountId}_${hash}`;
+      .substring(0, 16);
+    return `${executionPart}${stepPart}_${input.accountId}_${hash}`;
   }
 
   /**
@@ -122,6 +125,16 @@ export class EmailService {
 
       // If already sent in previous execution, return existing messageId without sending again
       if (reservation.isAlreadySent) {
+        logger.warn(
+          {
+            workspaceId: this.workspaceId,
+            idempotencyKey,
+            to: input.to,
+            subject: input.subject,
+            existingMessageId: deliveryRecord.providerMessageId
+          },
+          'Idempotency skip: delivery previously recorded as SENT in ledger'
+        );
         await this.accountRepo.releaseSendSlot(input.accountId);
         return {
           messageId: deliveryRecord.providerMessageId || '',
@@ -135,10 +148,12 @@ export class EmailService {
       throw reserveErr;
     }
 
-    // 4. Process signature and HTML
+    // 4. Process signature and HTML with Gmail default typography
     let finalHtml = input.html;
     if (!finalHtml && input.text) {
       finalHtml = plainTextToHtml(input.text);
+    } else if (finalHtml) {
+      finalHtml = wrapHtmlWithDefaultTypography(finalHtml);
     }
     if (input.useSignature !== false && finalHtml && account.signature) {
       if (!finalHtml.includes('class="gmail_signature"')) {
@@ -149,57 +164,93 @@ export class EmailService {
     // 5. Process and resolve Drive attachments
     const processedAttachments: any[] = [];
     if (Array.isArray(input.attachments)) {
+      const { AttachmentModel } = await import('../../db/models/attachment.model.js');
+      const { GoogleDriveProvider } = await import('../google/drive.provider.js');
+      const { GoogleAuthService } = await import('../google/auth.service.js');
+      const driveProvider = new GoogleDriveProvider(new GoogleAuthService());
+
       for (const att of input.attachments) {
         const attId = (att as any).id || (att as any).attachmentId;
-        const fileId = (att as any).fileId;
-        const hasDirectData = Boolean(att.contentBase64 || (att as any).data);
+        let fileId = (att as any).fileId;
+        const driveUrl = (att as any).driveUrl;
+
+        // Fallback: extract fileId from driveUrl if fileId is not explicitly set
+        if (!fileId && driveUrl && typeof driveUrl === 'string') {
+          const match = driveUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || driveUrl.match(/id=([a-zA-Z0-9_-]+)/);
+          if (match && match[1]) fileId = match[1];
+        }
+
+        const rawData = (att as any).data ?? (att as any).contentBase64 ?? (att as any).content;
+        const hasDirectData = Boolean(
+          Buffer.isBuffer(rawData) || (typeof rawData === 'string' && rawData.trim().length > 0)
+        );
 
         if (!hasDirectData && (attId || fileId)) {
-          const { AttachmentModel } = await import('../../db/models/attachment.model.js');
-          const { GoogleDriveProvider } = await import('../google/drive.provider.js');
-          const { GoogleAuthService } = await import('../google/auth.service.js');
-
           const query: any[] = [];
-          if (attId && !attId.startsWith('att_')) query.push({ _id: attId });
+          if (attId) query.push({ _id: attId });
           if (fileId) query.push({ fileId });
-          if (attId) query.push({ fileId: attId });
+          if (attId && attId !== fileId) query.push({ fileId: attId });
 
           const attDoc = query.length > 0 ? await AttachmentModel.findOne({ $or: query }) : null;
 
-          if (!attDoc) {
-            // If attachment has neither data nor a valid Drive record, log warning and continue without failing the send
-            console.warn(`[EmailService] Attachment "${att.filename || attId}" not found in Drive records; skipping attachment.`);
-            continue;
+          let connectionIdToUse = attDoc?.googleConnectionId || (att as any).googleConnectionId || account.googleConnectionId;
+          const targetFileId = attDoc?.fileId || fileId;
+          const filename = attDoc?.filename || att.filename || 'attachment';
+          const contentType = attDoc?.mimeType || att.contentType || (att as any).mimeType || 'application/octet-stream';
+          const size = attDoc?.size || att.size || 0;
+
+          if (!targetFileId || !connectionIdToUse) {
+            await this.accountRepo.releaseSendSlot(input.accountId);
+            const errMsg = `Attachment "${filename}" lacks Google Drive file identity or connection.`;
+            await this.deliveryRepo.failDelivery(deliveryRecord._id.toString(), errMsg, {
+              classification: 'attachment_not_found',
+              retryable: false
+            });
+            throw new EmailDomainError('ATTACHMENT_NOT_FOUND', errMsg);
           }
 
-          const driveProvider = new GoogleDriveProvider(new GoogleAuthService());
-
-          // Cross-connection verification if sender connection is different
-          if (account.googleConnectionId && attDoc.googleConnectionId !== account.googleConnectionId) {
-            const accessible = await driveProvider.verifyAccess(account.googleConnectionId, attDoc.fileId);
+          // Cross-connection verification if sender connection is different and doc specifies connection
+          if (account.googleConnectionId && attDoc && attDoc.googleConnectionId !== account.googleConnectionId) {
+            const accessible = await driveProvider.verifyAccess(account.googleConnectionId, targetFileId);
             if (!accessible) {
-              await this.accountRepo.releaseSendSlot(input.accountId);
-              const errMsg = `Sender "${account.email}" cannot access Drive attachment "${attDoc.filename}". The file was uploaded by a different Google connection.`;
-              await this.deliveryRepo.failDelivery(deliveryRecord._id.toString(), errMsg, {
-                classification: 'attachment_unauthorized',
-                retryable: false
-              });
-              throw new EmailDomainError('DRIVE_ATTACHMENT_ACCESS_DENIED', errMsg);
+              // If sender connection cannot access, try downloading using the originating connection
+              const originAccessible = await driveProvider.verifyAccess(attDoc.googleConnectionId, targetFileId);
+              if (originAccessible) {
+                connectionIdToUse = attDoc.googleConnectionId;
+              } else {
+                await this.accountRepo.releaseSendSlot(input.accountId);
+                const errMsg = `Sender "${account.email}" cannot access Drive attachment "${filename}". The file was uploaded by a different Google connection.`;
+                await this.deliveryRepo.failDelivery(deliveryRecord._id.toString(), errMsg, {
+                  classification: 'attachment_unauthorized',
+                  retryable: false
+                });
+                throw new EmailDomainError('DRIVE_ATTACHMENT_ACCESS_DENIED', errMsg);
+              }
             }
           }
 
           try {
-            const buffer = await driveProvider.downloadFile(attDoc.googleConnectionId, attDoc.fileId);
+            const buffer = await driveProvider.downloadFile(connectionIdToUse, targetFileId);
+            if (!buffer || buffer.length === 0) {
+              await this.accountRepo.releaseSendSlot(input.accountId);
+              const errMsg = `Attachment "${filename}" downloaded from Google Drive is empty (0 bytes).`;
+              await this.deliveryRepo.failDelivery(deliveryRecord._id.toString(), errMsg, {
+                classification: 'attachment_binary_empty',
+                retryable: false
+              });
+              throw new EmailDomainError('ATTACHMENT_BINARY_EMPTY', errMsg);
+            }
             processedAttachments.push({
-              filename: attDoc.filename,
-              contentType: attDoc.mimeType,
-              size: attDoc.size,
+              filename,
+              contentType,
+              size: buffer.length || size,
               data: buffer,
               contentBase64: buffer.toString('base64')
             });
           } catch (err: any) {
+            if (err instanceof EmailDomainError) throw err;
             await this.accountRepo.releaseSendSlot(input.accountId);
-            const errMsg = `Failed to download attachment "${attDoc.filename}" from Google Drive: ${err.message}`;
+            const errMsg = `Failed to download attachment "${filename}" from Google Drive: ${err.message}`;
             await this.deliveryRepo.failDelivery(deliveryRecord._id.toString(), errMsg, {
               classification: 'attachment_download_failure',
               retryable: true
@@ -211,12 +262,20 @@ export class EmailService {
 
         if (hasDirectData) {
           processedAttachments.push({
-            filename: att.filename,
+            filename: att.filename || 'attachment',
             contentType: att.contentType || (att as any).mimeType || 'application/octet-stream',
-            size: att.size,
-            data: (att as any).data,
-            contentBase64: att.contentBase64
+            size: att.size || (Buffer.isBuffer(rawData) ? rawData.length : rawData.length * 0.75),
+            data: rawData,
+            contentBase64: Buffer.isBuffer(rawData) ? rawData.toString('base64') : rawData
           });
+        } else {
+          await this.accountRepo.releaseSendSlot(input.accountId);
+          const errMsg = `Attachment "${att.filename || 'unknown'}" contains no binary payload and is not a valid Google Drive file.`;
+          await this.deliveryRepo.failDelivery(deliveryRecord._id.toString(), errMsg, {
+            classification: 'attachment_unreadable',
+            retryable: false
+          });
+          throw new EmailDomainError('ATTACHMENT_UNREADABLE', errMsg);
         }
       }
     }
@@ -224,6 +283,18 @@ export class EmailService {
     // 6. Build Provider & Dispatch Outbound Send
     const provider = await this.accounts.buildProvider(input.accountId);
     try {
+      logger.info(
+        {
+          workspaceId: this.workspaceId,
+          accountId: input.accountId,
+          to: input.to,
+          subject: input.subject,
+          attachmentsCount: processedAttachments.length,
+          idempotencyKey
+        },
+        'Invoking provider.send for email transmission'
+      );
+
       const result = await provider.send({
         ...input,
         from: input.from || account.email,
@@ -243,6 +314,17 @@ export class EmailService {
         { lastVerifiedAt: new Date() }
       );
 
+      logger.info(
+        {
+          workspaceId: this.workspaceId,
+          deliveryId: deliveryRecord._id.toString(),
+          messageId: result.messageId,
+          to: input.to,
+          subject: input.subject
+        },
+        'Email successfully dispatched and finalized in delivery ledger'
+      );
+
       return {
         messageId: result.messageId,
         threadId: (result as any).threadId || null,
@@ -250,6 +332,18 @@ export class EmailService {
         sentAt: new Date()
       };
     } catch (err: any) {
+      logger.error(
+        {
+          err,
+          workspaceId: this.workspaceId,
+          deliveryId: deliveryRecord?._id?.toString(),
+          to: input.to,
+          subject: input.subject,
+          accountId: input.accountId
+        },
+        'Outbound email send failed in provider'
+      );
+
       if (err.code === 'AMBIGUOUS_SEND_TIMEOUT') {
         // Critical Ambiguous Send: Network failed after dispatch. Do NOT release send slot or retry blindly!
         await this.deliveryRepo.markAmbiguous(
@@ -385,10 +479,10 @@ export class EmailService {
       subject: 'LeadForge OS — Mailbox Verification Test',
       idempotencyKey: `test_${accountId}_${Date.now()}_${crypto.randomUUID()}`,
       html: `
-        <div style="font-family: sans-serif; padding: 20px; line-height: 1.5; color: #111827;">
+        <div style="font-family: sans-serif; line-height: 107%; padding: 20px; color: #111827;">
           <h2 style="color: #4f46e5; margin-bottom: 8px;">Mailbox Verification Successful</h2>
-          <p>This is an automated test email confirming that your Gmail account <strong>${accountDoc.email}</strong> is properly connected via Google OAuth.</p>
-          <p style="font-size: 12px; color: #6b7280; margin-top: 24px;">Sent securely from LeadForge OS</p>
+          <p style="margin: 0 0 16px 0; line-height: 107%;">This is an automated test email confirming that your Gmail account <strong>${accountDoc.email}</strong> is properly connected via Google OAuth.</p>
+          <p style="font-size: 12px; color: #6b7280; margin-top: 24px; line-height: 107%;">Sent securely from LeadForge OS</p>
         </div>
       `,
       useSignature: options.useSignature,

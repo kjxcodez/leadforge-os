@@ -11,8 +11,9 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
-import { Paperclip, X, Send, AlertCircle, Loader2 } from 'lucide-react';
+import { Paperclip, X, Send, AlertCircle, Loader2, HardDrive } from 'lucide-react';
 import { toast } from 'sonner';
+import { MediaPickerDialog } from '../media/MediaPickerDialog';
 
 export interface SendTestModalProps {
   isOpen: boolean;
@@ -32,12 +33,17 @@ export interface SendTestModalProps {
 export const SendTestModal = ({ isOpen, onClose, account }: SendTestModalProps) => {
   const [recipient, setRecipient] = useState('');
   const [useSignature, setUseSignature] = useState(true);
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
   const [attachments, setAttachments] = useState<
     Array<{
+      id?: string | undefined;
+      fileId?: string | undefined;
       name: string;
       path?: string | undefined;
       contentBase64?: string | undefined;
       contentType?: string | undefined;
+      driveUrl?: string | undefined;
+      googleConnectionId?: string | undefined;
       size: number;
     }>
   >([]);
@@ -163,6 +169,10 @@ export const SendTestModal = ({ isOpen, onClose, account }: SendTestModalProps) 
             filename: a.name,
             size: a.size
           };
+          if (a.id) item.id = a.id;
+          if (a.fileId) item.fileId = a.fileId;
+          if (a.driveUrl) item.driveUrl = a.driveUrl;
+          if (a.googleConnectionId) item.googleConnectionId = a.googleConnectionId;
           if (a.path) item.path = a.path;
           if (a.contentBase64) item.contentBase64 = a.contentBase64;
           if (a.contentType) item.contentType = a.contentType;
@@ -283,24 +293,33 @@ export const SendTestModal = ({ isOpen, onClose, account }: SendTestModalProps) 
           <div className="space-y-2 pt-1 border-t border-border-subtle">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-medium">Attachments (Optional)</Label>
-              <label className="cursor-pointer">
-                <Input
-                  type="file"
-                  multiple
-                  onChange={handleFileAdd}
-                  className="hidden"
-                />
-                <span className="text-xs text-primary hover:underline flex items-center gap-1">
-                  <Paperclip className="w-3 h-3" /> Add file
-                </span>
-              </label>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMediaPickerOpen(true)}
+                  className="text-xs text-primary hover:underline flex items-center gap-1"
+                >
+                  <HardDrive className="w-3 h-3" /> Pick from Drive
+                </button>
+                <label className="cursor-pointer">
+                  <Input
+                    type="file"
+                    multiple
+                    onChange={handleFileAdd}
+                    className="hidden"
+                  />
+                  <span className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                    <Paperclip className="w-3 h-3" /> Upload local
+                  </span>
+                </label>
+              </div>
             </div>
 
             {attachments.length > 0 && (
               <div className="space-y-1 max-h-28 overflow-y-auto">
                 {attachments.map((att, idx) => (
                   <div
-                    key={idx}
+                    key={att.id || att.fileId || idx}
                     className="flex items-center justify-between px-2.5 py-1 rounded bg-surface-2 border border-border-subtle text-xs"
                   >
                     <div className="flex items-center gap-2 truncate">
@@ -321,6 +340,32 @@ export const SendTestModal = ({ isOpen, onClose, account }: SendTestModalProps) 
                 ))}
               </div>
             )}
+
+            <MediaPickerDialog
+              open={mediaPickerOpen}
+              onOpenChange={setMediaPickerOpen}
+              initialSelected={attachments.map((a) => ({
+                id: a.id || a.fileId || `temp_${Date.now()}`,
+                fileId: a.fileId || null,
+                filename: a.name,
+                size: a.size,
+                driveUrl: a.driveUrl || null,
+                mimeType: a.contentType || null
+              }))}
+              onSelect={(selected) => {
+                setAttachments(
+                  selected.map((s) => ({
+                    id: s.id,
+                    fileId: s.fileId || undefined,
+                    name: s.filename,
+                    size: s.size,
+                    driveUrl: s.driveUrl || undefined,
+                    googleConnectionId: s.googleConnectionId || undefined,
+                    contentType: s.mimeType || undefined
+                  }))
+                );
+              }}
+            />
           </div>
         </div>
 

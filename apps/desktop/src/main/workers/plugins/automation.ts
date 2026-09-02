@@ -1599,6 +1599,7 @@ async function handleSendEmailStep(
 
   const stepKey = step.id || String(execCtx.execution.currentStep || 0);
   const stepIndexNum = typeof execCtx.execution.currentStep === 'number' ? execCtx.execution.currentStep : 0;
+  const campaignId = (step.config as any)?.campaignId || (ctx.payload as any)?.campaignId || (execCtx as any)?.campaign?.id;
   const idempotencyKey = `email_${workspaceId}_${execCtx.execution.id}_${stepKey}_${entityId}`;
 
   try {
@@ -1611,6 +1612,7 @@ async function handleSendEmailStep(
       useSignature: step.config?.useGmailSignature !== false,
       attachments: rawAttachments,
       idempotencyKey,
+      campaignId,
       sequenceId,
       executionId: execCtx.execution.id,
       stepIndex: stepIndexNum,
@@ -1626,11 +1628,30 @@ async function handleSendEmailStep(
 
     ctx.emitLog(
       `Email send success: messageId=${sentMsgId || 'unknown'}, recipient=${contact.email}, subject=${renderedSubject}`,
-      'info'
+      'info',
+      {
+        messageId: sentMsgId,
+        recipient: contact.email,
+        subject: renderedSubject,
+        executionId: execCtx.execution.id,
+        stepIndex: stepIndexNum,
+        attachmentsCount: rawAttachments.length
+      }
     );
     return { status: 'success' };
   } catch (sendErr: any) {
     const errMsg = sendErr.message || String(sendErr);
+    ctx.emitLog(
+      `Email send failed for recipient ${contact.email} (subject: "${renderedSubject}"): ${errMsg}`,
+      'error',
+      {
+        recipient: contact.email,
+        subject: renderedSubject,
+        executionId: execCtx.execution.id,
+        stepIndex: stepIndexNum,
+        error: errMsg
+      }
+    );
     throw new Error(`Email send failed: ${errMsg}`);
   }
 }

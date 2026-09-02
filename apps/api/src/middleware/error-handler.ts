@@ -26,9 +26,11 @@ export function errorHandler(error: Error, c: Context): Response {
     return c.json(errorResponse(errorCode, error.message, error.details || null), statusCode as any);
   }
 
-  // Handle EmailDomainError domain exceptions cleanly
+  // Handle Domain exceptions (EmailDomainError, DriveDomainError, AttachmentDomainError) cleanly
   if (
     error.name === 'EmailDomainError' ||
+    error.name === 'DriveDomainError' ||
+    error.name === 'AttachmentDomainError' ||
     (error as any).code === 'TRANSACTION_NOT_FOUND' ||
     (error as any).code?.startsWith?.('ATTACHMENT') ||
     (error as any).code?.startsWith?.('TEST_RECIPIENT') ||
@@ -39,21 +41,62 @@ export function errorHandler(error: Error, c: Context): Response {
   ) {
     const domainErr = error as any;
     const code = domainErr.code || 'BAD_REQUEST';
-    let statusCode = 400;
+    let statusCode = domainErr.statusCode || 400;
 
-    if (code === 'MAILBOX_NOT_FOUND' || code === 'ATTACHMENT_NOT_FOUND' || code === 'TRANSACTION_NOT_FOUND') {
-      statusCode = 404;
-    } else if (code === 'EMAIL_RATE_LIMITED' || code === 'TEST_RECIPIENT_LIMIT_REACHED' || code === 'SENDER_RATE_LIMITED') {
-      statusCode = 429;
-    } else if (code === 'MAILBOX_REAUTH_REQUIRED' || code === 'MAILBOX_NOT_AUTHORIZED' || code === 'GMAIL_AUTH_REVOKED') {
-      statusCode = 401;
-    } else if (code === 'MAILBOX_DISCONNECTED' || code === 'ATTACHMENT_ACCESS_DENIED' || code === 'DRIVE_ATTACHMENT_ACCESS_DENIED') {
-      statusCode = 403;
+    if (!domainErr.statusCode) {
+      if (
+        code === 'MAILBOX_NOT_FOUND' ||
+        code === 'ATTACHMENT_NOT_FOUND' ||
+        code === 'TRANSACTION_NOT_FOUND' ||
+        code === 'DRIVE_FILE_NOT_FOUND' ||
+        code === 'DRIVE_CONNECTION_NOT_FOUND'
+      ) {
+        statusCode = 404;
+      } else if (
+        code === 'EMAIL_RATE_LIMITED' ||
+        code === 'TEST_RECIPIENT_LIMIT_REACHED' ||
+        code === 'SENDER_RATE_LIMITED' ||
+        code === 'DRIVE_RATE_LIMITED'
+      ) {
+        statusCode = 429;
+      } else if (
+        code === 'MAILBOX_REAUTH_REQUIRED' ||
+        code === 'MAILBOX_NOT_AUTHORIZED' ||
+        code === 'GMAIL_AUTH_REVOKED' ||
+        code === 'DRIVE_AUTH_REQUIRED' ||
+        code === 'DRIVE_REAUTH_REQUIRED'
+      ) {
+        statusCode = 401;
+      } else if (
+        code === 'MAILBOX_DISCONNECTED' ||
+        code === 'ATTACHMENT_ACCESS_DENIED' ||
+        code === 'DRIVE_ATTACHMENT_ACCESS_DENIED' ||
+        code === 'DRIVE_ACCESS_DENIED'
+      ) {
+        statusCode = 403;
+      } else if (code === 'ATTACHMENT_SIZE_EXCEEDED') {
+        statusCode = 413;
+      } else if (
+        code === 'DRIVE_UPLOAD_FAILED' ||
+        code === 'DRIVE_DOWNLOAD_FAILED' ||
+        code === 'ATTACHMENT_BINARY_EMPTY'
+      ) {
+        statusCode = 502;
+      }
     }
 
+    const wsId = c.get('workspaceId') || 'unknown';
     logger.warn(
-      { reqId, statusCode, errorCode: code, message: domainErr.message },
-      `EmailDomainError handled: ${domainErr.message}`
+      {
+        correlationId: reqId,
+        workspaceId: wsId,
+        operation: c.req.path,
+        method: c.req.method,
+        errorCode: code,
+        statusCode,
+        message: domainErr.message
+      },
+      `Domain error handled [${code}]: ${domainErr.message}`
     );
     return c.json(errorResponse(code, domainErr.message, null), statusCode as any);
   }

@@ -10,11 +10,14 @@ export const attachmentItemSchema = z.object({
   filename: z.string(),
   size: z.number().int().nonnegative(),
   provider: z.enum(['google-drive', 'local']).default('google-drive'),
-  fileId: z.string().optional(),
-  driveUrl: z.string().optional(),
-  storagePath: z.string().optional(),
-  contentType: z.string().optional(),
-  mimeType: z.string().optional()
+  fileId: z.string().nullable().optional(),
+  driveUrl: z.string().nullable().optional(),
+  googleConnectionId: z.string().nullable().optional(),
+  thumbnailUrl: z.string().nullable().optional(),
+  storagePath: z.string().nullable().optional(),
+  contentType: z.string().nullable().optional(),
+  mimeType: z.string().nullable().optional(),
+  contentBase64: z.string().nullable().optional()
 });
 export type AttachmentItem = z.infer<typeof attachmentItemSchema>;
 

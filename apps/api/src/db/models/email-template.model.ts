@@ -14,6 +14,8 @@ export interface TemplateAttachment {
   mimeType?: string | null;
   size: number;
   driveUrl?: string | null;
+  thumbnailUrl?: string | null;
+  googleConnectionId?: string | null;
   storagePath?: string | null;
 }
 
@@ -39,6 +41,8 @@ const templateAttachmentSchema = new Schema<TemplateAttachment>(
     mimeType: { type: String, default: null },
     size: { type: Number, required: true },
     driveUrl: { type: String, default: null },
+    thumbnailUrl: { type: String, default: null },
+    googleConnectionId: { type: String, default: null },
     storagePath: { type: String, default: null }
   },
   { _id: false }

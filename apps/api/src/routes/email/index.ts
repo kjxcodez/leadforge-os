@@ -19,35 +19,44 @@ function getUserId(c: any): string {
   return (user.id || user._id).toString();
 }
 
-const sendSchema = z.object({
-  accountId: z.string().min(1),
-  to: z.string().email(),
-  subject: z.string().min(1),
-  text: z.string().optional(),
-  html: z.string().optional(),
-  from: z.string().optional(),
-  useSignature: z.boolean().optional(),
-  attachments: z
-    .array(
-      z
-        .object({
-          id: z.string().optional(),
-          attachmentId: z.string().optional(),
-          fileId: z.string().nullable().optional(),
-          provider: z.string().optional(),
-          filename: z.string(),
-          contentBase64: z.string().optional(),
-          data: z.any().optional(),
-          path: z.string().optional(),
-          contentType: z.string().optional(),
-          mimeType: z.string().nullable().optional(),
-          size: z.number().optional(),
-          driveUrl: z.string().nullable().optional()
-        })
-        .passthrough()
-    )
-    .optional()
-});
+const sendSchema = z
+  .object({
+    accountId: z.string().min(1),
+    to: z.string().email(),
+    subject: z.string().min(1),
+    text: z.string().optional(),
+    html: z.string().optional(),
+    from: z.string().optional(),
+    useSignature: z.boolean().optional(),
+    idempotencyKey: z.string().optional(),
+    campaignId: z.string().optional(),
+    sequenceId: z.string().optional(),
+    executionId: z.string().optional(),
+    stepIndex: z.number().optional(),
+    contactId: z.string().optional(),
+    attachments: z
+      .array(
+        z
+          .object({
+            id: z.string().optional(),
+            attachmentId: z.string().optional(),
+            fileId: z.string().nullable().optional(),
+            provider: z.string().optional(),
+            filename: z.string(),
+            contentBase64: z.string().optional(),
+            data: z.any().optional(),
+            path: z.string().optional(),
+            contentType: z.string().optional(),
+            mimeType: z.string().nullable().optional(),
+            size: z.number().optional(),
+            driveUrl: z.string().nullable().optional(),
+            googleConnectionId: z.string().nullable().optional()
+          })
+          .passthrough()
+      )
+      .optional()
+  })
+  .passthrough();
 
 // ── Accounts ──────────────────────────────────────────────────────────────
 
@@ -172,7 +181,27 @@ emailRouter.post('/accounts/:id/test', async (c) => {
 emailRouter.post('/send', async (c) => {
   const wsId = getWorkspaceId(c);
   const userId = getUserId(c);
-  const body = sendSchema.parse(await c.req.json());
+  const reqId = c.req.header('x-request-id') || crypto.randomUUID();
+  const rawBody = await c.req.json();
+  const body = sendSchema.parse(rawBody);
+
+  logger.info(
+    {
+      correlationId: reqId,
+      workspaceId: wsId,
+      userId,
+      accountId: body.accountId,
+      to: body.to,
+      subject: body.subject,
+      campaignId: body.campaignId,
+      executionId: body.executionId,
+      stepIndex: body.stepIndex,
+      attachmentsCount: body.attachments?.length || 0,
+      idempotencyKey: body.idempotencyKey
+    },
+    'Email dispatch requested via POST /email/send'
+  );
+
   const service = new EmailService(wsId, userId);
   const result = await service.send(body);
   return c.json(successResponse(result));

@@ -78,6 +78,18 @@ export class GmailProvider {
       altBoundary: options.altBoundary
     });
 
+    logger.info(
+      {
+        connectionId: options.connectionId,
+        from: options.from,
+        to: options.to,
+        subject: options.subject,
+        attachmentsCount: options.attachments?.length || 0,
+        rawPayloadBytes: raw.length
+      },
+      'Posting MIME message to Gmail REST API users.me.messages.send'
+    );
+
     let res: Response;
     try {
       res = await this.transportFn(GMAIL_SEND_API_URL, {
@@ -90,6 +102,14 @@ export class GmailProvider {
       });
     } catch (netErr: any) {
       // Network disconnect / socket error during sending
+      logger.error(
+        {
+          netErr,
+          connectionId: options.connectionId,
+          to: options.to
+        },
+        'Network error contacting Gmail API'
+      );
       throw new EmailDomainError(
         'AMBIGUOUS_SEND_TIMEOUT',
         `Network failure while contacting Gmail API: ${netErr.message}`,
@@ -102,6 +122,20 @@ export class GmailProvider {
     const body: any = await res.json().catch(() => ({}));
 
     if (!res.ok) {
+      const errorMsg = body?.error?.message || 'unknown error';
+      const errorDetails = body?.error?.errors ? JSON.stringify(body.error.errors) : '';
+      const fullErrorText = errorDetails ? `${errorMsg} (details: ${errorDetails})` : errorMsg;
+
+      logger.error(
+        {
+          status: res.status,
+          connectionId: options.connectionId,
+          to: options.to,
+          error: body?.error
+        },
+        'Gmail messages.send returned error response'
+      );
+
       if (res.status === 401 || res.status === 403) {
         await GoogleConnectionModel.updateOne(
           { _id: options.connectionId },
@@ -109,13 +143,13 @@ export class GmailProvider {
             $set: {
               gmailStatus: 'reauth_required',
               status: 'reauth_required',
-              lastError: body?.error?.message || 'Gmail authorization expired or revoked'
+              lastError: fullErrorText || 'Gmail authorization expired or revoked'
             }
           }
         );
         throw new EmailDomainError(
           'MAILBOX_REAUTH_REQUIRED',
-          'Gmail authorization expired or was revoked. Please reconnect the mailbox.',
+          `Gmail authorization expired or was revoked (${fullErrorText}). Please reconnect the mailbox.`,
           true,
           false,
           'authentication'
@@ -125,7 +159,7 @@ export class GmailProvider {
       if (res.status === 429 || body?.error?.status === 'RESOURCE_EXHAUSTED') {
         throw new EmailDomainError(
           'SENDER_RATE_LIMITED',
-          `Gmail API rate limit exceeded for sender "${connection.email}". Please back off before retrying.`,
+          `Gmail API rate limit exceeded for sender "${connection.email}": ${fullErrorText}. Please back off before retrying.`,
           false,
           true,
           'rate_limit'
@@ -135,7 +169,7 @@ export class GmailProvider {
       if (res.status === 400) {
         throw new EmailDomainError(
           'INVALID_RECIPIENT',
-          `Gmail rejected message as invalid request: ${body?.error?.message || 'Bad Request'}`,
+          `Gmail rejected message as invalid request: ${fullErrorText}`,
           false,
           false,
           'invalid_request'
@@ -145,22 +179,31 @@ export class GmailProvider {
       if (res.status >= 500) {
         throw new EmailDomainError(
           'TRANSIENT_NETWORK_ERROR',
-          `Gmail API temporary server error (HTTP ${res.status}): ${body?.error?.message || 'Server error'}`,
+          `Gmail API temporary server error (HTTP ${res.status}): ${fullErrorText}`,
           false,
           true,
           'transient_server_error'
         );
       }
 
-      logger.error({ status: res.status, error: body?.error }, 'Gmail messages.send failed');
       throw new EmailDomainError(
         'EMAIL_SEND_FAILED',
-        `Gmail send failed (HTTP ${res.status}): ${body?.error?.message || 'unknown error'}`,
+        `Gmail send failed (HTTP ${res.status}): ${fullErrorText}`,
         false,
         false,
         'permanent_provider_error'
       );
     }
+
+    logger.info(
+      {
+        connectionId: options.connectionId,
+        messageId: body.id,
+        threadId: body.threadId,
+        to: options.to
+      },
+      'Gmail REST API accepted message successfully'
+    );
 
     return {
       messageId: body.id || '',

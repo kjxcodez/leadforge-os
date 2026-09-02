@@ -99,29 +99,44 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
     const fs = await import('fs');
     for (const att of rawAttachments) {
       const filePath = att.storagePath || att.path;
-      if (filePath && !fs.existsSync(filePath)) {
-        throw new Error(
-          `Campaign execution failed: Attachment "${att.filename || filePath}" is unavailable on disk.`
-        );
-      }
       let contentBase64 = att.contentBase64 || '';
       if (!contentBase64 && filePath && fs.existsSync(filePath)) {
         contentBase64 = fs.readFileSync(filePath).toString('base64');
       }
       processedAttachments.push({
+        id: att.id,
+        fileId: att.fileId,
+        driveUrl: att.driveUrl,
+        googleConnectionId: att.googleConnectionId,
+        provider: att.provider || 'google-drive',
         filename: att.filename || 'attachment',
         contentBase64,
-        contentType: att.contentType,
+        contentType: att.contentType || att.mimeType,
         size: att.size
       });
     }
   }
 
-  // 4. Load eligible contacts from API
+  // 4. Load eligible contacts from API or Campaign Audience
+  let targetContactIds: Set<string> | null = null;
+  if (campaign.audienceId) {
+    try {
+      ctx.emitLog(`Resolving audience membership for audience "${campaign.audienceId}"...`, 'info');
+      const resolved = await sdk.audiences.resolve(campaign.audienceId);
+      if (resolved && Array.isArray(resolved.contactIds)) {
+        targetContactIds = new Set(resolved.contactIds);
+        ctx.emitLog(`Audience resolved ${targetContactIds.size} eligible contact ID(s).`, 'info');
+      }
+    } catch (audErr) {
+      ctx.emitLog(`Failed to resolve audience "${campaign.audienceId}": ${audErr}`, 'warn');
+    }
+  }
+
   const contactsRes = await sdk.contacts.list({});
   const rawContacts = Array.isArray(contactsRes) ? contactsRes : [];
   const contacts: ContactRecord[] = rawContacts
     .filter((c: any) => c.email && !['unsubscribed', 'bounced', 'do_not_contact'].includes(c.status))
+    .filter((c: any) => !targetContactIds || targetContactIds.has(c.id))
     .map((c: any) => ({
       id: c.id,
       firstName: c.firstName || null,
@@ -134,7 +149,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
 
   if (contacts.length === 0) {
     ctx.emitLog(
-      'No eligible contacts found for this campaign. All contacts have already been contacted or none exist.',
+      'No eligible contacts found for this campaign. All contacts have already been contacted, none match audience filter, or none exist.',
       'info'
     );
     return { dispatchedCount: 0, failureCount: 0, skippedCount: 0 };
@@ -237,7 +252,8 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
     const renderedBody = renderCanonicalVariables(body, renderCtx);
     const formattedBody = formatEmailBody(renderedBody);
 
-    const idempotencyKey = `campaign_${campaignId}_${contact.id}_step0`;
+    const runIdentifier = ctx.jobId || (ctx.payload as any).executionId || 'run';
+    const idempotencyKey = `campaign_${campaignId}_${runIdentifier}_${contact.id}_step0`;
     let messageId = '';
     let sendSuccess = false;
     let sendError = '';
@@ -262,12 +278,33 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
       messageId = res.messageId || '';
       sendSuccess = true;
       dispatchedCount++;
-      ctx.emitLog(`✅ Email sent via API to ${contact.email} (messageId: ${messageId})`, 'info');
+      ctx.emitLog(`✅ Email sent via API to ${contact.email} (messageId: ${messageId})`, 'info', {
+        messageId,
+        recipient: contact.email,
+        subject: renderedSubject,
+        campaignId,
+        attachmentsCount: processedAttachments.length
+      });
     } catch (err: any) {
       sendError = err.message || String(err);
       sendSuccess = false;
       failureCount++;
-      ctx.emitLog(`❌ Failed to send email to ${contact.email}: ${sendError}`, 'error');
+      ctx.emitLog(`❌ Failed to send email to ${contact.email}: ${sendError}`, 'error', {
+        error: sendError,
+        recipient: contact.email,
+        subject: renderedSubject,
+        campaignId
+      });
+
+      // Provider backoff if rate limited
+      if (sendError.includes('RATE_LIMITED') || sendError.includes('rate limit') || sendError.includes('429')) {
+        ctx.emitLog(`Provider rate limit reached. Backing off for 10 seconds before next send...`, 'warn');
+        const rateLimitWaitStart = Date.now();
+        while (Date.now() - rateLimitWaitStart < 10000) {
+          if (ctx.isCancelled()) break;
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
     }
 
     processedContactIds.add(contact.id);
@@ -289,12 +326,34 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
       } satisfies OutreachCheckpoint);
       ctx.emitLog(`Checkpoint saved after ${i + 1} contact(s).`, 'info');
     }
+
+    // Steady pacing between consecutive sends with bounded jitter
+    if (i < totalContacts - 1 && !ctx.isCancelled()) {
+      const baseIntervalMs = typeof (campaign as any).settings?.sendIntervalSeconds === 'number'
+        ? (campaign as any).settings.sendIntervalSeconds * 1000
+        : 1500;
+      const jitterMs = Math.floor(Math.random() * 600) - 300; // +/- 300ms jitter
+      const sleepDuration = Math.max(800, baseIntervalMs + jitterMs);
+
+      const startTime = Date.now();
+      while (Date.now() - startTime < sleepDuration) {
+        if (ctx.isCancelled()) break;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
   }
 
   ctx.emitLog(
     `Campaign dispatch complete — Sent: ${dispatchedCount} | Failed: ${failureCount} | Skipped: ${skippedCount}`,
     'info'
   );
+
+  // False success protection: if all attempted sends failed, fail the job explicitly
+  if (dispatchedCount === 0 && failureCount > 0) {
+    const fatalMsg = `Campaign outreach failed: 0/${failureCount} emails were accepted by the provider.`;
+    ctx.emitLog(`❌ ${fatalMsg}`, 'error');
+    throw new Error(fatalMsg);
+  }
 
   return { dispatchedCount, failureCount, skippedCount };
 }
