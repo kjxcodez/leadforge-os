@@ -196,13 +196,52 @@ export async function getBrowserEngineStatus(): Promise<BrowserEngineStatus> {
 }
 
 /**
- * Runs `playwright-core install chromium` as a forked child process.
+ * Attempts to download browser binaries directly in-process via playwright-core's
+ * internal registry module. This avoids child-process spawning and path extraction issues.
+ */
+async function installBrowsersInProcess(
+  browsersPath: string,
+  onProgress?: (line: string) => void
+): Promise<boolean> {
+  try {
+    const coreDir = dirname(require.resolve('playwright-core/package.json'));
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const coreBundle = require(join(coreDir, 'lib', 'coreBundle.js'));
+    const reg = coreBundle?.registry?.registry;
+    if (!reg || typeof reg.install !== 'function') {
+      return false;
+    }
+
+    process.env.PLAYWRIGHT_BROWSERS_PATH = browsersPath;
+    onProgress?.('Downloading browser engine...');
+    AppLogger.info('PlaywrightSetup', 'Installing browsers in-process via playwright-core registry');
+
+    const targetNames = new Set(['chromium', 'chromium-headless-shell', 'ffmpeg', 'winldd']);
+    const execs = (reg.defaultExecutables ? reg.defaultExecutables() : []).filter((e: any) =>
+      targetNames.has(e.name)
+    );
+
+    if (execs.length === 0) {
+      return false;
+    }
+
+    await reg.install(execs);
+    AppLogger.info('PlaywrightSetup', 'In-process browser installation completed successfully.');
+    return true;
+  } catch (err: any) {
+    AppLogger.warn(
+      'PlaywrightSetup',
+      `In-process browser install failed, attempting CLI fallback: ${err?.message || err}`
+    );
+    return false;
+  }
+}
+
+/**
+ * Runs browser installation. First attempts in-process installation; if unavailable,
+ * falls back to running `playwright-core install chromium` as a child process.
  *
- * Uses `playwright-core` directly with `ELECTRON_RUN_AS_NODE: '1'` so the packaged
- * Electron runtime executes the CLI script as standard Node.js without requiring `npx`
- * or an external Node installation.
- *
- * @param onProgress - Optional callback called with each line of stdout/stderr.
+ * @param onProgress - Optional callback called with progress messages.
  */
 export async function installPlaywrightBrowsers(
   onProgress?: (line: string) => void
@@ -210,6 +249,16 @@ export async function installPlaywrightBrowsers(
   isInstalling = true;
   lastInstallError = undefined;
 
+  const browsersPath = getPlaywrightBrowsersPath();
+
+  // 1. Try in-process installation (fastest, most reliable in ASAR/packaged mode)
+  const inProcessSuccess = await installBrowsersInProcess(browsersPath, onProgress);
+  if (inProcessSuccess) {
+    isInstalling = false;
+    return;
+  }
+
+  // 2. Fallback to child-process CLI execution
   return new Promise((resolve, reject) => {
     const cliPath = resolvePlaywrightCliPath();
 
@@ -217,8 +266,6 @@ export async function installPlaywrightBrowsers(
       'PlaywrightSetup',
       `Installing Chromium browser via playwright-core CLI: ${cliPath}`
     );
-
-    const browsersPath = getPlaywrightBrowsersPath();
 
     const child = fork(cliPath, ['install', 'chromium'], {
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
