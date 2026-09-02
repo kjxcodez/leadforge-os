@@ -335,30 +335,31 @@ export function MediaPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[760px] max-h-[85vh] w-full flex flex-col p-0 gap-0 overflow-hidden bg-background border-border-subtle rounded-none">
-        <DialogHeader className="p-4 pb-2 border-b border-border-subtle">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-primary/10 text-primary">
+      <DialogContent className="sm:max-w-[840px] max-w-[95vw] w-full h-[85vh] max-h-[720px] min-h-[480px] flex flex-col p-0 gap-0 overflow-hidden bg-background border-border-subtle rounded-none shadow-2xl">
+        {/* REGION 1: FIXED HEADER */}
+        <DialogHeader className="p-4 pb-3 border-b border-border-subtle shrink-0 pr-12">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="p-1.5 bg-primary/10 text-primary shrink-0">
                 <HardDrive className="w-4 h-4" />
               </div>
-              <div>
-                <DialogTitle className="text-sm font-semibold text-foreground">
+              <div className="min-w-0">
+                <DialogTitle className="text-sm font-semibold text-foreground truncate">
                   Media & Google Drive Attachments
                 </DialogTitle>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
+                <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
                   Select uploaded workspace assets or Google Drive files to attach
                 </p>
               </div>
             </div>
 
             {driveConnections.length > 0 && (
-              <div className="flex items-center gap-1.5">
-                <Cloud className="w-3.5 h-3.5 text-emerald-400" />
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Cloud className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 <select
                   value={selectedConnectionId}
                   onChange={(e) => setSelectedConnectionId(e.target.value)}
-                  className="bg-surface-3 border border-border-subtle text-[11px] text-foreground px-2 py-1 outline-none font-mono"
+                  className="bg-surface-3 border border-border-subtle text-[11px] text-foreground px-2 py-1 outline-none font-mono max-w-[200px] truncate"
                 >
                   {driveConnections.map((c: any) => (
                     <option key={c.id || c._id} value={c.id || c._id}>
@@ -371,9 +372,10 @@ export function MediaPickerDialog({
           </div>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={(v: any) => setTab(v)} className="flex-1 flex flex-col min-h-0">
-          <div className="flex items-center justify-between px-4 pt-2.5 pb-2 border-b border-border-subtle bg-surface-3/40">
-            <TabsList className="bg-surface-3 p-0.5 rounded-none h-7">
+        {/* REGION 2: TABS & RESPONSIVE TOOLBAR */}
+        <Tabs value={tab} onValueChange={(v: any) => setTab(v)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 border-b border-border-subtle bg-surface-3/40 shrink-0">
+            <TabsList className="bg-surface-3 p-0.5 rounded-none h-8 flex-wrap">
               <TabsTrigger value="library" className="rounded-none text-xs px-2.5 py-1">
                 Media Library ({libraryFiles.length})
               </TabsTrigger>
@@ -386,15 +388,15 @@ export function MediaPickerDialog({
             </TabsList>
 
             {tab !== 'upload' && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center flex-wrap gap-2 min-w-0 flex-1 sm:flex-initial justify-end">
                 {tab === 'library' && (
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 shrink-0">
                     {['all', 'document', 'image', 'spreadsheet'].map((cat) => (
                       <button
                         key={cat}
                         type="button"
                         onClick={() => setCategory(cat)}
-                        className={`text-[10px] px-2 py-0.5 font-medium border ${
+                        className={`text-[10px] px-2 py-0.5 font-medium border transition-colors ${
                           category === cat
                             ? 'bg-primary text-primary-foreground border-primary'
                             : 'bg-surface-3 text-muted-foreground border-border-subtle hover:text-foreground'
@@ -405,23 +407,24 @@ export function MediaPickerDialog({
                     ))}
                   </div>
                 )}
-                <div className="relative w-44">
-                  <Search className="w-3 h-3 absolute left-2 top-2 text-muted-foreground" />
+                <div className="relative min-w-[140px] sm:w-44 flex-1 sm:flex-initial">
+                  <Search className="w-3 h-3 absolute left-2 top-2.5 text-muted-foreground pointer-events-none" />
                   <Input
                     type="text"
                     placeholder="Search files..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="h-7 pl-7 text-xs bg-surface-3 border-border-subtle rounded-none font-mono"
+                    className="h-7 pl-7 pr-2 text-xs bg-surface-3 border-border-subtle rounded-none font-mono w-full"
                   />
                 </div>
               </div>
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 min-h-[300px] max-h-[420px]">
+          {/* REGION 3: ISOLATED SCROLLABLE CONTENT */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-4">
             {/* TAB 1: MEDIA LIBRARY */}
-            <TabsContent value="library" className="m-0 space-y-2">
+            <TabsContent value="library" className="m-0 space-y-2 h-full">
               {loading ? (
                 <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground text-xs">
                   <RefreshCw className="w-5 h-5 animate-spin text-primary" />
@@ -447,7 +450,7 @@ export function MediaPickerDialog({
                   )}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                   {libraryFiles.map((file) => {
                     const isSelected = selectedMap.has(file.fileId || file.id);
                     return (
@@ -520,7 +523,7 @@ export function MediaPickerDialog({
             </TabsContent>
 
             {/* TAB 2: GOOGLE DRIVE LIVE */}
-            <TabsContent value="drive" className="m-0 space-y-2">
+            <TabsContent value="drive" className="m-0 space-y-2 h-full">
               {!isDriveConnected ? (
                 <div className="flex flex-col items-center justify-center h-48 border border-dashed border-border-subtle p-6 text-center">
                   <Cloud className="w-8 h-8 text-muted-foreground/50 mb-2" />
@@ -543,7 +546,7 @@ export function MediaPickerDialog({
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                   {driveFiles.map((file) => {
                     const isSelected = selectedMap.has(file.id);
                     return (
@@ -604,7 +607,7 @@ export function MediaPickerDialog({
             </TabsContent>
 
             {/* TAB 3: UPLOAD TO DRIVE */}
-            <TabsContent value="upload" className="m-0 space-y-3">
+            <TabsContent value="upload" className="m-0 space-y-3 h-full">
               {!isDriveConnected ? (
                 <div className="flex flex-col items-center justify-center h-48 border border-dashed border-border-subtle p-6 text-center">
                   <Cloud className="w-8 h-8 text-muted-foreground/50 mb-2" />
@@ -692,11 +695,12 @@ export function MediaPickerDialog({
           </div>
         </Tabs>
 
-        <DialogFooter className="p-3 bg-surface-3 border-t border-border-subtle flex items-center justify-between sm:justify-between">
-          <div className="text-xs text-muted-foreground font-mono">
+        {/* REGION 4: FIXED FOOTER */}
+        <div className="p-3.5 bg-surface-3 border-t border-border-subtle flex items-center justify-between gap-3 shrink-0">
+          <div className="text-xs text-muted-foreground font-mono truncate">
             {selectedMap.size} file(s) selected
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Button
               type="button"
               variant="outline"
@@ -710,13 +714,13 @@ export function MediaPickerDialog({
               type="button"
               size="sm"
               onClick={handleConfirm}
-              className="rounded-none text-xs font-semibold gap-1.5"
+              className="rounded-none text-xs font-semibold gap-1.5 shrink-0"
             >
               <Check className="w-3.5 h-3.5" />
               <span>Attach Selected ({selectedMap.size})</span>
             </Button>
           </div>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
