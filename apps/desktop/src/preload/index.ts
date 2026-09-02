@@ -222,7 +222,9 @@ contextBridge.exposeInMainWorld('ipc', {
       'workspace:boot-progress',
       'scheduler:tick',
       'updater:status-changed',
-      'agent:workflow:progress'
+      'agent:workflow:progress',
+      'email-accounts:changed',
+      'google-connections:changed'
     ];
     if (validChannels.includes(channel as string)) {
       const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]) =>

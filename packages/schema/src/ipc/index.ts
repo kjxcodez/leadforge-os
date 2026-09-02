@@ -893,6 +893,14 @@ export interface IpcChannelMap {
   };
 
   // ── Push-event channels (main → renderer via ipc.on) ────────────────────
+  'email-accounts:changed': {
+    input: void;
+    output: { timestamp?: string } | void;
+  };
+  'google-connections:changed': {
+    input: void;
+    output: { timestamp?: string } | void;
+  };
   'workspace:boot-progress': {
     input: void;
     output: { stage: string; message: string; progress?: number };
