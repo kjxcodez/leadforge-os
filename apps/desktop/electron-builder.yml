@@ -17,6 +17,8 @@ files:
   - "!**/.turbo"
 
 asar: true
+asarUnpack:
+  - "**/node_modules/playwright-core/**"
 
 compression: maximum
 

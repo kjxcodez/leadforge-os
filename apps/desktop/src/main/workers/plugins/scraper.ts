@@ -173,11 +173,20 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
   let page: Page | null = null;
 
   try {
-    ctx.updateProgress(5, { description: 'Launching browser...' });
-    browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
-    });
+    ctx.updateProgress(5, { description: 'Launching browser engine...' });
+    try {
+      browser = await chromium.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+      });
+    } catch (launchErr: any) {
+      if (launchErr?.message?.includes("Executable doesn't exist")) {
+        throw new Error(
+          `Playwright Chromium browser engine is not installed on this system (Path: ${process.env.PLAYWRIGHT_BROWSERS_PATH || 'default'}). Please check internet connectivity and restart LeadForge OS to download required browser components.`
+        );
+      }
+      throw launchErr;
+    }
 
     browserCtx = await browser.newContext({
       viewport: { width: 1280, height: 900 },

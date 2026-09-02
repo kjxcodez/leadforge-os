@@ -226,11 +226,12 @@ app.whenReady().then(async () => {
   try {
     updateSplashProgress('browser:setup', 'Setting up browser engine...');
     await ensurePlaywrightBrowsers((line) => {
-      // Pipe installation stdout into the splash screen label (truncated to 50 chars)
+      // Pipe installation stdout into the splash screen label (truncated to 60 chars)
       updateSplashProgress('browser:setup', line.slice(0, 60));
     });
-  } catch (err) {
+  } catch (err: any) {
     AppLogger.error('app', 'Playwright browser setup failed during startup', undefined, err);
+    updateSplashProgress('browser:setup', 'Browser engine setup incomplete (offline)');
   }
 
   // 3. Register all IPC handlers exactly once using the coordinator

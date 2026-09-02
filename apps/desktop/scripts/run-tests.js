@@ -16,7 +16,8 @@ const tests = [
   'src/main/services/desktop-runtime-config.test.ts',
   'src/main/services/fresh-database.test.ts',
   'src/main/services/fresh-database-all-queries.test.ts',
-  'src/main/services/locations.test.ts'
+  'src/main/services/locations.test.ts',
+  'src/main/lib/playwright-setup.test.ts'
 ];
 
 let electronPath = null;
