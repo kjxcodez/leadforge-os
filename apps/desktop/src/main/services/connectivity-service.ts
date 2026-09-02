@@ -7,6 +7,7 @@ import type {
 } from '@leadforge/schema';
 import { AppLogger } from '../lib/logger';
 import { WorkspaceManager } from '../lib/workspace-manager';
+import { loadConfig } from '../lib/config';
 
 /**
  * ConnectivityService manages the runtime connectivity health gate, state machine,
@@ -15,7 +16,7 @@ import { WorkspaceManager } from '../lib/workspace-manager';
 class ConnectivityServiceClass {
   private state: RuntimeConnectivityState = {
     status: 'CHECKING',
-    apiUrl: 'http://localhost:3001/api/v1',
+    apiUrl: loadConfig().apiUrl,
     error: null,
     lastCheckedAt: new Date().toISOString(),
     activeWorkspaceId: null
@@ -27,6 +28,7 @@ class ConnectivityServiceClass {
     const activeRuntime = WorkspaceManager.getActiveRuntime();
     return {
       ...this.state,
+      apiUrl: this.state.apiUrl || loadConfig().apiUrl,
       activeWorkspaceId: activeRuntime?.workspaceId || this.state.activeWorkspaceId
     };
   }
@@ -71,22 +73,23 @@ class ConnectivityServiceClass {
    * Executes a bounded connectivity check against the configured API endpoint.
    */
   public async checkConnectivity(
-    apiUrl: string,
+    apiUrl?: string,
     timeoutMs: number = 3500
   ): Promise<RuntimeConnectivityState> {
+    const targetUrl = apiUrl || this.state.apiUrl || loadConfig().apiUrl;
     if (this.checkPromise) {
       return this.checkPromise;
     }
 
-    this.state.apiUrl = apiUrl;
-    AppLogger.info('connectivity', 'api_connectivity_check_started', undefined, { apiUrl, timeoutMs });
+    this.state.apiUrl = targetUrl;
+    AppLogger.info('connectivity', 'api_connectivity_check_started', undefined, { apiUrl: targetUrl, timeoutMs });
 
     this.checkPromise = (async () => {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       // Clean base url and build health check path
-      const normalizedBase = apiUrl.replace(/\/+$/, '');
+      const normalizedBase = targetUrl.replace(/\/+$/, '');
       const healthUrl = normalizedBase.endsWith('/api/v1')
         ? `${normalizedBase}/health`
         : `${normalizedBase}/api/v1/health`;
@@ -177,7 +180,7 @@ class ConnectivityServiceClass {
           message.includes('connect ECONNREFUSED')
         ) {
           code = 'NETWORK_UNREACHABLE';
-          message = `API server is unreachable at ${apiUrl}. Verify server process is running.`;
+          message = `API server is unreachable at ${targetUrl}. Verify server process is running.`;
         }
 
         AppLogger.warn('connectivity', 'api_connectivity_check_failed', undefined, {
