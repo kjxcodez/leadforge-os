@@ -2,6 +2,7 @@ import { safeRegister } from './helper';
 import { getDatabase } from '../database/connection';
 import { WorkspaceManager } from '../lib/workspace-manager';
 import { AppLogger } from '../lib/logger';
+import { CacheHydrator } from '../services/cache-hydrator';
 
 /**
  * Registers dashboard telemetry, stats, and real-time infrastructure tracking IPC channels.
@@ -299,8 +300,19 @@ export function registerDashboardIpc(): void {
       };
 
       // Cache Hydrator
+      const hydratorState = CacheHydrator.getWorkspaceHydrationState(runtime.workspaceId);
+      const hydratorStatus =
+        hydratorState === 'READY'
+          ? 'Ready'
+          : hydratorState === 'RUNNING' || hydratorState === 'STARTING'
+          ? 'Running'
+          : hydratorState === 'FAILED'
+          ? 'Failed'
+          : 'Stopped';
+
       stats.cacheHydrator = {
-        status: 'Ready',
+        status: hydratorStatus,
+        state: hydratorState,
         uptimeMs: runtime.startedAt ? Date.now() - runtime.startedAt.getTime() : 0,
         lastHeartbeat: new Date().toISOString()
       };

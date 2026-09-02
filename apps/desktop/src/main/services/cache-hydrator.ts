@@ -22,7 +22,15 @@ export interface HydrationResult {
  *  - CacheHydrator uses bounded batching and atomic SQLite transactions per dataset.
  *  - Exact ID parity: API.id === MongoDB._id === SQLite.id.
  */
+export type HydrationState = 'STOPPED' | 'STARTING' | 'RUNNING' | 'READY' | 'FAILED';
+
 export class CacheHydrator {
+  private static hydrationStates = new Map<string, HydrationState>();
+
+  public static getWorkspaceHydrationState(workspaceId: string): HydrationState {
+    return CacheHydrator.hydrationStates.get(workspaceId) || 'STOPPED';
+  }
+
   /**
    * Hydrates all durable business entities for a workspace from MongoDB into SQLite.
    */
@@ -30,6 +38,7 @@ export class CacheHydrator {
     workspaceId: string,
     sdk: SdkClient
   ): Promise<HydrationResult> {
+    CacheHydrator.hydrationStates.set(workspaceId, 'RUNNING');
     const startTime = Date.now();
     AppLogger.info('CacheHydrator', `Starting workspace cache hydration for ${workspaceId}`, workspaceId);
 
@@ -180,6 +189,7 @@ export class CacheHydrator {
 
     const durationMs = Date.now() - startTime;
     const success = errors.length === 0;
+    CacheHydrator.hydrationStates.set(workspaceId, success ? 'READY' : 'FAILED');
 
     AppLogger.info(
       'CacheHydrator',
