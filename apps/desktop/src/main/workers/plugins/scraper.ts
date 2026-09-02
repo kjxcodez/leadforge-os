@@ -211,13 +211,13 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
     // Handle cookie / consent banners if present
     try {
       const consentBtn = page.locator('button[aria-label*="Accept all"], button[aria-label*="Agree"], form[action*="consent"] button').first();
-      if (await consentBtn.isVisible({ timeout: 3000 })) {
+      if (await consentBtn.isVisible({ timeout: 2500 })) {
         await consentBtn.click();
         await page.waitForTimeout(1000);
       }
     } catch {}
 
-    // Multi-selector feed resolution
+    // Multi-selector feed resolution with explicit SPA rendering readiness wait
     const feedSelectors = [
       'div[role="feed"]',
       'div.m6QErb[aria-label*="Results"]',
@@ -225,9 +225,40 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
       'div.m6QErb.DJAybe'
     ];
 
+    const singleListingSelectors = [
+      'h1.DUwDvf',
+      'div.TIHn2 h1',
+      'h1.fontHeadlineLarge'
+    ];
+
+    const zeroResultsSelectors = [
+      'div:has-text("can\'t find")',
+      'div:has-text("No results found")',
+      'div:has-text("Google Maps can\'t find")'
+    ];
+
+    const combinedReadinessSelector = [
+      ...feedSelectors,
+      ...singleListingSelectors,
+      ...zeroResultsSelectors
+    ].join(', ');
+
+    ctx.emitLog('Awaiting Google Maps SPA render readiness...', 'info');
+
+    try {
+      await page.locator(combinedReadinessSelector).first().waitFor({ state: 'visible', timeout: 15000 });
+    } catch (waitErr: any) {
+      const title = await page.title().catch(() => 'unknown');
+      const currentUrl = page.url();
+      ctx.emitLog(
+        `Readiness timeout awaiting search results. Page Title: "${title}" | URL: ${currentUrl}`,
+        'warn'
+      );
+    }
+
     let activeFeedSelector: string | null = null;
     for (const sel of feedSelectors) {
-      const visible = await page.locator(sel).first().isVisible({ timeout: 3000 }).catch(() => false);
+      const visible = await page.locator(sel).first().isVisible({ timeout: 2000 }).catch(() => false);
       if (visible) {
         activeFeedSelector = sel;
         break;
@@ -236,11 +267,14 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
 
     if (!activeFeedSelector) {
       // Check if this navigated directly to a single business listing
-      const hasSingleListingHeader = await page
-        .locator('h1.DUwDvf, div.TIHn2 h1, h1.fontHeadlineLarge')
-        .first()
-        .isVisible({ timeout: 3000 })
-        .catch(() => false);
+      let hasSingleListingHeader = false;
+      for (const sel of singleListingSelectors) {
+        const visible = await page.locator(sel).first().isVisible({ timeout: 2000 }).catch(() => false);
+        if (visible) {
+          hasSingleListingHeader = true;
+          break;
+        }
+      }
 
       if (hasSingleListingHeader) {
         ctx.emitLog('Direct single listing detected. Extracting business details.', 'info');
@@ -248,11 +282,14 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
         outcome = storedCount > 0 ? 'SUCCESS_WITH_RESULTS' : 'SUCCESS_ZERO_RESULTS';
       } else {
         // Check for explicit zero results indicators
-        const zeroResultsFound = await page
-          .locator('div:has-text("can\'t find"), div:has-text("No results found"), div:has-text("Google Maps can\'t find")')
-          .first()
-          .isVisible({ timeout: 2000 })
-          .catch(() => false);
+        let zeroResultsFound = false;
+        for (const sel of zeroResultsSelectors) {
+          const visible = await page.locator(sel).first().isVisible({ timeout: 2000 }).catch(() => false);
+          if (visible) {
+            zeroResultsFound = true;
+            break;
+          }
+        }
 
         if (zeroResultsFound) {
           outcome = 'SUCCESS_ZERO_RESULTS';
@@ -261,7 +298,7 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
           outcome = 'EXTRACTION_FAILURE';
           const title = await page.title().catch(() => 'unknown');
           ctx.emitLog(
-            `Extraction failure: Unable to locate result feed or listing details. Page Title: "${title}" | URL: ${page.url()}`,
+            `Extraction failure: Unable to locate result feed or listing details after SPA readiness wait. Page Title: "${title}" | URL: ${page.url()}`,
             'error'
           );
           throw new Error(`Google Maps feed extraction failure for query "${effectiveQuery}".`);
@@ -432,40 +469,45 @@ export async function scrapeMaps(ctx: JobContext): Promise<any> {
 
     const domain = website ? extractDomain(website) : null;
 
-    let companyCity: string | null = city || null;
-    let companyState: string | null = state || null;
-    let companyCountry: string | null = country || null;
+    let companyCity: string | null = null;
+    let companyState: string | null = null;
+    let companyCountry: string | null = null;
 
-    if (location && (!companyCity || !companyState || !companyCountry)) {
+    if (location) {
       const tokens = location.split(',').map((t) => t.trim());
       if (tokens.length >= 2) {
         const lastToken = tokens[tokens.length - 1] || '';
         const secondLastToken = tokens[tokens.length - 2] || '';
 
-        if (!companyCountry && lastToken) {
-          const detectedCountry = normalizeCountryName(lastToken);
-          if (detectedCountry) companyCountry = detectedCountry;
+        const detectedCountry = normalizeCountryName(lastToken);
+        if (detectedCountry) {
+          companyCountry = detectedCountry;
         }
 
         const stateZipMatch = secondLastToken.match(/^([A-Z]{2})\s*(\d{5})?/i);
         if (stateZipMatch && stateZipMatch[1]) {
-          if (!companyState) companyState = stateZipMatch[1].toUpperCase();
-          if (!companyCity && tokens.length >= 3) {
+          companyState = stateZipMatch[1].toUpperCase();
+          if (tokens.length >= 3) {
             companyCity = tokens[tokens.length - 3] || null;
           }
         } else {
           const possibleRegion = normalizeStateName(secondLastToken, companyCountry || undefined);
           if (possibleRegion && possibleRegion !== secondLastToken) {
-            if (!companyState) companyState = possibleRegion;
-            if (!companyCity && tokens.length >= 3) {
+            companyState = possibleRegion;
+            if (tokens.length >= 3) {
               companyCity = tokens[tokens.length - 3] || null;
             }
-          } else if (!companyCity) {
+          } else {
             companyCity = secondLastToken;
           }
         }
       }
     }
+
+    // Fall back to search parameters only if address did not supply them
+    if (!companyCountry && country) companyCountry = normalizeCountryName(country);
+    if (!companyState && state) companyState = normalizeStateName(state, companyCountry || undefined);
+    if (!companyCity && city) companyCity = city;
 
     if (companyCountry) {
       companyCountry = normalizeCountryName(companyCountry);
