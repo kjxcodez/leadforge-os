@@ -1,4 +1,5 @@
 import { HttpClient } from '../http/client.js';
+import { toQueryString } from '../utils/query.js';
 
 export interface DiscoveryJob {
   id: string;
@@ -74,6 +75,10 @@ export class DiscoveryModule {
     return this.client.get<DiscoveryRun>(`/discovery-runs/${id}`);
   }
 
+  public async listCompaniesForRun(id: string): Promise<any[]> {
+    return this.client.get<any[]>(`/discovery-runs/${id}/companies`);
+  }
+
   public async updateRun(id: string, payload: Partial<DiscoveryRun>): Promise<DiscoveryRun> {
     return this.client.patch<DiscoveryRun>(`/discovery-runs/${id}`, payload);
   }
@@ -103,7 +108,7 @@ export class DiscoveryModule {
    * Retrieves workspace-wide discovery jobs list.
    */
   public async listJobs(filters?: Record<string, any>): Promise<DiscoveryJob[]> {
-    const query = filters ? '?' + new URLSearchParams(filters as any).toString() : '';
+    const query = toQueryString(filters);
     return this.client.get<DiscoveryJob[]>(`/discovery/jobs${query}`);
   }
 

@@ -84,6 +84,10 @@ export async function sendTestEmail(
       path?: string;
       contentType?: string;
       size?: number;
+      id?: string;
+      fileId?: string;
+      driveUrl?: string;
+      googleConnectionId?: string;
     }>;
   }
 ): Promise<{ sent: boolean; messageId?: string; sentTo?: string }> {
@@ -93,6 +97,10 @@ export async function sendTestEmail(
     path?: string;
     contentType?: string;
     size?: number;
+    id?: string;
+    fileId?: string;
+    driveUrl?: string;
+    googleConnectionId?: string;
   }> = [];
   if (Array.isArray(payload.attachments)) {
     const fs = await import('fs');
@@ -119,10 +127,18 @@ export async function sendTestEmail(
           }
         }
       }
-      if (!contentBase64) {
+
+      const isDriveAttachment = !!(att.id || att.fileId || att.driveUrl);
+      if (!contentBase64 && !isDriveAttachment) {
         throw new Error(`Unable to read "${filename}". Please remove and attach the file again.`);
       }
-      const item: any = { filename, contentBase64 };
+
+      const item: any = { filename };
+      if (contentBase64) item.contentBase64 = contentBase64;
+      if (att.id) item.id = att.id;
+      if (att.fileId) item.fileId = att.fileId;
+      if (att.driveUrl) item.driveUrl = att.driveUrl;
+      if (att.googleConnectionId) item.googleConnectionId = att.googleConnectionId;
       if (att.contentType) item.contentType = att.contentType;
       if (att.size) item.size = att.size;
       processedAttachments.push(item);

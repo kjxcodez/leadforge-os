@@ -17,9 +17,9 @@ import { getDatabase } from '../database/connection';
  */
 export function registerOutreachIpc(sdk: SdkClient) {
   // Email Accounts
-  safeRegister('email-accounts:list', async () => {
-    const runtime = WorkspaceManager.getActiveRuntime();
-    if (!runtime) throw new Error('No active workspace runtime');
+  safeRegister('email-accounts:list', async (_event, payload) => {
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime(payload?.workspaceId);
+    if (!runtime) return [];
 
     const localAccounts = await LocalCRMRepository.findMany('email_accounts', runtime.workspaceId);
 
@@ -45,16 +45,20 @@ export function registerOutreachIpc(sdk: SdkClient) {
   });
 
   safeRegister('email-accounts:delete', async (_event, id) => {
-    const runtime = WorkspaceManager.getActiveRuntime();
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
     await disconnectGmailAccount(sdk, id);
-    await LocalCRMRepository.softDelete('email_accounts', runtime.workspaceId, id);
+    await LocalCRMRepository.softDeleteFromServer('email_accounts', runtime.workspaceId, id);
+    const { BrowserWindow } = await import('electron');
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.send('email-accounts:changed');
+    });
     return { success: true };
   });
 
   // Initiate Gmail OAuth via API and open external Chrome browser
   safeRegister('email-accounts:gmail:connect', async () => {
-    const runtime = WorkspaceManager.getActiveRuntime();
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
     const result = await connectGmailAccount(sdk);
     if (result.authorizationUrl) {
@@ -66,15 +70,27 @@ export function registerOutreachIpc(sdk: SdkClient) {
 
   // Poll status of an OAuth transaction
   safeRegister('email-accounts:gmail:status', async (_event, { transactionId }) => {
-    const runtime = WorkspaceManager.getActiveRuntime();
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    return getOAuthTransactionStatus(sdk, transactionId);
+    const status = await getOAuthTransactionStatus(sdk, transactionId);
+    if (status && status.status === 'completed') {
+      const { BrowserWindow } = await import('electron');
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed()) win.webContents.send('email-accounts:changed');
+      });
+    }
+    return status;
   });
 
   safeRegister('email-accounts:gmail:disconnect', async (_event, { id }) => {
-    const runtime = WorkspaceManager.getActiveRuntime();
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    return disconnectGmailAccount(sdk, id);
+    const res = await disconnectGmailAccount(sdk, id);
+    const { BrowserWindow } = await import('electron');
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.send('email-accounts:changed');
+    });
+    return res;
   });
 
   safeRegister('email-accounts:gmail:reconnect', async (_event, { id }) => {
@@ -104,46 +120,100 @@ export function registerOutreachIpc(sdk: SdkClient) {
     }
   });
 
-  safeRegister('attachments:save', async (_event, { filePath, filename }) => {
+  safeRegister('attachments:save', async (_event, payload: { filePath?: string; filename?: string; contentBase64?: string; contentType?: string; googleConnectionId?: string }) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
 
-    const fs = await import('fs');
-    const path = await import('path');
-    const { app } = await import('electron');
+    let buffer: Buffer;
+    let mimeType: string = payload.contentType || 'application/octet-stream';
+    let safeFilename: string = payload.filename || 'attachment';
+    let size = 0;
 
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`File does not exist at path: ${filePath}`);
+    if (payload.filePath) {
+      const fs = await import('fs');
+      const path = await import('path');
+
+      if (!fs.existsSync(payload.filePath)) {
+        throw new Error(`File does not exist at path: ${payload.filePath}`);
+      }
+
+      const stat = fs.statSync(payload.filePath);
+      if (stat.size > 25 * 1024 * 1024) {
+        throw new Error(`File size (${(stat.size / 1024 / 1024).toFixed(1)} MB) exceeds 25 MB limit.`);
+      }
+
+      buffer = fs.readFileSync(payload.filePath);
+      size = stat.size;
+      const ext = path.extname(payload.filePath).toLowerCase();
+      const mimeMap: Record<string, string> = {
+        '.pdf': 'application/pdf',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        '.csv': 'text/csv',
+        '.txt': 'text/plain'
+      };
+      mimeType = payload.contentType || mimeMap[ext] || 'application/octet-stream';
+      safeFilename = payload.filename || path.basename(payload.filePath);
+    } else if (payload.contentBase64) {
+      buffer = Buffer.from(payload.contentBase64, 'base64');
+      size = buffer.length;
+      if (size > 25 * 1024 * 1024) {
+        throw new Error(`File size (${(size / 1024 / 1024).toFixed(1)} MB) exceeds 25 MB limit.`);
+      }
+    } else {
+      throw new Error('Either filePath or contentBase64 is required to save an attachment.');
     }
 
-    const stat = fs.statSync(filePath);
-    if (stat.size > 25 * 1024 * 1024) {
-      throw new Error(`File size (${(stat.size / 1024 / 1024).toFixed(1)} MB) exceeds 25 MB limit.`);
+    const sdk = WorkspaceManager.getSdk();
+    let connId = payload.googleConnectionId;
+    if (!connId) {
+      const connections = await sdk.googleConnections.list().catch(() => []);
+      const activeConn =
+        connections.find(
+          (c: any) =>
+            c.status === 'active' ||
+            c.gmailStatus === 'connected' ||
+            c.driveStatus === 'authorized'
+        ) || connections[0];
+
+      if (!activeConn) {
+        throw new Error(
+          'No connected Google account found in this workspace. Please connect a Gmail/Google account in Settings before uploading Drive attachments.'
+        );
+      }
+      connId = activeConn.id;
     }
 
-    const attachmentsDir = path.join(app.getPath('userData'), 'attachments', runtime.workspaceId);
-    if (!fs.existsSync(attachmentsDir)) {
-      fs.mkdirSync(attachmentsDir, { recursive: true });
-    }
+    const createdAttachment = await sdk.attachments.upload({
+      googleConnectionId: connId,
+      filename: safeFilename,
+      mimeType,
+      contentBase64: buffer.toString('base64'),
+      metadata: { size }
+    });
 
-    const fileId = require('crypto').randomUUID();
-    const safeName = (filename || path.basename(filePath)).replace(/[^a-zA-Z0-9._-]/g, '_');
-    const managedPath = path.join(attachmentsDir, `${fileId}_${safeName}`);
-
-    fs.copyFileSync(filePath, managedPath);
+    const driveUrl = (createdAttachment as any).driveUrl || (createdAttachment.fileId ? `https://drive.google.com/file/d/${createdAttachment.fileId}/view` : undefined);
 
     return {
-      id: fileId,
-      filename: filename || path.basename(filePath),
-      size: stat.size,
-      storagePath: managedPath
+      id: createdAttachment.id,
+      filename: createdAttachment.filename,
+      size: createdAttachment.size,
+      mimeType: createdAttachment.mimeType,
+      contentType: createdAttachment.mimeType,
+      provider: createdAttachment.provider,
+      fileId: createdAttachment.fileId,
+      driveUrl,
+      googleConnectionId: (createdAttachment as any).googleConnectionId || connId
     };
   });
 
   // Templates
-  safeRegister('templates:list', async () => {
-    const runtime = WorkspaceManager.getActiveRuntime();
-    if (!runtime) throw new Error('No active workspace runtime');
+  safeRegister('templates:list', async (_event, payload) => {
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime(payload?.workspaceId);
+    if (!runtime) return [];
     const localTemplates = await LocalCRMRepository.findMany('templates', runtime.workspaceId);
     try {
       const list = await sdk.outreach.listTemplates();
@@ -200,109 +270,54 @@ export function registerOutreachIpc(sdk: SdkClient) {
   safeRegister('templates:create', async (_event, dto) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    try {
-      const created = await sdk.outreach.createTemplate(dto);
-      const record = {
-        ...created,
-        workspaceId: runtime.workspaceId,
-        variables:
-          typeof created.variables === 'string' ? created.variables : JSON.stringify(created.variables || []),
-        attachments:
-          typeof created.attachments === 'string'
-            ? created.attachments
-            : JSON.stringify(created.attachments || []),
-        syncStatus: 'synced'
-      };
-      await LocalCRMRepository.save('templates', record, true);
-      return {
-        ...record,
-        variables: typeof record.variables === 'string' ? JSON.parse(record.variables) : record.variables,
-        attachments: typeof record.attachments === 'string' ? JSON.parse(record.attachments) : record.attachments
-      };
-    } catch (err) {
-      console.warn('[IPC] Direct API template create failed, staging to local offline cache:', err);
-      const id = dto.id || require('crypto').randomUUID();
-      const record = {
-        ...dto,
-        id,
-        workspaceId: runtime.workspaceId,
-        variables:
-          typeof dto.variables === 'string' ? dto.variables : JSON.stringify(dto.variables || []),
-        attachments:
-          typeof dto.attachments === 'string'
-            ? dto.attachments
-            : JSON.stringify(dto.attachments || []),
-        syncStatus: 'pending'
-      };
-      await LocalCRMRepository.save('templates', record);
-      return {
-        ...record,
-        variables: typeof record.variables === 'string' ? JSON.parse(record.variables) : record.variables,
-        attachments: typeof record.attachments === 'string' ? JSON.parse(record.attachments) : record.attachments
-      };
-    }
+    const created = await sdk.outreach.createTemplate(dto);
+    const record = {
+      ...created,
+      workspaceId: runtime.workspaceId,
+      variables:
+        typeof created.variables === 'string' ? created.variables : JSON.stringify(created.variables || []),
+      attachments:
+        typeof created.attachments === 'string'
+          ? created.attachments
+          : JSON.stringify(created.attachments || [])
+    };
+    await LocalCRMRepository.saveFromServer('templates', record);
+    return {
+      ...record,
+      variables: typeof record.variables === 'string' ? JSON.parse(record.variables) : (record.variables || []),
+      attachments: typeof record.attachments === 'string' ? JSON.parse(record.attachments) : (record.attachments || [])
+    };
   });
 
   safeRegister('templates:update', async (_event, { id, dto }) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
     if (!id) throw new Error('Template ID is required.');
-    try {
-      const updated = await sdk.outreach.updateTemplate(id, dto);
-      const record: any = {
-        ...updated,
-        id,
-        workspaceId: runtime.workspaceId,
-        variables:
-          typeof updated.variables === 'string' ? updated.variables : JSON.stringify(updated.variables || []),
-        attachments:
-          typeof updated.attachments === 'string'
-            ? updated.attachments
-            : JSON.stringify(updated.attachments || []),
-        syncStatus: 'synced'
-      };
-      await LocalCRMRepository.save('templates', record, true);
-      return {
-        ...record,
-        variables: typeof record.variables === 'string' ? JSON.parse(record.variables) : (record.variables || []),
-        attachments: typeof record.attachments === 'string' ? JSON.parse(record.attachments) : (record.attachments || [])
-      };
-    } catch (err) {
-      console.warn('[IPC] Direct API template update failed, staging to local offline cache:', err);
-      const record: any = {
-        ...dto,
-        id,
-        workspaceId: runtime.workspaceId,
-        syncStatus: 'pending'
-      };
-      if (dto.variables !== undefined) {
-        record.variables =
-          typeof dto.variables === 'string' ? dto.variables : JSON.stringify(dto.variables || []);
-      }
-      if (dto.attachments !== undefined) {
-        record.attachments =
-          typeof dto.attachments === 'string'
-            ? dto.attachments
-            : JSON.stringify(dto.attachments || []);
-      }
-      await LocalCRMRepository.save('templates', record);
-      return {
-        ...record,
-        variables: typeof record.variables === 'string' ? JSON.parse(record.variables) : (record.variables || []),
-        attachments: typeof record.attachments === 'string' ? JSON.parse(record.attachments) : (record.attachments || [])
-      };
-    }
+    const updated = await sdk.outreach.updateTemplate(id, dto);
+    const record: any = {
+      ...updated,
+      id,
+      workspaceId: runtime.workspaceId,
+      variables:
+        typeof updated.variables === 'string' ? updated.variables : JSON.stringify(updated.variables || []),
+      attachments:
+        typeof updated.attachments === 'string'
+          ? updated.attachments
+          : JSON.stringify(updated.attachments || [])
+    };
+    await LocalCRMRepository.saveFromServer('templates', record);
+    return {
+      ...record,
+      variables: typeof record.variables === 'string' ? JSON.parse(record.variables) : (record.variables || []),
+      attachments: typeof record.attachments === 'string' ? JSON.parse(record.attachments) : (record.attachments || [])
+    };
   });
 
   safeRegister('templates:delete', async (_event, id) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    try {
-      await sdk.outreach.deleteTemplate(id);
-    } catch (err) {
-      console.warn('[IPC] Direct API template delete failed, flagging local soft delete:', err);
-    }
-    await LocalCRMRepository.softDelete('templates', runtime.workspaceId, id);
+    await sdk.outreach.deleteTemplate(id);
+    await LocalCRMRepository.softDeleteFromServer('templates', runtime.workspaceId, id);
     return { success: true };
   });
 
@@ -313,33 +328,48 @@ export function registerOutreachIpc(sdk: SdkClient) {
   safeRegister('email-deliveries:list', async (_event, payload) => {
     const targetWsId = payload?.workspaceId || WorkspaceManager.getActiveRuntime()?.workspaceId;
     if (!targetWsId) throw new Error('workspaceId is required.');
-    const db = getDatabase(targetWsId);
-    let query = `
-      SELECT ed.*, c.firstName, c.lastName, c.email as contactEmail, comp.name as companyName, camp.name as campaignName
-      FROM email_deliveries ed
-      LEFT JOIN contacts c ON ed.contactId = c.id
-      LEFT JOIN companies comp ON c.companyId = comp.id
-      LEFT JOIN campaigns camp ON ed.campaignId = camp.id
-      WHERE ed.workspaceId = ?
-    `;
-    const params: any[] = [targetWsId];
-    if (payload?.campaignId) {
-      query += ` AND ed.campaignId = ?`;
-      params.push(payload.campaignId);
-    }
-    if (payload?.contactId) {
-      query += ` AND ed.contactId = ?`;
-      params.push(payload.contactId);
-    }
-    if (payload?.status) {
-      query += ` AND ed.status = ?`;
-      params.push(payload.status);
-    }
-    query += ` ORDER BY ed.createdAt DESC LIMIT 100`;
+
     try {
-      return db.prepare(query).all(...params);
+      const sdk = WorkspaceManager.getSdk();
+      const res = await sdk.emailDeliveries.list({
+        campaignId: payload?.campaignId,
+        sequenceId: payload?.sequenceId,
+        status: payload?.status,
+        page: payload?.page || 1,
+        limit: payload?.limit || 100
+      });
+      const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      return list;
     } catch {
-      return [];
+      // Fallback to local cache query if API is temporarily unavailable
+      const db = getDatabase(targetWsId);
+      let query = `
+        SELECT ed.*, c.firstName, c.lastName, c.email as contactEmail, comp.name as companyName, camp.name as campaignName
+        FROM email_deliveries ed
+        LEFT JOIN contacts c ON ed.contactId = c.id
+        LEFT JOIN companies comp ON c.companyId = comp.id
+        LEFT JOIN campaigns camp ON ed.campaignId = camp.id
+        WHERE ed.workspaceId = ?
+      `;
+      const params: any[] = [targetWsId];
+      if (payload?.campaignId) {
+        query += ` AND ed.campaignId = ?`;
+        params.push(payload.campaignId);
+      }
+      if (payload?.contactId) {
+        query += ` AND ed.contactId = ?`;
+        params.push(payload.contactId);
+      }
+      if (payload?.status) {
+        query += ` AND ed.status = ?`;
+        params.push(payload.status);
+      }
+      query += ` ORDER BY ed.createdAt DESC LIMIT 100`;
+      try {
+        return db.prepare(query).all(...params);
+      } catch {
+        return [];
+      }
     }
   });
 }

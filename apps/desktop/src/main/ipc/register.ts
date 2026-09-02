@@ -15,6 +15,7 @@ import { registerObservabilityIpc } from './observability-ipc';
 import { registerAgentIPCHandlers } from './agent-ipc';
 import { registerDiscoveryIpc } from './discovery-ipc';
 import { registerAudiencesIpc } from './audiences-ipc';
+import { registerDriveIpc } from './drive-ipc';
 import { WorkspaceManager } from '../lib/workspace-manager';
 
 /**
@@ -67,4 +68,5 @@ export function registerAllIpc(
   registerAgentIPCHandlers();
   registerDiscoveryIpc();
   registerAudiencesIpc();
+  registerDriveIpc();
 }

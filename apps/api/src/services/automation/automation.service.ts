@@ -42,7 +42,7 @@ export class AutomationService {
     const seq = await SequenceModel.findOneAndUpdate(
       { _id: id, workspaceId: this.workspaceId } as any,
       { $set: data },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!seq) throw new Error('Sequence not found.');
     return seq;
@@ -85,7 +85,7 @@ export class AutomationService {
     const exec = await SequenceExecutionModel.findOneAndUpdate(
       { _id: id, workspaceId: this.workspaceId } as any,
       { $set: updateData },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!exec) throw new Error('Sequence execution not found.');
     return exec;
@@ -116,5 +116,21 @@ export class AutomationService {
       workspaceId: this.workspaceId,
       executionId
     } as any).sort({ timestamp: 1 });
+  }
+
+  public async addExecutionLogs(executionId: string, logs: any[]): Promise<any[]> {
+    const docs = logs.map((l) => ({
+      _id: l.id || undefined,
+      workspaceId: this.workspaceId,
+      executionId,
+      step: l.step ?? 0,
+      action: l.action || 'LOG',
+      status: l.status || 'info',
+      message: l.message || '',
+      error: l.error || null,
+      timestamp: l.timestamp ? new Date(l.timestamp) : new Date()
+    }));
+    await SequenceLogModel.insertMany(docs);
+    return docs;
   }
 }

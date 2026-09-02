@@ -1,4 +1,5 @@
 import { HttpClient } from '../http/client.js';
+import { toQueryString } from '../utils/query.js';
 import type {
   Outreach,
   CreateOutreachDto,
@@ -24,6 +25,12 @@ export interface SendEmailPayload {
     contentType?: string;
     size?: number;
   }>;
+  idempotencyKey?: string;
+  campaignId?: string;
+  sequenceId?: string;
+  executionId?: string;
+  stepIndex?: number;
+  contactId?: string;
 }
 
 export interface OAuthConnectResult {
@@ -44,7 +51,7 @@ export class OutreachModule {
   // ── Outbound Log Listing ────────────────────────────────────────────────
 
   public async list(filters?: OutreachFilters): Promise<Outreach[]> {
-    const queryParams = filters ? '?' + new URLSearchParams(filters as any).toString() : '';
+    const queryParams = toQueryString(filters as any);
     return this.client.get<Outreach[]>(`/outreach${queryParams}`);
   }
 

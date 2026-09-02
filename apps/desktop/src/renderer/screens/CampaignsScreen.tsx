@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { CampaignStatus } from '@leadforge/schema';
 import { useWorkspace } from '../hooks/useWorkspace';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -43,10 +44,13 @@ import {
   Settings,
   Paperclip,
   Pencil,
+  HardDrive,
+  ExternalLink,
   X
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { PageHeader } from '../components/common/PageHeader';
+import { MediaPickerDialog } from '../components/media/MediaPickerDialog';
 import {
   ProgressiveSequenceEditor,
   type SequenceStepItem
@@ -91,6 +95,7 @@ export default function CampaignsScreen() {
   const [tplSubj, setTplSubj] = useState('');
   const [tplBody, setTplBody] = useState('');
   const [tplAttachments, setTplAttachments] = useState<any[]>([]);
+  const [tplMediaPickerOpen, setTplMediaPickerOpen] = useState(false);
 
   // Wizard fields for Launching Campaign
   const [campName, setCampName] = useState('');
@@ -550,7 +555,10 @@ export default function CampaignsScreen() {
           return {
             id: stepId,
             type: stepType,
-            config: stepConfig
+            config: {
+              ...stepConfig,
+              sendingAccountId: stepConfig.sendingAccountId || campAccId
+            }
           };
         });
 
@@ -572,7 +580,7 @@ export default function CampaignsScreen() {
         sendingAccountId: campAccId,
         dailyLimit: campLimit,
         timezone: campTimezone,
-        status: 'Active'
+        status: 'ACTIVE'
       });
 
       // 3. Resolve Audience & Enroll Contacts
@@ -643,26 +651,27 @@ export default function CampaignsScreen() {
   });
 
   const getCampaignStatusBadge = (status: string) => {
-    switch (status) {
-      case 'Active':
+    const s = (status || '').toUpperCase();
+    switch (s) {
+      case 'ACTIVE':
         return (
           <Badge className="bg-success-muted text-success border border-success/20 text-[9px] font-bold px-2 rounded-none">
             Active
           </Badge>
         );
-      case 'Paused':
+      case 'PAUSED':
         return (
           <Badge className="bg-warning-muted text-warning border border-warning/20 text-[9px] font-semibold px-2 rounded-none">
             Paused
           </Badge>
         );
-      case 'Completed':
+      case 'COMPLETED':
         return (
           <Badge className="bg-info-muted text-info border border-info/20 text-[9px] font-semibold px-2 rounded-none">
             Completed
           </Badge>
         );
-      case 'Archived':
+      case 'ARCHIVED':
         return (
           <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[9px] font-semibold px-2 rounded-none">
             Archived
@@ -941,14 +950,14 @@ export default function CampaignsScreen() {
                               onClick={(e) => e.stopPropagation()}
                             >
                               <div className="flex justify-end gap-1.5">
-                                {camp.status === 'Paused' || camp.status === 'Draft' ? (
+                                {camp.status?.toUpperCase() === 'PAUSED' || camp.status?.toUpperCase() === 'DRAFT' ? (
                                   <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() =>
                                       updateCampaignStatusMutation.mutate({
                                         id: camp.id,
-                                        status: 'Active'
+                                        status: CampaignStatus.ACTIVE
                                       })
                                     }
                                     className="h-7 text-success hover:bg-success-muted gap-0.5 rounded-none"
@@ -956,14 +965,14 @@ export default function CampaignsScreen() {
                                     <Play className="h-3 w-3" />
                                     Resume
                                   </Button>
-                                ) : camp.status === 'Active' ? (
+                                ) : camp.status?.toUpperCase() === 'ACTIVE' ? (
                                   <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() =>
                                       updateCampaignStatusMutation.mutate({
                                         id: camp.id,
-                                        status: 'Paused'
+                                        status: CampaignStatus.PAUSED
                                       })
                                     }
                                     className="h-7 text-warning hover:bg-warning-muted gap-0.5 rounded-none"
@@ -1069,14 +1078,14 @@ export default function CampaignsScreen() {
                     </Button>
 
                     <div className="flex items-center gap-2">
-                      {campaign.status === 'Active' ? (
+                      {campaign.status?.toUpperCase() === 'ACTIVE' ? (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() =>
                             updateCampaignStatusMutation.mutate({
                               id: campaign.id,
-                              status: 'Paused'
+                              status: CampaignStatus.PAUSED
                             })
                           }
                           className="h-8 text-[10px] text-warning border-warning/20 gap-1 hover:bg-warning-muted rounded-none"
@@ -1091,7 +1100,7 @@ export default function CampaignsScreen() {
                           onClick={() =>
                             updateCampaignStatusMutation.mutate({
                               id: campaign.id,
-                              status: 'Active'
+                              status: CampaignStatus.ACTIVE
                             })
                           }
                           className="h-8 text-[10px] text-success border-success/20 gap-1 hover:bg-success-muted rounded-none"
@@ -1108,7 +1117,7 @@ export default function CampaignsScreen() {
                           if (confirm('Archive this campaign?')) {
                             updateCampaignStatusMutation.mutate({
                               id: campaign.id,
-                              status: 'Archived'
+                              status: CampaignStatus.COMPLETED
                             });
                           }
                         }}
@@ -1932,80 +1941,67 @@ export default function CampaignsScreen() {
                   <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
                   Attachments ({tplAttachments.length})
                 </Label>
-                <label className="cursor-pointer text-[10px] font-medium text-primary hover:underline flex items-center gap-1">
-                  <Plus className="w-3 h-3" /> Attach File
-                  <input
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={async (e) => {
-                      if (!e.target.files || e.target.files.length === 0) return;
-                      const files = Array.from(e.target.files);
-                      const currentAtts = [...tplAttachments];
-                      for (const f of files) {
-                        if (f.size > 25 * 1024 * 1024) {
-                          toast.error(`File "${f.name}" exceeds the 25 MB size limit.`);
-                          continue;
-                        }
-                        try {
-                          if ((f as any).path && (window as any).ipc) {
-                            const saved = await (window as any).ipc.invoke('attachments:save', {
-                              filePath: (f as any).path,
-                              filename: f.name
-                            });
-                            currentAtts.push(saved);
-                          } else {
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                              const base64 = (reader.result as string).split(',')[1] || '';
-                              setTplAttachments((prev) => [
-                                ...prev,
-                                {
-                                  id: `att_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-                                  filename: f.name,
-                                  size: f.size,
-                                  contentBase64: base64,
-                                  contentType: f.type
-                                }
-                              ]);
-                            };
-                            reader.readAsDataURL(f);
-                            continue;
-                          }
-                        } catch (err: any) {
-                          toast.error(`Failed to attach ${f.name}: ${err.message}`);
-                        }
-                      }
-                      setTplAttachments(currentAtts);
-                    }}
-                  />
-                </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setTplMediaPickerOpen(true)}
+                  className="h-6 px-1.5 text-[10px] font-medium text-primary hover:underline flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" /> Attach from Media / Drive
+                </Button>
               </div>
 
               {tplAttachments.length > 0 && (
-                <div className="space-y-1 max-h-24 overflow-y-auto bg-surface-3 border border-border-subtle p-1.5 rounded-none">
+                <div className="space-y-1 max-h-28 overflow-y-auto bg-surface-3 border border-border-subtle p-1.5 rounded-none">
                   {tplAttachments.map((att: any, idx: number) => (
                     <div
-                      key={att.id || idx}
+                      key={att.id || att.fileId || idx}
                       className="flex items-center justify-between px-2 py-1 bg-card border border-border-subtle text-[10px] font-mono text-foreground"
                     >
-                      <span className="truncate max-w-[200px] flex items-center gap-1">
+                      <span className="truncate max-w-[200px] flex items-center gap-1.5" title={att.filename}>
                         <Paperclip className="w-2.5 h-2.5 text-muted-foreground shrink-0" />
-                        {att.filename}
+                        <span className="truncate">{att.filename}</span>
+                        {att.size && (
+                          <span className="text-muted-foreground text-[9px]">
+                            ({Math.round(att.size / 1024)} KB)
+                          </span>
+                        )}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setTplAttachments((prev) => prev.filter((_, i) => i !== idx))
-                        }
-                        className="text-muted-foreground hover:text-danger ml-2"
-                      >
-                        <X className="w-2.5 h-2.5" />
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {att.driveUrl && (
+                          <a
+                            href={att.driveUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-muted-foreground hover:text-primary"
+                            title="Open in Google Drive"
+                          >
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setTplAttachments((prev) => prev.filter((_, i) => i !== idx))
+                          }
+                          className="text-muted-foreground hover:text-danger ml-1"
+                          title="Remove Attachment"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
               )}
+
+              <MediaPickerDialog
+                open={tplMediaPickerOpen}
+                onOpenChange={setTplMediaPickerOpen}
+                initialSelected={tplAttachments}
+                onSelect={(selected) => setTplAttachments(selected)}
+              />
             </div>
             <div className="flex justify-end gap-2 pt-2 border-t border-border-subtle">
               <Button type="button" variant="secondary" className="rounded-none" onClick={() => setTemplateOpen(false)}>

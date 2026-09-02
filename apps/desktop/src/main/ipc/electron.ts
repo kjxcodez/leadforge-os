@@ -72,9 +72,9 @@ export function registerElectronIpc(
       result.storage = { error: String(e) };
     }
 
-    // 2. Applied migrations
+    // 2. Cache metadata info
     try {
-      result.migrations = db.prepare('SELECT * FROM _migrations ORDER BY runAt DESC').all();
+      result.migrations = db.prepare('SELECT * FROM cache_metadata').all();
     } catch (e) {
       result.migrations = [];
     }
@@ -102,19 +102,15 @@ export function registerElectronIpc(
 
     // 4. Jobs Statuses
     try {
-      result.jobs = db.prepare('SELECT * FROM jobs ORDER BY createdAt DESC LIMIT 50').all();
+      const sdk = WorkspaceManager.getSdk();
+      const jobRes = await sdk.jobs.list({ limit: 50 }).catch(() => ({ data: [] }));
+      result.jobs = jobRes.data;
     } catch (e) {
       result.jobs = [];
     }
 
-    // 5. Sync Queue list
-    try {
-      result.syncQueue = db
-        .prepare('SELECT * FROM sync_queue ORDER BY createdAt ASC LIMIT 50')
-        .all();
-    } catch (e) {
-      result.syncQueue = [];
-    }
+    // 5. Sync Queue list (obsolete — always empty in MongoDB-first architecture)
+    result.syncQueue = [];
 
     // 6. Database Health
     try {
@@ -126,7 +122,8 @@ export function registerElectronIpc(
 
     // 7. System Logs (recent 100)
     try {
-      result.logs = db.prepare('SELECT * FROM system_logs ORDER BY timestamp DESC LIMIT 100').all();
+      const sdk = WorkspaceManager.getSdk();
+      result.logs = await sdk.systemLogs.listRecent(100).catch(() => []);
     } catch (e) {
       result.logs = [];
     }

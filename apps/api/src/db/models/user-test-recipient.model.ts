@@ -1,6 +1,8 @@
 import mongoose, { Schema } from 'mongoose';
+import { generateEntityId } from '@leadforge/schema';
 
-export interface UserTestRecipientDocument extends mongoose.Document {
+export interface UserTestRecipientDocument extends mongoose.Document<string> {
+  _id: string;
   userId: string;
   email: string;
   firstUsedAt: Date;
@@ -11,6 +13,7 @@ export interface UserTestRecipientDocument extends mongoose.Document {
 
 const userTestRecipientSchema = new Schema<UserTestRecipientDocument>(
   {
+    _id: { type: String, required: true, default: () => generateEntityId() },
     userId: { type: String, required: true, index: true },
     email: { type: String, required: true, lowercase: true, trim: true },
     firstUsedAt: { type: Date, default: Date.now },

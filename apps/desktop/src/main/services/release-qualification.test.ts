@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import assert from 'node:assert';
 import { randomUUID } from 'node:crypto';
-import { runMigrations } from '../database/runner';
+import { initCacheSchema, CACHE_SCHEMA_VERSION } from '../database/cache-schema';
 import { renderCanonicalVariables, type CanonicalVariableContext } from '@leadforge/sdk';
 
 export async function runReleaseQualificationTests() {
@@ -13,16 +13,14 @@ export async function runReleaseQualificationTests() {
   const wsA = 'workspace-alpha-' + randomUUID().substring(0, 6);
   const wsB = 'workspace-beta-' + randomUUID().substring(0, 6);
 
-  // ── 1. FRESH INSTALL & MIGRATIONS 001-030 ─────────────────────────────────
-  console.log('[10F.2 & 10F.3] Testing Fresh Database Initialization & Schema Migrations...');
-  await runMigrations(db);
+  // ── 1. FRESH INSTALL & CACHE SCHEMA ─────────────────────────────────────
+  console.log('[10F.2 & 10F.3] Testing Fresh Database Initialization & Cache Schema...');
+  initCacheSchema(db);
   // wsB shares the same in-memory database; workspace isolation is enforced by workspaceId column.
 
-  const countApplied = (db.prepare("SELECT COUNT(*) as c FROM _migrations").get() as any).c;
-  assert.strictEqual(countApplied, 30, 'Database must have 30 applied migrations (001 through 031)');
-  const latestMigration = (db.prepare("SELECT name FROM _migrations ORDER BY id DESC LIMIT 1").get() as any).name;
-  assert.strictEqual(latestMigration, '031_template_attachments');
-  console.log(`✅ Fresh install applied all 30 migrations (001 through 031) successfully (latest: ${latestMigration}).`);
+  const schemaVersionRow = db.prepare("SELECT value FROM cache_metadata WHERE key = 'schema_version'").get() as any;
+  assert.strictEqual(Number(schemaVersionRow.value), CACHE_SCHEMA_VERSION, 'Cache schema version must match CACHE_SCHEMA_VERSION');
+  console.log(`✅ Fresh install applied cache schema successfully (version: ${schemaVersionRow.value}).`);
 
   // ── 2. DATABASE POPULATION & UPGRADE IDEMPOTENCY ──────────────────────────
   console.log('[10F.3] Populating initial dataset across entities for upgrade qualification...');
@@ -103,8 +101,8 @@ export async function runReleaseQualificationTests() {
   const beforeSources = (db.prepare("SELECT COUNT(*) as c FROM intelligence_sources WHERE workspaceId = ?").get(wsA) as any).c;
   const beforeClaims = (db.prepare("SELECT COUNT(*) as c FROM intelligence_claims WHERE workspaceId = ?").get(wsA) as any).c;
 
-  // Re-run migrations to test idempotency
-  await runMigrations(db);
+  // Re-run cache schema to test idempotency
+  initCacheSchema(db);
 
   const afterCompanies = (db.prepare("SELECT COUNT(*) as c FROM companies WHERE workspaceId = ?").get(wsA) as any).c;
   const afterContacts = (db.prepare("SELECT COUNT(*) as c FROM contacts WHERE workspaceId = ?").get(wsA) as any).c;
@@ -219,7 +217,8 @@ export async function runReleaseQualificationTests() {
   console.log(`✅ Canonical & legacy template variable resolution 100% verified.`);
 
   // ── 7. WORKER SECRET STORAGE SANITIZATION ─────────────────────────────────
-  console.log('[10F.12] Verifying SQLite Jobs Table Secret Sanitization...');
+  // ── 8. SEQUENCE EXECUTION PAUSE/RESUME CASCADE ──────────────────────────
+  console.log('[10F.11] Testing Sequence Execution Pause/Resume Cascade...');
   
   const enrollmentId1 = randomUUID();
   db.prepare(`
@@ -227,88 +226,24 @@ export async function runReleaseQualificationTests() {
     VALUES (?, ?, ?, ?, 1, 'running', datetime('now'), datetime('now'))
   `).run(enrollmentId1, sequenceId1, wsA, contactId1);
 
-  const jobId1 = randomUUID();
-  const payloadObj = {
-    sequenceId: sequenceId1,
-    entityId: contactId1,
-    entityType: 'contact',
-    executionId: enrollmentId1,
-    workspaceId: wsA
-  };
-
-  db.prepare(`
-    INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
-    VALUES (?, ?, 'automation:workflow', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))
-  `).run(jobId1, wsA, JSON.stringify(payloadObj));
-
-  const persistedJob = db.prepare("SELECT payload FROM jobs WHERE id = ?").get(jobId1) as any;
-  const parsedPayload = JSON.parse(persistedJob.payload);
-
-  assert.strictEqual(parsedPayload._secrets, undefined, 'Persisted job payload MUST NOT contain _secrets');
-  assert.ok(!persistedJob.payload.includes('sessionToken'), 'Payload MUST NOT contain sessionToken');
-  assert.ok(!persistedJob.payload.includes('Bearer'), 'Payload MUST NOT contain Bearer tokens');
-  console.log(`✅ Zero credentials stored in SQLite jobs table verified.`);
-
-  // ── 8. SCHEDULER RECOVERY & PAUSE/RESUME CASCADE ──────────────────────────
-  console.log('[10F.11] Testing Scheduler Stale Job Recovery & Pause/Resume Cascade...');
-  
-  // Stale job crash recovery
-  db.prepare("UPDATE jobs SET status = 'running' WHERE id = ?").run(jobId1);
-  
-  // Reconcile stale jobs
-  db.prepare(`
-    UPDATE jobs
-    SET status = 'retrying', retryCount = retryCount + 1, error = 'Worker execution interrupted due to application restart.', updatedAt = datetime('now')
-    WHERE id = ?
-  `).run(jobId1);
-
-  const recoveredJob = db.prepare("SELECT status, retryCount, error FROM jobs WHERE id = ?").get(jobId1) as any;
-  assert.strictEqual(recoveredJob.status, 'retrying');
-  assert.strictEqual(recoveredJob.retryCount, 1);
-  assert.ok(recoveredJob.error.includes('application restart'));
-
   // Pause cascade
   db.prepare("UPDATE sequence_executions SET status = 'paused' WHERE id = ?").run(enrollmentId1);
-  db.prepare("UPDATE jobs SET status = 'cancelled' WHERE id = ?").run(jobId1);
-
   const pausedExec = db.prepare("SELECT status FROM sequence_executions WHERE id = ?").get(enrollmentId1) as any;
-  const cancelledJob = db.prepare("SELECT status FROM jobs WHERE id = ?").get(jobId1) as any;
   assert.strictEqual(pausedExec.status, 'paused');
-  assert.strictEqual(cancelledJob.status, 'cancelled');
 
   // Resume cascade
   db.prepare("UPDATE sequence_executions SET status = 'running' WHERE id = ?").run(enrollmentId1);
-  const newJobId = randomUUID();
-  db.prepare(`
-    INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
-    VALUES (?, ?, 'automation:workflow', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))
-  `).run(newJobId, wsA, JSON.stringify(payloadObj));
-
   const resumedExec = db.prepare("SELECT status FROM sequence_executions WHERE id = ?").get(enrollmentId1) as any;
-  const resumedJob = db.prepare("SELECT status FROM jobs WHERE id = ?").get(newJobId) as any;
   assert.strictEqual(resumedExec.status, 'running');
-  assert.strictEqual(resumedJob.status, 'queued');
-  console.log(`✅ Scheduler stale recovery, pause cascade, and resume cascade verified.`);
+  console.log(`✅ Sequence execution state cascade (running -> paused -> running) verified.`);
 
-  // ── 9. SYNC ENGINE DEAD-LETTER & MUTATION TRACKING ────────────────────────
-  console.log('[10F.13] Testing Offline Sync Queue & Dead-Letter Isolation...');
-  
-  const syncQueueId = randomUUID();
-  db.prepare(`
-    INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
-    VALUES (?, ?, 'contacts', ?, 'CREATE', ?, 1, 0, NULL, datetime('now'), datetime('now'))
-  `).run(syncQueueId, wsA, contactId1, JSON.stringify({ email: 'alice@acme.com' }));
-
-  // Simulate 5 failures -> Dead letter
-  db.prepare(`
-    INSERT INTO sync_dead_letter (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
-    VALUES (?, ?, 'contacts', ?, 'CREATE', ?, 1, 5, 'Simulated 500 API Gateway Timeout', datetime('now'), datetime('now'))
-  `).run(randomUUID(), wsA, contactId1, JSON.stringify({ email: 'alice@acme.com' }));
-  db.prepare("DELETE FROM sync_queue WHERE id = ?").run(syncQueueId);
-
-  const deadLetterCount = (db.prepare("SELECT COUNT(*) as c FROM sync_dead_letter WHERE workspaceId = ?").get(wsA) as any).c;
-  assert.strictEqual(deadLetterCount, 1, 'Dead letter table must record failed mutations');
-  console.log(`✅ Offline sync queue and dead-letter queue behavior verified.`);
+  // ── 9. SYNC ENGINE ELIMINATION CHECK ─────────────────────────────────────
+  console.log('[10F.13] Testing Clean Cache Absence of Sync Infrastructure Tables...');
+  const syncQueueTable = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sync_queue'").get();
+  assert.strictEqual(syncQueueTable, undefined, 'sync_queue must NOT exist in cache');
+  const syncDeadLetterTable = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sync_dead_letter'").get();
+  assert.strictEqual(syncDeadLetterTable, undefined, 'sync_dead_letter must NOT exist in cache');
+  console.log(`✅ Zero sync infrastructure tables in local cache verified.`);
 
   // ── 10. INTELLIGENCE PROVENANCE & FACT ACCURACY ───────────────────────────
   console.log('[10F.14] Testing Intelligence Trust Provenance & Evidence Verification...');

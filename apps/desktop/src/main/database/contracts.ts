@@ -29,16 +29,11 @@ export interface IRemoteRepository<T> {
 }
 
 /**
- * Interface signature for Sync Repositories consumed in the UI.
+ * Interface signature for UI Data Repositories.
  */
 export interface ISyncRepository<T> extends IRepository<T> {
   /**
-   * Reads cached local SQLite values and kicks off background remote pull.
+   * Reads cached local SQLite values.
    */
   listAndSync(workspaceId: string, filter?: Record<string, any>): Promise<T[]>;
-
-  /**
-   * Pushes local pending mutations to the remote API.
-   */
-  pushLocalMutations(workspaceId: string): Promise<void>;
 }

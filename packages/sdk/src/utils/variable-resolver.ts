@@ -198,14 +198,15 @@ export function extractTemplateVariables(template: string | null | undefined): s
 
 /**
  * Converts a plain-text email body (with \n line breaks) into safe HTML suitable
- * for rendering in email clients (Gmail, Outlook, Apple Mail).
+ * for rendering in email clients (Gmail, Outlook, Apple Mail) with default Gmail-like typography.
  *
  * Conversion rules (applied in order):
  *  1. HTML-escape all special characters (&, <, >, ", ') to prevent XSS/injection.
  *  2. Collapse \r\n to \n for consistent handling.
  *  3. Split on double newlines (\n\n) to create paragraph blocks.
  *  4. Within each paragraph, convert single \n to <br/>.
- *  5. Wrap each paragraph in <p style="margin:0 0 16px 0;line-height:1.5;">.
+ *  5. Wrap each paragraph in <p style="margin:0 0 16px 0;line-height:107%;">.
+ *  6. Wrap the entire body in <div style="font-family:sans-serif;line-height:107%;">.
  *
  * @param text - Raw plain-text string (as stored in SQLite template body).
  * @returns Safe HTML string ready for use in a MIME text/html part.
@@ -227,13 +228,33 @@ export function plainTextToHtml(text: string): string {
   // 3. Split into paragraphs on blank lines (two or more consecutive newlines)
   const paragraphs = normalised.split(/\n{2,}/);
 
-  // 4 & 5. Within each paragraph, convert single \n to <br/> and wrap
+  // 4 & 5. Within each paragraph, convert single \n to <br/> and wrap with 107% line-height
   const htmlParagraphs = paragraphs.map((para) => {
     const withBreaks = para.replace(/\n/g, '<br/>');
-    return `<p style="margin:0 0 16px 0;line-height:1.5;">${withBreaks}</p>`;
+    return `<p style="margin:0 0 16px 0;line-height:107%;">${withBreaks}</p>`;
   });
 
-  return htmlParagraphs.join('\n');
+  return `<div style="font-family:sans-serif;line-height:107%;">${htmlParagraphs.join('\n')}</div>`;
+}
+
+/**
+ * Ensures any outbound HTML email body is wrapped with default Gmail-like typography
+ * (font-family: sans-serif; line-height: 107%;) at the root container level,
+ * without duplicating existing wrappers.
+ */
+export function wrapHtmlWithDefaultTypography(html: string): string {
+  if (!html) return '';
+  const trimmed = html.trim();
+  // If already wrapped with font-family:sans-serif and line-height:107%, don't duplicate
+  if (
+    trimmed.startsWith('<div') &&
+    trimmed.includes('font-family:') &&
+    trimmed.includes('sans-serif') &&
+    trimmed.includes('line-height:107%')
+  ) {
+    return html;
+  }
+  return `<div style="font-family:sans-serif;line-height:107%;">${html}</div>`;
 }
 
 /**

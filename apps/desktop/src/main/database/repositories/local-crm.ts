@@ -1,9 +1,10 @@
 import { getDatabase } from '../connection';
+import { initCacheSchema, CACHE_TABLES } from '../cache-schema';
 
 /**
  * Columns that are stored as JSON strings in SQLite (serialized objects/arrays).
  * When reading records from SQLite, these columns are automatically parsed back
- * into their native JS types so consumers never receive raw JSON strings.
+ * into their native JS types so consumers receive clean objects.
  */
 const JSON_COLUMNS = new Set([
   'tags',
@@ -17,12 +18,17 @@ const JSON_COLUMNS = new Set([
   'executionContext',
   'metadata',
   'filterDefinition',
-  'staticMemberIds'
+  'filterRules',
+  'staticMemberIds',
+  'settings',
+  'stats',
+  'customFields',
+  'metrics',
+  'triggers'
 ]);
 
 /**
- * Parses any JSON_COLUMNS fields that arrived from SQLite as strings.
- * All other fields are passed through unchanged.
+ * Parses JSON_COLUMNS fields from string back to JS objects/arrays.
  */
 function parseJsonFields(row: any): any {
   if (!row || typeof row !== 'object') return row;
@@ -40,8 +46,25 @@ function parseJsonFields(row: any): any {
 }
 
 /**
- * LocalCRMRepository implements SQLite CRUD caching operations for workspace-scoped entities
- * (e.g. companies, contacts, campaigns) using dynamically compiled prepared statements.
+ * Serializes JS objects/arrays into JSON strings for SQLite storage.
+ */
+function serializeFieldValue(val: any): any {
+  if (val === undefined || val === null) return null;
+  if (val instanceof Date) return val.toISOString();
+  if (typeof val === 'object') return JSON.stringify(val);
+  if (typeof val === 'boolean') return val ? 1 : 0;
+  return val;
+}
+
+/**
+ * CacheRepository (also exported as LocalCRMRepository) implements high-speed,
+ * disposable SQLite read/write caching operations for desktop workspace views.
+ * 
+ * Absolute Invariants:
+ *  - SQLite is NEVER authoritative; all writes originate from server/API success.
+ *  - Zero writes to sync_queue.
+ *  - Zero syncStatus / dirty flags.
+ *  - Exactly matches MongoDB string identity (SQLite.id === Mongo._id).
  */
 export const LocalCRMRepository = {
   /**
@@ -54,7 +77,6 @@ export const LocalCRMRepository = {
   ): Promise<any[]> {
     const db = getDatabase(workspaceId);
 
-    // Ensure table name contains safe alphanumeric chars to prevent SQL injection
     if (!/^[a-zA-Z0-9_]+$/.test(tableName)) {
       throw new Error(`Invalid table name: ${tableName}`);
     }
@@ -77,7 +99,12 @@ export const LocalCRMRepository = {
       }
     }
 
-    return (db.prepare(query).all(...params) as any[]).map(parseJsonFields);
+    try {
+      return (db.prepare(query).all(...params) as any[]).map(parseJsonFields);
+    } catch (err) {
+      console.warn(`[CacheRepository] findMany error on ${tableName}:`, err);
+      return [];
+    }
   },
 
   /**
@@ -87,331 +114,236 @@ export const LocalCRMRepository = {
     const db = getDatabase(workspaceId);
     if (!/^[a-zA-Z0-9_]+$/.test(tableName)) throw new Error(`Invalid table: ${tableName}`);
 
-    const row = db.prepare(`SELECT * FROM ${tableName} WHERE id = ? AND deletedAt IS NULL`).get(id);
-    return row ? parseJsonFields(row) : null;
-  },
-
-  /**
-   * Inserts or replaces a record.
-   */
-  async save(tableName: string, record: any, skipQueue = false): Promise<any> {
-    const workspaceId = record.workspaceId;
-    if (!workspaceId) throw new Error('workspaceId is required for SQLite crm repository writes.');
-    const db = getDatabase(workspaceId);
-    if (!/^[a-zA-Z0-9_]+$/.test(tableName)) throw new Error(`Invalid table: ${tableName}`);
-
-    if (record._id && !record.id) {
-      record.id = typeof record._id === 'object' ? record._id.toString() : record._id;
-    }
-    delete record._id;
-
-    if (!record.id) {
-      record.id = globalThis.crypto?.randomUUID
-        ? globalThis.crypto.randomUUID()
-        : require('crypto').randomUUID();
-    }
-
-    // Resolve valid table columns from SQLite schema pragma
     const tableInfo = db.pragma(`table_info(${tableName})`) as Array<{ name: string }>;
-    const validColumns = new Set(tableInfo.map((col) => col.name));
+    const hasDeletedAt = tableInfo.some((col) => col.name === 'deletedAt');
 
-    const columns = Object.keys(record).filter(
-      (col) => validColumns.has(col) && /^[a-zA-Z0-9_]+$/.test(col)
-    );
-    const placeholders = columns.map(() => '?').join(', ');
-    const query = `INSERT OR REPLACE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
-
-    const params = columns.map((col) => {
-      const val = record[col];
-      if (val instanceof Date) return val.toISOString();
-      if (typeof val === 'object' && val !== null) return JSON.stringify(val);
-      return val;
-    });
-
-    const runSaveTx = db.transaction(() => {
-      // 1. Check if record already exists to determine CREATE vs UPDATE operation
-      const existing = db.prepare(`SELECT * FROM ${tableName} WHERE id = ?`).get(record.id) as any;
-      const operation = existing ? 'UPDATE' : 'CREATE';
-
-      // 2. Perform write on target table
-      if (existing) {
-        const updateColumns = columns.filter((c) => c !== 'id');
-        const setClause = updateColumns.map((c) => `${c} = ?`).join(', ');
-        const updateQuery = `UPDATE ${tableName} SET ${setClause} WHERE id = ?`;
-        const updateParams = updateColumns.map((col) => {
-          const val = record[col];
-          if (val instanceof Date) return val.toISOString();
-          if (typeof val === 'object' && val !== null) return JSON.stringify(val);
-          return val;
-        });
-        updateParams.push(record.id);
-        db.prepare(updateQuery).run(...updateParams);
-      } else {
-        db.prepare(query).run(...params);
-      }
-
-      // 3. Queue offline mutation task if this is a syncable crm table
-      const syncableTables = [
-        'companies',
-        'contacts',
-        'campaigns',
-        'sequences',
-        'sequence_executions',
-        'email_accounts',
-        'templates',
-        'discovery_runs',
-        'company_discovery_runs',
-        'audiences'
-      ];
-      if (!skipQueue && syncableTables.includes(tableName)) {
-        db.prepare(
-          `
-          INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `
-        ).run(
-          globalThis.crypto?.randomUUID
-            ? globalThis.crypto.randomUUID()
-            : require('crypto').randomUUID(),
-          workspaceId,
-          tableName,
-          record.id,
-          operation,
-          JSON.stringify(record),
-          record.version || 1
-        );
-      }
-
-      // 4. Audit Trail Logging (Phase 8)
-      try {
-        const auditLogId = globalThis.crypto?.randomUUID
-          ? globalThis.crypto.randomUUID()
-          : require('crypto').randomUUID();
-        db.prepare(
-          `
-          INSERT INTO audit_logs (id, workspaceId, actor, action, entityId, entityType, beforeValue, afterValue, timestamp)
-          VALUES (?, ?, 'user', ?, ?, ?, ?, ?, datetime('now'))
-        `
-        ).run(
-          auditLogId,
-          workspaceId,
-          `${tableName.toLowerCase()}:${operation.toLowerCase()}`,
-          record.id,
-          tableName,
-          existing ? JSON.stringify(existing) : null,
-          JSON.stringify(record)
-        );
-      } catch (err) {
-        // Table not migrated yet
-      }
-    });
-
-    runSaveTx();
-    return record;
-  },
-
-  /**
-   * Bulk inserts or replaces records inside a transaction.
-   */
-  async saveMany(tableName: string, records: any[], skipQueue = false): Promise<void> {
-    if (!records.length) return;
-    const workspaceId = records[0].workspaceId;
-    if (!workspaceId) throw new Error('workspaceId is required for SQLite crm repository writes.');
-    const db = getDatabase(workspaceId);
-    if (!/^[a-zA-Z0-9_]+$/.test(tableName)) throw new Error(`Invalid table: ${tableName}`);
-
-    // Map Mongo _id to id and clean records first
-    for (const record of records) {
-      if (record._id && !record.id) {
-        record.id = typeof record._id === 'object' ? record._id.toString() : record._id;
-      }
-      delete record._id;
+    let query = `SELECT * FROM ${tableName} WHERE id = ?`;
+    if (hasDeletedAt) {
+      query += ` AND deletedAt IS NULL`;
     }
 
-    // Resolve valid table columns from SQLite schema pragma
-    const tableInfo = db.pragma(`table_info(${tableName})`) as Array<{ name: string }>;
-    const validColumns = new Set(tableInfo.map((col) => col.name));
-
-    const columns = Object.keys(records[0]).filter(
-      (col) => validColumns.has(col) && /^[a-zA-Z0-9_]+$/.test(col)
-    );
-    const placeholders = columns.map(() => '?').join(', ');
-    const query = `INSERT OR REPLACE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
-
-    const updateColumns = columns.filter((c) => c !== 'id');
-    const setClause = updateColumns.map((c) => `${c} = ?`).join(', ');
-    const updateQuery = `UPDATE ${tableName} SET ${setClause} WHERE id = ?`;
-
-    const statement = db.prepare(query);
-    const updateStatement = db.prepare(updateQuery);
-    const checkStmt = db.prepare(`SELECT * FROM ${tableName} WHERE id = ?`);
-    const insertSyncQueue = db.prepare(`
-      INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `);
-
-    const syncableTables = [
-      'companies',
-      'contacts',
-      'campaigns',
-      'sequences',
-      'sequence_executions',
-      'email_accounts',
-      'templates',
-      'discovery_runs',
-      'company_discovery_runs',
-      'audiences'
-    ];
-
-    const transaction = db.transaction((list: any[]) => {
-      for (const item of list) {
-        const existing = checkStmt.get(item.id) as any;
-        const operation = existing ? 'UPDATE' : 'CREATE';
-
-        if (existing) {
-          // Prevent remote sync from overwriting local changes still queued to upload
-          if (existing.syncStatus === 'pending') {
-            continue;
-          }
-          const updateParams = updateColumns.map((col) => {
-            const val = item[col];
-            if (val instanceof Date) return val.toISOString();
-            if (typeof val === 'object' && val !== null) return JSON.stringify(val);
-            return val;
-          });
-          updateParams.push(item.id);
-          updateStatement.run(...updateParams);
-        } else {
-          const params = columns.map((col) => {
-            const val = item[col];
-            if (val instanceof Date) return val.toISOString();
-            if (typeof val === 'object' && val !== null) return JSON.stringify(val);
-            return val;
-          });
-          statement.run(...params);
-        }
-
-        if (!skipQueue && syncableTables.includes(tableName)) {
-          insertSyncQueue.run(
-            globalThis.crypto?.randomUUID
-              ? globalThis.crypto.randomUUID()
-              : require('crypto').randomUUID(),
-            workspaceId,
-            tableName,
-            item.id,
-            operation,
-            JSON.stringify(item),
-            item.version || 1
-          );
-        }
-
-        // Audit Trail Logging (Phase 8)
-        try {
-          const auditLogId = globalThis.crypto?.randomUUID
-            ? globalThis.crypto.randomUUID()
-            : require('crypto').randomUUID();
-          db.prepare(
-            `
-            INSERT INTO audit_logs (id, workspaceId, actor, action, entityId, entityType, beforeValue, afterValue, timestamp)
-            VALUES (?, ?, 'user', ?, ?, ?, ?, ?, datetime('now'))
-          `
-          ).run(
-            auditLogId,
-            workspaceId,
-            `${tableName.toLowerCase()}:${operation.toLowerCase()}`,
-            item.id,
-            tableName,
-            existing ? JSON.stringify(existing) : null,
-            JSON.stringify(item)
-          );
-        } catch (err) {
-          // Table not migrated yet
-        }
-      }
-    });
-
-    transaction(records);
+    try {
+      const row = db.prepare(query).get(id);
+      return row ? parseJsonFields(row) : null;
+    } catch (err) {
+      console.warn(`[CacheRepository] findById error on ${tableName} (${id}):`, err);
+      return null;
+    }
   },
 
   /**
-   * Sets deletedAt and updates syncStatus to pending to schedule synchronization.
+   * Saves a single authoritative server document directly into SQLite cache.
+   * Completely bypasses any sync queue (server is the sole authority).
    */
-  async softDelete(tableName: string, workspaceId: string, id: string): Promise<void> {
-    const db = getDatabase(workspaceId);
-    if (!/^[a-zA-Z0-9_]+$/.test(tableName)) throw new Error(`Invalid table: ${tableName}`);
+  async saveFromServer(tableName: string, record: any): Promise<any> {
+    if (!record || typeof record !== 'object') return record;
 
-    const syncableTables = [
-      'companies',
-      'contacts',
-      'campaigns',
-      'email_accounts',
-      'templates',
-      'discovery_runs',
-      'audiences'
-    ];
+    try {
+      const workspaceId = record.workspaceId;
+      if (!workspaceId) return record;
 
-    const transaction = db.transaction(() => {
-      // 1. Mark soft delete locally
-      const existing = db.prepare(`SELECT * FROM ${tableName} WHERE id = ?`).get(id) as any;
-      db.prepare(`UPDATE ${tableName} SET deletedAt = ?, syncStatus = ? WHERE id = ?`).run(
-        new Date().toISOString(),
-        'pending',
-        id
+      const db = getDatabase(workspaceId);
+      if (!/^[a-zA-Z0-9_]+$/.test(tableName)) throw new Error(`Invalid table: ${tableName}`);
+
+      const doc = typeof record.toObject === 'function' ? record.toObject() : { ...record };
+      if (doc._id && !doc.id) {
+        doc.id = typeof doc._id === 'object' ? doc._id.toString() : String(doc._id);
+      }
+      delete doc._id;
+      delete doc.__v;
+
+      const tableInfo = db.pragma(`table_info(${tableName})`) as Array<{ name: string }>;
+      const validColumns = new Set(tableInfo.map((col) => col.name));
+
+      const columns = Object.keys(doc).filter(
+        (col) => validColumns.has(col) && /^[a-zA-Z0-9_]+$/.test(col)
       );
 
-      // 2. Queue sync operation
-      if (syncableTables.includes(tableName)) {
-        db.prepare(
-          `
-          INSERT INTO sync_queue (id, workspaceId, entityType, entityId, operation, payload, version, retryCount, lastError, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `
-        ).run(
-          globalThis.crypto?.randomUUID
-            ? globalThis.crypto.randomUUID()
-            : require('crypto').randomUUID(),
-          workspaceId,
-          tableName,
-          id,
-          'DELETE',
-          null,
-          1
-        );
+      if (columns.length === 0 || !validColumns.has('id')) {
+        return record;
       }
 
-      // 3. Audit Trail Logging (Phase 8)
-      try {
-        const auditLogId = globalThis.crypto?.randomUUID
-          ? globalThis.crypto.randomUUID()
-          : require('crypto').randomUUID();
-        db.prepare(
-          `
-          INSERT INTO audit_logs (id, workspaceId, actor, action, entityId, entityType, beforeValue, afterValue, timestamp)
-          VALUES (?, ?, 'user', ?, ?, ?, ?, NULL, datetime('now'))
-        `
-        ).run(
-          auditLogId,
-          workspaceId,
-          `${tableName.toLowerCase()}:delete`,
-          id,
-          tableName,
-          existing ? JSON.stringify(existing) : null
-        );
-      } catch (err) {
-        // Table not migrated yet
-      }
-    });
+      const placeholders = columns.map(() => '?').join(', ');
+      const query = `INSERT OR REPLACE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
 
-    transaction();
+      const params = columns.map((col) => serializeFieldValue(doc[col]));
+      db.prepare(query).run(...params);
+
+      return doc;
+    } catch (err) {
+      console.warn(
+        `[CacheRepository] Warning: Failed to update cache for ${tableName} (${record?.id || record?._id}):`,
+        err
+      );
+      return record;
+    }
   },
 
   /**
-   * Hard deletes a record from local cache.
+   * Bulk updates SQLite cache from an array of authoritative server documents.
+   * Executes inside a single SQLite transaction for maximum throughput.
+   */
+  async saveManyFromServer(tableName: string, records: any[]): Promise<void> {
+    if (!records || !Array.isArray(records) || records.length === 0) return;
+
+    try {
+      const workspaceId = records[0].workspaceId;
+      if (!workspaceId) return;
+
+      const db = getDatabase(workspaceId);
+      if (!/^[a-zA-Z0-9_]+$/.test(tableName)) throw new Error(`Invalid table: ${tableName}`);
+
+      const tableInfo = db.pragma(`table_info(${tableName})`) as Array<{ name: string }>;
+      const validColumns = new Set(tableInfo.map((col) => col.name));
+
+      if (!validColumns.has('id')) return;
+
+      const normalizedList = records.map((r) => {
+        const doc = typeof r.toObject === 'function' ? r.toObject() : { ...r };
+        if (doc._id && !doc.id) {
+          doc.id = typeof doc._id === 'object' ? doc._id.toString() : String(doc._id);
+        }
+        delete doc._id;
+        delete doc.__v;
+        return doc;
+      });
+
+      const allKeys = new Set<string>();
+      for (const item of normalizedList) {
+        for (const k of Object.keys(item)) {
+          if (validColumns.has(k) && /^[a-zA-Z0-9_]+$/.test(k)) {
+            allKeys.add(k);
+          }
+        }
+      }
+      const columns = Array.from(allKeys);
+
+      if (columns.length === 0) return;
+
+      const placeholders = columns.map(() => '?').join(', ');
+      const insertOrReplace = db.prepare(
+        `INSERT OR REPLACE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`
+      );
+
+      const batchTx = db.transaction((items: any[]) => {
+        for (const item of items) {
+          const params = columns.map((col) => serializeFieldValue(item[col]));
+          insertOrReplace.run(...params);
+        }
+      });
+
+      batchTx(normalizedList);
+    } catch (err) {
+      console.warn(`[CacheRepository] Warning: Failed to bulk update cache for ${tableName}:`, err);
+    }
+  },
+
+  /**
+   * Soft-deletes a cached record following authoritative server deletion.
+   */
+  async softDeleteFromServer(tableName: string, workspaceId: string, id: string): Promise<void> {
+    try {
+      const db = getDatabase(workspaceId);
+      if (!/^[a-zA-Z0-9_]+$/.test(tableName)) throw new Error(`Invalid table: ${tableName}`);
+
+      const tableInfo = db.pragma(`table_info(${tableName})`) as Array<{ name: string }>;
+      const hasDeletedAt = tableInfo.some((col) => col.name === 'deletedAt');
+
+      if (hasDeletedAt) {
+        db.prepare(`UPDATE ${tableName} SET deletedAt = ? WHERE id = ?`).run(
+          new Date().toISOString(),
+          id
+        );
+      } else {
+        db.prepare(`DELETE FROM ${tableName} WHERE id = ?`).run(id);
+      }
+    } catch (err) {
+      console.warn(`[CacheRepository] Warning: Failed to soft-delete cached ${tableName} (${id}):`, err);
+    }
+  },
+
+  /**
+   * Hard-deletes a record from SQLite cache.
+   */
+  async deleteFromServer(tableName: string, workspaceId: string, id: string): Promise<void> {
+    try {
+      const db = getDatabase(workspaceId);
+      if (!/^[a-zA-Z0-9_]+$/.test(tableName)) throw new Error(`Invalid table: ${tableName}`);
+
+      db.prepare(`DELETE FROM ${tableName} WHERE id = ?`).run(id);
+    } catch (err) {
+      console.warn(`[CacheRepository] Warning: Failed to delete cached ${tableName} (${id}):`, err);
+    }
+  },
+
+  /**
+   * Clears all cached rows in a specific table for a workspace.
+   */
+  async clearTable(tableName: string, workspaceId: string): Promise<void> {
+    try {
+      const db = getDatabase(workspaceId);
+      if (!/^[a-zA-Z0-9_]+$/.test(tableName)) throw new Error(`Invalid table: ${tableName}`);
+
+      db.prepare(`DELETE FROM ${tableName} WHERE workspaceId = ?`).run(workspaceId);
+    } catch (err) {
+      console.warn(`[CacheRepository] Warning: Failed to clear cache table ${tableName}:`, err);
+    }
+  },
+
+  /**
+   * Completely resets and re-initializes all cache tables for a workspace.
+   */
+  async resetCache(workspaceId: string): Promise<void> {
+    try {
+      const db = getDatabase(workspaceId);
+      db.transaction(() => {
+        for (const table of CACHE_TABLES) {
+          try {
+            db.prepare(`DELETE FROM ${table}`).run();
+          } catch {}
+        }
+      })();
+      initCacheSchema(db);
+      console.log(`[CacheRepository] Cache reset successfully for workspace: ${workspaceId}`);
+    } catch (err) {
+      console.warn(`[CacheRepository] Warning: Failed to reset cache for workspace ${workspaceId}:`, err);
+    }
+  },
+
+  /**
+   * Compatibility alias for saveFromServer.
+   */
+  async save(tableName: string, record: any, _skipQueue = true): Promise<any> {
+    return this.saveFromServer(tableName, record);
+  },
+
+  /**
+   * Compatibility alias for saveManyFromServer.
+   */
+  async saveMany(tableName: string, records: any[], _skipQueue = true): Promise<void> {
+    return this.saveManyFromServer(tableName, records);
+  },
+
+  /**
+   * Compatibility alias for softDeleteFromServer.
+   */
+  async delete(tableName: string, workspaceId: string, id: string): Promise<void> {
+    return this.softDeleteFromServer(tableName, workspaceId, id);
+  },
+
+  /**
+   * Compatibility alias for softDeleteFromServer.
+   */
+  async softDelete(tableName: string, workspaceId: string, id: string): Promise<void> {
+    return this.softDeleteFromServer(tableName, workspaceId, id);
+  },
+
+  /**
+   * Compatibility alias for deleteFromServer (hard delete).
    */
   async hardDelete(tableName: string, workspaceId: string, id: string): Promise<void> {
-    const db = getDatabase(workspaceId);
-    if (!/^[a-zA-Z0-9_]+$/.test(tableName)) throw new Error(`Invalid table: ${tableName}`);
-
-    db.prepare(`DELETE FROM ${tableName} WHERE id = ?`).run(id);
+    return this.deleteFromServer(tableName, workspaceId, id);
   }
 };
+
+export const CacheRepository = LocalCRMRepository;

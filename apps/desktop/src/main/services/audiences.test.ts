@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { runMigrations } from '../database/runner';
+import { initCacheSchema } from '../database/cache-schema';
 import { randomUUID } from 'crypto';
 import assert from 'assert';
 
@@ -10,9 +10,9 @@ export async function runAudiencesTests() {
   const db = new Database(':memory:');
   console.log('[Test] Created in-memory SQLite database.');
 
-  // 2. Run migrations
-  runMigrations(db);
-  console.log('[Test] Applied schema migrations successfully.');
+  // 2. Initialize cache schema
+  initCacheSchema(db);
+  console.log('[Test] Applied cache schema successfully.');
 
   const wsA = randomUUID();
   const wsB = randomUUID();

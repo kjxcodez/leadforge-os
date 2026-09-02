@@ -11,9 +11,10 @@ export interface EmailAccountDocument extends mongoose.Document, WorkspaceScoped
   name: string;
   email: string;
   provider: string;
+  googleConnectionId?: string | null;
   encryptedPassword?: string | null;
   isDefault: boolean;
-  status: 'connected' | 'reauth_required' | 'disconnected' | 'failed' | 'disabled';
+  status: 'connected' | 'reauth_required' | 'disconnected' | 'failed' | 'disabled' | 'unsupported';
   dailyLimit: number;
   hourlyLimit: number;
   dailySent: number;
@@ -34,12 +35,13 @@ const emailAccountSchema = new Schema<EmailAccountDocument>(
   {
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, trim: true }, // unique scoped in index
-    provider: { type: String, required: true, default: 'gmail_oauth' },
-    encryptedPassword: { type: String, default: null }, // SMTP app password (AES-256-GCM)
+    provider: { type: String, required: true, default: 'gmail' },
+    googleConnectionId: { type: String, default: null },
+    encryptedPassword: { type: String, default: null }, // Legacy app password (AES-256-GCM)
     isDefault: { type: Boolean, default: false },
     status: {
       type: String,
-      enum: ['connected', 'reauth_required', 'disconnected', 'failed', 'disabled'],
+      enum: ['connected', 'reauth_required', 'disconnected', 'failed', 'disabled', 'unsupported'],
       default: 'connected'
     },
     dailyLimit: { type: Number, default: 200 },

@@ -1,16 +1,14 @@
 import { safeRegister } from './helper';
-import { getDatabase } from '../database/connection';
 import { WorkspaceManager } from '../lib/workspace-manager';
 import { AppLogger } from '../lib/logger';
+import { getDatabase } from '../database/connection';
 
 /**
- * Registers IPC channels for submitting, listing, and cancelling scheduler tasks.
+ * Registers IPC channels for submitting, listing, and cancelling scheduler tasks via MongoDB SDK.
  */
 export function registerSchedulerIpc() {
   // 1. Submit a background job (with idempotency and deduplication)
   safeRegister('scheduler:jobs:submit', async (_event, params) => {
-    // [Progress Milestone] 10% validation
-    console.log('[Scheduler IPC] 10% validation: validating submission parameters...');
     const {
       workspaceId,
       type,
@@ -22,174 +20,101 @@ export function registerSchedulerIpc() {
     if (!workspaceId) throw new Error('workspaceId is required to submit a job.');
     if (!type) throw new Error('type is required to submit a job.');
 
-    const jobId = params.id || require('crypto').randomUUID();
-    const db = getDatabase(workspaceId);
+    const sdk = WorkspaceManager.getActiveRuntime()?.workspaceId === workspaceId
+      ? WorkspaceManager.getActiveRuntime()!.sdk
+      : WorkspaceManager.getSdk();
 
-    // [Progress Milestone] 30% lookup
-    console.log('[Scheduler IPC] 30% lookup: searching for existing jobs...');
-    if (!idempotencyKey) {
-      console.log('[Scheduler IPC] missing idempotency key - proceeding with direct creation.');
-      // [Progress Milestone] 50% transaction
-      db.prepare(
-        `
-        INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, idempotencyKey, createdAt, updatedAt)
-        VALUES (?, ?, ?, 'queued', ?, ?, 0, 0, ?, NULL, datetime('now'), datetime('now'))
-      `
-      ).run(jobId, workspaceId, type, priority, JSON.stringify(payload || {}), maxRetries);
-      // [Progress Milestone] 75% creation/reuse
-      console.log('[Scheduler IPC] 75% creation/reuse: new job created.');
-      // [Progress Milestone] 100% completion
-      console.log('[Scheduler IPC] 100% completion: job submission completed.');
-      return {
-        deduplicated: false,
-        job: {
-          id: jobId,
-          workspaceId,
-          type,
-          status: 'queued',
-          priority,
-          payload: payload || {},
-          progress: 0,
-          retryCount: 0,
-          maxRetries,
-          idempotencyKey: null
-        }
-      };
-    }
+    const job = await sdk.jobs.create({
+      id: params.id,
+      type,
+      priority,
+      payload: payload || {},
+      maxRetries,
+      idempotencyKey: idempotencyKey || undefined
+    });
 
-    // [Progress Milestone] 50% transaction
-    console.log('[Scheduler IPC] 50% transaction: starting atomic deduplication checks...');
-    let result: any;
+    AppLogger.info(
+      'JobScheduler',
+      `Job "${job.id}" submitted via API (type: "${type}").`,
+      workspaceId
+    );
 
-    try {
-      db.transaction(() => {
-        // Query for active job with status in: queued, starting, running, waiting, paused
-        const activeJob = db
-          .prepare(
-            `
-          SELECT * FROM jobs
-          WHERE workspaceId = ?
-            AND idempotencyKey = ?
-            AND status IN ('queued', 'starting', 'running', 'waiting', 'paused')
-          LIMIT 1
-        `
-          )
-          .get(workspaceId, idempotencyKey) as any;
+    WorkspaceManager.wakeScheduler();
 
-        if (activeJob) {
-          // [Progress Milestone] 75% creation/reuse
-          console.log(
-            '[Scheduler IPC] 75% creation/reuse: active duplicate detected; reusing existing job.'
-          );
-          AppLogger.info(
-            'JobScheduler',
-            `Duplicate detected for key "${idempotencyKey}". Existing active job "${activeJob.id}" reused.`,
-            workspaceId
-          );
-          result = {
-            deduplicated: true,
-            existingJobId: activeJob.id,
-            job: {
-              id: activeJob.id,
-              workspaceId: activeJob.workspaceId,
-              type: activeJob.type,
-              status: activeJob.status,
-              priority: activeJob.priority,
-              payload: activeJob.payload ? JSON.parse(activeJob.payload) : {},
-              progress: activeJob.progress,
-              retryCount: activeJob.retryCount,
-              maxRetries: activeJob.maxRetries,
-              idempotencyKey: activeJob.idempotencyKey
-            }
-          };
-          return;
-        }
-
-        // UPDATE jobs SET idempotencyKey = NULL - Nullify any completed/failed/cancelled/interrupted jobs with the same key to avoid unique constraint violations
-        db.prepare(
-          `UPDATE jobs SET idempotencyKey = NULL, updatedAt = datetime('now') WHERE workspaceId = ? AND idempotencyKey = ? AND status NOT IN ('queued', 'starting', 'running', 'waiting', 'paused')`
-        ).run(workspaceId, idempotencyKey);
-
-        // Insert the new job
-        db.prepare(
-          `
-          INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, idempotencyKey, createdAt, updatedAt)
-          VALUES (?, ?, ?, 'queued', ?, ?, 0, 0, ?, ?, datetime('now'), datetime('now'))
-        `
-        ).run(
-          jobId,
-          workspaceId,
-          type,
-          priority,
-          JSON.stringify(payload || {}),
-          maxRetries,
-          idempotencyKey
-        );
-
-        // [Progress Milestone] 75% creation/reuse
-        console.log('[Scheduler IPC] 75% creation/reuse: new job created successfully.');
-        AppLogger.info(
-          'JobScheduler',
-          `New job "${jobId}" created with key "${idempotencyKey}".`,
-          workspaceId
-        );
-        result = {
-          deduplicated: false,
-          job: {
-            id: jobId,
-            workspaceId,
-            type,
-            status: 'queued',
-            priority,
-            payload: payload || {},
-            progress: 0,
-            retryCount: 0,
-            maxRetries,
-            idempotencyKey
-          }
-        };
-      })();
-
-      console.log('[Scheduler IPC] transaction success.');
-    } catch (err) {
-      console.error('[Scheduler IPC] transaction rollback occurred:', err);
-      throw err;
-    }
-
-    // Publish deduplicated event to EventBus if appropriate
-    if (result.deduplicated) {
-      const activeRuntime = WorkspaceManager.getActiveRuntime();
-      if (activeRuntime && activeRuntime.workspaceId === workspaceId) {
-        activeRuntime.eventBus.publish('job:deduplicated', {
-          idempotencyKey,
-          existingJobId: result.existingJobId,
-          type: result.job.type
-        });
-      }
-    }
-
-    // Schema fields checked: checkpointData, checkpointAt, durationMs
-    // [Progress Milestone] 100% completion
-    console.log('[Scheduler IPC] 100% completion: job submission completed.');
-    return result;
+    return {
+      deduplicated: false,
+      job
+    };
   });
 
-  // 2. List all jobs inside a workspace
+  // 2. List queue (jobs + waiting sequence executions)
+  safeRegister('scheduler:queue:list', async (_event, { workspaceId }) => {
+    if (!workspaceId) throw new Error('workspaceId is required to query queue.');
+
+    let jobs: any[] = [];
+    try {
+      const runtime = WorkspaceManager.getActiveRuntime();
+      const sdk =
+        runtime && runtime.workspaceId === workspaceId
+          ? runtime.sdk
+          : WorkspaceManager.getSdk();
+      const result = await sdk.jobs.list({ limit: 100 }).catch(() => ({ data: [] }));
+      // The Outbound Queue is strictly for outreach workflows.
+      // Discovery/enrichment/scraper jobs surface in the Active Jobs tab.
+      const OUTBOUND_JOB_TYPES = new Set(['outreach:campaign', 'automation:workflow', 'outreach:imap-poll']);
+      const allFetched = Array.isArray(result?.data) ? result.data : [];
+      jobs = allFetched.filter((j: any) => OUTBOUND_JOB_TYPES.has(j.type));
+    } catch {
+      jobs = [];
+    }
+
+    let waiting: any[] = [];
+    try {
+      const db = getDatabase(workspaceId);
+      const rows = db
+        .prepare(
+          `SELECT 
+            se.id, se.sequenceId, se.campaignId, se.contactId, se.companyId,
+            se.status, se.currentStep, se.currentStepName, se.nextExecutionAt,
+            se.createdAt, se.updatedAt,
+            c.firstName, c.lastName, c.email as contactEmail,
+            comp.name as companyName,
+            s.name as sequenceName
+           FROM sequence_executions se
+           LEFT JOIN contacts c ON se.contactId = c.id
+           LEFT JOIN companies comp ON se.companyId = comp.id
+           LEFT JOIN sequences s ON se.sequenceId = s.id
+           WHERE se.workspaceId = ? AND UPPER(se.status) = 'WAITING' AND se.deletedAt IS NULL
+           ORDER BY se.nextExecutionAt ASC LIMIT 50`
+        )
+        .all(workspaceId) as any[];
+      waiting = Array.isArray(rows) ? rows : [];
+    } catch {
+      waiting = [];
+    }
+
+    return {
+      jobs,
+      waiting
+    };
+  });
+
+  // 2b. List all jobs inside a workspace (raw list)
   safeRegister('scheduler:jobs:list', async (_event, { workspaceId }) => {
     if (!workspaceId) throw new Error('workspaceId is required to query jobs.');
-    const db = getDatabase(workspaceId);
+    const runtime = WorkspaceManager.getActiveRuntime();
+    if (runtime && runtime.workspaceId === workspaceId) {
+      const result = await runtime.sdk.jobs.list({ limit: 100 }).catch(() => ({ data: [] }));
+      return result.data;
+    }
 
-    const rows = db
-      .prepare(
-        `
-      SELECT * FROM jobs
-      WHERE workspaceId = ?
-      ORDER BY createdAt DESC
-    `
-      )
-      .all(workspaceId);
-
-    return rows;
+    try {
+      const sdk = WorkspaceManager.getSdk();
+      const result = await sdk.jobs.list({ limit: 100 }).catch(() => ({ data: [] }));
+      return result.data;
+    } catch {
+      return [];
+    }
   });
 
   // 3. Cancel a running/queued job
@@ -197,26 +122,14 @@ export function registerSchedulerIpc() {
     if (!workspaceId) throw new Error('workspaceId is required.');
     if (!jobId) throw new Error('jobId is required.');
 
-    const activeRuntime = WorkspaceManager.getActiveRuntime();
-    if (activeRuntime && activeRuntime.workspaceId === workspaceId) {
-      // Access the scheduler on the active runtime to trigger soft cancel
-      // and update the SQLite states
-      await (activeRuntime as any).scheduler.cancelJob(jobId);
-      console.log(`[IPC] Sent cancellation request for running job: ${jobId}`);
-      return;
+    const runtime = WorkspaceManager.getActiveRuntime();
+    if (runtime && runtime.workspaceId === workspaceId) {
+      await runtime.scheduler.cancelJob(jobId).catch(() => {});
     }
 
-    // If the runtime is not active, we can still update its status in the DB directly
-    const db = getDatabase(workspaceId);
-    db.prepare(
-      `
-      UPDATE jobs
-      SET status = 'cancelled', finishedAt = datetime('now'), updatedAt = datetime('now')
-      WHERE id = ?
-    `
-    ).run(jobId);
-
-    console.log(`[IPC] Marked inactive job "${jobId}" as cancelled in database.`);
+    const sdk = WorkspaceManager.getSdk();
+    await sdk.jobs.cancel(jobId).catch(() => {});
+    AppLogger.info('JobScheduler', `Cancelled job "${jobId}" via API.`, workspaceId);
   });
 
   // 4. Pause a running/queued job
@@ -224,23 +137,14 @@ export function registerSchedulerIpc() {
     if (!workspaceId) throw new Error('workspaceId is required.');
     if (!jobId) throw new Error('jobId is required.');
 
-    const activeRuntime = WorkspaceManager.getActiveRuntime();
-    if (activeRuntime && activeRuntime.workspaceId === workspaceId) {
-      (activeRuntime as any).scheduler.pauseJob(jobId);
-      console.log(`[IPC] Sent pause request for job: ${jobId}`);
-      return;
+    const runtime = WorkspaceManager.getActiveRuntime();
+    if (runtime && runtime.workspaceId === workspaceId) {
+      await runtime.scheduler.pauseJob(jobId).catch(() => {});
     }
 
-    const db = getDatabase(workspaceId);
-    db.prepare(
-      `
-      UPDATE jobs
-      SET status = 'paused', updatedAt = datetime('now')
-      WHERE id = ? AND status = 'queued'
-    `
-    ).run(jobId);
-
-    console.log(`[IPC] Marked inactive queued job "${jobId}" as paused in database.`);
+    const sdk = WorkspaceManager.getSdk();
+    await sdk.jobs.updateStatus(jobId, { status: 'paused' }).catch(() => {});
+    AppLogger.info('JobScheduler', `Paused job "${jobId}" via API.`, workspaceId);
   });
 
   // 5. Resume a paused job
@@ -248,15 +152,8 @@ export function registerSchedulerIpc() {
     if (!workspaceId) throw new Error('workspaceId is required.');
     if (!jobId) throw new Error('jobId is required.');
 
-    const db = getDatabase(workspaceId);
-    db.prepare(
-      `
-      UPDATE jobs
-      SET status = 'queued', updatedAt = datetime('now')
-      WHERE id = ? AND status = 'paused'
-    `
-    ).run(jobId);
-
-    console.log(`[IPC] Resumed paused job "${jobId}" (marked as queued).`);
+    const sdk = WorkspaceManager.getSdk();
+    await sdk.jobs.updateStatus(jobId, { status: 'queued' }).catch(() => {});
+    AppLogger.info('JobScheduler', `Resumed job "${jobId}" (queued) via API.`, workspaceId);
   });
 }

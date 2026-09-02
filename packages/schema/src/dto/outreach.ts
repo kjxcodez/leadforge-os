@@ -1,12 +1,13 @@
 import { z } from 'zod';
-import { objectIdField } from '../fields/common.js';
+import { entityIdField, entityIdFieldNullable } from '../fields/common.js';
 import { emailMessageSchema, outreachSchema, attachmentItemSchema } from '../entities/outreach.js';
 import { paginationParamsSchema } from '../common/pagination.js';
 
 export const createOutreachDtoSchema = z.object({
-  contactId: objectIdField,
-  campaignId: objectIdField.nullable().optional(),
-  companyId: objectIdField.nullable().optional(),
+  id: entityIdField.optional(),
+  contactId: entityIdField,
+  campaignId: entityIdFieldNullable.optional(),
+  companyId: entityIdFieldNullable.optional(),
   provider: z.string(),
   status: z.string().optional(),
   messageDetails: emailMessageSchema.optional()
@@ -14,9 +15,9 @@ export const createOutreachDtoSchema = z.object({
 export type CreateOutreachDto = z.infer<typeof createOutreachDtoSchema>;
 
 export const outreachFiltersSchema = paginationParamsSchema.extend({
-  contactId: objectIdField.optional(),
-  campaignId: objectIdField.optional(),
-  companyId: objectIdField.optional(),
+  contactId: entityIdField.optional(),
+  campaignId: entityIdField.optional(),
+  companyId: entityIdField.optional(),
   provider: z.string().optional(),
   status: z.string().optional()
 });
@@ -29,15 +30,15 @@ export const outreachListResponseSchema = z.object({
 export type OutreachListResponse = z.infer<typeof outreachListResponseSchema>;
 
 export const createEmailAccountDtoSchema = z.object({
+  id: entityIdField.optional(),
   name: z.string().min(1),
   email: z.string().email(),
-  provider: z.string(),
-  password: z.string().min(1).optional(), // raw App Password for SMTP connect verification
+  provider: z.string().default('gmail'),
+  googleConnectionId: z.string().optional(),
   dailyLimit: z.number().int().optional(),
   hourlyLimit: z.number().int().optional(),
   signature: z.string().optional(),
-  // Gmail OAuth fields (provider === 'gmail_oauth'). Sent over an
-  // authenticated connection and encrypted at rest by the API.
+  // Gmail OAuth fields (for legacy compatibility)
   refreshToken: z.string().optional(),
   accessToken: z.string().optional(),
   tokenExpiresAt: z.string().optional(),
@@ -51,6 +52,7 @@ export const reconnectEmailAccountDtoSchema = createEmailAccountDtoSchema.partia
 export type ReconnectEmailAccountDto = z.infer<typeof reconnectEmailAccountDtoSchema>;
 
 export const createEmailTemplateDtoSchema = z.object({
+  id: entityIdField.optional(),
   name: z.string().min(1),
   subject: z.string().min(1),
   body: z.string().min(1),

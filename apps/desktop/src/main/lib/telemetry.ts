@@ -47,21 +47,7 @@ class TelemetryTracker {
   ): StartupMetrics & { memory: any; os: any; deadLetters: number } {
     const memory = process.memoryUsage();
 
-    let deadLetters = 0;
-    if (workspaceId) {
-      try {
-        const db = getDatabase(workspaceId);
-        const tableCheck = db
-          .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_dead_letter'")
-          .get();
-        if (tableCheck) {
-          const row = db.prepare('SELECT COUNT(*) as count FROM sync_dead_letter').get() as any;
-          deadLetters = row ? row.count : 0;
-        }
-      } catch (err) {
-        // Ignore
-      }
-    }
+    const deadLetters = 0;
 
     return {
       appLaunchDuration: this.whenReadyTime > 0 ? this.whenReadyTime - this.processStartTime : 0,

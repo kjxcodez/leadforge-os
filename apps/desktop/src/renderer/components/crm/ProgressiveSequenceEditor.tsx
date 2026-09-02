@@ -16,8 +16,10 @@ import {
   ChevronUp,
   ChevronDown,
   Paperclip,
+  ExternalLink,
   X
 } from 'lucide-react';
+import { MediaPickerDialog } from '../media/MediaPickerDialog';
 
 export interface SequenceStepItem {
   id: string;
@@ -39,6 +41,7 @@ export function ProgressiveSequenceEditor({
   templates = []
 }: ProgressiveSequenceEditorProps) {
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [mediaPickerStepIdx, setMediaPickerStepIdx] = useState<number | null>(null);
 
   const addStep = (type: SequenceStepItem['type']) => {
     const newStep: SequenceStepItem = {
@@ -192,6 +195,7 @@ export function ProgressiveSequenceEditor({
                             }
                           }
                           updateStepConfig(idx, {
+                            templateId: selectedTpl.id,
                             subject: selectedTpl.subject,
                             body: selectedTpl.body,
                             attachments: Array.isArray(tplAttachments) ? tplAttachments : []
@@ -236,69 +240,43 @@ export function ProgressiveSequenceEditor({
                       <Paperclip className="w-3 h-3 text-muted-foreground" />
                       Attachments ({(step.config.attachments || []).length})
                     </Label>
-                    <label className="cursor-pointer text-[10px] font-medium text-primary hover:underline flex items-center gap-1">
-                      <Plus className="w-2.5 h-2.5" /> Attach File
-                      <input
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={async (e) => {
-                          if (!e.target.files || e.target.files.length === 0) return;
-                          const files = Array.from(e.target.files);
-                          const currentAtts = [...(step.config.attachments || [])];
-                          for (const f of files) {
-                            if (f.size > 25 * 1024 * 1024) {
-                              alert(`File "${f.name}" exceeds the 25 MB size limit.`);
-                              continue;
-                            }
-                            try {
-                              if ((f as any).path && (window as any).ipc) {
-                                const saved = await (window as any).ipc.invoke('attachments:save', {
-                                  filePath: (f as any).path,
-                                  filename: f.name
-                                });
-                                currentAtts.push(saved);
-                              } else {
-                                const reader = new FileReader();
-                                reader.onload = () => {
-                                  const base64 = (reader.result as string).split(',')[1] || '';
-                                  currentAtts.push({
-                                    id: `att_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-                                    filename: f.name,
-                                    size: f.size,
-                                    contentBase64: base64,
-                                    contentType: f.type
-                                  });
-                                  updateStepConfig(idx, { attachments: currentAtts });
-                                };
-                                reader.readAsDataURL(f);
-                                continue;
-                              }
-                            } catch (err: any) {
-                              console.error('Failed to attach file:', err);
-                              alert(`Failed to attach ${f.name}: ${err.message}`);
-                            }
-                          }
-                          updateStepConfig(idx, { attachments: currentAtts });
-                          e.target.value = '';
-                        }}
-                      />
-                    </label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setMediaPickerStepIdx(idx)}
+                      className="h-5 px-1.5 text-[10px] font-medium text-primary hover:underline flex items-center gap-1"
+                    >
+                      <Plus className="w-2.5 h-2.5" /> Attach from Media / Drive
+                    </Button>
                   </div>
                   {(step.config.attachments || []).length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {(step.config.attachments || []).map((att: any, attIdx: number) => (
                         <div
-                          key={att.id || attIdx}
+                          key={att.id || att.fileId || attIdx}
                           className="inline-flex items-center gap-1.5 bg-surface-3 border border-border-subtle px-2 py-0.5 text-[10px] text-foreground"
                         >
                           <Paperclip className="w-2.5 h-2.5 text-muted-foreground flex-shrink-0" />
                           <span className="truncate max-w-[140px]" title={att.filename}>
                             {att.filename}
                           </span>
-                          <span className="text-muted-foreground text-[9px]">
-                            ({Math.round((att.size || 0) / 1024)} KB)
-                          </span>
+                          {att.size && (
+                            <span className="text-muted-foreground text-[9px]">
+                              ({Math.round((att.size || 0) / 1024)} KB)
+                            </span>
+                          )}
+                          {att.driveUrl && (
+                            <a
+                              href={att.driveUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-muted-foreground hover:text-primary ml-0.5"
+                              title="Open in Google Drive"
+                            >
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          )}
                           <button
                             type="button"
                             onClick={() => {
@@ -315,6 +293,18 @@ export function ProgressiveSequenceEditor({
                         </div>
                       ))}
                     </div>
+                  )}
+
+                  {mediaPickerStepIdx === idx && (
+                    <MediaPickerDialog
+                      open={mediaPickerStepIdx === idx}
+                      onOpenChange={(open) => !open && setMediaPickerStepIdx(null)}
+                      initialSelected={step.config.attachments || []}
+                      onSelect={(selected) => {
+                        updateStepConfig(idx, { attachments: selected });
+                        setMediaPickerStepIdx(null);
+                      }}
+                    />
                   )}
                 </div>
               </div>

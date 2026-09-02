@@ -149,12 +149,10 @@ export default function ContactsScreen() {
       fullName.includes(searchLower) ||
       emailStr.includes(searchLower) ||
       titleStr.includes(searchLower);
-    const matchesStatus = !statusFilter || c.status === statusFilter;
+    const matchesStatus = !statusFilter || (c.status && String(c.status).toUpperCase() === statusFilter.toUpperCase());
     const matchesCompany = !companyFilter || c.companyId === companyFilter;
     const matchesTitle = !titleFilter || (c.title && c.title.toLowerCase().includes(titleFilter.toLowerCase()));
-    const matchesSource = !sourceFilter ||
-      (c.source && c.source.toLowerCase() === sourceFilter.toLowerCase()) ||
-      (c.sourcePlatform && c.sourcePlatform.toLowerCase() === sourceFilter.toLowerCase());
+    const matchesSource = !sourceFilter || (c.source && c.source.toLowerCase() === sourceFilter.toLowerCase());
     const matchesDiscoveryRun = !discoveryRunFilter || (c.companyId && discoveryRunCompanyIds.has(c.companyId));
 
     return matchesSearch && matchesStatus && matchesCompany && matchesTitle && matchesSource && matchesDiscoveryRun;

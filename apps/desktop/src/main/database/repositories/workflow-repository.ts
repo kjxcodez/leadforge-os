@@ -15,7 +15,19 @@ export class WorkflowRepositoryImpl implements WorkflowRepository {
   }
 
   public async saveLog(log: SequenceLog): Promise<SequenceLog> {
-    return LocalCRMRepository.save('sequence_logs', log);
+    if (log.executionId && log.workspaceId) {
+      const exec = await LocalCRMRepository.findById('sequence_executions', log.workspaceId, log.executionId);
+      if (exec) {
+        const existingLogs = Array.isArray(exec.logs)
+          ? exec.logs
+          : typeof exec.logs === 'string'
+          ? JSON.parse(exec.logs || '[]')
+          : [];
+        existingLogs.push(log);
+        await LocalCRMRepository.save('sequence_executions', { ...exec, logs: existingLogs });
+      }
+    }
+    return log;
   }
 
   public async findExecutions(

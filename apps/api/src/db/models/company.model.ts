@@ -33,6 +33,7 @@ export interface CompanyDocument
   status: 'LEAD' | 'QUALIFIED' | 'CUSTOMER' | 'ARCHIVED';
   tags: string[];
   notes?: string | null;
+  opportunityScore?: number | null;
 }
 
 const companySchema = new Schema<CompanyDocument>(
@@ -111,6 +112,10 @@ const companySchema = new Schema<CompanyDocument>(
     },
     notes: {
       type: String,
+      default: null
+    },
+    opportunityScore: {
+      type: Number,
       default: null
     }
   },

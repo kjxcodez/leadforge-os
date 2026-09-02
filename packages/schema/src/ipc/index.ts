@@ -5,6 +5,29 @@ import type { CreateWorkspaceDto, UpdateWorkspaceDto, InviteMemberDto } from '..
 import type { Workspace, WorkspaceMember } from '../entities/workspace.js';
 import type { WorkspaceRole } from '../enums/index.js';
 
+export type ConnectivityStatus = 'CHECKING' | 'ONLINE' | 'DEGRADED' | 'AUTHENTICATION_REQUIRED';
+
+export type ConnectivityErrorCode =
+  | 'NETWORK_UNREACHABLE'
+  | 'TIMEOUT'
+  | 'HTTP_5XX'
+  | 'HTTP_401'
+  | 'HTTP_403'
+  | 'HEALTH_CHECK_INVALID_RESPONSE'
+  | 'UNKNOWN';
+
+export interface RuntimeConnectivityState {
+  status: ConnectivityStatus;
+  apiUrl: string;
+  error: {
+    code: ConnectivityErrorCode;
+    message: string;
+    statusCode?: number;
+  } | null;
+  lastCheckedAt: string;
+  activeWorkspaceId: string | null;
+}
+
 export interface IpcChannelMap {
   'diagnostics:get-system-info': {
     input: { workspaceId?: string };
@@ -13,6 +36,18 @@ export interface IpcChannelMap {
   'diagnostics:export-support-bundle': {
     input: { workspaceId?: string };
     output: { success: boolean; message: string };
+  };
+  'system:connectivity-status': {
+    input: void;
+    output: RuntimeConnectivityState;
+  };
+  'system:connectivity-check': {
+    input: void;
+    output: RuntimeConnectivityState;
+  };
+  'system:connectivity-changed': {
+    input: void;
+    output: RuntimeConnectivityState;
   };
   'companies:list': {
     input: CompanyFilters;
@@ -243,27 +278,6 @@ export interface IpcChannelMap {
     output: void;
   };
 
-  // ── Local Offline Sync Queue Queries ─────────────────────────────────────
-  'db:queue:push': {
-    input: any;
-    output: void;
-  };
-  'db:queue:pop': {
-    input: string;
-    output: any | null;
-  };
-  'db:queue:list': {
-    input: string;
-    output: any[];
-  };
-  'db:queue:update': {
-    input: { workspaceId: string; id: string; retryCount: number; error: string };
-    output: void;
-  };
-  'db:queue:remove': {
-    input: { workspaceId: string; id: string };
-    output: void;
-  };
 
   'scheduler:jobs:list': {
     input: { workspaceId: string };
@@ -306,6 +320,10 @@ export interface IpcChannelMap {
     input: { workspaceId: string; id: string };
     output: any;
   };
+  'discovery:run:companies': {
+    input: { workspaceId: string; runId: string; forceSync?: boolean };
+    output: any[];
+  };
   'audiences:list': {
     input: { workspaceId: string };
     output: any[];
@@ -327,8 +345,8 @@ export interface IpcChannelMap {
     output: void;
   };
   'audiences:resolve': {
-    input: { workspaceId: string; id?: string; filterDefinition?: any };
-    output: { contactIds: string[]; companyIds: string[] };
+    input: { workspaceId: string; id?: string; filterDefinition?: any; mode?: string; staticMemberIds?: string[] };
+    output: { contactIds: string[]; companyIds: string[]; contactCount?: number; companyCount?: number };
   };
   'companies:query': {
     input: {
@@ -355,11 +373,27 @@ export interface IpcChannelMap {
   };
   'companies:distinct-values': {
     input: { workspaceId: string };
-    output: { industries: string[]; locations: string[] };
+    output: { industries: string[]; locations: string[]; cities?: string[]; states?: string[]; countries?: string[] };
   };
   'contacts:distinct-values': {
     input: { workspaceId: string };
     output: { titles: string[]; sources: string[] };
+  };
+  'drive:status': {
+    input: { transactionId: string };
+    output: { status: string; error?: string; connection?: any };
+  };
+  'drive:connect': {
+    input: void | { workspaceId?: string };
+    output: { transactionId?: string; authorizationUrl?: string };
+  };
+  'drive:reconnect': {
+    input: { id: string };
+    output: { transactionId?: string; authorizationUrl?: string };
+  };
+  'drive:disconnect': {
+    input: { id: string };
+    output: { success: boolean };
   };
 
 
@@ -809,8 +843,75 @@ export interface IpcChannelMap {
     output: { success: boolean; message: string };
   };
   'dev-mode:log': {
-    input: { workspaceId: string };
+    input: { workspaceId?: string; limit?: number };
     output: any[];
+  };
+  'drive:connections:list': {
+    input: void | { workspaceId?: string };
+    output: any[];
+  };
+  'drive:files:list': {
+    input: { connectionId: string; folderId?: string; search?: string; pageToken?: string; pageSize?: number };
+    output: { files: any[]; nextPageToken?: string };
+  };
+  'drive:files:get': {
+    input: { connectionId: string; fileId: string };
+    output: any;
+  };
+
+  // ── Attachment & Media management ─────────────────────────────────────────
+  'attachments:save': {
+    input: { filePath?: string; filename?: string; contentBase64?: string; contentType?: string; googleConnectionId?: string };
+    output: { id?: string; path?: string; filename: string; size: number; contentType?: string; mimeType?: string; provider?: string; fileId?: string; driveUrl?: string };
+  };
+  'media:list': {
+    input: { search?: string; category?: string; page?: number; limit?: number } | void;
+    output: any[];
+  };
+  'media:upload': {
+    input: { filename: string; mimeType: string; contentBase64: string; googleConnectionId?: string; metadata?: Record<string, any> };
+    output: any;
+  };
+  'media:delete': {
+    input: { id: string };
+    output: { success: boolean };
+  };
+  'media:link': {
+    input: { googleConnectionId: string; fileId: string };
+    output: any;
+  };
+
+  // ── System / Infrastructure ──────────────────────────────────────────────
+  'system:infrastructure-status': {
+    input: { workspaceId?: string };
+    output: {
+      api: { status: string; latencyMs?: number };
+      database: { status: string };
+      workers: { status: string; activeCount: number };
+      scheduler: { status: string };
+    };
+  };
+
+  // ── Push-event channels (main → renderer via ipc.on) ────────────────────
+  'email-accounts:changed': {
+    input: void;
+    output: { timestamp?: string } | void;
+  };
+  'google-connections:changed': {
+    input: void;
+    output: { timestamp?: string } | void;
+  };
+  'workspace:boot-progress': {
+    input: void;
+    output: { stage: string; message: string; progress?: number };
+  };
+  'scheduler:tick': {
+    input: void;
+    output: { workspaceId: string; timestamp: string };
+  };
+  'agent:workflow:progress': {
+    input: void;
+    output: { executionId: string; step: number; status: string; message?: string };
   };
 }
 

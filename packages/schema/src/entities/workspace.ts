@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { objectIdField, nameField, emailField } from '../fields/common.js';
+import { entityIdField, entityIdFieldNullable, nameField, emailField } from '../fields/common.js';
 import { WorkspaceRole, WorkspaceMemberStatus } from '../enums/index.js';
 
 export const workspaceSettingsSchema = z.object({
@@ -8,13 +8,13 @@ export const workspaceSettingsSchema = z.object({
 export type WorkspaceSettings = z.infer<typeof workspaceSettingsSchema>;
 
 export const workspaceMemberSchema = z.object({
-  id: z.string().optional(),
-  userId: objectIdField.nullable().optional(),
+  id: entityIdField.optional(),
+  userId: entityIdFieldNullable,
   email: emailField,
   role: z.nativeEnum(WorkspaceRole),
   status: z.nativeEnum(WorkspaceMemberStatus),
   joinedAt: z.coerce.date().nullable().optional(),
-  invitedBy: objectIdField.nullable().optional(),
+  invitedBy: entityIdFieldNullable,
   invitedAt: z.coerce.date().optional(),
   invitationToken: z.string().nullable().optional(),
   invitationExpiresAt: z.coerce.date().nullable().optional()
@@ -22,10 +22,10 @@ export const workspaceMemberSchema = z.object({
 export type WorkspaceMember = z.infer<typeof workspaceMemberSchema>;
 
 export const workspaceSchema = z.object({
-  id: objectIdField,
+  id: entityIdField,
   name: nameField,
   slug: z.string(),
-  ownerId: objectIdField,
+  ownerId: entityIdField,
   plan: z.enum(['free', 'growth', 'enterprise']).default('free'),
   settings: workspaceSettingsSchema,
   members: z.array(workspaceMemberSchema),

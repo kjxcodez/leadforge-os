@@ -112,7 +112,7 @@ export default function DiscoveryScreen() {
       return window.ipc.invoke('scheduler:jobs:list', { workspaceId });
     },
     enabled: !!workspaceId,
-    refetchInterval: 1500
+    refetchInterval: 5000
   });
 
   const discoveryRunsQuery = useQuery({
@@ -122,7 +122,7 @@ export default function DiscoveryScreen() {
       return window.ipc.invoke('discovery:run:list', { workspaceId });
     },
     enabled: !!workspaceId,
-    refetchInterval: 2000
+    refetchInterval: 5000
   });
 
   const companiesQuery = useQuery({
@@ -257,64 +257,55 @@ export default function DiscoveryScreen() {
   const existingCompanies = (companiesQuery.data || []) as any[];
   const existingContacts = (contactsQuery.data || []) as any[];
 
-  // Build logical Discovery Runs array (combining discovery_runs records + unlinked parent jobs fallback)
-  const discoveryRunsList = React.useMemo(() => {
-    const runMap = new Map<string, any>();
+  const selectedRunCompaniesQuery = useQuery({
+    queryKey: ['discovery_run_companies', workspaceId, selectedJobId],
+    queryFn: async () => {
+      if (!workspaceId || !selectedJobId) return [];
+      const run = discoveryRunsList.find((r) => r.id === selectedJobId || r.mapsJobId === selectedJobId);
+      const targetRunId = run?.id || selectedJobId;
+      return window.ipc.invoke('discovery:run:companies', { workspaceId, runId: targetRunId });
+    },
+    enabled: !!workspaceId && !!selectedJobId,
+    refetchInterval: 2500
+  });
 
-    // 1. Process explicit discovery_runs records
-    rawDiscoveryRuns.forEach((run: any) => {
+  // Helper to safely parse job payloads regardless of string vs object serialization
+  const safeParsePayload = (payload: any) => {
+    if (!payload) return {};
+    if (typeof payload === 'object') return payload;
+    try {
+      return JSON.parse(payload);
+    } catch {
+      return {};
+    }
+  };
+
+  // Build canonical Discovery Runs array sourced EXCLUSIVELY from discovery_runs domain records
+  const discoveryRunsList = React.useMemo(() => {
+    return rawDiscoveryRuns.map((run: any) => {
       const linkedJobs = allJobs.filter((j) => {
-        try {
-          const p = JSON.parse(j.payload || '{}');
-          return p.discoveryRunId === run.id;
-        } catch {
-          return false;
-        }
+        const p = safeParsePayload(j.payload);
+        return p.discoveryRunId === run.id;
       });
 
       const mapsJob = linkedJobs.find((j) => j.type === 'scraper:maps') || linkedJobs[0];
-      const status = mapsJob ? mapsJob.status : run.status || 'completed';
-      const progress = mapsJob ? (mapsJob.progress || 0) : (status === 'completed' ? 100 : 0);
+      const isJobRunning = mapsJob && ['running', 'queued', 'retrying'].includes(mapsJob.status);
+      const status = isJobRunning ? mapsJob.status : (run.status || (mapsJob?.status ?? 'completed'));
+      const progress = isJobRunning ? (mapsJob.progress || 0) : (status === 'completed' ? 100 : 0);
 
-      runMap.set(run.id, {
+      return {
         id: run.id,
         name: run.name || run.query,
         query: run.query,
         location: [run.city, run.state, run.country].filter(Boolean).join(', '),
         status,
         progress,
+        resultCount: run.resultCount ?? 0,
         mapsJobId: mapsJob?.id || run.id,
         linkedJobs,
         createdAt: run.createdAt
-      });
-    });
-
-    // 2. Add orphan parent jobs as standalone runs so no jobs are hidden
-    allJobs.forEach((job) => {
-      if (job.type === 'crawler:website') return;
-      try {
-        const p = JSON.parse(job.payload || '{}');
-        const runId = p.discoveryRunId;
-        if (runId && runMap.has(runId)) return;
-
-        const id = runId || job.id;
-        if (!runMap.has(id)) {
-          runMap.set(id, {
-            id,
-            name: p.name || job.type,
-            query: p.query || job.type,
-            location: [p.city, p.state, p.country].filter(Boolean).join(', '),
-            status: job.status,
-            progress: job.progress || 0,
-            mapsJobId: job.id,
-            linkedJobs: [job],
-            createdAt: job.createdAt
-          });
-        }
-      } catch { }
-    });
-
-    return Array.from(runMap.values()).sort(
+      };
+    }).sort(
       (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
     );
   }, [rawDiscoveryRuns, allJobs]);
@@ -329,18 +320,13 @@ export default function DiscoveryScreen() {
   const selectedQuery = (selectedRun?.query || '').toLowerCase().trim();
 
   // Scraper results matching the active query or discovery run
-  const results = existingCompanies.filter((c) => {
-    if (!selectedQuery) return true;
-    const blob =
-      `${c.name || ''} ${c.domain || ''} ${c.website || ''} ${c.location || ''} ${c.city || ''} ${c.state || ''} ${c.country || ''}`.toLowerCase();
-    if (blob.includes(selectedQuery)) return true;
-    const words = selectedQuery.split(/\s+/).filter((w: string) => w.length > 2);
-    if (words.length === 0) return true;
-    return words.some((word: string) => {
-      const stem = word.replace(/(ures|ure|s|es)$/i, '');
-      return blob.includes(word) || (stem.length >= 3 && blob.includes(stem));
-    });
-  });
+  const runCompanies = (selectedRunCompaniesQuery.data || []) as any[];
+  const results = React.useMemo(() => {
+    if (selectedJobId) {
+      return runCompanies;
+    }
+    return existingCompanies;
+  }, [selectedJobId, runCompanies, existingCompanies]);
 
   const runningJobs = discoveryRunsList.filter((r) =>
     ['running', 'queued', 'retrying'].includes(r.status)
@@ -534,7 +520,7 @@ export default function DiscoveryScreen() {
                                   <td className="px-4 py-3">
                                     {(() => {
                                       const execContacts = companyContacts.filter(
-                                        (ct) => ct.type === 'executive' || ct.sourcePlatform === 'linkedin'
+                                        (ct) => ct.type === 'executive' || ct.source === 'linkedin' || !!ct.linkedinUrl
                                       );
                                       return (
                                         <div className="flex flex-col gap-1 items-start">
@@ -792,10 +778,8 @@ export default function DiscoveryScreen() {
                               <td className="px-4 py-3 text-muted-foreground text-[10px]">
                                 {(() => {
                                   const childCrawlers = crawlerJobs.filter((cj) => {
-                                    try {
-                                      const p = JSON.parse(cj.payload || '{}');
-                                      return p.discoveryRunId === run.id || p.parentJobId === run.id || p.parentJobId === run.mapsJobId;
-                                    } catch { return false; }
+                                    const p = safeParsePayload(cj.payload);
+                                    return p.discoveryRunId === run.id || p.parentJobId === run.id || p.parentJobId === run.mapsJobId;
                                   });
                                   const activeChildCount = childCrawlers.filter((cj) => ['running', 'queued', 'retrying'].includes(cj.status)).length;
                                   const doneChildCount = childCrawlers.filter((cj) => cj.status === 'completed').length;
@@ -803,7 +787,7 @@ export default function DiscoveryScreen() {
                                     return <span className="text-info animate-pulse">{activeChildCount} active</span>;
                                   }
                                   if (doneChildCount > 0) {
-                                    return <span className="text-success">{doneChildCount} completed</span>;
+                                    return <span className="text-success font-semibold">{doneChildCount} completed</span>;
                                   }
                                   return <span className="opacity-40">—</span>;
                                 })()}

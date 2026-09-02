@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { generateEntityId } from '@leadforge/schema';
 
 export interface BetaApplicantDocument extends Document<any> {
   _id: string;
@@ -12,7 +13,8 @@ const BetaApplicantSchema = new Schema<BetaApplicantDocument>(
   {
     _id: {
       type: String,
-      default: () => new mongoose.Types.ObjectId().toString()
+      required: true,
+      default: () => generateEntityId()
     },
     email: { 
       type: String, 

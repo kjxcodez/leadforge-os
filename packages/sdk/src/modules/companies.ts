@@ -1,16 +1,19 @@
 import { HttpClient } from '../http/client.js';
+import { toQueryString } from '../utils/query.js';
 import type {
   Company,
   CreateCompanyDto,
   UpdateCompanyDto,
-  CompanyFilters
+  CompanyFilters,
+  BulkCompanyDto,
+  BulkOperationResult
 } from '@leadforge/schema';
 
 export class CompaniesModule {
   constructor(private client: HttpClient) {}
 
   public async list(filters?: CompanyFilters): Promise<Company[]> {
-    const queryParams = filters ? '?' + new URLSearchParams(filters as any).toString() : '';
+    const queryParams = toQueryString(filters as any);
     return this.client.get<Company[]>(`/companies${queryParams}`);
   }
 
@@ -20,6 +23,10 @@ export class CompaniesModule {
 
   public async create(dto: CreateCompanyDto): Promise<Company> {
     return this.client.post<Company>('/companies', dto);
+  }
+
+  public async createBulk(dto: BulkCompanyDto): Promise<BulkOperationResult<Company>> {
+    return this.client.post<BulkOperationResult<Company>>('/companies/bulk', dto);
   }
 
   public async update(id: string, dto: UpdateCompanyDto): Promise<Company> {

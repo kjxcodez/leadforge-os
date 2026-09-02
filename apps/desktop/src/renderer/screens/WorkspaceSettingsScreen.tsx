@@ -33,7 +33,8 @@ import {
   Building2,
   Users,
   Plug,
-  BookOpen
+  BookOpen,
+  HardDrive
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '../components/common/PageHeader';
@@ -316,10 +317,11 @@ export default function WorkspaceSettingsScreen() {
         </div>
       )}
 
-      {/* ── SECTION 3: Integrations (Email/Gmail & LinkedIn) ───────────── */}
+      {/* ── SECTION 3: Integrations (Email/Gmail, Google Drive & LinkedIn) ───────────── */}
       {activeSection === 'integrations' && (
         <div className="space-y-6">
           <EmailAccountsSection />
+          <GoogleDriveIntegrationCard workspaceId={activeWorkspace.id || ''} />
           <LinkedInIntegrationCard workspaceId={activeWorkspace.id || ''} />
         </div>
       )}
@@ -651,6 +653,191 @@ function LinkedInIntegrationCard({ workspaceId }: { workspaceId: string }) {
           </div>
         </div>
       </form>
+    </div>
+  );
+}
+
+function GoogleDriveIntegrationCard({ workspaceId }: { workspaceId: string }) {
+  const [connections, setConnections] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [connecting, setConnecting] = useState(false);
+  const [actionId, setActionId] = useState<string | null>(null);
+
+  const fetchConnections = React.useCallback(async () => {
+    if (!workspaceId) return;
+    try {
+      const list = await window.ipc.invoke('drive:connections:list', { workspaceId });
+      setConnections(list || []);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, [workspaceId]);
+
+  React.useEffect(() => {
+    fetchConnections();
+  }, [fetchConnections]);
+
+  const pollTransaction = (transactionId: string) => {
+    setConnecting(true);
+    const interval = setInterval(async () => {
+      try {
+        const res = await window.ipc.invoke('drive:status', { transactionId });
+        if (res.status === 'completed') {
+          clearInterval(interval);
+          setConnecting(false);
+          toast.success('Google Drive authorized successfully!');
+          fetchConnections();
+        } else if (res.status === 'failed') {
+          clearInterval(interval);
+          setConnecting(false);
+          toast.error(`Google Drive authorization failed: ${res.error || 'Unknown error'}`);
+        }
+      } catch {
+        // continue polling
+      }
+    }, 2000);
+
+    setTimeout(() => {
+      clearInterval(interval);
+      setConnecting(false);
+    }, 180000);
+  };
+
+  const handleConnect = async () => {
+    try {
+      const res = await window.ipc.invoke('drive:connect', undefined);
+      if (res.transactionId) {
+        toast.info('Google authorization opened in Chrome. Please approve Drive permissions...');
+        pollTransaction(res.transactionId);
+      }
+    } catch (err: any) {
+      toast.error(`Could not start Google Drive connection: ${err.message || err}`);
+    }
+  };
+
+  const handleReconnect = async (id: string) => {
+    try {
+      const res = await window.ipc.invoke('drive:reconnect', { id });
+      if (res.transactionId) {
+        toast.info('Google re-authorization opened in Chrome. Please approve Drive permissions...');
+        pollTransaction(res.transactionId);
+      }
+    } catch (err: any) {
+      toast.error(`Could not start Google Drive reconnect: ${err.message || err}`);
+    }
+  };
+
+  const handleDisconnect = async (id: string) => {
+    if (!confirm('Are you sure you want to disconnect Google Drive for this workspace?')) return;
+    setActionId(id);
+    try {
+      await window.ipc.invoke('drive:disconnect', { id });
+      toast.success('Google Drive connection removed.');
+      fetchConnections();
+    } catch (err: any) {
+      toast.error(`Failed to disconnect: ${err.message || err}`);
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const driveConnection = connections.find(
+    (c: any) =>
+      c.driveStatus === 'authorized' ||
+      (Array.isArray(c.scopes) && c.scopes.some((s: string) => typeof s === 'string' && s.includes('drive')))
+  ) || connections[0];
+
+  const isDriveAuthorized =
+    driveConnection &&
+    (driveConnection.driveStatus === 'authorized' ||
+      (Array.isArray(driveConnection.scopes) &&
+        driveConnection.scopes.some((s: string) => typeof s === 'string' && s.includes('drive'))));
+
+  return (
+    <div className="bg-card border border-border-subtle rounded-none p-5 space-y-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <HardDrive className="w-4 h-4 text-[#34A853]" />
+            <span>Google Drive Workspace Integration</span>
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+            Authorize Google Drive to browse, attach, and deliver PDF case studies, one-pagers, and sales decks with campaign emails.
+          </p>
+        </div>
+        <div>
+          {isDriveAuthorized ? (
+            <span className="px-2 py-0.5 rounded-none bg-success-muted text-success border border-success/20 text-[10px] font-bold flex items-center gap-1">
+              <CheckCircle className="w-3 h-3" /> Connected ({driveConnection.email})
+            </span>
+          ) : (
+            <span className="px-2 py-0.5 rounded-none bg-warning-muted text-warning border border-warning/20 text-[10px] font-bold">
+              Not Connected
+            </span>
+          )}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="py-4 text-center text-xs text-muted-foreground">Checking Google Drive connection...</div>
+      ) : isDriveAuthorized ? (
+        <div className="border border-border-subtle rounded-none p-3 bg-surface-3/30 flex items-center justify-between">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-foreground">{driveConnection.email}</span>
+              <Badge className="bg-success-muted text-success border border-success/20 text-[9px] font-bold rounded-none">
+                Drive Scope Authorized
+              </Badge>
+            </div>
+            <p className="text-[10px] text-muted-foreground font-mono">
+              Granted Scopes: drive.file, gmail.send, openid, email
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-none h-8 font-semibold text-[11px]"
+              onClick={() => handleReconnect(driveConnection.id || driveConnection._id)}
+              disabled={connecting}
+            >
+              {connecting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Re-authorize'}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="rounded-none h-8 text-[11px] text-danger hover:bg-danger-muted"
+              onClick={() => handleDisconnect(driveConnection.id || driveConnection._id)}
+              disabled={actionId === (driveConnection.id || driveConnection._id)}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="p-4 border border-dashed border-border-subtle rounded-none bg-surface-3/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-foreground">Connect Google Drive to Enable File Attachments</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Secure OAuth authorization allows LeadForge OS to access selected files in your Google Drive.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleConnect}
+            disabled={connecting}
+            className="rounded-none h-8 font-semibold text-[11px] shrink-0 gap-1.5"
+          >
+            {connecting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <HardDrive className="w-3.5 h-3.5" />}
+            <span>{connecting ? 'Waiting for Google...' : 'Connect Google Drive'}</span>
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

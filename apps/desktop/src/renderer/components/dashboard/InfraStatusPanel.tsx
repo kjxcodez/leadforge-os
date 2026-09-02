@@ -14,7 +14,7 @@ interface InfraStatus {
     averageStartupTime?: number;
   };
   scheduler?: { status: string; uptimeMs: number };
-  syncEngine?: { status: string; uptimeMs: number };
+  cacheHydrator?: { status: string; uptimeMs: number };
   automationRuntime?: { status: string; uptimeMs: number };
   workerHost?: { status: string; activeWorkers: number };
   database?: { status: string };
@@ -49,9 +49,9 @@ export function InfraStatusPanel({
       Icon: Clock
     },
     {
-      name: 'Sync Engine',
-      status: infraStatus.syncEngine?.status || 'Stopped',
-      detail: formatUptime(infraStatus.syncEngine?.uptimeMs),
+      name: 'Cache Hydrator',
+      status: infraStatus.cacheHydrator?.status || 'Ready',
+      detail: formatUptime(infraStatus.cacheHydrator?.uptimeMs),
       Icon: RefreshCw
     },
     {

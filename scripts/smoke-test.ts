@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import assert from 'assert';
 import Database from 'better-sqlite3';
-import { runMigrations } from '../apps/desktop/src/main/database/runner';
+import { initCacheSchema } from '../apps/desktop/src/main/database/cache-schema';
 import { JobScheduler } from '../apps/desktop/src/main/services/scheduler';
 import { LocalEventBus } from '../apps/desktop/src/main/lib/event-bus';
 import { AppLogger } from '../apps/desktop/src/main/lib/logger';
@@ -22,33 +22,28 @@ async function main() {
   }
 
   try {
-    // 1. Database Migrations Verification
-    console.log('Step 1: Running SQLite migrations on in-memory database...');
+    // 1. Database Cache Schema Verification
+    console.log('Step 1: Running SQLite cache schema initialization on in-memory database...');
     const db = new Database(':memory:');
-    runMigrations(db);
+    initCacheSchema(db);
 
-    // Run migrations on the workspace DB to support system logs table creation
+    // Run cache schema on the workspace DB
     const { getDatabase } = require('../apps/desktop/src/main/database/connection');
     const wsDb = getDatabase('smoke-workspace');
-    runMigrations(wsDb);
+    initCacheSchema(wsDb);
 
-    // Assert migrations table exists and Initial schema applied
-    const migrationsTable = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='_migrations'")
+    // Assert cache_metadata exists
+    const metadataTable = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='cache_metadata'")
       .get();
-    assert.ok(migrationsTable, 'Migrations tracking table must exist.');
+    assert.ok(metadataTable, 'Cache metadata table must exist.');
 
-    const usersTable = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+    const companiesTable = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='companies'")
       .get();
-    assert.ok(usersTable, 'Users table must exist.');
+    assert.ok(companiesTable, 'Companies table must exist.');
 
-    const jobsTable = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='jobs'")
-      .get();
-    assert.ok(jobsTable, 'Jobs table must exist.');
-
-    console.log('  ✅ Migrations applied successfully.');
+    console.log('  ✅ Cache schema initialized successfully.');
 
     // 2. EventBus and Log Rotation Verification
     console.log('Step 2: Testing local EventBus and structured AppLogger...');
@@ -74,18 +69,6 @@ async function main() {
     // Run start reconciliation
     await scheduler.start();
     console.log('  ✅ JobScheduler booted and initialized.');
-
-    // Submit a dummy scraper job
-    db.prepare(
-      `
-      INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
-      VALUES ('job-smoke-1', 'smoke-workspace', 'scraper:maps', 'queued', 3, '{}', 0, 0, 3, datetime('now'), datetime('now'))
-    `
-    ).run();
-
-    const jobCheck = db.prepare("SELECT status FROM jobs WHERE id = 'job-smoke-1'").get() as any;
-    assert.strictEqual(jobCheck.status, 'queued', 'Job must be queued.');
-    console.log('  ✅ Scheduler enqueued job correctly.');
 
     await scheduler.stop();
     console.log('  ✅ JobScheduler stopped cleanly.');

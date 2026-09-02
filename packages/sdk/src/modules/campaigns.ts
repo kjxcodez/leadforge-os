@@ -1,4 +1,5 @@
 import { HttpClient } from '../http/client.js';
+import { toQueryString } from '../utils/query.js';
 import type {
   Campaign,
   CreateCampaignDto,
@@ -10,7 +11,7 @@ export class CampaignsModule {
   constructor(private client: HttpClient) {}
 
   public async list(filters?: CampaignFilters): Promise<Campaign[]> {
-    const queryParams = filters ? '?' + new URLSearchParams(filters as any).toString() : '';
+    const queryParams = toQueryString(filters as any);
     return this.client.get<Campaign[]>(`/campaigns${queryParams}`);
   }
 

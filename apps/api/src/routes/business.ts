@@ -419,8 +419,29 @@ companiesRouter.get('/', async (c) => {
   const wsId = getWorkspaceId(c);
   const page = parseInt(c.req.query('page') || '1');
   const limit = parseInt(c.req.query('limit') || '100');
+  const status = c.req.query('status');
+  const industry = c.req.query('industry');
+  const city = c.req.query('city');
+  const state = c.req.query('state');
+  const country = c.req.query('country');
+  const location = c.req.query('location');
+  const name = c.req.query('name');
+  const domain = c.req.query('domain');
+  const search = c.req.query('search');
+
+  const filter: any = {};
+  if (status && status !== 'undefined' && status !== 'null') filter.status = status;
+  if (industry && industry !== 'undefined' && industry !== 'null') filter.industry = industry;
+  if (city && city !== 'undefined' && city !== 'null') filter.city = city;
+  if (state && state !== 'undefined' && state !== 'null') filter.state = state;
+  if (country && country !== 'undefined' && country !== 'null') filter.country = country;
+  if (location && location !== 'undefined' && location !== 'null') filter.location = location;
+  if (name && name !== 'undefined' && name !== 'null') filter.name = name;
+  if (domain && domain !== 'undefined' && domain !== 'null') filter.domain = domain;
+  if (search && search !== 'undefined' && search !== 'null') filter.search = search;
+
   const service = new CompanyService(wsId);
-  const result = await service.listCompanies(page, limit);
+  const result = await service.listCompanies(page, limit, filter);
   return c.json(successResponse(result.data));
 });
 
@@ -438,6 +459,14 @@ companiesRouter.post('/', async (c) => {
   const service = new CompanyService(wsId);
   const company = await service.createCompany({ ...body, workspaceId: wsId });
   return c.json(successResponse(company));
+});
+
+companiesRouter.post('/bulk', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const body = await c.req.json();
+  const service = new CompanyService(wsId);
+  const result = await service.createBulk(body);
+  return c.json(successResponse(result), result.failed > 0 && result.inserted === 0 ? 400 : 200);
 });
 
 companiesRouter.patch('/:id', async (c) => {
@@ -463,8 +492,23 @@ contactsRouter.get('/', async (c) => {
   const wsId = getWorkspaceId(c);
   const page = parseInt(c.req.query('page') || '1');
   const limit = parseInt(c.req.query('limit') || '100');
+  const companyId = c.req.query('companyId');
+  const status = c.req.query('status');
+  const email = c.req.query('email');
+  const title = c.req.query('title');
+  const source = c.req.query('source');
+  const search = c.req.query('search');
+
+  const filter: any = {};
+  if (companyId && companyId !== 'undefined' && companyId !== 'null') filter.companyId = companyId;
+  if (status && status !== 'undefined' && status !== 'null') filter.status = status;
+  if (email && email !== 'undefined' && email !== 'null') filter.email = email;
+  if (title && title !== 'undefined' && title !== 'null') filter.title = title;
+  if (source && source !== 'undefined' && source !== 'null') filter.source = source;
+  if (search && search !== 'undefined' && search !== 'null') filter.search = search;
+
   const service = new ContactService(wsId);
-  const result = await service.listContacts(page, limit);
+  const result = await service.listContacts(page, limit, filter);
   return c.json(successResponse(result.data));
 });
 
@@ -482,6 +526,14 @@ contactsRouter.post('/', async (c) => {
   const service = new ContactService(wsId);
   const contact = await service.createContact({ ...body, workspaceId: wsId });
   return c.json(successResponse(contact));
+});
+
+contactsRouter.post('/bulk', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const body = await c.req.json();
+  const service = new ContactService(wsId);
+  const result = await service.createBulk(body);
+  return c.json(successResponse(result), result.failed > 0 && result.inserted === 0 ? 400 : 200);
 });
 
 contactsRouter.patch('/:id', async (c) => {
@@ -663,6 +715,14 @@ discoveryRunsRouter.get('/:id', async (c) => {
   return c.json(successResponse(run));
 });
 
+discoveryRunsRouter.get('/:id/companies', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const service = new DiscoveryRunService(wsId);
+  const companies = await service.getCompaniesForRun(id);
+  return c.json(successResponse(companies));
+});
+
 discoveryRunsRouter.post('/', async (c) => {
   const wsId = getWorkspaceId(c);
   const body = await c.req.json();
@@ -689,6 +749,18 @@ discoveryRunsRouter.delete('/:id', async (c) => {
 });
 
 // ── Company Discovery Runs (Provenance) Router ──────────────────────────────
+
+companyDiscoveryRunsRouter.get('/', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const page = parseInt(c.req.query('page') || '1');
+  const limit = parseInt(c.req.query('limit') || '100');
+  const discoveryRunId = c.req.query('discoveryRunId');
+  const service = new DiscoveryRunService(wsId);
+  const filter: any = {};
+  if (discoveryRunId) filter.discoveryRunId = discoveryRunId;
+  const result = await service.listProvenance(filter, page, limit);
+  return c.json(successResponse(result.data));
+});
 
 companyDiscoveryRunsRouter.post('/', async (c) => {
   const wsId = getWorkspaceId(c);

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
-  objectIdField,
-  objectIdFieldNullable,
+  entityIdField,
+  entityIdFieldNullable,
   nameField,
   emailFieldNullable,
   phoneFieldNullable,
@@ -11,7 +11,8 @@ import { contactStatusSchema, contactSchema } from '../entities/contact.js';
 import { paginationParamsSchema } from '../common/pagination.js';
 
 export const createContactDtoSchema = z.object({
-  companyId: objectIdFieldNullable.optional(),
+  id: entityIdField.optional(),
+  companyId: entityIdFieldNullable.optional(),
   firstName: nameField,
   lastName: z.string().nullable().optional(),
   email: emailFieldNullable.optional(),
@@ -29,9 +30,17 @@ export const updateContactDtoSchema = createContactDtoSchema.partial();
 export type UpdateContactDto = z.infer<typeof updateContactDtoSchema>;
 
 export const contactFiltersSchema = paginationParamsSchema.extend({
-  companyId: objectIdField.optional(),
+  companyId: entityIdField.optional(),
   email: z.string().optional(),
-  status: contactStatusSchema.optional()
+  status: contactStatusSchema.optional(),
+  search: z.string().optional(),
+  title: z.string().optional(),
+  source: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  country: z.string().optional(),
+  location: z.string().optional(),
+  discoveryRunId: z.string().optional()
 });
 export type ContactFilters = z.infer<typeof contactFiltersSchema>;
 

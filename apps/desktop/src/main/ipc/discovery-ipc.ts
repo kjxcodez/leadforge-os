@@ -1,6 +1,9 @@
 import { safeRegister } from './helper';
 import { LocalCRMRepository } from '../database/repositories/local-crm';
 import { getDatabase } from '../database/connection';
+import { WorkspaceManager } from '../lib/workspace-manager';
+import { ProjectionService } from '../services/projection-service';
+import { ConnectivityService } from '../services/connectivity-service';
 
 export function registerDiscoveryIpc() {
   safeRegister('discovery:run:create', async (_event, payload) => {
@@ -11,12 +14,9 @@ export function registerDiscoveryIpc() {
     if (!state || !state.trim()) throw new Error('State / Region is required.');
 
     const runName = name && name.trim() ? name.trim() : `${query} in ${city || state || country || 'Global'}`.trim();
-    const id = globalThis.crypto?.randomUUID
-      ? globalThis.crypto.randomUUID()
-      : require('crypto').randomUUID();
+    const sdk = WorkspaceManager.getSdk();
 
-    const record = {
-      id,
+    const created = await sdk.discovery.createRun({
       workspaceId,
       name: runName,
       query,
@@ -26,44 +26,56 @@ export function registerDiscoveryIpc() {
       provider,
       status: 'running',
       resultCount: 0,
-      startedAt: new Date().toISOString(),
-      syncStatus: 'pending',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+      startedAt: new Date().toISOString()
+    });
 
-    // Save discovery run record (triggers local DB insert + sync queue item)
-    await LocalCRMRepository.save('discovery_runs', record);
+    // Save discovery run record directly into SQLite cache
+    await LocalCRMRepository.saveFromServer('discovery_runs', created);
 
-    // Submit scraper job to scheduler jobs table
-    const db = getDatabase(workspaceId);
+    // Submit scraper job to scheduler via MongoDB SDK
     const jobId = globalThis.crypto?.randomUUID
       ? globalThis.crypto.randomUUID()
       : require('crypto').randomUUID();
 
-    db.prepare(
-      `
-      INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, idempotencyKey, createdAt, updatedAt)
-      VALUES (?, ?, 'scraper:maps', 'queued', 1, ?, 0, 0, 3, NULL, datetime('now'), datetime('now'))
-    `
-    ).run(
-      jobId,
-      workspaceId,
-      JSON.stringify({
-        discoveryRunId: id,
-        query,
-        country,
-        state,
-        city,
-        maxResults
-      })
-    );
+    try {
+      await sdk.jobs.create({
+        id: jobId,
+        type: 'scraper:maps',
+        priority: 1,
+        payload: {
+          discoveryRunId: created.id,
+          query,
+          country,
+          state,
+          city,
+          maxResults
+        },
+        maxRetries: 3
+      });
+    } catch (err) {
+      console.warn('[IPC] Scraper job queueing note:', err);
+    }
 
-    return record;
+    return created;
   });
 
   safeRegister('discovery:run:list', async (_event, { workspaceId }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
+    
+    // Sync latest discovery runs from MongoDB to keep statuses and counts up to date
+    const connState = ConnectivityService.getState();
+    if (connState.status === 'ONLINE') {
+      try {
+        const sdk = WorkspaceManager.getSdk();
+        const serverRuns = await sdk.discovery.listRuns().catch(() => []);
+        if (Array.isArray(serverRuns) && serverRuns.length > 0) {
+          await ProjectionService.projectEntities('discovery_runs', serverRuns, workspaceId);
+        }
+      } catch {
+        // Fallback to existing SQLite cache if network/API is temporarily unavailable
+      }
+    }
+
     return LocalCRMRepository.findMany('discovery_runs', workspaceId);
   });
 
@@ -72,4 +84,33 @@ export function registerDiscoveryIpc() {
     if (!id) throw new Error('id is required.');
     return LocalCRMRepository.findById('discovery_runs', workspaceId, id);
   });
+
+  safeRegister('discovery:run:companies', async (_event, { workspaceId, runId, forceSync }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    if (!runId) throw new Error('runId is required.');
+
+    const connState = ConnectivityService.getState();
+    const isOnline = connState.status === 'ONLINE';
+
+    // Only do a full MongoDB reconcile when explicitly requested (e.g. after a job completes).
+    // Regular polling reads from the local SQLite projection to avoid a reconcile→broadcast→refetch loop.
+    if (isOnline && forceSync) {
+      const sdk = WorkspaceManager.getSdk();
+      return await ProjectionService.reconcileDiscoveryRun(workspaceId, runId, sdk);
+    }
+
+    // Default: serve from the existing SQLite projection (fast, no broadcast side-effect)
+    const db = getDatabase(workspaceId);
+    const rows = db
+      .prepare(
+        `SELECT DISTINCT c.* FROM companies c
+         INNER JOIN company_discovery_runs cdr ON c.id = cdr.companyId
+         WHERE cdr.workspaceId = ? AND cdr.discoveryRunId = ? AND c.deletedAt IS NULL
+         ORDER BY c.createdAt DESC`
+      )
+      .all(workspaceId, runId) as any[];
+
+    return rows || [];
+  });
 }
+

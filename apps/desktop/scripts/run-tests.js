@@ -15,6 +15,7 @@ const tests = [
   'src/main/services/post-release-stabilization.test.ts',
   'src/main/services/desktop-runtime-config.test.ts',
   'src/main/services/fresh-database.test.ts',
+  'src/main/services/fresh-database-all-queries.test.ts',
   'src/main/services/locations.test.ts'
 ];
 

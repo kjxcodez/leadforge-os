@@ -128,7 +128,7 @@ export default function DashboardScreen() {
   const infraStatus = infraQuery.data || {
     workspaceRuntime:  { status: 'Stopped', uptimeMs: 0, restartCount: 0 },
     scheduler:         { status: 'Stopped', uptimeMs: 0 },
-    syncEngine:        { status: 'Stopped', uptimeMs: 0 },
+    cacheHydrator:     { status: 'Ready', uptimeMs: 0 },
     automationRuntime: { status: 'Stopped', uptimeMs: 0 },
     workerHost:        { status: 'Stopped', activeWorkers: 0 },
     database:          { status: 'Connected' }

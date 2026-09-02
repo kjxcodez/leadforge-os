@@ -13,7 +13,6 @@ export interface AudienceDocument
     WorkspaceScopedDocument,
     SoftDeleteDocument,
     TimestampDocument {
-  _id: any;
   name: string;
   description?: string | null;
   entityType: 'companies' | 'contacts' | 'both';
@@ -24,10 +23,6 @@ export interface AudienceDocument
 
 const audienceSchema = new Schema<AudienceDocument>(
   {
-    _id: {
-      type: String,
-      default: () => new mongoose.Types.ObjectId().toString()
-    },
     name: {
       type: String,
       required: true,

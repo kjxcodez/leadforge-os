@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { runMigrations } from '../database/runner';
+import { initCacheSchema } from '../database/cache-schema';
 import { randomUUID } from 'crypto';
 import assert from 'assert';
 import { encryptSecret, decryptSecret } from '../lib/crypto';
@@ -15,9 +15,9 @@ export async function runCampaignTests() {
   const db = new Database(':memory:');
   console.log('[Test] Created in-memory SQLite database.');
 
-  // 2. Run migrations
-  runMigrations(db);
-  console.log('[Test] Applied schema migrations successfully.');
+  // 2. Initialize cache schema
+  initCacheSchema(db);
+  console.log('[Test] Applied cache schema successfully.');
 
   // 3. Test Campaign Creation and Fields
   const campaignId = randomUUID();
@@ -102,26 +102,6 @@ export async function runCampaignTests() {
         WHERE id = ?
       `
       ).run(newStatus, enroll.id);
-
-      if (!isWaiting) {
-        const jobId = randomUUID();
-        db.prepare(
-          `
-          INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
-          VALUES (?, ?, 'automation:workflow', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))
-        `
-        ).run(
-          jobId,
-          workspaceId,
-          JSON.stringify({
-            sequenceId,
-            entityId: enroll.contactId,
-            entityType: 'contact',
-            executionId: enroll.id,
-            workspaceId
-          })
-        );
-      }
     }
   })();
 
@@ -129,13 +109,7 @@ export async function runCampaignTests() {
     .prepare('SELECT * FROM sequence_executions WHERE id = ?')
     .get(enrollmentId) as any;
   assert.strictEqual(activeEnrollRow.status, 'running');
-
-  const queuedJob = db
-    .prepare("SELECT * FROM jobs WHERE workspaceId = ? AND type = 'automation:workflow'")
-    .get(workspaceId) as any;
-  assert.ok(queuedJob);
-  assert.strictEqual(queuedJob.status, 'queued');
-  console.log('✅ Campaign activation cascade and scheduler job enqueuing verified.');
+  console.log('✅ Campaign activation cascade and sequence execution state verified.');
 
   // Transition campaign to Paused
   db.prepare(
@@ -150,29 +124,13 @@ export async function runCampaignTests() {
       WHERE campaignId = ? AND status IN ('running', 'queued', 'starting', 'waiting') AND deletedAt IS NULL
     `
     ).run(campaignId);
-
-    db.prepare(
-      `
-      UPDATE jobs
-      SET status = 'cancelled', updatedAt = datetime('now')
-      WHERE workspaceId = ?
-        AND type = 'automation:workflow'
-        AND json_extract(payload, '$.executionId') IN (
-          SELECT id FROM sequence_executions WHERE campaignId = ?
-        )
-        AND status IN ('queued', 'starting', 'running', 'retrying')
-    `
-    ).run(workspaceId, campaignId);
   })();
 
   const pausedEnrollRowAfter = db
     .prepare('SELECT * FROM sequence_executions WHERE id = ?')
     .get(enrollmentId) as any;
   assert.strictEqual(pausedEnrollRowAfter.status, 'paused');
-
-  const cancelledJob = db.prepare('SELECT * FROM jobs WHERE id = ?').get(queuedJob.id) as any;
-  assert.strictEqual(cancelledJob.status, 'cancelled');
-  console.log('✅ Campaign pause cascade and queued jobs cancellation verified.');
+  console.log('✅ Campaign pause cascade and sequence execution pause verified.');
 
   // 6. Test Stop-If-Replied Hook check
   // Simulate active workflow checking status
@@ -210,70 +168,28 @@ export async function runCampaignTests() {
   assert.strictEqual(decrypted, testSecret);
   console.log('✅ safeStorage encryption fallback verified.');
 
-  // 8. Test Scheduler Stale Job Reconciliation
-  const staleJobId1 = randomUUID();
-  const staleJobId2 = randomUUID();
-
-  // Insert a stale job with retryCount < maxRetries (should be retried)
+  // 8. Test Sequence Execution State Transitions
+  const staleExecId = randomUUID();
   db.prepare(
     `
-    INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
-    VALUES (?, ?, 'automation:workflow', 'running', 3, '{}', 0, 1, 3, datetime('now'), datetime('now'))
+    INSERT INTO sequence_executions (id, workspaceId, sequenceId, contactId, status, currentStep, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, 'running', 1, datetime('now'), datetime('now'))
   `
-  ).run(staleJobId1, workspaceId);
+  ).run(staleExecId, workspaceId, sequenceId, contactId);
 
-  // Insert a stale job with retryCount === maxRetries (should fail)
   db.prepare(
     `
-    INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
-    VALUES (?, ?, 'automation:workflow', 'starting', 3, '{}', 0, 3, 3, datetime('now'), datetime('now'))
+    UPDATE sequence_executions
+    SET status = 'paused', updatedAt = datetime('now')
+    WHERE id = ?
   `
-  ).run(staleJobId2, workspaceId);
+  ).run(staleExecId);
 
-  // Run reconciliation logic
-  const staleJobs = db
-    .prepare(
-      `
-    SELECT id, retryCount, maxRetries FROM jobs
-    WHERE workspaceId = ? AND status IN ('running', 'starting')
-  `
-    )
-    .all(workspaceId) as { id: string; retryCount: number; maxRetries: number }[];
-
-  for (const job of staleJobs) {
-    if (job.retryCount < job.maxRetries) {
-      db.prepare(
-        `
-        UPDATE jobs
-        SET status = 'retrying', retryCount = retryCount + 1, error = 'Worker execution interrupted due to application restart.', updatedAt = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `
-      ).run(job.id);
-    } else {
-      db.prepare(
-        `
-        UPDATE jobs
-        SET status = 'failed', error = 'Worker execution interrupted due to application restart. Max retries exceeded.', updatedAt = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `
-      ).run(job.id);
-    }
-  }
-
-  const job1After = db
-    .prepare('SELECT status, retryCount, error FROM jobs WHERE id = ?')
-    .get(staleJobId1) as any;
-  assert.strictEqual(job1After.status, 'retrying');
-  assert.strictEqual(job1After.retryCount, 2);
-  assert.ok(job1After.error.includes('application restart'));
-
-  const job2After = db
-    .prepare('SELECT status, retryCount, error FROM jobs WHERE id = ?')
-    .get(staleJobId2) as any;
-  assert.strictEqual(job2After.status, 'failed');
-  assert.strictEqual(job2After.retryCount, 3);
-  assert.ok(job2After.error.includes('Max retries exceeded'));
-  console.log('✅ Scheduler stale job reconciliation verified.');
+  const execRowAfter = db
+    .prepare('SELECT status FROM sequence_executions WHERE id = ?')
+    .get(staleExecId) as any;
+  assert.strictEqual(execRowAfter.status, 'paused');
+  console.log('✅ Sequence execution pause state verified.');
 
   // 9. Test Outreach Sequence Construction and Action Mapping Verification (Phase 10B)
   const sequenceId10B = randomUUID();

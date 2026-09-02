@@ -1,4 +1,5 @@
-import mongoose, { type Schema } from 'mongoose';
+import { generateEntityId } from '@leadforge/schema';
+import type { Schema } from 'mongoose';
 
 export interface WorkspaceScopedDocument {
   workspaceId: string;
@@ -8,7 +9,8 @@ export function workspacePlugin(schema: Schema) {
   schema.add({
     _id: {
       type: String,
-      default: () => new mongoose.Types.ObjectId().toString()
+      required: true,
+      default: () => generateEntityId()
     },
     workspaceId: {
       type: String,
@@ -17,3 +19,4 @@ export function workspacePlugin(schema: Schema) {
     }
   });
 }
+

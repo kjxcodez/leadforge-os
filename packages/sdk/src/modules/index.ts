@@ -6,9 +6,16 @@ export * from './campaigns.js';
 export * from './outreach.js';
 export * from './workspaces.js';
 export * from './discovery.js';
-export * from './activities.js';
+export * from './drive.js';
 export * from './automation.js';
 export * from './audiences.js';
 export * from './company-discovery-runs.js';
-
-
+export * from './jobs.js';
+export * from './locks.js';
+export * from './email-deliveries.js';
+export * from './intelligence.js';
+export * from './workspace-memory.js';
+export * from './audit-logs.js';
+export * from './system-logs.js';
+export * from './google-connections.js';
+export * from './attachments.js';

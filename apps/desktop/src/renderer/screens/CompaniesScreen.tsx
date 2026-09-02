@@ -174,7 +174,7 @@ export default function CompaniesScreen() {
       domainStr.toLowerCase().includes(searchLower) ||
       tagsStr.toLowerCase().includes(searchLower) ||
       notesStr.toLowerCase().includes(searchLower);
-    const matchesStatus = !statusFilter || c.status === statusFilter;
+    const matchesStatus = !statusFilter || (c.status && String(c.status).toUpperCase() === statusFilter.toUpperCase());
     const matchesIndustry = !industryFilter || (c.industry && c.industry.toLowerCase().includes(industryFilter.toLowerCase()));
     const matchesLocation = !locationFilter || (c.location && c.location.toLowerCase().includes(locationFilter.toLowerCase()));
     const matchesCity = !cityFilter || (c.city && c.city.toLowerCase() === cityFilter.toLowerCase()) || (c.location && c.location.toLowerCase().includes(cityFilter.toLowerCase()));

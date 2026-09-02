@@ -8,13 +8,27 @@ const emptyToNull = (val: unknown) => {
   return val;
 };
 
-export const objectIdField = z.string().min(1, 'ID is required');
+export const entityIdField = z
+  .string()
+  .min(1, 'Entity ID is required')
+  .max(128, 'Entity ID exceeds maximum length of 128 characters');
 
 // Nullable variant that accepts empty strings (coerces them to null)
-export const objectIdFieldNullable = z.preprocess(
+export const entityIdFieldNullable = z.preprocess(
   emptyToNull,
-  z.string().nullable()
+  z.string().max(128, 'Entity ID exceeds maximum length of 128 characters').nullable().optional()
 );
+
+/**
+ * @deprecated Use entityIdField instead. BSON ObjectIds are prohibited; all LeadForge IDs are canonical strings.
+ */
+export const objectIdField = entityIdField;
+
+/**
+ * @deprecated Use entityIdFieldNullable instead.
+ */
+export const objectIdFieldNullable = entityIdFieldNullable;
+
 
 export const emailField = z.string().email({ message: 'Invalid email address' });
 

@@ -3,8 +3,8 @@ import { join, resolve } from 'path';
 import fs from 'fs';
 import { is } from '@electron-toolkit/utils';
 import { SdkClient } from '@leadforge/sdk';
-import { runMigrations } from './database/runner';
-import { closeDatabase } from './database/connection';
+import { initCacheSchema, ensureCleanCache } from './database/cache-schema';
+import { getDatabase, closeDatabase } from './database/connection';
 import { registerAllIpc } from './ipc/register';
 import { loadSession, clearSession } from './lib/session';
 import { AppLogger } from './lib/logger';
@@ -15,6 +15,8 @@ import { UpdateManager } from './services/updater';
 import { LocalCrashReporter } from './lib/crash-reporter';
 import { loadConfig } from './lib/config';
 import { ensurePlaywrightBrowsers } from './lib/playwright-setup';
+import { WorkspaceManager } from './lib/workspace-manager';
+import { ConnectivityService } from './services/connectivity-service';
 
 // Load .env for main process (electron-vite only loads it for renderer)
 try {
@@ -40,6 +42,7 @@ LocalCrashReporter.initialize();
 
 // Main window reference
 let mainWindow: BrowserWindow | null = null;
+let restoredSession: any = null;
 
 // Local config persistence
 function getLocalConfigPath() {
@@ -176,11 +179,11 @@ app.whenReady().then(async () => {
   const sessionStart = Date.now();
   updateSplashProgress('session', 'Restoring user session...');
   try {
-    const session = loadSession();
-    if (session) {
-      activeToken = session.accessToken;
+    restoredSession = loadSession();
+    if (restoredSession) {
+      activeToken = restoredSession.accessToken;
       const persistedWorkspace = getPersistedActiveWorkspace();
-      const workspaceId = persistedWorkspace || session.activeWorkspaceId;
+      const workspaceId = persistedWorkspace || restoredSession.activeWorkspaceId;
       if (workspaceId) {
         customHeaders['x-workspace-id'] = workspaceId;
       }
@@ -191,11 +194,11 @@ app.whenReady().then(async () => {
   }
   telemetry.sessionRestoreDuration = Date.now() - sessionStart;
 
-  // 1. Run SQLite schema migrations
+  // 1. Initialize clean SQLite cache schema
   try {
-    runMigrations();
+    ensureCleanCache(getDatabase());
   } catch (err) {
-    console.error('Failed to run local SQLite migrations:', err);
+    console.error('Failed to initialize local SQLite cache schema:', err);
   }
 
   // Load dynamic configuration
@@ -240,6 +243,45 @@ app.whenReady().then(async () => {
     persistActiveWorkspace,
     getPersistedActiveWorkspace
   );
+
+  // 4. API Connectivity & Health Gate
+  // Gated startup: verify API reachability before activating workspace runtimes
+  updateSplashProgress('connectivity:check', 'Verifying API connectivity...');
+  const connState = await ConnectivityService.checkConnectivity(config.apiUrl, 3500);
+
+  if (connState.status === 'ONLINE') {
+    updateSplashProgress('connectivity:ready', '✓ API Connected');
+    if (restoredSession) {
+      const persistedWorkspace = getPersistedActiveWorkspace();
+      const wsId = persistedWorkspace || restoredSession.activeWorkspaceId;
+      if (wsId) {
+        try {
+          await WorkspaceManager.setActiveWorkspace(wsId);
+          AppLogger.info('workspace', `Workspace runtime eagerly activated on startup: ${wsId}`);
+        } catch (wsErr) {
+          AppLogger.error('workspace', `Failed to activate restored workspace on startup: ${wsId}`, wsId, wsErr);
+        }
+      }
+    }
+  } else if (connState.status === 'AUTHENTICATION_REQUIRED') {
+    updateSplashProgress('connectivity:auth', 'Authentication required');
+    AppLogger.warn('auth', 'Stored session is invalid or expired. Clearing stale session credentials.');
+    clearSession();
+    activeToken = null;
+    delete customHeaders['x-workspace-id'];
+    persistActiveWorkspace(null);
+  } else {
+    // DEGRADED / OFFLINE
+    updateSplashProgress('connectivity:degraded', 'Operating in Offline Mode');
+    AppLogger.warn(
+      'connectivity',
+      `workspace_runtime_start_blocked: API is ${connState.error?.code || 'UNREACHABLE'}. Operating in degraded offline state.`,
+      undefined,
+      { error: connState.error }
+    );
+    // Note: Do NOT activate WorkspaceRuntime or start scheduler when offline.
+    // Preserved session on disk remains available for reconnection.
+  }
 
   // Synchronous settings getter for theme/sidebar restore on boot
   ipcMain.on('settings:getSync', (event) => {

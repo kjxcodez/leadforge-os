@@ -19,12 +19,14 @@ assert.strictEqual(
 );
 console.log('✅ Variable interpolation passed.');
 
-// Test 2: plainTextToHtml paragraph and line-break conversion
+// Test 2: plainTextToHtml paragraph and line-break conversion with Gmail default typography
 const html = plainTextToHtml(rendered);
-assert.ok(html.includes('<p style="margin:0 0 16px 0;line-height:1.5;">Hello Sarah,</p>'));
-assert.ok(html.includes('<p style="margin:0 0 16px 0;line-height:1.5;">I noticed Cyberdyne Systems is hiring.<br/>Let me know if you are open to chatting.</p>'));
-assert.ok(html.includes('<p style="margin:0 0 16px 0;line-height:1.5;">Best,<br/>John Doe</p>'));
-console.log('✅ plainTextToHtml paragraph blocks and line breaks passed.');
+assert.ok(html.startsWith('<div style="font-family:sans-serif;line-height:107%;">'));
+assert.ok(html.endsWith('</div>'));
+assert.ok(html.includes('<p style="margin:0 0 16px 0;line-height:107%;">Hello Sarah,</p>'));
+assert.ok(html.includes('<p style="margin:0 0 16px 0;line-height:107%;">I noticed Cyberdyne Systems is hiring.<br/>Let me know if you are open to chatting.</p>'));
+assert.ok(html.includes('<p style="margin:0 0 16px 0;line-height:107%;">Best,<br/>John Doe</p>'));
+console.log('✅ plainTextToHtml paragraph blocks, line breaks, and default typography passed.');
 
 // Test 3: formatEmailBody returns both text and html
 const formatted = formatEmailBody(rendered);
@@ -40,10 +42,12 @@ assert.ok(escapedHtml.includes('&gt;'));
 assert.ok(escapedHtml.includes('&amp;'));
 assert.ok(escapedHtml.includes('&quot;'));
 assert.ok(escapedHtml.includes('&#39;'));
-console.log('✅ HTML escaping passed.');
+assert.ok(escapedHtml.includes('font-family:sans-serif'));
+assert.ok(escapedHtml.includes('line-height:107%'));
+console.log('✅ HTML escaping and root typography passed.');
 
 // Test 5: extractTemplateVariables with namespaced and dot tokens
-const { extractTemplateVariables } = await import('./variable-resolver.js');
+const { extractTemplateVariables, wrapHtmlWithDefaultTypography } = await import('./variable-resolver.js');
 const extracted = extractTemplateVariables('Hi {{contact.firstName}} from {{company.name}} ({{company.domain}})! Contact us at {{sender.email}}.');
 assert.deepStrictEqual(extracted, ['contact.firstName', 'company.name', 'company.domain', 'sender.email']);
 console.log('✅ extractTemplateVariables with namespaced tokens passed.');
@@ -57,5 +61,15 @@ const nullCompanyCtx: CanonicalVariableContext = {
 const missingCompanyRendered = renderCanonicalVariables('Hi {{contact.firstName}}, working at {{company.name}}', nullCompanyCtx);
 assert.strictEqual(missingCompanyRendered, 'Hi Alice, working at ');
 console.log('✅ Null company fallback handling passed.');
+
+// Test 7: wrapHtmlWithDefaultTypography
+const rawHtmlSnippet = '<p>Custom HTML paragraph</p>';
+const wrappedSnippet = wrapHtmlWithDefaultTypography(rawHtmlSnippet);
+assert.strictEqual(wrappedSnippet, '<div style="font-family:sans-serif;line-height:107%;"><p>Custom HTML paragraph</p></div>');
+
+// Already wrapped should not be double wrapped
+const doubleWrapped = wrapHtmlWithDefaultTypography(wrappedSnippet);
+assert.strictEqual(doubleWrapped, wrappedSnippet);
+console.log('✅ wrapHtmlWithDefaultTypography passed.');
 
 console.log('[SDK Test] All variable-resolver and formatting tests PASSED!');

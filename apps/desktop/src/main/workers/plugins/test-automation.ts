@@ -206,6 +206,32 @@ async function runTests() {
   db.prepare('DELETE FROM jobs').run();
 
   console.log('2. Testing ActionRegistry.RUN_DISCOVERY execution');
+  const sdkMock: any = {
+    jobs: {
+      create: async (job: any) => {
+        db.prepare(
+          `INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, 0, 0, 3, datetime('now'), datetime('now'))`
+        ).run(job.id, job.workspaceId, job.type, job.status, job.priority, JSON.stringify(job.payload));
+        return job;
+      }
+    },
+    campaigns: {
+      get: async (id: string) => {
+        return db.prepare('SELECT * FROM campaigns WHERE id = ?').get(id) as any;
+      }
+    },
+    executions: {
+      create: async (exec: any) => {
+        db.prepare(
+          `INSERT INTO sequence_executions (id, sequenceId, campaignId, workspaceId, contactId, companyId, currentStep, currentStepName, status, startedAt, logs, emailsSent, replies, failures, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?, NULL, 0, 'Initial', ?, ?, '[]', 0, 0, 0, datetime('now'), datetime('now'))`
+        ).run(exec.id, exec.sequenceId, exec.campaignId, exec.workspaceId, exec.contactId, exec.status, exec.startedAt);
+        return exec;
+      }
+    }
+  };
+
   const contextMock: any = {
     payload: {},
     emitLog: (msg: string, severity: string) => {
@@ -214,7 +240,7 @@ async function runTests() {
   };
 
   await ActionRegistry.RUN_DISCOVERY!.execute(
-    db,
+    sdkMock,
     'entity_1',
     workspaceId,
     'seq_1',
@@ -240,7 +266,7 @@ async function runTests() {
   ).run(workspaceId);
 
   await ActionRegistry.ENROLL_CONTACT!.execute(
-    db,
+    sdkMock,
     'contact_1',
     workspaceId,
     'seq_1',
@@ -261,7 +287,7 @@ async function runTests() {
 
   console.log('4. Testing ActionRegistry.SEND_NOTIFICATION execution');
   await ActionRegistry.SEND_NOTIFICATION!.execute(
-    db,
+    sdkMock,
     'contact_1',
     workspaceId,
     'seq_1',

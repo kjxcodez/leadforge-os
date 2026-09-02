@@ -1,4 +1,5 @@
 import mongoose, { Schema } from 'mongoose';
+import { generateEntityId } from '@leadforge/schema';
 import {
   softDeletePlugin,
   auditPlugin,
@@ -21,7 +22,7 @@ export interface WorkspaceMember {
 }
 
 export interface WorkspaceDocument
-  extends mongoose.Document<any>, SoftDeleteDocument, AuditDocument, TimestampDocument {
+  extends mongoose.Document<string>, SoftDeleteDocument, AuditDocument, TimestampDocument {
   _id: string;
   name: string;
   slug: string;
@@ -42,7 +43,8 @@ const workspaceSchema = new Schema<WorkspaceDocument>(
   {
     _id: {
       type: String,
-      default: () => new mongoose.Types.ObjectId().toString()
+      required: true,
+      default: () => generateEntityId()
     },
     name: {
       type: String,

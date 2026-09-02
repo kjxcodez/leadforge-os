@@ -90,6 +90,17 @@ export function OperationsCenterScreen() {
     refetchInterval: 3000
   });
 
+  // 1b. Fetch authoritative infrastructure status
+  const infraQuery = useQuery({
+    queryKey: ['infrastructure-status', workspaceId],
+    queryFn: async () => {
+      if (!workspaceId) return null;
+      return window.ipc.invoke('system:infrastructure-status' as any, { workspaceId });
+    },
+    enabled: !!workspaceId,
+    refetchInterval: 4000
+  });
+
   // 2. Fetch structured logs
   const logsQuery = useQuery({
     queryKey: ['system_logs', workspaceId, logSearch, logSeverity],
@@ -158,6 +169,39 @@ export function OperationsCenterScreen() {
     enabled: !!workspaceId,
     refetchInterval: 5000
   });
+
+  // 7. Fetch Developer Mode events when Dev Mode is active
+  useQuery({
+    queryKey: ['dev_mode_events', workspaceId, devModeActive],
+    queryFn: async () => {
+      if (!devModeActive) return [];
+      const events = await window.ipc.invoke('dev-mode:log' as any, { workspaceId, limit: 200 });
+      if (Array.isArray(events)) {
+        setDevEvents(events);
+      }
+      return events;
+    },
+    enabled: devModeActive,
+    refetchInterval: 2000
+  });
+
+  // Live system:log:event subscription for real-time telemetry
+  useEffect(() => {
+    const unsubLog = (window.ipc as any).on?.('system:log:event', (record: any) => {
+      setDevEvents((prev) => [
+        {
+          timestamp: record.timestamp || new Date().toISOString(),
+          type: record.severity?.toUpperCase() || 'LOG',
+          message: `[${record.task}] ${record.message}`,
+          meta: record.metadata
+        },
+        ...prev.slice(0, 499)
+      ]);
+    });
+    return () => {
+      if (typeof unsubLog === 'function') unsubLog();
+    };
+  }, []);
 
   // SRE recovery execution mutation
   const recoveryMutation = useMutation({
@@ -327,9 +371,21 @@ export function OperationsCenterScreen() {
               <Terminal className="h-3 w-3 mr-1" />
               Developer Mode: {devModeActive ? 'ON' : 'OFF'}
             </Button>
-            <Badge className="bg-success-muted text-success border border-success/20 font-semibold rounded-none">
-              Scheduler Status: Active
-            </Badge>
+            {(() => {
+              const schedulerStatus = infraQuery.data?.scheduler?.status;
+              const isSchedulerActive = schedulerStatus === 'Running' || schedulerStatus === 'Active' || schedulerStatus === 'ACTIVE';
+              return (
+                <Badge
+                  className={
+                    isSchedulerActive
+                      ? 'bg-success-muted text-success border border-success/20 font-semibold rounded-none'
+                      : 'bg-muted-muted text-muted-foreground border border-border-subtle font-semibold rounded-none'
+                  }
+                >
+                  Scheduler Status: {isSchedulerActive ? 'Active' : 'Stopped'}
+                </Badge>
+              );
+            })()}
           </div>
         }
       />
@@ -814,8 +870,8 @@ export function OperationsCenterScreen() {
                         Background Engines Status
                       </span>
                       <span className="font-semibold text-foreground">
-                        Scheduler: {systemInfoQuery.data.schedulerStatus} | Sync:{' '}
-                        {systemInfoQuery.data.syncEngineStatus}
+                        Scheduler: {systemInfoQuery.data.schedulerStatus} | Cache:{' '}
+                        {systemInfoQuery.data.cacheStatus || 'Ready'}
                       </span>
                     </div>
                     <div className="space-y-1 bg-surface-3 p-2 rounded-none border border-border-subtle/50 sm:col-span-2">
@@ -1255,10 +1311,10 @@ export function OperationsCenterScreen() {
               <div className="bg-surface-3 border border-border-subtle rounded-none p-3 flex justify-between items-center gap-4">
                 <div>
                   <span className="font-bold text-foreground block text-[10px] uppercase tracking-wide">
-                    Restore Migration Backup
+                    Rebuild Local Cache
                   </span>
                   <p className="text-muted-foreground text-[10px] mt-0.5 font-medium">
-                    Restore database workspace from the daily `.migration.bak` copy.
+                    Reset and rebuild local SQLite disposable cache directly from MongoDB.
                   </p>
                 </div>
                 <Button

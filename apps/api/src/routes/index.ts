@@ -13,6 +13,15 @@ import {
 } from './business.js';
 import { automationRouter } from './automation.js';
 import { emailRouter } from './email/index.js';
+import { jobsRouter } from './jobs.js';
+import { locksRouter } from './locks.js';
+import { deliveriesRouter } from './deliveries.js';
+import { intelligenceRouter } from './intelligence.js';
+import { memoryRouter } from './memory.js';
+import { auditRouter } from './audit.js';
+import { systemLogsRouter } from './system-logs.js';
+import { googleConnectionsRouter } from './google-connections.js';
+import { attachmentsRouter } from './attachments.js';
 
 import { authMiddleware, workspaceMiddleware, rateLimiter } from '../middleware/index.js';
 import { BetaApplicantModel } from '../db/models/index.js';
@@ -67,7 +76,7 @@ apiRouter.post(
   }
 );
 
-// Protect business and workspace endpoints
+// Protect business and workspace endpoints with authentication and workspace scoping
 apiRouter.use('/companies/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/contacts/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/campaigns/*', authMiddleware, workspaceMiddleware);
@@ -77,6 +86,16 @@ apiRouter.use('/automation/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/discovery-runs/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/company-discovery-runs/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/audiences/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/jobs/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/automation-locks/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/email-deliveries/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/intelligence/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/workspace-memory/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/audit-logs/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/system-logs/*', authMiddleware, workspaceMiddleware);
+
+apiRouter.use('/attachments/*', authMiddleware, workspaceMiddleware);
+
 // Protect email endpoints except public OAuth callback from Chrome
 apiRouter.use('/email/*', async (c, next) => {
   if (c.req.path.endsWith('/email/accounts/gmail/oauth/callback')) {
@@ -85,7 +104,15 @@ apiRouter.use('/email/*', async (c, next) => {
   return authMiddleware(c, async () => workspaceMiddleware(c, next));
 });
 
-// Mount empty placeholder business routers
+// Protect google-connections endpoints except public OAuth callback from Chrome
+apiRouter.use('/google-connections/*', async (c, next) => {
+  if (c.req.path.endsWith('/google-connections/oauth/callback')) {
+    return next();
+  }
+  return authMiddleware(c, async () => workspaceMiddleware(c, next));
+});
+
+// Mount business and operational routers
 apiRouter.route('/companies', companiesRouter);
 apiRouter.route('/contacts', contactsRouter);
 apiRouter.route('/campaigns', campaignsRouter);
@@ -93,9 +120,18 @@ apiRouter.route('/outreach', outreachRouter);
 apiRouter.route('/workspaces', workspacesRouter);
 apiRouter.route('/automation', automationRouter);
 apiRouter.route('/email', emailRouter);
+apiRouter.route('/google-connections', googleConnectionsRouter);
+apiRouter.route('/attachments', attachmentsRouter);
 apiRouter.route('/discovery-runs', discoveryRunsRouter);
 apiRouter.route('/company-discovery-runs', companyDiscoveryRunsRouter);
 apiRouter.route('/audiences', audiencesRouter);
+apiRouter.route('/jobs', jobsRouter);
+apiRouter.route('/automation-locks', locksRouter);
+apiRouter.route('/email-deliveries', deliveriesRouter);
+apiRouter.route('/intelligence', intelligenceRouter);
+apiRouter.route('/workspace-memory', memoryRouter);
+apiRouter.route('/audit-logs', auditRouter);
+apiRouter.route('/system-logs', systemLogsRouter);
 
 export { apiRouter };
 export { healthRouter, authRouter };

@@ -13,6 +13,7 @@ import ProductTour from '../components/onboarding/ProductTour';
 import { CommandPalette } from '../components/common/CommandPalette';
 import { NotificationCenter } from '../components/common/NotificationCenter';
 import { WhatsNewDialog } from '../components/common/WhatsNewDialog';
+import { ConnectivityBanner } from '../components/common/ConnectivityBanner';
 
 /**
  * AppLayout — the authenticated application shell.
@@ -48,20 +49,66 @@ export function AppLayout() {
     }
   }, [activeWorkspace]);
 
-  // Invalidate all queries when a sync completes
+  // Invalidate all queries when a sync completes or connection is recovered.
+  // Debounced to 500 ms to prevent rapid-fire sync:completed events (e.g. from a
+  // scraper job streaming progress) from cascading back into a reconciliation loop.
   useEffect(() => {
     const workspaceId = activeWorkspace?.id;
     if (!workspaceId) return;
 
-    const unsubscribe = window.ipc.on('sync:completed', () => {
-      console.log('[Renderer] Sync completed — invalidating queries.');
-      queryClient.invalidateQueries();
+    let syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const debouncedInvalidate = () => {
+      if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
+      syncDebounceTimer = setTimeout(() => {
+        console.log('[Renderer] Sync completed — invalidating queries.');
+        queryClient.invalidateQueries();
+      }, 500);
+    };
+
+    const unsubscribeSync = window.ipc.on('sync:completed', debouncedInvalidate);
+
+    const unsubscribeEmailAcc = window.ipc.on('email-accounts:changed' as any, () => {
+      console.log('[Renderer] Email accounts changed — invalidating email_accounts queries.');
+      queryClient.invalidateQueries({ queryKey: ['email_accounts'] });
+    });
+
+    const unsubscribeGoogleConn = window.ipc.on('google-connections:changed' as any, () => {
+      console.log('[Renderer] Google connections changed — invalidating connection queries.');
+      queryClient.invalidateQueries({ queryKey: ['google_connections'] });
+      queryClient.invalidateQueries({ queryKey: ['drive_connections'] });
+      queryClient.invalidateQueries({ queryKey: ['media'] });
+    });
+
+    const unsubscribeConn = window.ipc.on('system:connectivity-changed' as any, (state: any) => {
+      if (state?.status === 'ONLINE') {
+        console.log('[Renderer] Connection restored to ONLINE — invalidating queries.');
+        queryClient.invalidateQueries();
+      }
     });
 
     return () => {
-      unsubscribe();
+      if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
+      unsubscribeSync();
+      unsubscribeEmailAcc();
+      unsubscribeGoogleConn();
+      unsubscribeConn();
     };
   }, [activeWorkspace?.id, queryClient]);
+
+  const { isLoading } = useWorkspace();
+
+  // ── Initializing state: show clean progress gate ─────────────────────────
+  if (isLoading && !activeWorkspace) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background px-4">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="text-xs text-muted-foreground font-mono">Initializing workspace...</p>
+        </div>
+      </div>
+    );
+  }
 
   // ── No workspace: prompt to create one ───────────────────────────────────
   if (!activeWorkspace) {
@@ -94,6 +141,7 @@ export function AppLayout() {
 
         <SidebarInset className="flex flex-col min-w-0">
           <AppHeader onOpenNotifications={() => setNotificationsOpen(true)} />
+          <ConnectivityBanner />
           <main className="flex-1 overflow-y-auto p-4 max-h-[calc(100vh-44px)]">
             <Suspense fallback={<AppContentSkeleton />}>
               <AnimatePresence mode="wait" initial={false}>

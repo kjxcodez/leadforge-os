@@ -1,30 +1,36 @@
 import { z } from 'zod';
-import { objectIdField, nameField } from '../fields/common.js';
+import { entityIdField, entityIdFieldNullable, nameField } from '../fields/common.js';
 
 /**
- * Represents a managed attachment file that has been saved to userData/attachments/.
- * storagePath is the absolute path on the local machine where the file is persisted.
- * contentType is optional; resolved at send time if absent.
+ * Represents an attachment file metadata descriptor.
+ * Durable binaries reside in Google Drive; metadata lives in MongoDB.
  */
 export const attachmentItemSchema = z.object({
   id: z.string(),
   filename: z.string(),
   size: z.number().int().nonnegative(),
-  storagePath: z.string(),
-  contentType: z.string().optional()
+  provider: z.enum(['google-drive', 'local']).default('google-drive'),
+  fileId: z.string().nullable().optional(),
+  driveUrl: z.string().nullable().optional(),
+  googleConnectionId: z.string().nullable().optional(),
+  thumbnailUrl: z.string().nullable().optional(),
+  storagePath: z.string().nullable().optional(),
+  contentType: z.string().nullable().optional(),
+  mimeType: z.string().nullable().optional(),
+  contentBase64: z.string().nullable().optional()
 });
 export type AttachmentItem = z.infer<typeof attachmentItemSchema>;
 
 export const emailTemplateSchema = z.object({
-  id: objectIdField,
-  workspaceId: objectIdField,
+  id: entityIdField,
+  workspaceId: entityIdField,
   name: nameField,
   subject: z.string(),
   body: z.string(),
-  variables: z.array(z.string()),
-  attachments: z.array(attachmentItemSchema).optional(),
-  createdAt: z.date(),
-  updatedAt: z.date()
+  variables: z.array(z.string()).default([]),
+  attachments: z.array(attachmentItemSchema).optional().default([]),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date()
 });
 export type EmailTemplate = z.infer<typeof emailTemplateSchema>;
 
@@ -37,18 +43,18 @@ export const emailMessageSchema = z.object({
 export type EmailMessage = z.infer<typeof emailMessageSchema>;
 
 export const outreachSchema = z.object({
-  id: objectIdField,
-  workspaceId: objectIdField,
-  contactId: objectIdField,
-  campaignId: objectIdField.nullable().optional(),
-  companyId: objectIdField.nullable().optional(),
+  id: entityIdField,
+  workspaceId: entityIdField,
+  contactId: entityIdField,
+  campaignId: entityIdFieldNullable,
+  companyId: entityIdFieldNullable,
   provider: z.string(),
   status: z.string(),
   attempts: z.number().int().nonnegative().default(0),
-  lastSentAt: z.date().nullable().optional(),
+  lastSentAt: z.coerce.date().nullable().optional(),
   messageDetails: emailMessageSchema.nullable().optional(),
-  createdAt: z.date(),
-  updatedAt: z.date()
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date()
 });
 export type Outreach = z.infer<typeof outreachSchema>;
 
@@ -60,17 +66,20 @@ export const testRecipientSchema = z.object({
 export type TestRecipient = z.infer<typeof testRecipientSchema>;
 
 export const emailAccountSchema = z.object({
-  id: z.string(),
+  id: entityIdField,
+  workspaceId: entityIdField.optional(),
   name: z.string(),
   email: z.string().email(),
-  provider: z.enum(['gmail_oauth', 'other']),
+  provider: z.enum(['gmail', 'gmail_oauth', 'unsupported']).default('gmail'),
+  googleConnectionId: z.string().nullable().optional(),
   status: z.enum([
     'connected',
     'reauth_required',
     'disconnected',
     'failed',
-    'disabled'
-  ]),
+    'disabled',
+    'unsupported'
+  ]).default('connected'),
   dailyLimit: z.number().int().default(200),
   hourlyLimit: z.number().int().default(50),
   dailySent: z.number().int().default(0),
@@ -87,8 +96,8 @@ export const emailAccountSchema = z.object({
 export type EmailAccount = z.infer<typeof emailAccountSchema>;
 
 export const audienceSchema = z.object({
-  id: objectIdField,
-  workspaceId: objectIdField,
+  id: entityIdField,
+  workspaceId: entityIdField,
   name: nameField,
   description: z.string().nullable().optional(),
   entityType: z.enum(['companies', 'contacts', 'both']).default('contacts'),
@@ -103,4 +112,5 @@ export const audienceSchema = z.object({
   updatedAt: z.union([z.date(), z.string()]).optional()
 });
 export type Audience = z.infer<typeof audienceSchema>;
+
 

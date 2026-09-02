@@ -1,4 +1,3 @@
-import nodemailer from 'nodemailer';
 import { logger } from '@leadforge/logger';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -163,25 +162,10 @@ function divider(): string {
 // ─────────────────────────────────────────────────────────────────────────────
 export class MailerService {
   private static instance: MailerService;
-  private transporter: nodemailer.Transporter | null = null;
   private fromAddress: string = 'LeadForge OS <noreply.leadforgeos@gmail.com>';
 
   private constructor() {
-    const host = process.env.SMTP_HOST;
-    const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
-    const secure = process.env.SMTP_SECURE === 'true';
-    const user = process.env.SMTP_USER;
-    const pass = process.env.SMTP_PASS;
-    const from = process.env.SMTP_FROM;
-
-    if (from) this.fromAddress = from;
-
-    if (host && port && user && pass) {
-      logger.info(`Mailer: Initializing SMTP transport → ${host}:${port}`);
-      this.transporter = nodemailer.createTransport({ host, port, secure, auth: { user, pass } });
-    } else {
-      logger.warn('Mailer: SMTP not configured — emails will be logged to console only.');
-    }
+    logger.info('Mailer: Initialized transactional system mailer.');
   }
 
   public static getInstance(): MailerService {
@@ -190,31 +174,11 @@ export class MailerService {
   }
 
   public async sendMail(to: string, subject: string, html: string, text: string): Promise<void> {
-    if (this.transporter) {
-      try {
-        await this.transporter.sendMail({ from: this.fromAddress, to, subject, text, html });
-        logger.info(`Mailer: Sent → ${to} [${subject}]`);
-      } catch (err: any) {
-        logger.error(err, `Mailer: Failed → ${to}`);
-        throw err;
-      }
-    } else {
-      logger.info(`[DEV MAIL] To: ${to}\nSubject: ${subject}\n\n${text}\n`);
-    }
+    logger.info(`[SYSTEM MAIL] To: ${to} | Subject: ${subject}\n${text}`);
   }
 
   public async sendTextMail(to: string, subject: string, text: string): Promise<void> {
-    if (this.transporter) {
-      try {
-        await this.transporter.sendMail({ from: this.fromAddress, to, subject, text });
-        logger.info(`Mailer: Sent Text → ${to} [${subject}]`);
-      } catch (err: any) {
-        logger.error(err, `Mailer: Failed Text → ${to}`);
-        throw err;
-      }
-    } else {
-      logger.info(`[DEV TEXT MAIL] To: ${to}\nSubject: ${subject}\n\n${text}\n`);
-    }
+    logger.info(`[SYSTEM TEXT MAIL] To: ${to} | Subject: ${subject}\n${text}`);
   }
 
   // ──────────────────────────────────────────────────────────────────────────

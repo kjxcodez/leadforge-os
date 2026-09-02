@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
+import type { SdkClient } from '@leadforge/sdk';
 import type { LocalEventBus, AppEvent, EventType } from '../lib/event-bus';
 
 // ── Trigger type constants ────────────────────────────────────────────────────
@@ -220,11 +221,6 @@ export class AutomationTriggerEvaluator {
   private readonly stmtLoadSequences: Database.Statement;
 
   /**
-   * Cached prepared statement for checking existing in-flight jobs.
-   */
-  private readonly stmtCheckExistingJob: Database.Statement;
-
-  /**
    * Cached prepared statement for checking existing running/waiting executions.
    */
   private readonly stmtCheckExistingExecution: Database.Statement;
@@ -232,12 +228,11 @@ export class AutomationTriggerEvaluator {
   /**
    * Cached prepared statement for inserting a new automation workflow job.
    */
-  private readonly stmtInsertJob: Database.Statement;
-
   constructor(
     private readonly workspaceId: string,
     private readonly db: Database.Database,
-    private readonly eventBus: LocalEventBus
+    private readonly eventBus: LocalEventBus,
+    private readonly sdk?: SdkClient
   ) {
     // Pre-compile all prepared statements once — never re-compiled on every event.
     this.stmtLoadSequences = this.db.prepare(`
@@ -248,16 +243,6 @@ export class AutomationTriggerEvaluator {
         AND deletedAt IS NULL
     `);
 
-    this.stmtCheckExistingJob = this.db.prepare(`
-      SELECT id FROM jobs
-      WHERE workspaceId = ?
-        AND type = 'automation:workflow'
-        AND json_extract(payload, '$.sequenceId') = ?
-        AND json_extract(payload, '$.entityId') = ?
-        AND status IN ('queued', 'starting', 'running', 'retrying')
-      LIMIT 1
-    `);
-
     this.stmtCheckExistingExecution = this.db.prepare(`
       SELECT id FROM sequence_executions
       WHERE workspaceId = ?
@@ -266,14 +251,11 @@ export class AutomationTriggerEvaluator {
         AND status IN ('running', 'waiting')
       LIMIT 1
     `);
-
-    this.stmtInsertJob = this.db.prepare(`
-      INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
-      VALUES (?, ?, 'automation:workflow', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))
-    `);
   }
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────────
+  public get isRunning(): boolean {
+    return this.unsubscribers.length > 0;
+  }
 
   /**
    * Starts the evaluator: registers all EventBus subscriptions.
@@ -477,19 +459,7 @@ export class AutomationTriggerEvaluator {
     }
 
     // ── Duplicate prevention ─────────────────────────────────────────────────
-
-    // Check 1: Is there already a queued/active automation:workflow job for this sequence+entity?
-    const existingJob = this.stmtCheckExistingJob.get(this.workspaceId, seq.id, entityId) as
-      { id: string } | undefined;
-
-    if (existingJob) {
-      console.log(
-        `[AutomationTriggerEvaluator] Duplicate prevented — active job "${existingJob.id}" already exists for sequence "${seq.id}" + entity "${entityId}"`
-      );
-      return;
-    }
-
-    // Check 2: Is there already a running/waiting sequence_execution for this sequence+entity?
+    // Check: Is there already a running/waiting sequence_execution for this sequence+entity?
     const existingExecution = this.stmtCheckExistingExecution.get(
       this.workspaceId,
       seq.id,
@@ -504,27 +474,37 @@ export class AutomationTriggerEvaluator {
       return;
     }
 
-    // ── Job insertion ─────────────────────────────────────────────────────────
+    // ── Job insertion via MongoDB SDK ─────────────────────────────────────────
 
     const jobId = randomUUID();
-    const payload = JSON.stringify({
+    const payload = {
       sequenceId: seq.id,
       entityId,
       entityType,
       triggerType,
       triggerPayload: sourceEvent.payload,
       workspaceId: this.workspaceId
-    });
+    };
 
-    this.stmtInsertJob.run(jobId, this.workspaceId, payload);
+    if (this.sdk) {
+      this.sdk.jobs
+        .create({
+          id: jobId,
+          type: 'automation:workflow',
+          priority: 3,
+          payload,
+          maxRetries: 3
+        })
+        .catch((err: any) => {
+          console.warn('[AutomationTriggerEvaluator] Job queueing error:', err);
+        });
+    }
 
     console.log(
       `[AutomationTriggerEvaluator] Workflow job "${jobId}" queued for sequence "${seq.id}" + entity "${entityId}"`
     );
 
     // ── Publish automation:triggered ──────────────────────────────────────────
-    // Published ONLY after successful DB insert — never before.
-
     this.eventBus.publish('automation:triggered', {
       sequenceId: seq.id,
       jobId,

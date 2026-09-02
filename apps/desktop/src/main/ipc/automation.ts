@@ -9,9 +9,10 @@ import { randomUUID } from 'crypto';
  */
 export function registerAutomationIpc(sdk: SdkClient) {
   // Sequences CRUD
-  safeRegister('sequence:list', async () => {
-    const runtime = WorkspaceManager.getActiveRuntime();
-    if (!runtime) throw new Error('No active workspace runtime');
+  safeRegister('sequence:list', async (_event, payload) => {
+    const wsId = typeof payload === 'string' ? payload : payload?.workspaceId;
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime(wsId);
+    if (!runtime) return [];
     try {
       const list = await sdk.sequences.list();
       await LocalCRMRepository.saveMany(
@@ -47,132 +48,68 @@ export function registerAutomationIpc(sdk: SdkClient) {
   safeRegister('sequence:create', async (_event, dto) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    const id = dto.id || randomUUID();
-    const record = { ...dto, id, workspaceId: runtime.workspaceId, syncStatus: 'pending' };
-    await LocalCRMRepository.save('sequences', record);
-    return record;
+    const created = await sdk.sequences.create(dto);
+    await LocalCRMRepository.saveFromServer('sequences', created);
+    return created;
   });
 
   safeRegister('sequence:update', async (_event, { id, dto }) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    const record = { ...dto, id, workspaceId: runtime.workspaceId, syncStatus: 'pending' };
-    await LocalCRMRepository.save('sequences', record);
-    return record;
+    const updated = await sdk.sequences.update(id, dto);
+    await LocalCRMRepository.saveFromServer('sequences', updated);
+    return updated;
   });
 
   safeRegister('sequence:delete', async (_event, id) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
-    await LocalCRMRepository.softDelete('sequences', runtime.workspaceId, id);
+    await sdk.sequences.delete(id);
+    await LocalCRMRepository.softDeleteFromServer('sequences', runtime.workspaceId, id);
     return { success: true };
   });
 
-  // Executions Orchestration — Local-First Desktop Scheduler Engine
+  // Executions Orchestration — MongoDB-First Execution Start
   safeRegister('sequence:start', async (_event, { sequenceId, contactId, companyId }) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
 
-    // 1. Verify sequence template availability locally (fetch remote fallback if missing)
-    let sequence = await LocalCRMRepository.findById('sequences', runtime.workspaceId, sequenceId);
-    if (!sequence) {
-      try {
-        sequence = await sdk.sequences.get(sequenceId);
-        if (sequence) {
-          await LocalCRMRepository.save(
-            'sequences',
-            { ...sequence, workspaceId: runtime.workspaceId },
-            true
-          );
-        }
-      } catch (err) {
-        console.warn('[IPC] Could not fetch sequence template from remote:', err);
-      }
-    }
+    const execution = await sdk.executions.start(sequenceId, contactId, companyId);
+    await LocalCRMRepository.saveFromServer('sequence_executions', execution);
 
-    const executionId = randomUUID();
-    const now = new Date().toISOString();
-    const entityId = contactId || companyId || '';
-    const entityType = contactId ? 'contact' : companyId ? 'company' : '';
-
-    const executionRecord = {
-      id: executionId,
+    // Enqueue automation:workflow job via SdkClient for desktop JobScheduler & JobWorker
+    const jobId = randomUUID();
+    const jobPayload = {
       sequenceId,
-      workspaceId: runtime.workspaceId,
-      contactId: contactId || null,
-      companyId: companyId || null,
-      currentStep: 0,
-      status: 'queued',
-      startedAt: now,
-      logs: JSON.stringify([]),
-      syncStatus: 'pending',
-      createdAt: now,
-      updatedAt: now
+      entityId: contactId || companyId || '',
+      entityType: contactId ? 'contact' : companyId ? 'company' : '',
+      executionId: execution.id,
+      workspaceId: runtime.workspaceId
     };
 
-    // 2. Write execution record into local SQLite database (syncStatus = pending triggers background SyncEngine)
-    await LocalCRMRepository.save('sequence_executions', executionRecord);
+    try {
+      await sdk.jobs.create({
+        id: jobId,
+        type: 'automation:workflow',
+        priority: 3,
+        payload: jobPayload,
+        maxRetries: 3
+      });
+    } catch (err) {
+      console.warn('[IPC] Note: scheduler job queueing:', err);
+    }
 
-    // 3. Enqueue automation:workflow job in local SQLite jobs table for desktop JobScheduler & JobWorker
-    const jobId = randomUUID();
-    const jobPayload = JSON.stringify({
-      sequenceId,
-      entityId,
-      entityType,
-      executionId,
-      workspaceId: runtime.workspaceId
-    });
-
-    const stmtInsertJob = runtime.sqliteDb.prepare(`
-      INSERT INTO jobs (id, workspaceId, type, status, priority, payload, progress, retryCount, maxRetries, createdAt, updatedAt)
-      VALUES (?, ?, 'automation:workflow', 'queued', 3, ?, 0, 0, 3, datetime('now'), datetime('now'))
-    `);
-    stmtInsertJob.run(jobId, runtime.workspaceId, jobPayload);
-
-    return executionRecord;
+    return execution;
   });
 
   safeRegister('sequence:stop', async (_event, id) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
 
-    const now = new Date().toISOString();
-    const current = await LocalCRMRepository.findById(
-      'sequence_executions',
-      runtime.workspaceId,
-      id
-    );
+    const stopped = await sdk.executions.stop(id);
+    await LocalCRMRepository.saveFromServer('sequence_executions', stopped);
 
-    const updatedRecord = {
-      ...(current || {}),
-      id,
-      workspaceId: runtime.workspaceId,
-      status: 'cancelled',
-      completedAt: now,
-      cancelledAt: now,
-      syncStatus: 'pending',
-      updatedAt: now
-    };
-
-    // 1. Update status in local SQLite database
-    await LocalCRMRepository.save('sequence_executions', updatedRecord);
-
-    // 2. Cancel matching active workflow jobs in local SQLite jobs table
-    try {
-      const stmtCancelJob = runtime.sqliteDb.prepare(`
-        UPDATE jobs
-        SET status = 'cancelled', updatedAt = datetime('now')
-        WHERE workspaceId = ?
-          AND type = 'automation:workflow'
-          AND (json_extract(payload, '$.executionId') = ? OR json_extract(payload, '$.sequenceId') = ?)
-          AND status IN ('queued', 'starting', 'running', 'retrying')
-      `);
-      stmtCancelJob.run(runtime.workspaceId, id, current?.sequenceId || '');
-    } catch (err) {
-      console.warn('[IPC] Error cancelling local automation job:', err);
-    }
-
-    return updatedRecord;
+    return stopped;
   });
 
   safeRegister('execution:list', async () => {
@@ -232,22 +169,7 @@ export function registerAutomationIpc(sdk: SdkClient) {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');
 
-    // 1. Query local SQLite sequence_logs table first
-    try {
-      const stmtLogs = runtime.sqliteDb.prepare(`
-        SELECT * FROM sequence_logs
-        WHERE workspaceId = ? AND executionId = ?
-        ORDER BY timestamp ASC
-      `);
-      const localLogs = stmtLogs.all(runtime.workspaceId, id);
-      if (localLogs && localLogs.length > 0) {
-        return localLogs;
-      }
-    } catch (err) {
-      console.warn('[IPC] Error querying local sequence_logs:', err);
-    }
-
-    // 2. Fallback to parsing embedded logs column on sequence_executions record
+    // 1. Read embedded logs column from cached sequence_executions record
     const execRecord = await LocalCRMRepository.findById(
       'sequence_executions',
       runtime.workspaceId,
@@ -261,7 +183,7 @@ export function registerAutomationIpc(sdk: SdkClient) {
       } catch {}
     }
 
-    // 3. Fallback to remote SDK if offline cache is empty
+    // 2. Fallback to authoritative remote SDK
     try {
       return await sdk.executions.getLogs(id);
     } catch {

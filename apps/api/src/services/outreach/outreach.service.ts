@@ -174,7 +174,7 @@ export class OutreachService {
 
     const template = new EmailTemplateModel({
       _id: data.id || data._id || undefined,
-      workspaceId: new mongoose.Types.ObjectId(this.workspaceId),
+      workspaceId: this.workspaceId,
       name: data.name,
       subject: data.subject,
       body: data.body,
@@ -211,7 +211,7 @@ export class OutreachService {
         workspaceId: this.workspaceId
       } as any,
       { $set: updatePayload },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!updated) throw new Error('Template not found or does not belong to this workspace.');
     return updated;

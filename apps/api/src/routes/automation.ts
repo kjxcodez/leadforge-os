@@ -103,3 +103,13 @@ automationRouter.get('/executions/:id/logs', async (c) => {
   const logs = await service.getExecutionLogs(id);
   return c.json(successResponse(logs));
 });
+
+automationRouter.post('/executions/:id/logs', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const service = new AutomationService(wsId);
+  const result = await service.addExecutionLogs(id, body.logs || (Array.isArray(body) ? body : [body]));
+  return c.json(successResponse(result));
+});
+

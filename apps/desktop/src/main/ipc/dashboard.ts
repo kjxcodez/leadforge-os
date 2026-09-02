@@ -1,6 +1,8 @@
 import { safeRegister } from './helper';
 import { getDatabase } from '../database/connection';
 import { WorkspaceManager } from '../lib/workspace-manager';
+import { AppLogger } from '../lib/logger';
+import { CacheHydrator } from '../services/cache-hydrator';
 
 /**
  * Registers dashboard telemetry, stats, and real-time infrastructure tracking IPC channels.
@@ -33,126 +35,132 @@ export function registerDashboardIpc(): void {
         .get(workspaceId) as any
     ).count;
 
-    // Today's Sends (sequence_logs)
-    const todaySends = (
-      db
+    // Enrollment metrics (sequence_executions)
+    let executionStats: any = {
+      waiting: 0,
+      running: 0,
+      replied: 0,
+      failed: 0,
+      paused: 0,
+      completed: 0
+    };
+    try {
+      executionStats = (db
         .prepare(
           `
-      SELECT COUNT(*) as count FROM sequence_logs 
-      WHERE workspaceId = ? AND action = 'EMAIL_SEND' AND status = 'success' AND date(timestamp) = date('now', 'localtime')
-    `
+        SELECT 
+          SUM(CASE WHEN status = 'waiting' THEN 1 ELSE 0 END) as waiting,
+          SUM(CASE WHEN status IN ('running', 'queued', 'starting') THEN 1 ELSE 0 END) as running,
+          SUM(CASE WHEN status IN ('replied', 'REPLIED') THEN 1 ELSE 0 END) as replied,
+          SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+          SUM(CASE WHEN status = 'paused' THEN 1 ELSE 0 END) as paused,
+          SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
+        FROM sequence_executions
+        WHERE workspaceId = ? AND deletedAt IS NULL
+      `
         )
-        .get(workspaceId) as any
-    ).count;
+        .get(workspaceId) || executionStats) as any;
+    } catch {}
 
-    // Enrollment metrics (sequence_executions)
-    const executionStats = db
-      .prepare(
-        `
-      SELECT 
-        SUM(CASE WHEN status = 'waiting' THEN 1 ELSE 0 END) as waiting,
-        SUM(CASE WHEN status IN ('running', 'queued', 'starting') THEN 1 ELSE 0 END) as running,
-        SUM(CASE WHEN status IN ('replied', 'REPLIED') THEN 1 ELSE 0 END) as replied,
-        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
-        SUM(CASE WHEN status = 'paused' THEN 1 ELSE 0 END) as paused,
-        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
-      FROM sequence_executions
-      WHERE workspaceId = ? AND deletedAt IS NULL
-    `
-      )
-      .get(workspaceId) as {
-      waiting: number;
-      running: number;
-      replied: number;
-      failed: number;
-      paused: number;
-      completed: number;
-    };
+    // Today's Sends (query deliveries via SDK or execution stats fallback)
+    let todaySends = 0;
+    let totalJobs = 0;
+    let queuedJobs = 0;
 
-    // Jobs and Queue Size
-    const jobsStats = db
-      .prepare(
-        `
-      SELECT 
-        COUNT(*) as totalJobs,
-        SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END) as queuedJobs
-      FROM jobs
-      WHERE workspaceId = ? AND status != 'completed' AND status != 'cancelled' AND status != 'failed'
-    `
-      )
-      .get(workspaceId) as { totalJobs: number; queuedJobs: number };
+    const runtime = WorkspaceManager.getActiveRuntime();
+    const sdk = WorkspaceManager.getSdk();
 
-    // Sync status (sync_queue count)
-    const syncQueueCount = (
-      db
-        .prepare('SELECT COUNT(*) as count FROM sync_queue WHERE workspaceId = ?')
-        .get(workspaceId) as any
-    ).count;
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const deliveries = await sdk.emailDeliveries.list({ limit: 100, status: 'SENT' }).catch(() => ({ data: [], total: 0 }));
+      if (deliveries && Array.isArray(deliveries.data)) {
+        todaySends = deliveries.data.filter(
+          (d: any) => d.sentAt && d.sentAt.toString().startsWith(today)
+        ).length;
+      }
+    } catch {}
 
-    // SMTP & IMAP Status (from email_accounts)
-    const emailAccount = db
-      .prepare(
-        `
-      SELECT status FROM email_accounts 
-      WHERE workspaceId = ? AND deletedAt IS NULL
-      ORDER BY createdAt ASC LIMIT 1
-    `
-      )
-      .get(workspaceId) as { status: string } | undefined;
+    // Jobs and Queue Size from in-memory scheduler or API
+    if (runtime && runtime.workspaceId === workspaceId) {
+      const scheduler = runtime.scheduler as any;
+      const activeWorkerCount = scheduler?.activeWorkers?.size || 0;
+      totalJobs = activeWorkerCount;
+      queuedJobs = 0;
+    }
 
-    const emailStatus = emailAccount?.status || 'disconnected';
+    // SMTP & IMAP Status (from email_accounts cache)
+    let emailStatus = 'disconnected';
+    try {
+      const emailAccount = db
+        .prepare(
+          `
+        SELECT status FROM email_accounts 
+        WHERE workspaceId = ? AND deletedAt IS NULL
+        ORDER BY createdAt ASC LIMIT 1
+      `
+        )
+        .get(workspaceId) as { status: string } | undefined;
+      emailStatus = emailAccount?.status || 'disconnected';
+    } catch {}
 
     return {
-      totalCompanies,
-      totalContacts,
-      totalCampaigns,
-      todaySends,
-      waitingCount: executionStats.waiting || 0,
-      runningCount: executionStats.running || 0,
-      repliedCount: executionStats.replied || 0,
-      failedCount: executionStats.failed || 0,
-      pausedCount: executionStats.paused || 0,
-      completedCount: executionStats.completed || 0,
-      totalJobs: jobsStats.totalJobs || 0,
-      queueSize: jobsStats.queuedJobs || 0,
-      syncQueueCount,
+      totalCompanies: totalCompanies || 0,
+      totalContacts: totalContacts || 0,
+      totalCampaigns: totalCampaigns || 0,
+      todaySends: todaySends || 0,
+      waitingCount: executionStats?.waiting || 0,
+      runningCount: executionStats?.running || 0,
+      repliedCount: executionStats?.replied || 0,
+      failedCount: executionStats?.failed || 0,
+      pausedCount: executionStats?.paused || 0,
+      completedCount: executionStats?.completed || 0,
+      totalJobs,
+      queueSize: queuedJobs,
+      syncQueueCount: 0,
       smtpStatus: emailStatus,
       imapStatus: emailStatus
     };
   });
 
-  // 2. Dashboard Activity Feed
+  // 2. Dashboard Activity Feed (authoritative from API system-logs & executions)
   safeRegister('dashboard:activity-feed', async (_event, { workspaceId, limit = 50 }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
-    const db = getDatabase(workspaceId);
+    const sdk = WorkspaceManager.getSdk();
 
-    const rows = db
-      .prepare(
-        `
-      SELECT 'activity' as log_type, id, type, content as message, createdAt as timestamp, 'crm' as entity, 'success' as status
-      FROM activities
-      WHERE workspaceId = ?
-      UNION ALL
-      SELECT 'sequence' as log_type, id, action as type, message, timestamp, 'automation' as entity, status
-      FROM sequence_logs
-      WHERE workspaceId = ?
-      UNION ALL
-      SELECT 'system' as log_type, id, severity as type, message, timestamp, task as entity, 'info' as status
-      FROM system_logs
-      WHERE workspaceId = ?
-      ORDER BY timestamp DESC
-      LIMIT ?
-    `
-      )
-      .all(workspaceId, workspaceId, workspaceId, limit);
+    try {
+      let logs: any[] = await sdk.systemLogs.listRecent(limit).catch(() => []);
+      if (!Array.isArray(logs) || logs.length === 0) {
+        logs = AppLogger.getRecentLogs(workspaceId, limit);
+      }
 
-    return rows;
+      return (logs || []).map((l: any) => ({
+        id: l.id || l._id || Math.random().toString(),
+        log_type: 'system',
+        type: l.severity || l.category || 'info',
+        message: l.message || 'Operation executed',
+        timestamp: l.timestamp || l.createdAt || new Date().toISOString(),
+        entity: l.task || l.context?.service || 'system',
+        status: l.severity === 'error' || l.severity === 'fatal' ? 'error' : 'success'
+      }));
+    } catch {
+      const localLogs = AppLogger.getRecentLogs(workspaceId, limit);
+      return (localLogs || []).map((l: any) => ({
+        id: l.id,
+        log_type: 'system',
+        type: l.severity || 'info',
+        message: l.message,
+        timestamp: l.timestamp,
+        entity: l.task || 'system',
+        status: l.severity === 'error' ? 'error' : 'success'
+      }));
+    }
   });
 
-  // 3. Dashboard Chart Data
+  // 3. Dashboard Chart Data (deliveries + cached contacts & executions)
   safeRegister('dashboard:chart-data', async (_event, { workspaceId, days = 7 }) => {
     if (!workspaceId) throw new Error('workspaceId is required.');
     const db = getDatabase(workspaceId);
+    const sdk = WorkspaceManager.getSdk();
 
     const resultList: any[] = [];
     const dateMap = new Map<
@@ -169,56 +177,56 @@ export function registerDashboardIpc(): void {
 
     const startDateStr = (Array.from(dateMap.keys())[0] || '') + ' 00:00:00';
 
-    // Emails sent (sequence_logs)
-    const emails = db
-      .prepare(
-        `
-      SELECT date(timestamp) as day, COUNT(*) as count
-      FROM sequence_logs
-      WHERE workspaceId = ? AND action = 'EMAIL_SEND' AND status = 'success' AND timestamp >= ?
-      GROUP BY day
-    `
-      )
-      .all(workspaceId, startDateStr) as Array<{ day: string; count: number }>;
-    for (const row of emails) {
-      if (row.day && dateMap.has(row.day)) {
-        dateMap.get(row.day)!.emailsSent = row.count;
+    // Emails sent from API deliveries
+    try {
+      const deliveries = await sdk.emailDeliveries.list({ limit: 100, status: 'SENT' }).catch(() => ({ data: [], total: 0 }));
+      if (deliveries && Array.isArray(deliveries.data)) {
+        for (const delivery of deliveries.data) {
+          const sentDay = delivery.sentAt ? new Date(delivery.sentAt).toISOString().split('T')[0] : '';
+          if (sentDay && dateMap.has(sentDay)) {
+            dateMap.get(sentDay)!.emailsSent += 1;
+          }
+        }
       }
-    }
+    } catch {}
 
     // Contacts created
-    const contacts = db
-      .prepare(
-        `
-      SELECT date(createdAt) as day, COUNT(*) as count
-      FROM contacts
-      WHERE workspaceId = ? AND deletedAt IS NULL AND createdAt >= ?
-      GROUP BY day
-    `
-      )
-      .all(workspaceId, startDateStr) as Array<{ day: string; count: number }>;
-    for (const row of contacts) {
-      if (row.day && dateMap.has(row.day)) {
-        dateMap.get(row.day)!.contactsCreated = row.count;
+    try {
+      const contacts = db
+        .prepare(
+          `
+        SELECT date(createdAt) as day, COUNT(*) as count
+        FROM contacts
+        WHERE workspaceId = ? AND deletedAt IS NULL AND createdAt >= ?
+        GROUP BY day
+      `
+        )
+        .all(workspaceId, startDateStr) as Array<{ day: string; count: number }>;
+      for (const row of contacts) {
+        if (row.day && dateMap.has(row.day)) {
+          dateMap.get(row.day)!.contactsCreated = row.count;
+        }
       }
-    }
+    } catch {}
 
     // Automation executions started
-    const executions = db
-      .prepare(
-        `
-      SELECT date(startedAt) as day, COUNT(*) as count
-      FROM sequence_executions
-      WHERE workspaceId = ? AND startedAt >= ?
-      GROUP BY day
-    `
-      )
-      .all(workspaceId, startDateStr) as Array<{ day: string; count: number }>;
-    for (const row of executions) {
-      if (row.day && dateMap.has(row.day)) {
-        dateMap.get(row.day)!.executions = row.count;
+    try {
+      const executions = db
+        .prepare(
+          `
+        SELECT date(startedAt) as day, COUNT(*) as count
+        FROM sequence_executions
+        WHERE workspaceId = ? AND startedAt >= ?
+        GROUP BY day
+      `
+        )
+        .all(workspaceId, startDateStr) as Array<{ day: string; count: number }>;
+      for (const row of executions) {
+        if (row.day && dateMap.has(row.day)) {
+          dateMap.get(row.day)!.executions = row.count;
+        }
       }
-    }
+    } catch {}
 
     for (const [day, val] of dateMap.entries()) {
       resultList.push({
@@ -243,8 +251,8 @@ export function registerDashboardIpc(): void {
         latencyMs: 15,
         restartCount: 0
       },
-      syncEngine: {
-        status: 'Stopped',
+      cacheHydrator: {
+        status: 'Ready',
         uptimeMs: 0,
         lastHeartbeat: null
       },
@@ -275,34 +283,54 @@ export function registerDashboardIpc(): void {
     if (runtime && runtime.workspaceId === workspaceId) {
       // Scheduler
       const scheduler = runtime.scheduler as any;
-      const isSchedulerRunning = !!scheduler.intervalId;
+      const schedulerState = scheduler ? scheduler.getState() : 'STOPPED';
+      const isSchedulerRunning = scheduler ? scheduler.isActive : false;
+      const schedulerStatus = isSchedulerRunning
+        ? schedulerState === 'ACTIVE' || schedulerState === 'IDLE' || schedulerState === 'BACKING_OFF'
+          ? 'Running'
+          : schedulerState
+        : 'Stopped';
+
       stats.scheduler = {
-        status: isSchedulerRunning ? 'Running' : 'Stopped',
+        status: schedulerStatus,
+        state: schedulerState,
         uptimeMs: runtime.startedAt ? Date.now() - runtime.startedAt.getTime() : 0,
         latencyMs: 10,
         restartCount: runtime.restartCount
       };
 
-      // Sync Engine
-      const syncEngine = runtime.syncEngine as any;
-      const isSyncRunning = !!syncEngine.intervalId;
-      stats.syncEngine = {
-        status: isSyncRunning ? 'Running' : 'Stopped',
+      // Cache Hydrator
+      const hydratorState = CacheHydrator.getWorkspaceHydrationState(runtime.workspaceId);
+      const hydratorStatus =
+        hydratorState === 'READY'
+          ? 'Ready'
+          : hydratorState === 'RUNNING' || hydratorState === 'STARTING'
+          ? 'Running'
+          : hydratorState === 'FAILED'
+          ? 'Failed'
+          : 'Stopped';
+
+      stats.cacheHydrator = {
+        status: hydratorStatus,
+        state: hydratorState,
         uptimeMs: runtime.startedAt ? Date.now() - runtime.startedAt.getTime() : 0,
         lastHeartbeat: new Date().toISOString()
       };
 
       // Automation Runtime
       const triggerEvaluator = runtime.triggerEvaluator as any;
-      const isEvaluatorRunning =
-        triggerEvaluator.unsubscribers && triggerEvaluator.unsubscribers.length > 0;
+      const isEvaluatorRunning = triggerEvaluator
+        ? triggerEvaluator.isRunning ?? (triggerEvaluator.unsubscribers && triggerEvaluator.unsubscribers.length > 0)
+        : false;
       stats.automationRuntime = {
         status: isEvaluatorRunning ? 'Running' : 'Stopped',
         uptimeMs: runtime.startedAt ? Date.now() - runtime.startedAt.getTime() : 0
       };
 
       // Worker Host (from scheduler active workers)
-      const workerCount = scheduler.activeWorkers ? scheduler.activeWorkers.size : 0;
+      const workerCount = scheduler
+        ? (scheduler.activeWorkerCount ?? (scheduler.activeWorkers ? scheduler.activeWorkers.size : 0))
+        : 0;
       stats.workerHost = {
         status: workerCount > 0 ? 'Running' : isSchedulerRunning ? 'Running' : 'Stopped',
         activeWorkers: workerCount

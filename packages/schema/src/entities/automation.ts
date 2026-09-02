@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { SequenceStatus, ExecutionStatus } from '../enums/index.js';
+import { entityIdField, entityIdFieldNullable } from '../fields/common.js';
 
 export const sequenceStepSchema = z.object({
-  id: z.string(),
+  id: entityIdField,
   type: z.string(),
   config: z.record(z.string(), z.any())
 });
@@ -15,8 +16,8 @@ export const sequenceTriggerSchema = z.object({
 export type SequenceTrigger = z.infer<typeof sequenceTriggerSchema>;
 
 export const sequenceSchema = z.object({
-  id: z.string(),
-  workspaceId: z.string(),
+  id: entityIdField,
+  workspaceId: entityIdField,
   name: z.string().min(1),
   description: z.string().optional().nullable(),
   status: z.nativeEnum(SequenceStatus),
@@ -29,13 +30,19 @@ export const sequenceSchema = z.object({
 export type Sequence = z.infer<typeof sequenceSchema>;
 
 export const sequenceExecutionSchema = z.object({
-  id: z.string(),
-  sequenceId: z.string(),
-  workspaceId: z.string(),
-  companyId: z.string().optional().nullable(),
-  contactId: z.string().optional().nullable(),
+  id: entityIdField,
+  sequenceId: entityIdField,
+  workspaceId: entityIdField,
+  campaignId: entityIdFieldNullable,
+  parentJobId: entityIdFieldNullable,
+  companyId: entityIdFieldNullable,
+  contactId: entityIdFieldNullable,
   currentStep: z.number().default(0),
+  currentStepName: z.string().optional().nullable(),
   status: z.nativeEnum(ExecutionStatus),
+  emailsSent: z.number().default(0),
+  replies: z.number().default(0),
+  failures: z.number().default(0),
   startedAt: z.coerce.date(),
   completedAt: z.coerce.date().optional().nullable(),
   nextExecutionAt: z.coerce.date().optional().nullable(),
@@ -44,9 +51,9 @@ export const sequenceExecutionSchema = z.object({
 export type SequenceExecution = z.infer<typeof sequenceExecutionSchema>;
 
 export const sequenceLogSchema = z.object({
-  id: z.string(),
-  executionId: z.string(),
-  workspaceId: z.string(),
+  id: entityIdField,
+  executionId: entityIdField,
+  workspaceId: entityIdField,
   timestamp: z.coerce.date(),
   step: z.number(),
   action: z.string(),
@@ -54,3 +61,4 @@ export const sequenceLogSchema = z.object({
   message: z.string().optional().nullable()
 });
 export type SequenceLog = z.infer<typeof sequenceLogSchema>;
+
