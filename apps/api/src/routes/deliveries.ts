@@ -1,5 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { EmailDeliveryRepository } from '../repositories/email-delivery/email-delivery.repository.js';
+import { EmailEventRepository } from '../repositories/email-event/email-event.repository.js';
+import { ReconciliationService } from '../services/email/reconciliation.service.js';
 import {
   createEmailDeliveryDtoSchema,
   bulkEmailDeliveryDtoSchema,
@@ -20,12 +22,26 @@ deliveriesRouter.get('/', async (c) => {
   const limit = Math.min(parseInt(c.req.query('limit') || '50'), 100);
   const campaignId = c.req.query('campaignId');
   const sequenceId = c.req.query('sequenceId');
+  const contactId = c.req.query('contactId');
+  const companyId = c.req.query('companyId');
+  const accountId = c.req.query('accountId');
   const status = c.req.query('status');
+  const startDate = c.req.query('startDate');
+  const endDate = c.req.query('endDate');
 
   const filter: any = {};
   if (campaignId && campaignId !== 'undefined' && campaignId !== 'null') filter.campaignId = campaignId;
   if (sequenceId && sequenceId !== 'undefined' && sequenceId !== 'null') filter.sequenceId = sequenceId;
+  if (contactId && contactId !== 'undefined' && contactId !== 'null') filter.contactId = contactId;
+  if (companyId && companyId !== 'undefined' && companyId !== 'null') filter.companyId = companyId;
+  if (accountId && accountId !== 'undefined' && accountId !== 'null') filter.accountId = accountId;
   if (status && status !== 'undefined' && status !== 'null') filter.status = status;
+
+  if (startDate || endDate) {
+    filter.createdAt = {};
+    if (startDate) filter.createdAt.$gte = new Date(startDate);
+    if (endDate) filter.createdAt.$lte = new Date(endDate);
+  }
 
   const repo = new EmailDeliveryRepository(wsId);
   const result = await repo.paginate(filter, page, limit, { createdAt: -1 });
@@ -89,13 +105,23 @@ deliveriesRouter.post('/', async (c) => {
   return c.json(successResponse(delivery), 201);
 });
 
-// 7. Get Delivery by ID
+// 7. Get Delivery / Message by ID
 deliveriesRouter.get('/:id', async (c) => {
   const wsId = getWorkspaceId(c);
   const id = c.req.param('id');
   const repo = new EmailDeliveryRepository(wsId);
   const delivery = await repo.findById(id);
+  if (!delivery) throw new NotFoundError(`Delivery with id ${id} not found`);
   return c.json(successResponse(delivery));
+});
+
+// 7b. Get Engagement Events for Delivery
+deliveriesRouter.get('/:id/events', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const eventRepo = new EmailEventRepository(wsId);
+  const events = await eventRepo.findEventsForDelivery(id);
+  return c.json(successResponse(events));
 });
 
 // 8. Finalize Delivery Status (Mark SENT)
@@ -144,3 +170,33 @@ deliveriesRouter.patch('/:id/status', async (c) => {
   if (!updated) throw new NotFoundError(`Delivery with id ${id} not found`);
   return c.json(successResponse(updated));
 });
+
+// 11. Reconcile AMBIGUOUS Sends against Gmail
+deliveriesRouter.post('/reconcile-ambiguous', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const body = await c.req.json().catch(() => ({}));
+  const limit = typeof body.limit === 'number' ? body.limit : 10;
+
+  const service = new ReconciliationService(wsId);
+  const results = await service.reconcileAllAmbiguous(limit);
+  return c.json(successResponse(results));
+});
+
+// 11b. Reconcile Single Ambiguous Delivery by ID
+deliveriesRouter.post('/:id/reconcile', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+
+  const service = new ReconciliationService(wsId);
+  const result = await service.reconcileAmbiguousDelivery(id);
+  return c.json(successResponse(result));
+});
+
+// 12. Poll Inbound Replies from Connected Gmail Accounts
+deliveriesRouter.post('/poll-replies', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const service = new ReconciliationService(wsId);
+  const results = await service.pollAllInboundReplies();
+  return c.json(successResponse(results));
+});
+

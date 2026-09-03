@@ -47,8 +47,11 @@ export class AudienceService {
       const validContacts = await ContactModel.find({
         _id: { $in: targetIds },
         workspaceId: this.workspaceId,
+        email: { $ne: null, $exists: true },
+        status: { $nin: ['UNSUBSCRIBED', 'BOUNCED', 'DO_NOT_CONTACT', 'ARCHIVED'] },
+        emailStatus: { $nin: ['QUARANTINED', 'INVALID'] },
         deletedAt: null
-      }).select('_id companyId');
+      } as any).select('_id companyId');
 
       const contactIds = validContacts.map((c) => c._id.toString());
       const companyIds = Array.from(
@@ -62,7 +65,13 @@ export class AudienceService {
     const filter = audience.filterDefinition || {};
 
     const companyQuery: any = { workspaceId: this.workspaceId, deletedAt: null };
-    const contactQuery: any = { workspaceId: this.workspaceId, deletedAt: null };
+    const contactQuery: any = {
+      workspaceId: this.workspaceId,
+      deletedAt: null,
+      email: { $ne: null, $exists: true },
+      status: { $nin: ['UNSUBSCRIBED', 'BOUNCED', 'DO_NOT_CONTACT', 'ARCHIVED'] },
+      emailStatus: { $nin: ['QUARANTINED', 'INVALID'] }
+    };
     let hasCompanyFilter = false;
 
     if (filter.search) {

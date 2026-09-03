@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { AIRuntime, PromptsLibrary } from '@leadforge/ai';
 import type { JobContext } from '../../../shared/types/job';
 import { SdkClient, renderCanonicalVariables, formatEmailBody } from '@leadforge/sdk';
-import { generateEntityId, CampaignStatus } from '@leadforge/schema';
+import { generateEntityId, CampaignStatus, evaluateOutreachEligibility } from '@leadforge/schema';
 import { resolveWorkerApiUrl } from '../worker-host';
 
 function decryptSecretFallback(val: string): string {
@@ -1305,7 +1305,8 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
       } else if (dispatchResult.status === 'wait') {
         const delay = dispatchResult.delaySeconds || 60;
         const nextExecutionAt = new Date(Date.now() + delay * 1000).toISOString();
-        const nextStep = currentStep + 1;
+        const retrySameStep = (dispatchResult as any).retrySameStep === true;
+        const nextStep = retrySameStep ? currentStep : currentStep + 1;
         execCtx!.execution.currentStep = nextStep;
 
         try {
@@ -1322,9 +1323,11 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
               executionId: executionId!,
               timestamp: nowStr,
               step: currentStep,
-              action: 'WAIT',
+              action: retrySameStep ? 'RATE_LIMIT_WAIT' : 'WAIT',
               status: 'success',
-              message: `Scheduled delay of ${delay}s. Next execution at: ${nextExecutionAt}`
+              message: retrySameStep
+                ? `Mailbox throttled. Pausing execution for ${delay}s. Will retry step ${currentStep} at: ${nextExecutionAt}`
+                : `Scheduled delay of ${delay}s. Next execution at: ${nextExecutionAt}`
             }
           ]);
         } catch {}
@@ -1545,7 +1548,7 @@ async function handleSendEmailStep(
   step: StepDefinition,
   ctx: JobContext,
   execCtx: ExecutionContext
-): Promise<{ status: 'success' }> {
+): Promise<{ status: 'success' } | { status: 'wait'; delaySeconds: number; retrySameStep: boolean }> {
   const templateId = step.config?.templateId;
   let rawSubject = step.config?.subject || '';
   let rawBody = step.config?.body || '';
@@ -1600,6 +1603,36 @@ async function handleSendEmailStep(
   const stepKey = step.id || String(execCtx.execution.currentStep || 0);
   const stepIndexNum = typeof execCtx.execution.currentStep === 'number' ? execCtx.execution.currentStep : 0;
   const campaignId = (step.config as any)?.campaignId || (ctx.payload as any)?.campaignId || (execCtx as any)?.campaign?.id;
+
+  // Send-time server-authoritative campaign authorization check
+  let campaignDoc: any = null;
+  if (campaignId) {
+    try {
+      campaignDoc = await sdk.campaigns.get(campaignId);
+    } catch {}
+    if (campaignDoc) {
+      const campStatus = String(campaignDoc.status || '').toUpperCase();
+      if (campStatus === 'STOPPED' || campStatus === 'FAILED') {
+        ctx.emitLog(`Campaign "${campaignId}" is in terminal state "${campStatus}". Aborting email send step.`, 'warn');
+        throw new Error(`Campaign "${campaignId}" is ${campStatus}. Email send step aborted.`);
+      }
+      if (campStatus === 'PAUSED') {
+        ctx.emitLog(`Campaign "${campaignId}" is PAUSED. Pausing execution step for 60s.`, 'info');
+        return { status: 'wait', delaySeconds: 60, retrySameStep: true };
+      }
+    }
+  }
+
+  // Send-time contact eligibility check
+  const eligibility = evaluateOutreachEligibility({
+    contact,
+    campaign: campaignDoc
+  });
+  if (!eligibility.eligible) {
+    ctx.emitLog(`Contact "${contact.email}" is ineligible for outreach: ${eligibility.reason}. Skipping send step.`, 'warn');
+    return { status: 'success' };
+  }
+
   const idempotencyKey = `email_${workspaceId}_${execCtx.execution.id}_${stepKey}_${entityId}`;
 
   try {
@@ -1641,6 +1674,68 @@ async function handleSendEmailStep(
     return { status: 'success' };
   } catch (sendErr: any) {
     const errMsg = sendErr.message || String(sendErr);
+
+    const isRateLimited =
+      sendErr.status === 429 ||
+      sendErr.code === 'EMAIL_RATE_LIMITED' ||
+      sendErr.code === 'PROVIDER_RATE_LIMITED' ||
+      errMsg.includes('EMAIL_RATE_LIMITED') ||
+      errMsg.includes('PROVIDER_RATE_LIMITED') ||
+      errMsg.includes('429') ||
+      errMsg.includes('Rate limit') ||
+      errMsg.includes('limit reached');
+
+    if (isRateLimited) {
+      const retryAfterSec =
+        typeof sendErr.retryAfterSec === 'number' && sendErr.retryAfterSec > 0
+          ? sendErr.retryAfterSec
+          : 5;
+
+      if (retryAfterSec <= 5) {
+        ctx.emitLog(
+          `Mailbox temporarily throttled (${retryAfterSec}s). Pausing in-process to retry step...`,
+          'warn'
+        );
+        await new Promise((resolve) => setTimeout(resolve, retryAfterSec * 1000));
+        try {
+          const retryResult = await sdk.outreach.sendEmail({
+            accountId: accountDoc.id,
+            to: contact.email,
+            subject: renderedSubject,
+            text: formattedBody.text,
+            html: formattedBody.html,
+            useSignature: step.config?.useGmailSignature !== false,
+            attachments: rawAttachments,
+            idempotencyKey,
+            campaignId,
+            sequenceId,
+            executionId: execCtx.execution.id,
+            stepIndex: stepIndexNum,
+            contactId: entityId
+          });
+          const sentMsgId = retryResult.messageId || null;
+          ctx.emitLog(
+            `Email send succeeded on retry: messageId=${sentMsgId || 'unknown'}, recipient=${contact.email}`,
+            'info'
+          );
+          return { status: 'success' };
+        } catch (retryErr: any) {
+          const secondRetrySec = retryErr.retryAfterSec || 15;
+          ctx.emitLog(
+            `Mailbox throttled on retry. Yielding WAITING state for ${secondRetrySec}s without advancing step.`,
+            'warn'
+          );
+          return { status: 'wait', delaySeconds: secondRetrySec, retrySameStep: true };
+        }
+      } else {
+        ctx.emitLog(
+          `Mailbox rate limit/quota reached (retryAfter=${retryAfterSec}s). Yielding WAITING state without advancing step.`,
+          'warn'
+        );
+        return { status: 'wait', delaySeconds: retryAfterSec, retrySameStep: true };
+      }
+    }
+
     ctx.emitLog(
       `Email send failed for recipient ${contact.email} (subject: "${renderedSubject}"): ${errMsg}`,
       'error',

@@ -227,16 +227,31 @@ export class BaseRepository<T extends Document<any>> {
   ): Promise<T | null> {
     try {
       const scopedFilter = this.applyScope(filter);
-      const sanitizedUpdate = { ...update };
-      if (sanitizedUpdate.$set) {
-        delete sanitizedUpdate.$set._id;
-        delete sanitizedUpdate.$set.id;
-        delete sanitizedUpdate.$set.workspaceId;
+      let sanitizedUpdate: any;
+      if (Array.isArray(update)) {
+        sanitizedUpdate = update.map((stage: any) => {
+          if (stage && typeof stage === 'object' && stage.$set) {
+            const copy = { ...stage, $set: { ...stage.$set } };
+            delete copy.$set._id;
+            delete copy.$set.id;
+            delete copy.$set.workspaceId;
+            return copy;
+          }
+          return stage;
+        });
+      } else {
+        sanitizedUpdate = { ...update };
+        if (sanitizedUpdate.$set) {
+          delete sanitizedUpdate.$set._id;
+          delete sanitizedUpdate.$set.id;
+          delete sanitizedUpdate.$set.workspaceId;
+        }
       }
 
       return (await this.model.findOneAndUpdate(scopedFilter, sanitizedUpdate, {
         returnDocument: 'after',
-        runValidators: true,
+        runValidators: !Array.isArray(update),
+        ...(Array.isArray(update) ? { updatePipeline: true } : {}),
         ...options
       })) as unknown as T | null;
     } catch (error) {

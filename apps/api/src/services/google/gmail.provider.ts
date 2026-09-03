@@ -248,4 +248,194 @@ export class GmailProvider {
       return null;
     }
   }
+
+  /**
+   * Searches Gmail sent folder with collision-resistant criteria for send reconciliation.
+   */
+  public async searchSentMessages(
+    connectionId: string,
+    query: {
+      recipientEmail: string;
+      senderEmail: string;
+      subject: string;
+      afterTimestampSec?: number;
+      beforeTimestampSec?: number;
+    }
+  ): Promise<Array<{ id: string; threadId: string }>> {
+    const accessToken = await this.authService.getValidAccessToken(connectionId);
+    // Sanitize subject for Gmail search syntax
+    const cleanSubject = query.subject.replace(/["\\]/g, ' ').trim();
+    let q = `in:sent to:${query.recipientEmail} from:${query.senderEmail} subject:"${cleanSubject}"`;
+    if (query.afterTimestampSec) q += ` after:${query.afterTimestampSec}`;
+    if (query.beforeTimestampSec) q += ` before:${query.beforeTimestampSec}`;
+
+    const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=10`;
+    const res = await this.transportFn(url, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new EmailDomainError('GMAIL_SEARCH_FAILED', `Gmail message search failed: ${res.status} ${errText}`);
+    }
+
+    const data: any = await res.json().catch(() => ({}));
+    if (!Array.isArray(data?.messages)) return [];
+    return data.messages.map((m: any) => ({
+      id: String(m.id || ''),
+      threadId: String(m.threadId || '')
+    }));
+  }
+
+  /**
+   * Lists messages received in mailbox matching an optional query or timestamp window.
+   */
+  public async listInboundMessages(
+    connectionId: string,
+    query: { afterTimestampSec?: number; maxResults?: number; q?: string } = {}
+  ): Promise<Array<{ id: string; threadId: string }>> {
+    const accessToken = await this.authService.getValidAccessToken(connectionId);
+    let q = query.q || 'is:inbox';
+    if (query.afterTimestampSec) q += ` after:${query.afterTimestampSec}`;
+    const maxResults = query.maxResults || 20;
+
+    const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=${maxResults}`;
+    const res = await this.transportFn(url, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new EmailDomainError('GMAIL_INBOUND_LIST_FAILED', `Gmail list inbound failed: ${res.status} ${errText}`);
+    }
+
+    const data: any = await res.json().catch(() => ({}));
+    if (!Array.isArray(data?.messages)) return [];
+    return data.messages.map((m: any) => ({
+      id: String(m.id || ''),
+      threadId: String(m.threadId || '')
+    }));
+  }
+
+  /**
+   * Fetches full message payload, headers, and body content for a specific messageId.
+   */
+  public async getMessage(
+    connectionId: string,
+    messageId: string
+  ): Promise<GmailMessageDetail | null> {
+    const accessToken = await this.authService.getValidAccessToken(connectionId);
+    const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}?format=full`;
+    const res = await this.transportFn(url, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    if (!res.ok) {
+      if (res.status === 404) return null;
+      const errText = await res.text().catch(() => '');
+      throw new EmailDomainError('GMAIL_GET_MESSAGE_FAILED', `Gmail getMessage failed: ${res.status} ${errText}`);
+    }
+
+    const data: any = await res.json().catch(() => ({}));
+    if (!data?.id) return null;
+
+    const headersList: any[] = Array.isArray(data.payload?.headers) ? data.payload.headers : [];
+    const getHeader = (name: string): string => {
+      const h = headersList.find((x) => (x.name || '').toLowerCase() === name.toLowerCase());
+      return h?.value ? String(h.value).trim() : '';
+    };
+
+    const referencesHeader = getHeader('References');
+    const references = referencesHeader
+      ? referencesHeader.split(/\s+/).map((r) => r.trim()).filter(Boolean)
+      : [];
+
+    const { text, html, hasAttachments, attachmentCount } = extractBodyParts(data.payload);
+
+    return {
+      id: String(data.id),
+      threadId: String(data.threadId || ''),
+      snippet: data.snippet ? String(data.snippet) : undefined,
+      internalDate: data.internalDate ? new Date(Number(data.internalDate)) : new Date(),
+      headers: {
+        from: getHeader('From'),
+        to: getHeader('To'),
+        subject: getHeader('Subject'),
+        messageId: getHeader('Message-ID') || undefined,
+        inReplyTo: getHeader('In-Reply-To') || undefined,
+        references,
+        date: getHeader('Date') || undefined
+      },
+      bodyText: text,
+      bodyHtml: html,
+      hasAttachments,
+      attachmentCount
+    };
+  }
+}
+
+export interface GmailMessageDetail {
+  id: string;
+  threadId: string;
+  snippet?: string | undefined;
+  internalDate: Date;
+  headers: {
+    from: string;
+    to: string;
+    subject: string;
+    messageId?: string | undefined;
+    inReplyTo?: string | undefined;
+    references?: string[] | undefined;
+    date?: string | undefined;
+  };
+  bodyText?: string | undefined;
+  bodyHtml?: string | undefined;
+  hasAttachments: boolean;
+  attachmentCount: number;
+}
+
+function extractBodyParts(payload: any): {
+  text?: string | undefined;
+  html?: string | undefined;
+  hasAttachments: boolean;
+  attachmentCount: number;
+} {
+  let text = '';
+  let html = '';
+  let attachmentCount = 0;
+
+  function traverse(part: any) {
+    if (!part) return;
+    const mimeType = (part.mimeType || '').toLowerCase();
+    const filename = part.filename;
+
+    if (filename && filename.length > 0) {
+      attachmentCount++;
+    }
+
+    if (part.body && part.body.data) {
+      try {
+        const decoded = Buffer.from(part.body.data.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8');
+        if (mimeType === 'text/plain' && !text) {
+          text = decoded;
+        } else if (mimeType === 'text/html' && !html) {
+          html = decoded;
+        }
+      } catch {}
+    }
+
+    if (Array.isArray(part.parts)) {
+      for (const p of part.parts) {
+        traverse(p);
+      }
+    }
+  }
+
+  traverse(payload);
+  return {
+    text: text || undefined,
+    html: html || undefined,
+    hasAttachments: attachmentCount > 0,
+    attachmentCount
+  };
 }

@@ -11,6 +11,7 @@ export { AudienceRepository } from './audience/audience.repository.js';
 export { JobRepository } from './job/job.repository.js';
 export { AutomationLockRepository } from './automation-lock/automation-lock.repository.js';
 export { EmailDeliveryRepository } from './email-delivery/email-delivery.repository.js';
+export { EmailEventRepository } from './email-event/email-event.repository.js';
 export { SystemLogRepository } from './system-log/system-log.repository.js';
 export { WorkspaceMemoryRepository } from './workspace-memory/workspace-memory.repository.js';
 export { AuditLogRepository } from './audit-log/audit-log.repository.js';

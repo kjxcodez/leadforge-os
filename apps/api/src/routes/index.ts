@@ -22,6 +22,7 @@ import { auditRouter } from './audit.js';
 import { systemLogsRouter } from './system-logs.js';
 import { googleConnectionsRouter } from './google-connections.js';
 import { attachmentsRouter } from './attachments.js';
+import { trackingRouter } from './tracking.js';
 
 import { authMiddleware, workspaceMiddleware, rateLimiter } from '../middleware/index.js';
 import { BetaApplicantModel } from '../db/models/index.js';
@@ -128,6 +129,7 @@ apiRouter.route('/audiences', audiencesRouter);
 apiRouter.route('/jobs', jobsRouter);
 apiRouter.route('/automation-locks', locksRouter);
 apiRouter.route('/email-deliveries', deliveriesRouter);
+apiRouter.route('/tracking', trackingRouter);
 apiRouter.route('/intelligence', intelligenceRouter);
 apiRouter.route('/workspace-memory', memoryRouter);
 apiRouter.route('/audit-logs', auditRouter);

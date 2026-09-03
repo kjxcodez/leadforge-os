@@ -7,15 +7,17 @@ import {
   phoneFieldNullable,
   urlField
 } from '../fields/common.js';
-import { contactStatusSchema, contactSchema } from '../entities/contact.js';
+import { contactStatusSchema, contactEmailStatusSchema, contactEmailMetaSchema, contactSchema } from '../entities/contact.js';
 import { paginationParamsSchema } from '../common/pagination.js';
 
 export const createContactDtoSchema = z.object({
   id: entityIdField.optional(),
   companyId: entityIdFieldNullable.optional(),
-  firstName: nameField,
+  firstName: z.string().max(100).nullable().optional(),
   lastName: z.string().nullable().optional(),
   email: emailFieldNullable.optional(),
+  emailStatus: contactEmailStatusSchema.optional(),
+  emailMeta: contactEmailMetaSchema.nullable().optional(),
   phone: phoneFieldNullable.optional(),
   title: z.string().nullable().optional(),
   linkedin: z.string().nullable().optional(),

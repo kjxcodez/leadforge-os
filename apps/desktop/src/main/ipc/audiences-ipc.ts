@@ -31,7 +31,13 @@ export function resolveAudienceLocally(
     const placeholders = ids.map(() => '?').join(', ');
     const rows = db
       .prepare(
-        `SELECT id, companyId FROM contacts WHERE id IN (${placeholders}) AND workspaceId = ? AND deletedAt IS NULL`
+        `SELECT id, companyId FROM contacts 
+         WHERE id IN (${placeholders}) 
+           AND workspaceId = ? 
+           AND deletedAt IS NULL
+           AND email IS NOT NULL AND email != ''
+           AND UPPER(COALESCE(status, 'NEW')) NOT IN ('UNSUBSCRIBED', 'BOUNCED', 'DO_NOT_CONTACT', 'ARCHIVED')
+           AND UPPER(COALESCE(emailStatus, 'VALID')) NOT IN ('QUARANTINED', 'INVALID')`
       )
       .all(...ids, workspaceId) as Array<{ id: string; companyId: string | null }>;
 
@@ -49,7 +55,12 @@ export function resolveAudienceLocally(
   let companyQuery = 'SELECT id FROM companies WHERE workspaceId = ? AND deletedAt IS NULL';
   const companyParams: any[] = [workspaceId];
 
-  let contactQuery = 'SELECT id FROM contacts WHERE workspaceId = ? AND deletedAt IS NULL';
+  let contactQuery = `SELECT id FROM contacts 
+    WHERE workspaceId = ? 
+      AND deletedAt IS NULL 
+      AND email IS NOT NULL AND email != ''
+      AND UPPER(COALESCE(status, 'NEW')) NOT IN ('UNSUBSCRIBED', 'BOUNCED', 'DO_NOT_CONTACT', 'ARCHIVED')
+      AND UPPER(COALESCE(emailStatus, 'VALID')) NOT IN ('QUARANTINED', 'INVALID')`;
   const contactParams: any[] = [workspaceId];
   let hasCompanyFilter = false;
 

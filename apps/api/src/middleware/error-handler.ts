@@ -54,6 +54,7 @@ export function errorHandler(error: Error, c: Context): Response {
         statusCode = 404;
       } else if (
         code === 'EMAIL_RATE_LIMITED' ||
+        code === 'PROVIDER_RATE_LIMITED' ||
         code === 'TEST_RECIPIENT_LIMIT_REACHED' ||
         code === 'SENDER_RATE_LIMITED' ||
         code === 'DRIVE_RATE_LIMITED'
@@ -85,6 +86,11 @@ export function errorHandler(error: Error, c: Context): Response {
       }
     }
 
+    // Set standard HTTP Retry-After header if retry delay is specified
+    if (statusCode === 429 && typeof domainErr.retryAfterSec === 'number' && domainErr.retryAfterSec > 0) {
+      c.header('Retry-After', String(domainErr.retryAfterSec));
+    }
+
     const wsId = c.get('workspaceId') || 'unknown';
     logger.warn(
       {
@@ -94,11 +100,21 @@ export function errorHandler(error: Error, c: Context): Response {
         method: c.req.method,
         errorCode: code,
         statusCode,
-        message: domainErr.message
+        message: domainErr.message,
+        retryAfterSec: domainErr.retryAfterSec,
+        nextSendAt: domainErr.nextSendAt,
+        reason: domainErr.reason
       },
       `Domain error handled [${code}]: ${domainErr.message}`
     );
-    return c.json(errorResponse(code, domainErr.message, null), statusCode as any);
+
+    const rateLimitInfo = statusCode === 429 ? {
+      retryAfterSec: domainErr.retryAfterSec,
+      nextSendAt: domainErr.nextSendAt,
+      reason: domainErr.reason
+    } : undefined;
+
+    return c.json(errorResponse(domainErr.message, code, null, rateLimitInfo), statusCode as any);
   }
 
   // Handle Mongoose specific validation or query errors safely without exposing DB internals

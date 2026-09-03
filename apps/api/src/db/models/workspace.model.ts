@@ -30,6 +30,11 @@ export interface WorkspaceDocument
   plan: 'free' | 'growth' | 'enterprise';
   settings: {
     defaultTimezone: string;
+    outreachPolicy?: {
+      dailyLimit?: number | null;
+      hourlyLimit?: number | null;
+      minSendIntervalMs?: number | null;
+    } | null;
   };
   members: WorkspaceMember[];
   billing?: Record<string, any> | null;
@@ -73,6 +78,17 @@ const workspaceSchema = new Schema<WorkspaceDocument>(
       defaultTimezone: {
         type: String,
         default: 'UTC'
+      },
+      outreachPolicy: {
+        type: new Schema(
+          {
+            dailyLimit: { type: Number, default: null },
+            hourlyLimit: { type: Number, default: null },
+            minSendIntervalMs: { type: Number, default: null }
+          },
+          { _id: false }
+        ),
+        default: null
       }
     },
     members: [

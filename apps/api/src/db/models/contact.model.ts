@@ -9,7 +9,7 @@ import {
   type TimestampDocument,
   type WorkspaceScopedDocument
 } from '../plugins/index.js';
-import { ContactStatus } from '@leadforge/schema';
+import { ContactStatus, ContactEmailStatus, type ContactEmailMeta } from '@leadforge/schema';
 
 export interface ContactDocument
   extends
@@ -19,7 +19,7 @@ export interface ContactDocument
     TimestampDocument,
     WorkspaceScopedDocument {
   companyId?: string | null;
-  firstName: string;
+  firstName?: string | null;
   lastName?: string | null;
   email?: string | null;
   phone?: string | null;
@@ -28,6 +28,12 @@ export interface ContactDocument
   linkedinUrl?: string | null;
   source?: string | null;
   status: ContactStatus;
+  /**
+   * Email validation lifecycle. QUARANTINED contacts are excluded from campaign outreach.
+   * Defaults to UNVERIFIED for all new/imported contacts.
+   */
+  emailStatus?: ContactEmailStatus | null;
+  emailMeta?: ContactEmailMeta | null;
   notes?: string | null;
   lastContactedAt?: Date | null;
 }
@@ -41,7 +47,7 @@ const contactSchema = new Schema<ContactDocument>(
     },
     firstName: {
       type: String,
-      required: true,
+      default: null,
       trim: true
     },
     lastName: {
@@ -83,6 +89,15 @@ const contactSchema = new Schema<ContactDocument>(
       type: String,
       enum: Object.values(ContactStatus),
       default: ContactStatus.NEW
+    },
+    emailStatus: {
+      type: String,
+      enum: Object.values(ContactEmailStatus),
+      default: ContactEmailStatus.UNVERIFIED
+    },
+    emailMeta: {
+      type: Schema.Types.Mixed,
+      default: null
     },
     notes: {
       type: String,

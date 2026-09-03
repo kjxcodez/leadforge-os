@@ -87,6 +87,11 @@ export class EmailDeliveryRepository extends BaseRepository<EmailDeliveryDocumen
             senderEmail: dto.senderEmail,
             recipientEmail: dto.recipientEmail,
             subject: dto.subject,
+            htmlBody: dto.htmlBody || existing.htmlBody,
+            textBody: dto.textBody || existing.textBody,
+            attachments: (dto.attachments as any) || existing.attachments,
+            openTrackingToken: dto.openTrackingToken || existing.openTrackingToken,
+            clickTrackingTokens: (dto.clickTrackingTokens as any) || existing.clickTrackingTokens,
             snapshot: dto.snapshot || existing.snapshot,
             updatedAt: now
           },
@@ -112,6 +117,11 @@ export class EmailDeliveryRepository extends BaseRepository<EmailDeliveryDocumen
         senderEmail: dto.senderEmail,
         recipientEmail: dto.recipientEmail,
         subject: dto.subject,
+        htmlBody: dto.htmlBody || null,
+        textBody: dto.textBody || null,
+        attachments: (dto.attachments as any) || [],
+        openTrackingToken: dto.openTrackingToken || null,
+        clickTrackingTokens: (dto.clickTrackingTokens as any) || [],
         status: 'SENDING',
         attempt: 1,
         idempotencyKey: dto.idempotencyKey,
@@ -185,7 +195,12 @@ export class EmailDeliveryRepository extends BaseRepository<EmailDeliveryDocumen
     error: string,
     options?: {
       classification?: string;
+      failureCode?: string;
+      failureCategory?: string;
+      safeHumanMessage?: string;
+      technicalMessage?: string;
       retryable?: boolean;
+      ambiguous?: boolean;
       nextRetryAt?: Date;
       maxRetries?: number;
     }
@@ -212,7 +227,13 @@ export class EmailDeliveryRepository extends BaseRepository<EmailDeliveryDocumen
         $set: {
           status: nextStatus,
           error,
+          failureCode: options?.failureCode || null,
+          failureCategory: options?.failureCategory || null,
           failureClassification: options?.classification || null,
+          safeHumanMessage: options?.safeHumanMessage || null,
+          technicalMessage: options?.technicalMessage || null,
+          retryable: options?.retryable ?? false,
+          ambiguous: options?.ambiguous ?? false,
           nextRetryAt: isRetryable ? options?.nextRetryAt || new Date(Date.now() + 60000) : null,
           leaseExpiresAt: null,
           updatedAt: new Date()

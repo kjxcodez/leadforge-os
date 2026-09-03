@@ -21,7 +21,12 @@ export function successResponse<T>(data: T, meta?: Record<string, unknown>): Suc
 export function errorResponse(
   message: string,
   code: ErrorCode | string = ErrorCode.INTERNAL_SERVER_ERROR,
-  details: unknown | null = null
+  details: unknown | null = null,
+  rateLimitInfo?: {
+    retryAfterSec?: number;
+    nextSendAt?: string;
+    reason?: string;
+  }
 ): ApiErrorResponse {
   return {
     success: false,
@@ -29,7 +34,10 @@ export function errorResponse(
     error: {
       code: code as ErrorCode,
       message,
-      details
+      details,
+      ...(rateLimitInfo?.retryAfterSec !== undefined ? { retryAfterSec: rateLimitInfo.retryAfterSec } : {}),
+      ...(rateLimitInfo?.nextSendAt !== undefined ? { nextSendAt: rateLimitInfo.nextSendAt } : {}),
+      ...(rateLimitInfo?.reason !== undefined ? { reason: rateLimitInfo.reason } : {})
     }
   };
 }

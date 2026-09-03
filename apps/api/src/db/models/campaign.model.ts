@@ -28,7 +28,7 @@ export interface CampaignDocument
   description?: string | null;
   sequenceId?: string | null;
   sendingAccountId?: string | null;
-  status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
+  status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'STOPPED' | 'COMPLETED' | 'FAILED';
   steps: CampaignStep[];
   template?: string | null;
   schedule?: Record<string, any> | string | null;
@@ -61,7 +61,7 @@ const campaignSchema = new Schema<CampaignDocument>(
     },
     status: {
       type: String,
-      enum: ['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED'],
+      enum: ['DRAFT', 'ACTIVE', 'PAUSED', 'STOPPED', 'COMPLETED', 'FAILED'],
       default: 'DRAFT'
     },
     steps: [

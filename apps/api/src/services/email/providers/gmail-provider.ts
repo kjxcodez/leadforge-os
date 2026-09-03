@@ -85,7 +85,7 @@ export class GmailProvider implements EmailProvider {
   async send(input: SendEmailInput): Promise<SendEmailResult> {
     try {
       const from = input.from || this.config.email;
-      const messageId = await this.client.sendMessage({
+      const sendRes = await this.client.sendMessage({
         from,
         to: input.to,
         subject: input.subject,
@@ -93,9 +93,27 @@ export class GmailProvider implements EmailProvider {
         ...(input.text !== undefined ? { text: input.text } : {}),
         ...(input.attachments !== undefined ? { attachments: input.attachments } : {})
       });
-      return { messageId, accepted: [input.to] };
+      return {
+        messageId: sendRes.messageId,
+        threadId: sendRes.threadId || null,
+        accepted: [input.to],
+        sentAt: new Date()
+      };
     } catch (err: any) {
       const reauth = !!err?.reauthRequired;
+      const isRateLimit = !!err?.isRateLimit;
+      if (isRateLimit) {
+        throw new EmailDomainError(
+          'PROVIDER_RATE_LIMITED',
+          `Gmail send rate limited by Google: ${err.message || err}`,
+          false,
+          true,
+          'provider_rate_limited',
+          err?.retryAfterSec,
+          undefined,
+          'PROVIDER_RATE_LIMITED'
+        );
+      }
       throw new EmailDomainError(
         reauth ? 'MAILBOX_REAUTH_REQUIRED' : 'EMAIL_SEND_FAILED',
         `Gmail send failed: ${err.message || err}`,

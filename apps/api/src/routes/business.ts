@@ -153,6 +153,41 @@ workspacesRouter.openapi(updateWorkspaceRoute, async (c) => {
 });
 
 // ---------------------------------------------------------------------------
+// 4b. Update Workspace Outreach Policy (OWNER only)
+// ---------------------------------------------------------------------------
+const updateWorkspacePolicySchema = z.object({
+  dailyLimit: z.number().int().min(1).max(2000).nullable().optional(),
+  hourlyLimit: z.number().int().min(1).max(200).nullable().optional(),
+  minSendIntervalMs: z.number().int().min(1000).nullable().optional()
+});
+
+workspacesRouter.patch('/:id/policy', async (c) => {
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const validated = updateWorkspacePolicySchema.parse(body);
+  const userId = getUserId(c);
+
+  const workspace = await workspaceService.getWorkspaceById(id);
+  const isOwner = workspace.ownerId === userId;
+  const member = workspace.members.find((m) => m.userId === userId);
+  if (!isOwner && member?.role !== 'OWNER') {
+    throw new ForbiddenError('Only workspace owners can update outreach policy.');
+  }
+
+  workspace.settings = {
+    ...workspace.settings,
+    outreachPolicy: {
+      dailyLimit: validated.dailyLimit ?? workspace.settings?.outreachPolicy?.dailyLimit ?? null,
+      hourlyLimit: validated.hourlyLimit ?? workspace.settings?.outreachPolicy?.hourlyLimit ?? null,
+      minSendIntervalMs: validated.minSendIntervalMs ?? workspace.settings?.outreachPolicy?.minSendIntervalMs ?? null
+    }
+  };
+
+  const updated = await workspace.save();
+  return c.json(successResponse(updated));
+});
+
+// ---------------------------------------------------------------------------
 // 5. Delete Workspace (Soft Delete)
 // ---------------------------------------------------------------------------
 const deleteWorkspaceRoute = createRoute({
@@ -603,6 +638,30 @@ campaignsRouter.post('/:id/schedule', async (c) => {
   const service = new OutreachService(wsId);
   await service.scheduleCampaign(id);
   return c.json(successResponse({ success: true }));
+});
+
+campaignsRouter.post('/:id/pause', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const service = new CampaignService(wsId);
+  const campaign = await service.pauseCampaign(id);
+  return c.json(successResponse(campaign));
+});
+
+campaignsRouter.post('/:id/resume', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const service = new CampaignService(wsId);
+  const campaign = await service.resumeCampaign(id);
+  return c.json(successResponse(campaign));
+});
+
+campaignsRouter.post('/:id/stop', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const service = new CampaignService(wsId);
+  const campaign = await service.stopCampaign(id);
+  return c.json(successResponse(campaign));
 });
 
 // ── Outreach Email Accounts & Templates Router ──────────────────────────────

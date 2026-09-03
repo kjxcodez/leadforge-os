@@ -84,6 +84,7 @@ export interface EmailProviderErrorShape {
     | 'MAILBOX_DISCONNECTED'
     | 'EMAIL_SEND_FAILED'
     | 'EMAIL_RATE_LIMITED'
+    | 'PROVIDER_RATE_LIMITED'
     | 'SENDER_RATE_LIMITED'
     | 'GMAIL_OAUTH_NOT_CONFIGURED'
     | 'GMAIL_OAUTH_CALLBACK_FAILED'
@@ -116,11 +117,19 @@ export interface EmailProviderErrorShape {
     | 'DELIVERY_ALREADY_SENT'
     | 'DELIVERY_ALREADY_RESERVED'
     | 'CAMPAIGN_LIMIT_EXCEEDED'
+    | 'CAMPAIGN_NOT_ACTIVE'
+    | 'CONTACT_NOT_ELIGIBLE'
+    | 'GMAIL_SEARCH_FAILED'
+    | 'GMAIL_INBOUND_LIST_FAILED'
+    | 'GMAIL_GET_MESSAGE_FAILED'
     | 'TRANSIENT_NETWORK_ERROR';
   message: string;
   reauthRequired?: boolean;
   retryable?: boolean;
   classification?: string;
+  retryAfterSec?: number;
+  nextSendAt?: string;
+  reason?: string;
 }
 
 export class EmailDomainError extends Error {
@@ -128,18 +137,28 @@ export class EmailDomainError extends Error {
   reauthRequired: boolean;
   retryable: boolean;
   classification?: string | undefined;
+  retryAfterSec?: number | undefined;
+  nextSendAt?: string | undefined;
+  reason?: string | undefined;
 
   constructor(
     code: EmailProviderErrorShape['code'],
     message: string,
     reauthRequired = false,
     retryable = false,
-    classification?: string | undefined
+    classification?: string | undefined,
+    retryAfterSec?: number | undefined,
+    nextSendAt?: string | undefined,
+    reason?: string | undefined
   ) {
     super(message);
+    this.name = 'EmailDomainError';
     this.code = code;
     this.reauthRequired = reauthRequired;
     this.retryable = retryable;
     this.classification = classification;
+    this.retryAfterSec = retryAfterSec;
+    this.nextSendAt = nextSendAt;
+    this.reason = reason;
   }
 }

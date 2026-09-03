@@ -1,16 +1,23 @@
 import { CampaignRepository } from '../../repositories/campaign/campaign.repository.js';
 import type { CampaignDocument } from '../../db/models/campaign.model.js';
+import { JobModel, SequenceExecutionModel } from '../../db/models/index.js';
 import {
   createCampaignDtoSchema,
   updateCampaignDtoSchema,
+  isValidCampaignTransition,
+  CampaignStatus,
+  VALID_CAMPAIGN_TRANSITIONS,
   type CreateCampaignDto,
   type UpdateCampaignDto
 } from '@leadforge/schema';
+import { ValidationError } from '../../errors/index.js';
 
 export class CampaignService {
   private campaignRepository: CampaignRepository;
+  private workspaceId: string;
 
   constructor(workspaceId: string) {
+    this.workspaceId = workspaceId;
     this.campaignRepository = new CampaignRepository(workspaceId);
   }
 
@@ -48,9 +55,56 @@ export class CampaignService {
     const validated = updateCampaignDtoSchema.parse(dto);
     const updatePayload: any = { ...validated };
     if (updatePayload.status) {
-      updatePayload.status = String(updatePayload.status).toUpperCase();
+      const targetStatus = String(updatePayload.status).toUpperCase();
+      const existing = await this.campaignRepository.findById(id);
+      if (!isValidCampaignTransition(existing.status, targetStatus)) {
+        throw new ValidationError(
+          `Invalid campaign state transition from "${existing.status}" to "${targetStatus}". Allowed: ${
+            (VALID_CAMPAIGN_TRANSITIONS as any)[existing.status]?.join(', ') || 'none'
+          }.`
+        );
+      }
+      updatePayload.status = targetStatus;
     }
     return this.campaignRepository.update(id, updatePayload);
+  }
+
+  public async pauseCampaign(id: string): Promise<CampaignDocument> {
+    return this.updateCampaign(id, { status: CampaignStatus.PAUSED as any });
+  }
+
+  public async resumeCampaign(id: string): Promise<CampaignDocument> {
+    return this.updateCampaign(id, { status: CampaignStatus.ACTIVE as any });
+  }
+
+  public async stopCampaign(id: string): Promise<CampaignDocument> {
+    const stopped = await this.updateCampaign(id, { status: CampaignStatus.STOPPED as any });
+
+    // Server-authoritative cancellation: cancel queued/in-flight jobs and waiting executions
+    try {
+      await JobModel.updateMany(
+        {
+          workspaceId: this.workspaceId,
+          type: 'automation:workflow',
+          status: { $in: ['queued', 'starting', 'running', 'retrying'] },
+          'payload.campaignId': id
+        },
+        { $set: { status: 'cancelled' } }
+      );
+
+      await SequenceExecutionModel.updateMany(
+        {
+          workspaceId: this.workspaceId,
+          campaignId: id,
+          status: { $in: ['PENDING', 'RUNNING', 'WAITING', 'PAUSED'] }
+        },
+        { $set: { status: 'CANCELLED' } }
+      );
+    } catch (cancelErr) {
+      console.warn(`[CampaignService] Warning during stop cleanup for ${id}:`, cancelErr);
+    }
+
+    return stopped;
   }
 
   public async deleteCampaign(id: string): Promise<boolean> {

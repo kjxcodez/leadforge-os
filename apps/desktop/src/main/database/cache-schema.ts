@@ -142,6 +142,8 @@ export function initCacheSchema(db: Database.Database): void {
         source TEXT,
         priority INTEGER DEFAULT 0,
         status TEXT,
+        emailStatus TEXT DEFAULT 'unverified',
+        emailMeta TEXT DEFAULT NULL,
         notes TEXT,
         tags TEXT DEFAULT '[]',
         lastContactedAt DATETIME,
@@ -151,6 +153,17 @@ export function initCacheSchema(db: Database.Database): void {
         deletedAt DATETIME DEFAULT NULL
       )
     `).run();
+
+    // Ensure emailStatus and emailMeta columns exist on existing databases
+    try {
+      const contactCols = (db.pragma(`table_info(contacts)`) as Array<{ name: string }>).map((c) => c.name);
+      if (!contactCols.includes('emailStatus')) {
+        db.prepare(`ALTER TABLE contacts ADD COLUMN emailStatus TEXT DEFAULT 'unverified'`).run();
+      }
+      if (!contactCols.includes('emailMeta')) {
+        db.prepare(`ALTER TABLE contacts ADD COLUMN emailMeta TEXT DEFAULT NULL`).run();
+      }
+    } catch {}
 
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_contacts_ws ON contacts(workspaceId)`).run();
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_contacts_ws_comp ON contacts(workspaceId, companyId)`).run();

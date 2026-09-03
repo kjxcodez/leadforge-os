@@ -65,9 +65,13 @@ export interface GoogleTokenInfo {
 
 export class GoogleOAuthError extends Error {
   reauthRequired: boolean;
-  constructor(message: string, reauthRequired = false) {
+  isRateLimit: boolean;
+  retryAfterSec?: number | undefined;
+  constructor(message: string, reauthRequired = false, options?: { isRateLimit?: boolean | undefined; retryAfterSec?: number | undefined }) {
     super(message);
     this.reauthRequired = reauthRequired;
+    this.isRateLimit = options?.isRateLimit ?? false;
+    this.retryAfterSec = options?.retryAfterSec;
   }
 }
 
@@ -313,7 +317,7 @@ export class GmailApiClient {
     }
   }
 
-  async sendMessage(options: SendMessageOptions): Promise<string> {
+  async sendMessage(options: SendMessageOptions): Promise<{ messageId: string; threadId?: string | null }> {
     const raw = await this.buildRawMime(options);
     const { accessToken } = await this.getAccessToken();
     const res = await fetch(GMAIL_SEND_API_URL, {
@@ -332,13 +336,29 @@ export class GmailApiClient {
           true
         );
       }
+      if (res.status === 429) {
+        // Provider rate limit. Extract Retry-After if present.
+        const retryAfterHeader = res.headers.get('Retry-After') || res.headers.get('retry-after');
+        const retryAfterSec = retryAfterHeader
+          ? parseInt(retryAfterHeader, 10)
+          : (body?.error?.errors?.[0]?.reason === 'rateLimitExceeded' ? 3600 : 60);
+        const safeRetryAfterSec = isNaN(retryAfterSec) || retryAfterSec <= 0 ? 60 : retryAfterSec;
+        throw new GoogleOAuthError(
+          `Gmail send rate limited by Google. Retry after ${safeRetryAfterSec}s.`,
+          false,
+          { isRateLimit: true, retryAfterSec: safeRetryAfterSec }
+        );
+      }
       throw new GoogleOAuthError(
         `Gmail send failed (HTTP ${res.status}): ${
           body?.error?.message || 'unknown error'
         }`
       );
     }
-    return body.id || '';
+    return {
+      messageId: body.id || '',
+      threadId: body.threadId || null
+    };
   }
 
   private async buildRawMime(options: SendMessageOptions): Promise<string> {

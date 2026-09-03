@@ -5,3 +5,6 @@ export * from './dto/index.js';
 export * from './common/index.js';
 export * from './auth/index.js';
 export * from './ipc/index.js';
+export * from './utils/email-sanitizer.js';
+export * from './utils/outreach-eligibility.js';
+export * from './utils/tracking.js';

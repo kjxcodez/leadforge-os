@@ -50,7 +50,10 @@ app.use('*', async (c, next) => {
   await next();
 });
 
+import { trackingRouter } from './routes/tracking.js';
+
 // Register routes
+app.route('/t', trackingRouter);
 app.route(API_PREFIX, apiRouter);
 
 // Global Error Handler

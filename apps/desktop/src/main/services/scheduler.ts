@@ -14,6 +14,7 @@ import { decryptSecret } from '../lib/crypto';
 import { loadSession } from '../lib/session';
 import { loadConfig } from '../lib/config';
 import { ProjectionService } from './projection-service';
+import { getDatabase } from '../database/connection';
 import type { SchedulerConfig } from '../../shared/types/job';
 import type { MainToWorkerMsg } from '../../shared/types/ipc';
 
@@ -287,6 +288,75 @@ export class JobScheduler {
     this.isTickRunning = true;
 
     try {
+      // 1. WAITING Sequence Recovery: Scan SQLite sequence_executions for due WAITING executions
+      try {
+        const db = getDatabase(this.workspaceId);
+
+        // Cancel any WAITING executions belonging to permanently STOPPED or FAILED campaigns
+        try {
+          db.prepare(`
+            UPDATE sequence_executions
+            SET status = 'CANCELLED', updatedAt = datetime('now')
+            WHERE workspaceId = ?
+              AND UPPER(status) = 'WAITING'
+              AND campaignId IN (
+                SELECT id FROM campaigns
+                WHERE workspaceId = ? AND UPPER(status) IN ('STOPPED', 'FAILED')
+              )
+          `).run(this.workspaceId, this.workspaceId);
+        } catch {}
+
+        const dueExecutions = db
+          .prepare(`
+            SELECT se.id, se.sequenceId, se.contactId, se.campaignId
+            FROM sequence_executions se
+            LEFT JOIN campaigns c ON se.campaignId = c.id
+            WHERE se.workspaceId = ?
+              AND UPPER(se.status) = 'WAITING'
+              AND se.nextExecutionAt IS NOT NULL
+              AND se.nextExecutionAt <= datetime('now')
+              AND se.deletedAt IS NULL
+              AND (se.campaignId IS NULL OR UPPER(COALESCE(c.status, 'ACTIVE')) = 'ACTIVE')
+            LIMIT 20
+          `)
+          .all(this.workspaceId) as Array<{
+            id: string;
+            sequenceId: string;
+            contactId: string;
+            campaignId?: string;
+          }>;
+
+        for (const exec of dueExecutions) {
+          // Atomic compare-and-swap transition in SQLite: WAITING -> RUNNING
+          const updateResult = db
+            .prepare(`
+              UPDATE sequence_executions
+              SET status = 'RUNNING', updatedAt = datetime('now')
+              WHERE id = ? AND UPPER(status) = 'WAITING'
+            `)
+            .run(exec.id);
+
+          if (updateResult.changes === 1) {
+            AppLogger.info('JobScheduler', `Recovered WAITING sequence execution: ${exec.id}`, this.workspaceId);
+            await this.sdk.jobs
+              .create({
+                type: 'automation:workflow',
+                payload: {
+                  executionId: exec.id,
+                  sequenceId: exec.sequenceId,
+                  contactId: exec.contactId,
+                  campaignId: exec.campaignId
+                }
+              })
+              .catch((err) => {
+                AppLogger.error('JobScheduler', `Failed to enqueue automation:workflow job for ${exec.id}`, this.workspaceId, err);
+              });
+          }
+        }
+      } catch (recoveryErr) {
+        AppLogger.warn('JobScheduler', 'WAITING sequence recovery check skipped or failed', this.workspaceId, recoveryErr);
+      }
+
       const config = this.loadSchedulerConfig();
       const availableCapacity = config.globalMaxConcurrency - this.activeWorkers.size;
 

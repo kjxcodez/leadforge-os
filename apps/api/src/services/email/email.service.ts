@@ -1,8 +1,19 @@
 import { EmailAccountModel } from '../../db/models/email-account.model.js';
 import { UserTestRecipientModel } from '../../db/models/user-test-recipient.model.js';
+import { CampaignModel } from '../../db/models/campaign.model.js';
+import { ContactModel } from '../../db/models/contact.model.js';
+import { EmailDeliveryModel } from '../../db/models/email-delivery.model.js';
 import { EmailDeliveryRepository } from '../../repositories/email-delivery/email-delivery.repository.js';
 import { EmailAccountRepository } from '../../repositories/email-account/email-account.repository.js';
 import { plainTextToHtml, wrapHtmlWithDefaultTypography, normalizeEmailSignature } from '@leadforge/sdk';
+import {
+  ContactStatus,
+  EmailFailureCategory,
+  evaluateOutreachEligibility,
+  generateTrackingToken,
+  injectOpenTrackingPixel,
+  rewriteLinksForClickTracking
+} from '@leadforge/schema';
 import {
   EmailDomainError,
   type SendEmailInput,
@@ -11,6 +22,62 @@ import {
 import { EmailAccountService } from './email-account.service.js';
 import { logger } from '../../config/index.js';
 import crypto from 'crypto';
+
+export function classifyEmailFailure(err: any): {
+  code: string;
+  category: EmailFailureCategory;
+  safeHumanMessage: string;
+  technicalMessage: string;
+  retryable: boolean;
+  ambiguous: boolean;
+} {
+  const code = err?.code || err?.name || 'EMAIL_SEND_FAILED';
+  const msg = err?.message || String(err);
+  let category = EmailFailureCategory.PROVIDER;
+  let safeHumanMessage = 'Email provider failed to dispatch outbound message.';
+  let retryable = Boolean(err?.retryable);
+  let ambiguous = false;
+
+  if (err?.code === 'AMBIGUOUS_SEND_TIMEOUT') {
+    category = EmailFailureCategory.AMBIGUOUS;
+    safeHumanMessage = 'Network connection timed out during send. Provider status is ambiguous.';
+    ambiguous = true;
+    retryable = false;
+  } else if (err?.reauthRequired || code === 'MAILBOX_REAUTH_REQUIRED' || code === 'GMAIL_AUTH_REVOKED') {
+    category = EmailFailureCategory.AUTH;
+    safeHumanMessage = 'Gmail connection expired or was revoked. Please reconnect the mailbox in Settings.';
+    retryable = false;
+  } else if (code === 'PROVIDER_RATE_LIMITED' || code === 'EMAIL_RATE_LIMITED' || err?.isRateLimit) {
+    category = EmailFailureCategory.RATE_LIMIT;
+    safeHumanMessage = 'Gmail sending rate limit reached. Outgoing message paused until cooldown expires.';
+    retryable = true;
+  } else if (code === 'INVALID_RECIPIENT') {
+    category = EmailFailureCategory.INVALID_RECIPIENT;
+    safeHumanMessage = 'Recipient address was rejected by Gmail as invalid or unroutable.';
+    retryable = false;
+  } else if (code === 'CAMPAIGN_NOT_ACTIVE' || code === 'CONTACT_NOT_ELIGIBLE') {
+    category = EmailFailureCategory.POLICY;
+    safeHumanMessage = 'Outreach policy prevented send: campaign is not active or contact is ineligible.';
+    retryable = false;
+  } else if (code === 'TRANSIENT_NETWORK_ERROR') {
+    category = EmailFailureCategory.NETWORK;
+    safeHumanMessage = 'Temporary network communication failure with email provider.';
+    retryable = true;
+  } else if (typeof code === 'string' && (code.startsWith('ATTACHMENT_') || code.startsWith('DRIVE_'))) {
+    category = EmailFailureCategory.INTERNAL;
+    safeHumanMessage = `Attachment handling failed: ${msg}`;
+    retryable = err?.retryable || false;
+  }
+
+  return {
+    code,
+    category,
+    safeHumanMessage,
+    technicalMessage: msg,
+    retryable,
+    ambiguous
+  };
+}
 
 /**
  * EmailService owns email operations (send / sendTest / verify) on top of the
@@ -84,12 +151,63 @@ export class EmailService {
       );
     }
 
+    // 0. Pre-flight recipient validation: do not burn quota or reserve slots on malformed recipients!
+    const { validateEmailStrict } = await import('@leadforge/schema');
+    if (!validateEmailStrict(input.to)) {
+      throw new EmailDomainError(
+        'INVALID_RECIPIENT',
+        `Invalid recipient email address: "${input.to}". Must be a valid RFC 5321 email.`
+      );
+    }
+
+    // 0a. Server-authoritative campaign send authorization check
+    let campaignDoc: any = null;
+    if (input.campaignId) {
+      campaignDoc = await CampaignModel.findOne({ _id: input.campaignId, workspaceId: this.workspaceId });
+      if (campaignDoc && campaignDoc.status !== 'ACTIVE') {
+        throw new EmailDomainError(
+          'CAMPAIGN_NOT_ACTIVE',
+          `Campaign "${input.campaignId}" is in status "${campaignDoc.status}". Sending is not authorized.`
+        );
+      }
+    }
+
+    // 0b. Server-authoritative contact outreach eligibility check
+    if (input.contactId && input.contactId !== 'direct-contact') {
+      const contactDoc = await ContactModel.findOne({ _id: input.contactId, workspaceId: this.workspaceId });
+      if (contactDoc) {
+        const eligibility = evaluateOutreachEligibility({
+          contact: {
+            id: contactDoc._id.toString(),
+            email: contactDoc.email,
+            status: contactDoc.status,
+            emailStatus: contactDoc.emailStatus,
+            emailMeta: contactDoc.emailMeta as any
+          },
+          campaign: campaignDoc ? { id: campaignDoc._id.toString(), status: campaignDoc.status } : null
+        });
+        if (!eligibility.eligible) {
+          throw new EmailDomainError(
+            'CONTACT_NOT_ELIGIBLE',
+            `Contact "${contactDoc.email}" is not eligible for outreach: ${eligibility.reason}.`
+          );
+        }
+      }
+    }
+
     // 1. Atomic send slot reservation (prevents counter race conditions)
-    const reservedAccount = await this.accountRepo.reserveSendSlot(input.accountId);
-    if (!reservedAccount) {
+    const effectiveLimits = await this.accountRepo.resolveEffectiveLimits(input.accountId);
+    const reservation = await this.accountRepo.reserveSendSlot(input.accountId, effectiveLimits);
+    if (!reservation.success) {
       throw new EmailDomainError(
         'EMAIL_RATE_LIMITED',
-        `Daily or hourly send limit reached for mailbox "${account.email}".`
+        `Mailbox sending limit reached for "${account.email}": ${reservation.reason || 'send slot unavailable'}.`,
+        false,
+        true,
+        undefined,
+        reservation.retryAfterSec,
+        reservation.nextSendAt,
+        reservation.reason
       );
     }
 
@@ -306,7 +424,41 @@ export class EmailService {
       }
     }
 
-    // 6. Build Provider & Dispatch Outbound Send
+    // 6. Setup Tracking (open pixel & click redirect) and persist exact rendered outbound message
+    const trackingBaseUrl =
+      process.env.TRACKING_BASE_URL ||
+      process.env.API_BASE_URL ||
+      'http://localhost:3000';
+    const openTrackingToken = generateTrackingToken();
+    let clickTokens: Array<{ token: string; targetUrl: string }> = [];
+
+    if (finalHtml) {
+      const clickRes = rewriteLinksForClickTracking(finalHtml, trackingBaseUrl);
+      finalHtml = clickRes.rewrittenHtml;
+      clickTokens = clickRes.tokens;
+      finalHtml = injectOpenTrackingPixel(finalHtml, trackingBaseUrl, openTrackingToken);
+    }
+
+    // Persist exact rendered content & tracking metadata onto delivery record
+    await EmailDeliveryModel.updateOne(
+      { _id: deliveryRecord._id },
+      {
+        $set: {
+          htmlBody: finalHtml || null,
+          textBody: input.text || null,
+          attachments: processedAttachments.map((a) => ({
+            filename: a.filename,
+            contentType: a.contentType,
+            size: a.size || 0,
+            fileId: a.fileId || null
+          })),
+          openTrackingToken,
+          clickTrackingTokens: clickTokens
+        }
+      }
+    );
+
+    // 7. Build Provider & Dispatch Outbound Send
     const provider = await this.accounts.buildProvider(input.accountId);
     try {
       logger.info(
@@ -328,12 +480,36 @@ export class EmailService {
         html: finalHtml
       });
 
-      // 7. Finalize delivery in MongoDB ledger
+      // 8. Finalize delivery in MongoDB ledger
       await this.deliveryRepo.finalizeDelivery(deliveryRecord._id.toString(), {
         providerMessageId: result.messageId,
         providerThreadId: (result as any).threadId || null,
         sentAt: new Date()
       });
+
+      // 9. Atomic contact lifecycle transition: CONTACTED only after provider acceptance
+      if (input.contactId && input.contactId !== 'direct-contact') {
+        try {
+          await ContactModel.updateOne(
+            {
+              _id: input.contactId,
+              workspaceId: this.workspaceId,
+              status: { $nin: ['UNSUBSCRIBED', 'BOUNCED', 'DO_NOT_CONTACT', 'ARCHIVED'] }
+            } as any,
+            {
+              $set: {
+                status: ContactStatus.CONTACTED,
+                lastContactedAt: new Date()
+              }
+            }
+          );
+        } catch (contactErr) {
+          logger.warn({ contactErr, contactId: input.contactId }, 'Failed to transition contact to CONTACTED after send');
+        }
+      }
+
+      // Release in-flight send lease on success (quota remains consumed)
+      await this.accountRepo.clearSendLease(input.accountId);
 
       await EmailAccountModel.updateOne(
         { _id: input.accountId } as any,
@@ -370,14 +546,24 @@ export class EmailService {
         'Outbound email send failed in provider'
       );
 
+      const failure = classifyEmailFailure(err);
+
       if (err.code === 'AMBIGUOUS_SEND_TIMEOUT') {
-        // Critical Ambiguous Send: Network failed after dispatch. Do NOT release send slot or retry blindly!
+        // Critical Ambiguous Send: Network failed after dispatch.
+        // Clear in-flight lease so mailbox is not locked forever, but do NOT release quota or retry blindly!
+        await this.accountRepo.clearSendLease(input.accountId);
         await this.deliveryRepo.markAmbiguous(
           deliveryRecord._id.toString(),
           err.message,
           'Network timeout during Gmail API transmission. Requires manual/reconciliation check.'
         );
         throw err;
+      }
+
+      // If provider rate limited (e.g. Google 429), set mailbox provider cooldown
+      if (err.code === 'PROVIDER_RATE_LIMITED' || err.classification === 'provider_rate_limited') {
+        const cooldownSec = err.retryAfterSec || 60;
+        await this.accountRepo.setProviderCooldown(input.accountId, cooldownSec);
       }
 
       // Definite failure: release send slot and record failure in ledger
@@ -395,8 +581,13 @@ export class EmailService {
         deliveryRecord._id.toString(),
         err.message || String(err),
         {
-          classification: err.classification || (isAuthError ? 'authentication' : 'provider_error'),
-          retryable: err.retryable || false
+          classification: err.classification || failure.category.toLowerCase(),
+          failureCode: failure.code,
+          failureCategory: failure.category,
+          safeHumanMessage: failure.safeHumanMessage,
+          technicalMessage: failure.technicalMessage,
+          retryable: failure.retryable,
+          ambiguous: failure.ambiguous
         }
       );
 

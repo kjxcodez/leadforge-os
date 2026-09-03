@@ -65,6 +65,53 @@ export const testRecipientSchema = z.object({
 });
 export type TestRecipient = z.infer<typeof testRecipientSchema>;
 
+/**
+ * Per-mailbox send rate policy. All limits are optional; null means "use platform default".
+ * The effective limit is always resolved server-side as:
+ *   Platform default → workspace override → account override → platform ceiling.
+ */
+export const sendPolicySchema = z.object({
+  dailyLimit: z.number().int().positive().nullable().optional(),
+  hourlyLimit: z.number().int().positive().nullable().optional(),
+  /** Minimum elapsed milliseconds between consecutive sends from this mailbox. */
+  minSendIntervalMs: z.number().int().nonnegative().nullable().optional(),
+  /**
+   * Maximum number of concurrent in-flight sends from this mailbox.
+   * Platform currently enforces 1 (one send at a time per mailbox).
+   */
+  maxConcurrent: z.number().int().min(1).optional()
+}).optional();
+export type SendPolicy = z.infer<typeof sendPolicySchema>;
+
+/**
+ * Mutable per-mailbox send state. Written atomically by reserveSendSlot().
+ * Never written directly from the desktop or from API validation code.
+ */
+export const sendStateSchema = z.object({
+  /** Number of sends in the current daily window. */
+  dailySent: z.number().int().nonnegative().default(0),
+  /** Number of sends in the current hourly window. */
+  hourlySent: z.number().int().nonnegative().default(0),
+  /** When the current daily window expires and counters are reset. */
+  dailyResetAt: z.coerce.date(),
+  /** When the current hourly window expires and counters are reset. */
+  hourlyResetAt: z.coerce.date(),
+  /** Timestamp of the most recent successful send. */
+  lastSentAt: z.coerce.date().nullable().optional(),
+  /** Earliest time the next send may be dispatched (enforces minSendIntervalMs). */
+  nextSendAt: z.coerce.date().nullable().optional(),
+  /** When the Google provider rate-limit expires. Null when not rate-limited. */
+  rateLimitedUntil: z.coerce.date().nullable().optional(),
+  /**
+   * In-flight send lease. Non-null when a send is actively in progress.
+   * Enforces maxConcurrent = 1 independently of timing constraints.
+   * Expires automatically after leaseDurationMs (default 30 s) to prevent permanent lock
+   * on worker crash.
+   */
+  sendLeaseExpiresAt: z.coerce.date().nullable().optional()
+}).optional();
+export type SendState = z.infer<typeof sendStateSchema>;
+
 export const emailAccountSchema = z.object({
   id: entityIdField,
   workspaceId: entityIdField.optional(),
@@ -84,6 +131,8 @@ export const emailAccountSchema = z.object({
   hourlyLimit: z.number().int().default(50),
   dailySent: z.number().int().default(0),
   hourlySent: z.number().int().default(0),
+  sendPolicy: sendPolicySchema,
+  sendState: sendStateSchema,
   signature: z.string().nullable().optional(),
   testRecipients: z.array(testRecipientSchema).optional(),
   lastVerifiedAt: z.union([z.date(), z.string()]).nullable().optional(),
@@ -94,6 +143,8 @@ export const emailAccountSchema = z.object({
   updatedAt: z.union([z.date(), z.string()])
 });
 export type EmailAccount = z.infer<typeof emailAccountSchema>;
+
+
 
 export const audienceSchema = z.object({
   id: entityIdField,

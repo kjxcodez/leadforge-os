@@ -72,6 +72,10 @@ export {
   type EmailDeliveryDocument
 } from './email-delivery.model.js';
 export {
+  EmailEventModel,
+  type EmailEventDocument
+} from './email-event.model.js';
+export {
   GoogleConnectionModel,
   type GoogleConnectionDocument
 } from './google-connection.model.js';

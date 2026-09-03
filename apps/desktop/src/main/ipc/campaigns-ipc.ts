@@ -440,4 +440,100 @@ export function registerCampaignsIpc(): void {
     console.log(`[IPC] Campaign "${campaignId}" scheduled successfully. Enqueued ${enqueuedJobsCount} workflow job(s).`);
     return { success: true, campaignId, enqueuedJobsCount };
   });
+
+  // 8. Pause campaign
+  safeRegister('campaigns:pause', async (_event, campaignId) => {
+    if (!campaignId) throw new Error('campaignId is required.');
+    const runtime = WorkspaceManager.getActiveRuntime();
+    if (!runtime) throw new Error('No active workspace runtime');
+
+    const db = getDatabase(runtime.workspaceId);
+    const sdk = WorkspaceManager.getSdk();
+    const now = new Date().toISOString();
+
+    // 1. Update authoritative server state
+    try {
+      const updated = await sdk.campaigns.update(campaignId, { status: 'PAUSED' as any });
+      if (updated) {
+        await LocalCRMRepository.saveFromServer('campaigns', updated);
+      }
+    } catch (err) {
+      console.warn(`[IPC] Server campaign pause warning for ${campaignId}:`, err);
+      db.prepare(`UPDATE campaigns SET status = 'PAUSED', updatedAt = ? WHERE id = ? AND workspaceId = ?`)
+        .run(now, campaignId, runtime.workspaceId);
+    }
+
+    // 2. Pause active sequence executions in SQLite
+    db.prepare(`
+      UPDATE sequence_executions
+      SET status = 'PAUSED', updatedAt = ?
+      WHERE campaignId = ? AND UPPER(status) IN ('RUNNING', 'QUEUED', 'STARTING')
+    `).run(now, campaignId);
+
+    // 3. Cancel any in-flight/queued jobs for this campaign
+    try {
+      const jobsList = await sdk.jobs.list({ limit: 100 });
+      const jobsToCancel = (jobsList.data || []).filter(
+        (j: any) =>
+          (j.payload?.campaignId === campaignId ||
+            j.type === 'outreach:campaign' && j.payload?.campaignId === campaignId) &&
+          ['queued', 'starting', 'running', 'retrying'].includes(j.status)
+      );
+      for (const job of jobsToCancel) {
+        await sdk.jobs.cancel(job.id).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('[IPC] Error cancelling paused jobs via SDK:', err);
+    }
+
+    return { success: true, campaignId, status: 'PAUSED' };
+  });
+
+  // 9. Stop campaign (terminal)
+  safeRegister('campaigns:stop', async (_event, campaignId) => {
+    if (!campaignId) throw new Error('campaignId is required.');
+    const runtime = WorkspaceManager.getActiveRuntime();
+    if (!runtime) throw new Error('No active workspace runtime');
+
+    const db = getDatabase(runtime.workspaceId);
+    const sdk = WorkspaceManager.getSdk();
+    const now = new Date().toISOString();
+
+    // 1. Update authoritative server state
+    try {
+      const updated = await sdk.campaigns.update(campaignId, { status: 'STOPPED' as any });
+      if (updated) {
+        await LocalCRMRepository.saveFromServer('campaigns', updated);
+      }
+    } catch (err) {
+      console.warn(`[IPC] Server campaign stop warning for ${campaignId}:`, err);
+      db.prepare(`UPDATE campaigns SET status = 'STOPPED', updatedAt = ? WHERE id = ? AND workspaceId = ?`)
+        .run(now, campaignId, runtime.workspaceId);
+    }
+
+    // 2. Permanently cancel all non-completed executions in SQLite
+    db.prepare(`
+      UPDATE sequence_executions
+      SET status = 'CANCELLED', updatedAt = ?
+      WHERE campaignId = ? AND UPPER(status) IN ('RUNNING', 'QUEUED', 'STARTING', 'WAITING', 'PAUSED')
+    `).run(now, campaignId);
+
+    // 3. Cancel any in-flight/queued jobs for this campaign
+    try {
+      const jobsList = await sdk.jobs.list({ limit: 100 });
+      const jobsToCancel = (jobsList.data || []).filter(
+        (j: any) =>
+          (j.payload?.campaignId === campaignId ||
+            j.type === 'outreach:campaign' && j.payload?.campaignId === campaignId) &&
+          ['queued', 'starting', 'running', 'retrying'].includes(j.status)
+      );
+      for (const job of jobsToCancel) {
+        await sdk.jobs.cancel(job.id).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('[IPC] Error cancelling stopped jobs via SDK:', err);
+    }
+
+    return { success: true, campaignId, status: 'STOPPED' };
+  });
 }

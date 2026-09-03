@@ -48,6 +48,47 @@ export class ContactService {
 
   public async createContact(dto: CreateContactDto): Promise<ContactDocument> {
     const validated = createContactDtoSchema.parse(dto);
+    if (validated.email) {
+      const existing = await this.contactRepository.findByEmail(validated.email);
+      if (existing) {
+        const updateData: any = {};
+        if (validated.companyId && !existing.companyId) {
+          updateData.companyId = validated.companyId;
+        }
+        if (validated.phone && !existing.phone) {
+          updateData.phone = validated.phone;
+        }
+        if (validated.firstName && (!existing.firstName || existing.firstName === 'Discovered')) {
+          updateData.firstName = validated.firstName;
+        }
+        if (validated.lastName && !existing.lastName) {
+          updateData.lastName = validated.lastName;
+        }
+        if (validated.emailMeta) {
+          const rank: Record<string, number> = {
+            mailto: 4,
+            json_ld: 3,
+            metadata: 2,
+            dom_text: 1,
+            manual: 1,
+            unknown: 0
+          };
+          const existingMeta = (existing.emailMeta || {}) as any;
+          const newRank = rank[validated.emailMeta.sourceType || 'unknown'] ?? 0;
+          const oldRank = rank[existingMeta.sourceType || 'unknown'] ?? 0;
+          if (newRank >= oldRank) {
+            updateData.emailMeta = validated.emailMeta;
+            if (validated.emailStatus) {
+              updateData.emailStatus = validated.emailStatus;
+            }
+          }
+        }
+        if (Object.keys(updateData).length > 0) {
+          return this.contactRepository.update(String(existing._id), updateData);
+        }
+        return existing;
+      }
+    }
     return this.contactRepository.create(validated);
   }
 

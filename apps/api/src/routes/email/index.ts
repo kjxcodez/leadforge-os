@@ -75,6 +75,45 @@ emailRouter.get('/accounts/:id', async (c) => {
   return c.json(successResponse(account));
 });
 
+const updateAccountPolicySchema = z.object({
+  dailyLimit: z.number().int().min(1).max(2000).nullable().optional(),
+  hourlyLimit: z.number().int().min(1).max(200).nullable().optional(),
+  minSendIntervalMs: z.number().int().min(1000).nullable().optional()
+});
+
+emailRouter.patch('/accounts/:id/policy', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const userId = getUserId(c);
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const validated = updateAccountPolicySchema.parse(body);
+
+  const { WorkspaceModel } = await import('../../db/models/workspace.model.js');
+  const workspace = await WorkspaceModel.findById(wsId);
+  if (!workspace) throw new ForbiddenError('Workspace not found.');
+
+  const isOwner = workspace.ownerId === userId;
+  const member = workspace.members.find((m) => m.userId === userId);
+  const isAdmin = member?.role === 'ADMIN' || member?.role === 'OWNER';
+
+  if (!isOwner && !isAdmin) {
+    throw new ForbiddenError('Only workspace admins or owners can update mailbox policy.');
+  }
+
+  const { EmailAccountModel } = await import('../../db/models/email-account.model.js');
+  const account = await EmailAccountModel.findOne({ _id: id, workspaceId: wsId });
+  if (!account) throw new ForbiddenError('Email account not found.');
+
+  account.sendPolicy = {
+    dailyLimit: validated.dailyLimit ?? account.sendPolicy?.dailyLimit ?? null,
+    hourlyLimit: validated.hourlyLimit ?? account.sendPolicy?.hourlyLimit ?? null,
+    minSendIntervalMs: validated.minSendIntervalMs ?? account.sendPolicy?.minSendIntervalMs ?? null
+  };
+
+  const updated = await account.save();
+  return c.json(successResponse(updated));
+});
+
 // Initiate server-side Gmail OAuth connection transaction.
 // Returns transactionId + authorizationUrl for Chrome.
 emailRouter.post('/accounts/gmail/connect', async (c) => {

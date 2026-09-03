@@ -3,8 +3,9 @@ import robotsParser from 'robots-parser';
 import pLimit from 'p-limit';
 import type { JobContext } from '../../../shared/types/job';
 import { SdkClient } from '@leadforge/sdk';
-import { generateEntityId, ContactStatus } from '@leadforge/schema';
+import { generateEntityId, ContactStatus, ContactEmailStatus, sanitizeAndValidateEmail } from '@leadforge/schema';
 import { resolveWorkerApiUrl } from '../worker-host';
+import { extractCandidatesFromHtml } from './crawler-extractor.js';
 
 interface QueueItem {
   url: string;
@@ -244,6 +245,12 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
     throw new Error('companyId and website payload parameters are required.');
   }
 
+  let companyDomain: string | undefined;
+  try {
+    const parsed = new URL(website.includes('://') ? website : `https://${website}`);
+    companyDomain = parsed.hostname.replace(/^www\./i, '');
+  } catch {}
+
   // Initialize SdkClient for authoritative API/MongoDB persistence
   const apiUrl = resolveWorkerApiUrl(ctx);
   const authToken = ctx.payload._secrets?.sessionToken || process.env.LEADFORGE_API_TOKEN || '';
@@ -362,11 +369,6 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
             const html = await res.text();
             pagesCrawled++;
 
-            // Extract contacts from HTML content
-            const $ = cheerio.load(html);
-            const pageTitle = $('title').text() || '';
-            const pageEmails = new Set<string>();
-
             // Save page crawl metadata via SdkClient/API
             try {
               await sdk.intelligence.createPageCrawl({
@@ -377,32 +379,14 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
               });
             } catch {}
 
-            // Extract mailto links
-            $('a[href^="mailto:"]').each((_, el) => {
-              if (el) {
-                const href = $(el).attr('href');
-                if (href) {
-                  const parts = href.replace(/^mailto:/i, '').split('?');
-                  const mailPart = parts[0];
-                  if (mailPart) {
-                    const mail = mailPart
-                      .trim()
-                      .replace(/[^\x20-\x7E]/g, '')
-                      .toLowerCase();
-                    if (mail) pageEmails.add(mail);
-                  }
-                }
-              }
-            });
-
-            // Extract via RegEx
-            const bodyText = $('body').text() || '';
-            const matches = bodyText.match(/\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/g);
-            if (matches) {
-              matches.forEach((m) => pageEmails.add(m.replace(/[^\x20-\x7E]/g, '').toLowerCase()));
+            // Extract contacts using evidence-preserving extractor
+            const extraction = extractCandidatesFromHtml(html, item.url, companyDomain);
+            if (extraction.isParkedPage) {
+              ctx.emitLog(`Detected parked domain or landing template at "${item.url}": "${extraction.title}"`, 'warn');
             }
 
             // Extract phone numbers
+            const $ = cheerio.load(html);
             const pagePhones = new Set<string>();
             $('a[href^="tel:"]').each((_, el) => {
               if (el) {
@@ -418,7 +402,7 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
               }
             });
 
-            const bodyPhones = bodyText.match(
+            const bodyPhones = $('body').text().match(
               /(?:\+?(\d{1,3}))?[-. (]*(\d{3})[-. )]*(\d{3})[-. ]*(\d{4})\b/g
             );
             if (bodyPhones) {
@@ -428,34 +412,44 @@ export async function crawlWebsite(ctx: JobContext): Promise<any> {
             const rawExtractedPhone = pagePhones.size > 0 ? Array.from(pagePhones)[0] : null;
             const normalizedPhone = normalizePhone(rawExtractedPhone);
 
-            // Persist discovered contacts authoritatively via API/MongoDB
-            for (const email of pageEmails) {
-              if (!validateEmailFormat(email) || isNoiseEmail(email)) continue;
-              if (contactsFound.has(email)) continue;
-              contactsFound.add(email);
+            // Persist discovered company-affiliated contacts authoritatively via API/MongoDB
+            for (const cand of extraction.candidates) {
+              if (isNoiseEmail(cand.email)) continue;
+              if (contactsFound.has(cand.email)) continue;
+              contactsFound.add(cand.email);
               contactsExtracted++;
-
-              const { type, confidence } = classifyEmail(email);
-              const { firstName, lastName } = extractNameFromEmail(email, type);
 
               try {
                 const contactId = generateEntityId();
                 await sdk.contacts.create({
                   id: contactId,
                   companyId,
-                  firstName: firstName || 'Discovered',
-                  lastName: lastName || undefined,
-                  email,
+                  firstName: cand.firstName || undefined,
+                  lastName: cand.lastName || undefined,
+                  email: cand.email,
+                  emailStatus: cand.emailStatus,
+                  emailMeta: cand.emailMeta,
                   phone: normalizedPhone,
                   status: ContactStatus.NEW,
                   source: 'web_crawler'
                 });
                 contactsPersisted++;
-                ctx.emitLog(`Persisted contact via API: ${email} (${contactId})`, 'info');
+                ctx.emitLog(
+                  `Persisted contact via API: ${cand.email} (${contactId}) [${cand.emailStatus}] source=${cand.emailMeta.sourceType} tier=${cand.emailMeta.confidenceTier}`,
+                  'info'
+                );
               } catch (contactErr) {
                 contactsRejected++;
-                ctx.emitLog(`Failed to persist contact ${email}: ${contactErr}`, 'warn');
+                ctx.emitLog(`Failed to persist contact ${cand.email}: ${contactErr}`, 'warn');
               }
+            }
+
+            // Log observed third-party external emails without assigning as company employees
+            for (const tp of extraction.thirdPartyCandidates) {
+              ctx.emitLog(
+                `Observed external third-party email on ${item.url}: ${tp.email} (${tp.candidate.domain}) - excluded from company personnel`,
+                'info'
+              );
             }
 
             // Enqueue nested internal links if depth limit is not reached

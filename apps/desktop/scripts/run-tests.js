@@ -17,7 +17,11 @@ const tests = [
   'src/main/services/fresh-database.test.ts',
   'src/main/services/fresh-database-all-queries.test.ts',
   'src/main/services/locations.test.ts',
-  'src/main/lib/playwright-setup.test.ts'
+  'src/main/lib/playwright-setup.test.ts',
+  'src/main/services/scheduler-recovery.test.ts',
+  'src/main/services/campaign-lifecycle-safety.test.ts',
+  'src/main/services/email-delivery-engagement.test.ts',
+  'src/main/services/email-reply-reconciliation.test.ts'
 ];
 
 let electronPath = null;

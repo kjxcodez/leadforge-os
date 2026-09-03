@@ -71,7 +71,9 @@ export enum CampaignStatus {
   DRAFT = 'DRAFT',
   ACTIVE = 'ACTIVE',
   PAUSED = 'PAUSED',
-  COMPLETED = 'COMPLETED'
+  STOPPED = 'STOPPED',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED'
 }
 
 export enum ContactStatus {
@@ -79,7 +81,9 @@ export enum ContactStatus {
   CONTACTED = 'CONTACTED',
   REPLIED = 'REPLIED',
   BOUNCED = 'BOUNCED',
-  UNSUBSCRIBED = 'UNSUBSCRIBED'
+  UNSUBSCRIBED = 'UNSUBSCRIBED',
+  DO_NOT_CONTACT = 'DO_NOT_CONTACT',
+  ARCHIVED = 'ARCHIVED'
 }
 
 export enum ErrorCode {
@@ -90,7 +94,9 @@ export enum ErrorCode {
   CONFLICT = 'CONFLICT',
   INTERNAL_SERVER_ERROR = 'INTERNAL_SERVER_ERROR',
   VALIDATION_ERROR = 'VALIDATION_ERROR',
-  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED'
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+  EMAIL_RATE_LIMITED = 'EMAIL_RATE_LIMITED',
+  PROVIDER_RATE_LIMITED = 'PROVIDER_RATE_LIMITED'
 }
 
 export enum HttpStatus {
@@ -183,4 +189,38 @@ export enum ExecutionStatus {
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED'
+}
+
+/**
+ * Email address validation lifecycle status for contacts.
+ * - VALID: Address passed all validation checks and can receive outreach.
+ * - UNVERIFIED: Address has not been checked (default for newly scraped contacts).
+ * - QUARANTINED: Address was identified as corrupted or ambiguous; excluded from outreach
+ *   until a human reviews and resolves it.
+ * - INVALID: Address was checked and is definitively invalid (e.g. permanent bounce).
+ */
+export enum ContactEmailStatus {
+  VALID = 'VALID',
+  UNVERIFIED = 'UNVERIFIED',
+  QUARANTINED = 'QUARANTINED',
+  INVALID = 'INVALID'
+}
+
+export enum EmailEventType {
+  DELIVERED = 'DELIVERED',
+  BOUNCED = 'BOUNCED',
+  OPENED = 'OPENED',
+  CLICKED = 'CLICKED',
+  REPLIED = 'REPLIED'
+}
+
+export enum EmailFailureCategory {
+  AUTH = 'AUTH',
+  RATE_LIMIT = 'RATE_LIMIT',
+  INVALID_RECIPIENT = 'INVALID_RECIPIENT',
+  POLICY = 'POLICY',
+  NETWORK = 'NETWORK',
+  PROVIDER = 'PROVIDER',
+  INTERNAL = 'INTERNAL',
+  AMBIGUOUS = 'AMBIGUOUS'
 }

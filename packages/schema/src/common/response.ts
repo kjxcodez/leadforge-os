@@ -3,10 +3,13 @@ import { ErrorCode } from '../enums/index.js';
 import { paginationMetaSchema, cursorMetaSchema } from './pagination.js';
 
 export const apiErrorSchema = z.object({
-  code: z.nativeEnum(ErrorCode),
+  code: z.union([z.nativeEnum(ErrorCode), z.string()]),
   message: z.string(),
-  details: z.any().nullable()
-});
+  details: z.any().nullable().optional(),
+  retryAfterSec: z.number().optional(),
+  nextSendAt: z.string().optional(),
+  reason: z.string().optional()
+}).passthrough();
 export type ApiError = z.infer<typeof apiErrorSchema>;
 
 export function createSuccessResponseSchema<T extends z.ZodTypeAny>(dataSchema: T) {

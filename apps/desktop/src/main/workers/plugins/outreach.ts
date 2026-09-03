@@ -1,6 +1,6 @@
 import type { JobContext } from '../../../shared/types/job';
 import { SdkClient, renderCanonicalVariables, formatEmailBody, type CanonicalVariableContext } from '@leadforge/sdk';
-import { generateEntityId } from '@leadforge/schema';
+import { generateEntityId, evaluateOutreachEligibility } from '@leadforge/schema';
 import { resolveWorkerApiUrl } from '../worker-host';
 
 interface ContactRecord {
@@ -10,6 +10,8 @@ interface ContactRecord {
   email: string;
   title: string | null;
   status: string | null;
+  emailStatus?: string | null;
+  emailMeta?: any;
   companyId: string | null;
 }
 
@@ -135,8 +137,11 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
   const contactsRes = await sdk.contacts.list({});
   const rawContacts = Array.isArray(contactsRes) ? contactsRes : [];
   const contacts: ContactRecord[] = rawContacts
-    .filter((c: any) => c.email && !['unsubscribed', 'bounced', 'do_not_contact'].includes(c.status))
-    .filter((c: any) => !targetContactIds || targetContactIds.has(c.id))
+    .filter((c: any) => {
+      if (targetContactIds && !targetContactIds.has(c.id)) return false;
+      const el = evaluateOutreachEligibility({ contact: c, campaign });
+      return el.eligible;
+    })
     .map((c: any) => ({
       id: c.id,
       firstName: c.firstName || null,
@@ -144,6 +149,8 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
       email: c.email,
       title: c.title || null,
       status: c.status || null,
+      emailStatus: c.emailStatus || null,
+      emailMeta: c.emailMeta || null,
       companyId: c.companyId || null
     }));
 
@@ -199,10 +206,46 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
       return { status: 'paused', dispatchedCount, failureCount, skippedCount, resumeIndex: i };
     }
 
+    // Send-time server-authoritative campaign status check
+    let freshCampaign: any = null;
+    try {
+      freshCampaign = await sdk.campaigns.get(campaignId);
+    } catch {}
+
+    if (freshCampaign) {
+      const campStatus = String(freshCampaign.status || '').toUpperCase();
+      if (campStatus === 'STOPPED' || campStatus === 'FAILED') {
+        ctx.emitLog(`Campaign "${campaignId}" has transitioned to ${campStatus} on server. Aborting outreach loop immediately.`, 'warn');
+        break;
+      }
+      if (campStatus === 'PAUSED') {
+        ctx.emitLog(`Campaign "${campaignId}" has transitioned to PAUSED on server. Halting outreach loop.`, 'info');
+        ctx.saveCheckpoint({
+          processedContactIds: Array.from(processedContactIds),
+          dispatchedCount,
+          failureCount,
+          skippedCount,
+          currentIndex: i
+        } satisfies OutreachCheckpoint);
+        return { status: 'paused', dispatchedCount, failureCount, skippedCount, resumeIndex: i };
+      }
+    }
+
     const contact = contacts[i];
     if (!contact) continue;
 
     if (processedContactIds.has(contact.id)) {
+      skippedCount++;
+      continue;
+    }
+
+    const eligibility = evaluateOutreachEligibility({
+      contact,
+      campaign: freshCampaign || campaign,
+      context: { alreadyContactedIds: processedContactIds }
+    });
+    if (!eligibility.eligible) {
+      ctx.emitLog(`Skipping contact "${contact.email}" before send: ${eligibility.reason}`, 'info');
       skippedCount++;
       continue;
     }
@@ -288,22 +331,67 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
     } catch (err: any) {
       sendError = err.message || String(err);
       sendSuccess = false;
-      failureCount++;
-      ctx.emitLog(`❌ Failed to send email to ${contact.email}: ${sendError}`, 'error', {
-        error: sendError,
-        recipient: contact.email,
-        subject: renderedSubject,
-        campaignId
-      });
 
-      // Provider backoff if rate limited
-      if (sendError.includes('RATE_LIMITED') || sendError.includes('rate limit') || sendError.includes('429')) {
-        ctx.emitLog(`Provider rate limit reached. Backing off for 10 seconds before next send...`, 'warn');
-        const rateLimitWaitStart = Date.now();
-        while (Date.now() - rateLimitWaitStart < 10000) {
+      const isRateLimited =
+        err.status === 429 ||
+        err.code === 'EMAIL_RATE_LIMITED' ||
+        err.code === 'PROVIDER_RATE_LIMITED' ||
+        sendError.includes('RATE_LIMITED') ||
+        sendError.includes('rate limit') ||
+        sendError.includes('429');
+
+      if (isRateLimited) {
+        const retrySec = typeof err.retryAfterSec === 'number' && err.retryAfterSec > 0
+          ? err.retryAfterSec
+          : 10;
+
+        ctx.emitLog(
+          `Mailbox throttled (retryAfter=${retrySec}s). Backing off before retrying ${contact.email}...`,
+          'warn'
+        );
+
+        const waitStart = Date.now();
+        while (Date.now() - waitStart < retrySec * 1000) {
           if (ctx.isCancelled()) break;
           await new Promise((resolve) => setTimeout(resolve, 500));
         }
+
+        if (!ctx.isCancelled()) {
+          // Retry the contact once after backoff
+          try {
+            const retryRes = await sdk.outreach.sendEmail({
+              accountId,
+              to: contact.email,
+              subject: renderedSubject,
+              text: formattedBody.text,
+              html: formattedBody.html,
+              useSignature: campaign.settings?.useSignature !== false,
+              attachments: processedAttachments,
+              idempotencyKey,
+              campaignId,
+              sequenceId: 'campaign-' + campaignId,
+              executionId: 'exec-' + campaignId,
+              stepIndex: 0,
+              contactId: contact.id
+            });
+            messageId = retryRes.messageId || '';
+            sendSuccess = true;
+            dispatchedCount++;
+            ctx.emitLog(`✅ Email sent on retry to ${contact.email} (messageId: ${messageId})`, 'info');
+          } catch (retryErr: any) {
+            sendError = retryErr.message || String(retryErr);
+            failureCount++;
+            ctx.emitLog(`❌ Failed to send email on retry to ${contact.email}: ${sendError}`, 'error');
+          }
+        }
+      } else {
+        failureCount++;
+        ctx.emitLog(`❌ Failed to send email to ${contact.email}: ${sendError}`, 'error', {
+          error: sendError,
+          recipient: contact.email,
+          subject: renderedSubject,
+          campaignId
+        });
       }
     }
 

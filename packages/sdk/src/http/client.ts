@@ -63,11 +63,20 @@ export class HttpClient {
         const payload = (await response.json()) as ApiResponse<T>;
 
         if (!response.ok || !payload.success) {
+          const retryHeader = response.headers.get('Retry-After');
+          const headerRetrySec = retryHeader ? parseInt(retryHeader, 10) : undefined;
+          const retryAfterSec =
+            (payload.error as any)?.retryAfterSec ??
+            (!isNaN(headerRetrySec!) ? headerRetrySec : undefined);
+          const nextSendAt = (payload.error as any)?.nextSendAt;
+          const reason = (payload.error as any)?.reason;
+
           throw new SdkError(
             payload.error?.message || response.statusText,
             payload.error?.code,
             response.status,
-            payload.error?.details
+            payload.error?.details,
+            { retryAfterSec, nextSendAt, reason }
           );
         }
 
