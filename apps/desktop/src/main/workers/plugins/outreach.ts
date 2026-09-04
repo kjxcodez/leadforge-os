@@ -134,12 +134,28 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
     }
   }
 
+  // Resolve already-contacted contacts for this campaign to prevent duplicate dispatch
+  const alreadyContactedIds = new Set<string>();
+  try {
+    const prevDeliveriesRes = await sdk.emailDeliveries.list({ campaignId, limit: 1000 });
+    const prevList = Array.isArray(prevDeliveriesRes) ? prevDeliveriesRes : (prevDeliveriesRes as any)?.data || [];
+    for (const d of prevList) {
+      if (d.contactId && ['SENT', 'SENDING', 'AMBIGUOUS'].includes(d.status)) {
+        alreadyContactedIds.add(d.contactId);
+      }
+    }
+  } catch {}
+
   const contactsRes = await sdk.contacts.list({});
   const rawContacts = Array.isArray(contactsRes) ? contactsRes : [];
   const contacts: ContactRecord[] = rawContacts
     .filter((c: any) => {
       if (targetContactIds && !targetContactIds.has(c.id)) return false;
-      const el = evaluateOutreachEligibility({ contact: c, campaign });
+      const el = evaluateOutreachEligibility({
+        contact: c,
+        campaign,
+        context: { alreadyContactedIds }
+      });
       return el.eligible;
     })
     .map((c: any) => ({
@@ -304,8 +320,7 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
     const renderedBody = renderCanonicalVariables(body, renderCtx);
     const formattedBody = formatEmailBody(renderedBody);
 
-    const runIdentifier = ctx.jobId || (ctx.payload as any).executionId || 'run';
-    const idempotencyKey = `campaign_${campaignId}_${runIdentifier}_${contact.id}_step0`;
+    const idempotencyKey = `campaign_${campaignId}_${contact.id}_step0`;
     let messageId = '';
     let sendSuccess = false;
     let sendError = '';
@@ -321,8 +336,8 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
         attachments: processedAttachments,
         idempotencyKey,
         campaignId,
-        sequenceId: 'campaign-' + campaignId,
-        executionId: 'exec-' + campaignId,
+        sequenceId: campaign.sequenceId || `campaign-${campaignId}`,
+        executionId: `exec_${campaignId}_${contact.id}`,
         stepIndex: 0,
         contactId: contact.id
       });
@@ -378,8 +393,8 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
               attachments: processedAttachments,
               idempotencyKey,
               campaignId,
-              sequenceId: 'campaign-' + campaignId,
-              executionId: 'exec-' + campaignId,
+              sequenceId: campaign.sequenceId || `campaign-${campaignId}`,
+              executionId: `exec_${campaignId}_${contact.id}`,
               stepIndex: 0,
               contactId: contact.id
             });
