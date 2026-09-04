@@ -47,12 +47,14 @@ import {
   Pencil,
   HardDrive,
   ExternalLink,
-  X
+  X,
+  BarChart3
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { PageHeader } from '../components/common/PageHeader';
 import { MediaPickerDialog } from '../components/media/MediaPickerDialog';
 import { EngagementPills } from '../components/email/EmailStatusBadge';
+import { CampaignAnalyticsView } from '../components/analytics';
 import {
   ProgressiveSequenceEditor,
   type SequenceStepItem
@@ -132,7 +134,7 @@ export default function CampaignsScreen() {
   const [enrollmentPage, setEnrollmentPage] = useState(1);
   const [enrollmentsPerPage] = useState(10);
 
-  const [activitySubTab, setActivitySubTab] = useState<'leads' | 'deliveries'>('leads');
+  const [activitySubTab, setActivitySubTab] = useState<'leads' | 'deliveries' | 'analytics'>('leads');
   const [deliverySearch, setDeliverySearch] = useState('');
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState('all');
   const [deliveryPage, setDeliveryPage] = useState(1);
@@ -1252,10 +1254,25 @@ export default function CampaignsScreen() {
                         <Mail className="w-3.5 h-3.5" />
                         Outbound Delivery Ledger ({rawDeliveries.length})
                       </Button>
+                      <Button
+                        type="button"
+                        variant={activitySubTab === 'analytics' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setActivitySubTab('analytics')}
+                        className="h-7 text-[11px] rounded-none gap-1.5"
+                      >
+                        <BarChart3 className="w-3.5 h-3.5" />
+                        Performance Analytics & Attribution
+                      </Button>
                     </div>
                   </div>
 
-                  {activitySubTab === 'leads' ? (
+                  {activitySubTab === 'analytics' ? (
+                    <CampaignAnalyticsView
+                      workspaceId={workspaceId}
+                      campaignId={selectedCampaignId}
+                    />
+                  ) : activitySubTab === 'leads' ? (
                     /* Main detail workflow section: Left Enrollment Table, Right Timeline Stepper */
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                       {/* Enrollment Table Column */}

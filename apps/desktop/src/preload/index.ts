@@ -188,7 +188,18 @@ contextBridge.exposeInMainWorld('ipc', {
       'audiences:update',
       'audiences:delete',
       'audiences:resolve',
-      'onboarding:generate-sample-data'
+      'onboarding:generate-sample-data',
+      'suppressions:list',
+      'suppressions:check',
+      'suppressions:suppress',
+      'suppressions:unsuppress',
+      'analytics:campaign:overview',
+      'analytics:campaign:timeline',
+      'analytics:campaign:steps',
+      'analytics:campaign:mailboxes',
+      'analytics:campaign:quality',
+      'analytics:campaign:compare',
+      'analytics:campaign:export'
     ];
     if (validChannels.includes(channel as string)) {
       return ipcRenderer.invoke(channel, payload);

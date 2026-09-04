@@ -17,6 +17,7 @@ import { registerDiscoveryIpc } from './discovery-ipc';
 import { registerAudiencesIpc } from './audiences-ipc';
 import { registerDriveIpc } from './drive-ipc';
 import { registerSuppressionsIpc } from './suppressions-ipc';
+import { registerAnalyticsIpc } from './analytics-ipc';
 import { registerPlaywrightIpc } from '../lib/playwright-setup';
 import { WorkspaceManager } from '../lib/workspace-manager';
 
@@ -72,5 +73,6 @@ export function registerAllIpc(
   registerAudiencesIpc();
   registerDriveIpc();
   registerSuppressionsIpc();
+  registerAnalyticsIpc();
   registerPlaywrightIpc();
 }
