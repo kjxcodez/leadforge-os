@@ -1,160 +1,152 @@
-import assert from 'assert';
+/**
+ * Send Test Attachment & Signature Boundary Unit Tests
+ */
+
+import { describe, it, expect, vi } from 'vitest';
 import { sendTestEmail } from './email-account-service.js';
 
-/**
- * Phase 9T — Send Test Attachment Boundary Unit Tests
- */
-async function runTests() {
-  console.log('[Desktop Test] Starting Send Test Attachment Boundary Tests...');
-
-  let sdkCalled = false;
-  let capturedOpts: any = null;
-
-  const mockSdk: any = {
-    outreach: {
-      sendTestEmail: async (id: string, opts: any) => {
-        sdkCalled = true;
-        capturedOpts = opts;
-        return { messageId: 'msg_123', sentTo: opts.to };
+describe('Send Test Attachment Boundary Tests', () => {
+  it('forwards valid Base64 attachments to SDK', async () => {
+    let capturedOpts: any = null;
+    const mockSdk: any = {
+      outreach: {
+        sendTestEmail: vi.fn(async (id: string, opts: any) => {
+          capturedOpts = opts;
+          return { messageId: 'msg_123', sentTo: opts.to };
+        })
       }
-    }
-  };
+    };
 
-  // Test 1: Valid Base64 attachment provided by Renderer
-  sdkCalled = false;
-  capturedOpts = null;
-  const res1 = await sendTestEmail(mockSdk, {
-    id: 'acc_123',
-    to: 'test@example.com',
-    useSignature: true,
-    attachments: [
-      {
-        filename: 'ChatGPT Image Aug 5, 2026, 08_52_09 AM.png',
-        contentBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-        contentType: 'image/png',
-        size: 1024
-      }
-    ]
+    const res = await sendTestEmail(mockSdk, {
+      id: 'acc_123',
+      to: 'test@example.com',
+      useSignature: true,
+      attachments: [
+        {
+          filename: 'image.png',
+          contentBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+          contentType: 'image/png',
+          size: 1024
+        }
+      ]
+    });
+
+    expect(mockSdk.outreach.sendTestEmail).toHaveBeenCalledTimes(1);
+    expect(res.sent).toBe(true);
+    expect(capturedOpts.attachments.length).toBe(1);
+    expect(capturedOpts.attachments[0].filename).toBe('image.png');
+    expect(capturedOpts.attachments[0].contentBase64).toBeDefined();
   });
 
-  assert.strictEqual(sdkCalled, true, 'SDK MUST be called when attachment resolution succeeds');
-  assert.strictEqual(res1.sent, true, 'Result should return sent: true');
-  assert.strictEqual(capturedOpts.attachments.length, 1, 'Should pass 1 attachment to SDK');
-  assert.strictEqual(
-    capturedOpts.attachments[0].filename,
-    'ChatGPT Image Aug 5, 2026, 08_52_09 AM.png'
-  );
-  assert.ok(capturedOpts.attachments[0].contentBase64, 'contentBase64 MUST be passed to SDK');
+  it('rejects unreadable attachments without calling SDK', async () => {
+    const mockSdk: any = {
+      outreach: {
+        sendTestEmail: vi.fn()
+      }
+    };
 
-  // Test 2: Unreadable attachment (missing contentBase64 and missing file on disk)
-  sdkCalled = false;
-  try {
-    await sendTestEmail(mockSdk, {
+    await expect(
+      sendTestEmail(mockSdk, {
+        id: 'acc_123',
+        to: 'test@example.com',
+        attachments: [{ filename: 'missing_file.pdf' }]
+      })
+    ).rejects.toThrow(/Unable to read "missing_file\.pdf"/);
+
+    expect(mockSdk.outreach.sendTestEmail).not.toHaveBeenCalled();
+  });
+
+  it('rejects disallowed executable file extensions (.exe)', async () => {
+    const mockSdk: any = {
+      outreach: {
+        sendTestEmail: vi.fn()
+      }
+    };
+
+    await expect(
+      sendTestEmail(mockSdk, {
+        id: 'acc_123',
+        to: 'test@example.com',
+        attachments: [{ filename: 'malware.exe', contentBase64: 'abc' }]
+      })
+    ).rejects.toThrow(/\.exe is not allowed/);
+
+    expect(mockSdk.outreach.sendTestEmail).not.toHaveBeenCalled();
+  });
+
+  it('rejects attachments exceeding 25MB limit', async () => {
+    const mockSdk: any = {
+      outreach: {
+        sendTestEmail: vi.fn()
+      }
+    };
+
+    await expect(
+      sendTestEmail(mockSdk, {
+        id: 'acc_123',
+        to: 'test@example.com',
+        attachments: [{ filename: 'huge_file.zip', contentBase64: 'abc', size: 30 * 1024 * 1024 }]
+      })
+    ).rejects.toThrow(/exceeds the 25 MB limit/);
+
+    expect(mockSdk.outreach.sendTestEmail).not.toHaveBeenCalled();
+  });
+
+  it('forwards Drive-backed attachment metadata without contentBase64', async () => {
+    let capturedOpts: any = null;
+    const mockSdk: any = {
+      outreach: {
+        sendTestEmail: vi.fn(async (_id: string, opts: any) => {
+          capturedOpts = opts;
+          return { messageId: 'msg_drive_1', sentTo: opts.to };
+        })
+      }
+    };
+
+    const res = await sendTestEmail(mockSdk, {
       id: 'acc_123',
       to: 'test@example.com',
       attachments: [
         {
-          filename: 'missing_file.pdf'
+          id: 'att_drive_999',
+          fileId: 'file_google_888',
+          filename: 'Quarterly_Report.pdf',
+          driveUrl: 'https://drive.google.com/file/d/file_google_888/view',
+          googleConnectionId: 'gconn_123',
+          size: 2048
         }
       ]
     });
-    assert.fail('Should throw error for unreadable attachment');
-  } catch (err: any) {
-    assert.strictEqual(sdkCalled, false, 'SDK MUST NOT be called if attachment resolution fails');
-    assert.ok(
-      err.message.includes('Unable to read "missing_file.pdf"'),
-      'Error message must provide user-friendly guidance'
-    );
-  }
 
-  // Test 3: Disallowed executable file extension (.exe)
-  sdkCalled = false;
-  try {
-    await sendTestEmail(mockSdk, {
+    expect(mockSdk.outreach.sendTestEmail).toHaveBeenCalledTimes(1);
+    expect(res.sent).toBe(true);
+    expect(capturedOpts.attachments[0].fileId).toBe('file_google_888');
+    expect(capturedOpts.attachments[0].googleConnectionId).toBe('gconn_123');
+  });
+
+  it('forwards signature option and propagates signatureNotice', async () => {
+    let capturedOpts: any = null;
+    const mockSdk: any = {
+      outreach: {
+        sendTestEmail: vi.fn(async (_id: string, opts: any) => {
+          capturedOpts = opts;
+          return {
+            messageId: 'msg_sig_123',
+            sentTo: opts.to,
+            signatureNotice: 'Gmail signature included'
+          };
+        })
+      }
+    };
+
+    const res = await sendTestEmail(mockSdk, {
       id: 'acc_123',
       to: 'test@example.com',
-      attachments: [
-        {
-          filename: 'malware.exe',
-          contentBase64: 'abc'
-        }
-      ]
+      useSignature: true
     });
-    assert.fail('Should throw error for .exe extension');
-  } catch (err: any) {
-    assert.strictEqual(sdkCalled, false, 'SDK MUST NOT be called if extension is disallowed');
-    assert.ok(err.message.includes('.exe is not allowed'), 'Must reject executable attachment');
-  }
 
-  // Test 4: Exceeded size limit (> 25MB)
-  sdkCalled = false;
-  try {
-    await sendTestEmail(mockSdk, {
-      id: 'acc_123',
-      to: 'test@example.com',
-      attachments: [
-        {
-          filename: 'huge_file.zip',
-          contentBase64: 'abc',
-          size: 30 * 1024 * 1024
-        }
-      ]
-    });
-    assert.fail('Should throw error for file exceeding 25MB');
-  } catch (err: any) {
-    assert.strictEqual(sdkCalled, false, 'SDK MUST NOT be called if size limit is exceeded');
-    assert.ok(err.message.includes('exceeds the 25 MB limit'), 'Must reject oversized attachment');
-  }
-
-  // Test 5: Drive-backed attachment metadata without contentBase64
-  sdkCalled = false;
-  capturedOpts = null;
-  const res5 = await sendTestEmail(mockSdk, {
-    id: 'acc_123',
-    to: 'test@example.com',
-    attachments: [
-      {
-        id: 'att_drive_999',
-        fileId: 'file_google_888',
-        filename: 'Quarterly_Report.pdf',
-        driveUrl: 'https://drive.google.com/file/d/file_google_888/view',
-        googleConnectionId: 'gconn_123',
-        size: 2048
-      }
-    ]
+    expect(mockSdk.outreach.sendTestEmail).toHaveBeenCalledTimes(1);
+    expect(capturedOpts.useSignature).toBe(true);
+    expect(res.signatureNotice).toBe('Gmail signature included');
   });
-  assert.strictEqual(sdkCalled, true, 'SDK MUST be called for Drive-backed attachment');
-  assert.strictEqual(res5.sent, true);
-  assert.strictEqual(capturedOpts.attachments[0].fileId, 'file_google_888');
-  assert.strictEqual(capturedOpts.attachments[0].googleConnectionId, 'gconn_123');
-
-  // Test 6: Signature option forwarding and signatureNotice return
-  sdkCalled = false;
-  capturedOpts = null;
-  const mockSdkWithNotice: any = {
-    outreach: {
-      sendTestEmail: async (_id: string, opts: any) => {
-        sdkCalled = true;
-        capturedOpts = opts;
-        return {
-          messageId: 'msg_sig_123',
-          sentTo: opts.to,
-          signatureNotice: 'Gmail signature included'
-        };
-      }
-    }
-  };
-
-  const res6 = await sendTestEmail(mockSdkWithNotice, {
-    id: 'acc_123',
-    to: 'test@example.com',
-    useSignature: true
-  });
-  assert.strictEqual(sdkCalled, true);
-  assert.strictEqual(capturedOpts.useSignature, true, 'useSignature option MUST be forwarded to SDK');
-  assert.strictEqual(res6.signatureNotice, 'Gmail signature included', 'signatureNotice MUST be propagated');
-
-  console.log('[Desktop Test] PASS: All Send Test Attachment & Signature Boundary Tests Passed!');
-}
-
-runTests();
+});

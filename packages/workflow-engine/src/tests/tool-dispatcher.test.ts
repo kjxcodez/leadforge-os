@@ -1,14 +1,10 @@
-import assert from 'assert';
+import { describe, it, expect } from 'vitest';
 import { ToolDispatcher } from '../tool-invocation/tool-dispatcher';
 import { ConsoleInvocationLogger } from '../tool-invocation/invocation-logger';
 import type { ToolRequest } from '../tool-invocation/types';
 import { ToolRegistry } from '@leadforge/agent-core';
 import type { Tool, ToolResult, ExecutionContext } from '@leadforge/agent-core';
 import { z } from 'zod';
-
-console.log('\n── ToolDispatcher Unit Tests ──');
-
-// ─── Shared Fixtures ──────────────────────────────────────────────────────────
 
 const EXEC_CTX: ExecutionContext = {
   workspaceId: 'ws-test',
@@ -70,121 +66,104 @@ const mockApprovalTool: Tool = {
   })
 };
 
-// ─── Test 1: Successful tool dispatch ──────────────────────────────────────────
+describe('ToolDispatcher', () => {
+  it('successfully dispatches tool, parses inputs, returns outputs and logs execution', async () => {
+    const registry = new ToolRegistry();
+    registry.register(mockValidTool);
 
-{
-  const registry = new ToolRegistry();
-  registry.register(mockValidTool);
+    const logger = new ConsoleInvocationLogger();
+    const dispatcher = new ToolDispatcher(registry, logger);
 
-  const logger = new ConsoleInvocationLogger();
-  const dispatcher = new ToolDispatcher(registry, logger);
+    const req: ToolRequest = {
+      requestId: 'req-1',
+      toolName: 'mock_valid',
+      arguments: { value: 'hello' },
+      traceId: 'trace-test',
+      workspaceId: 'ws-test',
+      invokedBy: 'test-step',
+      timestamp: new Date().toISOString(),
+      requiresApproval: false
+    };
 
-  const req: ToolRequest = {
-    requestId: 'req-1',
-    toolName: 'mock_valid',
-    arguments: { value: 'hello' },
-    traceId: 'trace-test',
-    workspaceId: 'ws-test',
-    invokedBy: 'test-step',
-    timestamp: new Date().toISOString(),
-    requiresApproval: false
-  };
+    const res = await dispatcher.dispatch(req, EXEC_CTX);
 
-  const res = await dispatcher.dispatch(req, EXEC_CTX);
+    expect(res.success).toBe(true);
+    expect(res.approvalStatus).toBe('NOT_REQUIRED');
+    expect(res.data).toEqual({ echoed: 'hello' });
+    expect(res.toolResult).toBeDefined();
+    expect(logger.getLogs().length).toBe(1);
+  });
 
-  assert.strictEqual(res.success, true, 'Dispatch should succeed');
-  assert.strictEqual(res.approvalStatus, 'NOT_REQUIRED', 'Approval status should be NOT_REQUIRED');
-  assert.deepStrictEqual(res.data, { echoed: 'hello' }, 'Output data should match echoes');
-  assert.ok(res.toolResult, 'Raw ToolResult should be attached');
-  assert.strictEqual(logger.getLogs().length, 1, 'Logger should log the invocation');
-  console.log('  ✅ Success dispatch: inputs parsed, outputs returned, execution logged');
-}
+  it('returns structured UNAVAILABLE error when tool is not found', async () => {
+    const registry = new ToolRegistry();
+    const logger = new ConsoleInvocationLogger();
+    const dispatcher = new ToolDispatcher(registry, logger);
 
-// ─── Test 2: Tool not found (UNAVAILABLE) ──────────────────────────────────────
+    const req: ToolRequest = {
+      requestId: 'req-2',
+      toolName: 'non_existent_tool',
+      arguments: {},
+      traceId: 'trace-test',
+      workspaceId: 'ws-test',
+      invokedBy: 'test-step',
+      timestamp: new Date().toISOString(),
+      requiresApproval: false
+    };
 
-{
-  const registry = new ToolRegistry();
-  const logger = new ConsoleInvocationLogger();
-  const dispatcher = new ToolDispatcher(registry, logger);
+    const res = await dispatcher.dispatch(req, EXEC_CTX);
 
-  const req: ToolRequest = {
-    requestId: 'req-2',
-    toolName: 'non_existent_tool',
-    arguments: {},
-    traceId: 'trace-test',
-    workspaceId: 'ws-test',
-    invokedBy: 'test-step',
-    timestamp: new Date().toISOString(),
-    requiresApproval: false
-  };
+    expect(res.success).toBe(false);
+    expect(res.error?.code).toBe('UNAVAILABLE');
+    expect(res.error?.message).toContain('not found');
+    expect(logger.getLogs().length).toBe(1);
+  });
 
-  const res = await dispatcher.dispatch(req, EXEC_CTX);
+  it('rejects invalid inputs prior to run with VALIDATION_ERROR', async () => {
+    const registry = new ToolRegistry();
+    registry.register(mockValidTool);
 
-  assert.strictEqual(res.success, false, 'Dispatch should fail');
-  assert.strictEqual(res.error?.code, 'UNAVAILABLE', 'Error code should be UNAVAILABLE');
-  assert.ok(
-    res.error?.message.includes('not found'),
-    'Error message should explain missing status'
-  );
-  assert.strictEqual(logger.getLogs().length, 1, 'Logger should log the error response');
-  console.log('  ✅ UNAVAILABLE check: returns structured error when tool not found');
-}
+    const logger = new ConsoleInvocationLogger();
+    const dispatcher = new ToolDispatcher(registry, logger);
 
-// ─── Test 3: Validation failure ────────────────────────────────────────────────
+    const req: ToolRequest = {
+      requestId: 'req-3',
+      toolName: 'mock_valid',
+      arguments: { value: 123 }, // Expected string, sent number
+      traceId: 'trace-test',
+      workspaceId: 'ws-test',
+      invokedBy: 'test-step',
+      timestamp: new Date().toISOString(),
+      requiresApproval: false
+    };
 
-{
-  const registry = new ToolRegistry();
-  registry.register(mockValidTool);
+    const res = await dispatcher.dispatch(req, EXEC_CTX);
 
-  const logger = new ConsoleInvocationLogger();
-  const dispatcher = new ToolDispatcher(registry, logger);
+    expect(res.success).toBe(false);
+    expect(res.error?.code).toBe('VALIDATION_ERROR');
+  });
 
-  const req: ToolRequest = {
-    requestId: 'req-3',
-    toolName: 'mock_valid',
-    arguments: { value: 123 }, // Expected string, sent number
-    traceId: 'trace-test',
-    workspaceId: 'ws-test',
-    invokedBy: 'test-step',
-    timestamp: new Date().toISOString(),
-    requiresApproval: false
-  };
+  it('stops execution and flags PENDING status when APPROVAL_REQUIRED', async () => {
+    const registry = new ToolRegistry();
+    registry.register(mockApprovalTool);
 
-  const res = await dispatcher.dispatch(req, EXEC_CTX);
+    const logger = new ConsoleInvocationLogger();
+    const dispatcher = new ToolDispatcher(registry, logger);
 
-  assert.strictEqual(res.success, false, 'Dispatch should fail validation');
-  assert.strictEqual(res.error?.code, 'VALIDATION_ERROR', 'Error code should be VALIDATION_ERROR');
-  console.log('  ✅ VALIDATION_ERROR check: rejects invalid inputs prior to run');
-}
+    const req: ToolRequest = {
+      requestId: 'req-4',
+      toolName: 'mock_approval_required',
+      arguments: {},
+      traceId: 'trace-test',
+      workspaceId: 'ws-test',
+      invokedBy: 'test-step',
+      timestamp: new Date().toISOString(),
+      requiresApproval: true
+    };
 
-// ─── Test 4: Approval requirement ──────────────────────────────────────────────
+    const res = await dispatcher.dispatch(req, EXEC_CTX);
 
-{
-  const registry = new ToolRegistry();
-  registry.register(mockApprovalTool);
-
-  const logger = new ConsoleInvocationLogger();
-  const dispatcher = new ToolDispatcher(registry, logger);
-
-  const req: ToolRequest = {
-    requestId: 'req-4',
-    toolName: 'mock_approval_required',
-    arguments: {},
-    traceId: 'trace-test',
-    workspaceId: 'ws-test',
-    invokedBy: 'test-step',
-    timestamp: new Date().toISOString(),
-    requiresApproval: true // Trigger approval flow contract
-  };
-
-  const res = await dispatcher.dispatch(req, EXEC_CTX);
-
-  assert.strictEqual(res.success, false, 'Should fail without granted approval');
-  assert.strictEqual(res.approvalStatus, 'PENDING', 'Approval status should be PENDING');
-  assert.strictEqual(
-    res.error?.code,
-    'APPROVAL_REQUIRED',
-    'Error code should be APPROVAL_REQUIRED'
-  );
-  console.log('  ✅ APPROVAL_REQUIRED check: stops execution and flags PENDING status');
-}
+    expect(res.success).toBe(false);
+    expect(res.approvalStatus).toBe('PENDING');
+    expect(res.error?.code).toBe('APPROVAL_REQUIRED');
+  });
+});

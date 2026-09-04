@@ -1,9 +1,11 @@
-import assert from 'assert';
-import { ToolRegistry, ToolCatalog, ProviderRegistry } from '../index';
-import type { Tool, ExecutionContext } from '../index';
-import { z } from 'zod';
+/**
+ * Agent Core ToolRegistry, Catalog & ProviderRegistry Unit Tests
+ */
 
-console.log('\n── ToolRegistry Unit Tests ──');
+import { describe, it, expect } from 'vitest';
+import { ToolRegistry, ToolCatalog, ProviderRegistry } from '../index.js';
+import type { Tool, ExecutionContext } from '../index.js';
+import { z } from 'zod';
 
 const mockContext: ExecutionContext = {
   workspaceId: 'ws-test',
@@ -39,113 +41,81 @@ const testTool: Tool<{ val: string }, string> = {
   }
 };
 
-// 1. ToolRegistry Checks
-{
-  const registry = new ToolRegistry();
-  registry.register(testTool);
+describe('Agent Core Tool & Provider Registries', () => {
+  describe('ToolRegistry', () => {
+    it('registers, retrieves, and filters tools by risk level', () => {
+      const registry = new ToolRegistry();
+      registry.register(testTool);
 
-  assert.strictEqual(registry.has('test_tool'), true, 'Registry should have test_tool');
-  assert.strictEqual(
-    registry.get('test_tool'),
-    testTool,
-    'Registry get should return same instance'
-  );
-  assert.strictEqual(registry.list().length, 1, 'Registry list length should be 1');
-  assert.strictEqual(
-    registry.listByRisk('LOW').length,
-    1,
-    'Registry listByRisk Low length should be 1'
-  );
-  console.log('  ✅ Registry operations verified.');
-}
-
-// 2. ToolCatalog Checks
-console.log('\n── ToolCatalog Unit Tests ──');
-{
-  const catalog = new ToolCatalog([
-    {
-      identity: 'search_local_businesses',
-      displayName: 'Maps Search',
-      description: 'Find companies on Google Maps',
-      categories: ['Scraper', 'Discovery'],
-      tags: ['maps', 'local', 'leads'],
-      requiredCapabilities: ['browser'],
-      requiredPermissions: ['network:outbound'],
-      riskLevel: 'LOW',
-      estimatedDuration: 30000,
-      supportsCancellation: true,
-      supportsStreaming: false,
-      requiresBrowser: true,
-      requiresNetwork: true,
-      requiresHumanApproval: false,
-      sideEffects: 'None',
-      version: '1.0.0'
-    }
-  ]);
-
-  assert.strictEqual(catalog.list().length, 1, 'Catalog list should contain 1 entry');
-  assert.strictEqual(
-    catalog.get('search_local_businesses')?.displayName,
-    'Maps Search',
-    'Catalog get should match ID'
-  );
-  assert.strictEqual(
-    catalog.searchByTag('local').length,
-    1,
-    'Search by tag local should return 1 entry'
-  );
-  assert.strictEqual(
-    catalog.searchByCategory('scraper').length,
-    1,
-    'Search by category scraper should return 1 entry'
-  );
-  assert.strictEqual(
-    catalog.searchByCapability('browser').length,
-    1,
-    'Search by capability browser should return 1 entry'
-  );
-  assert.strictEqual(
-    catalog.searchByRisk('LOW').length,
-    1,
-    'Search by risk LOW should return 1 entry'
-  );
-  console.log('  ✅ Catalog search & filter operations verified.');
-}
-
-// 3. ProviderRegistry Checks
-console.log('\n── ProviderRegistry Unit Tests ──');
-{
-  const registry = new ProviderRegistry();
-  const mockCapabilities = {
-    supportsVision: true,
-    supportsImages: false,
-    supportsAudio: false,
-    supportsEmbeddings: true,
-    supportsStreaming: true,
-    supportsTools: true,
-    supportsStructuredOutputs: true,
-    supportsThinking: false,
-    supportsReasoning: false,
-    supportsContextCaching: true,
-    supportsLargeContext: true,
-    supportsJSON: true,
-    supportsFunctionCalling: true,
-    supportsMCP: false
-  };
-
-  registry.register('openai-mock', mockCapabilities);
-  assert.strictEqual(registry.has('openai-mock'), true, 'Registry should have openai-mock');
-  assert.strictEqual(
-    registry.get('openai-mock')?.capabilities?.supportsVision,
-    true,
-    'Vision capability should be true'
-  );
-
-  const selection = registry.selectByCapabilities({
-    supportsVision: true,
-    supportsEmbeddings: true
+      expect(registry.has('test_tool')).toBe(true);
+      expect(registry.get('test_tool')).toBe(testTool);
+      expect(registry.list().length).toBe(1);
+      expect(registry.listByRisk('LOW').length).toBe(1);
+    });
   });
-  assert.strictEqual(selection.length, 1, 'Selection should return openai-mock');
-  assert.strictEqual(selection[0]?.name, 'openai-mock', 'Selected provider name should match');
-  console.log('  ✅ ProviderRegistry selection logic verified.');
-}
+
+  describe('ToolCatalog', () => {
+    it('searches and filters catalog entries by tags, categories, capabilities, and risk', () => {
+      const catalog = new ToolCatalog([
+        {
+          identity: 'search_local_businesses',
+          displayName: 'Maps Search',
+          description: 'Find companies on Google Maps',
+          categories: ['Scraper', 'Discovery'],
+          tags: ['maps', 'local', 'leads'],
+          requiredCapabilities: ['browser'],
+          requiredPermissions: ['network:outbound'],
+          riskLevel: 'LOW',
+          estimatedDuration: 30000,
+          supportsCancellation: true,
+          supportsStreaming: false,
+          requiresBrowser: true,
+          requiresNetwork: true,
+          requiresHumanApproval: false,
+          sideEffects: 'None',
+          version: '1.0.0'
+        }
+      ]);
+
+      expect(catalog.list().length).toBe(1);
+      expect(catalog.get('search_local_businesses')?.displayName).toBe('Maps Search');
+      expect(catalog.searchByTag('local').length).toBe(1);
+      expect(catalog.searchByCategory('scraper').length).toBe(1);
+      expect(catalog.searchByCapability('browser').length).toBe(1);
+      expect(catalog.searchByRisk('LOW').length).toBe(1);
+    });
+  });
+
+  describe('ProviderRegistry', () => {
+    it('registers providers and selects by capabilities', () => {
+      const registry = new ProviderRegistry();
+      const mockCapabilities = {
+        supportsVision: true,
+        supportsImages: false,
+        supportsAudio: false,
+        supportsEmbeddings: true,
+        supportsStreaming: true,
+        supportsTools: true,
+        supportsStructuredOutputs: true,
+        supportsThinking: false,
+        supportsReasoning: false,
+        supportsContextCaching: true,
+        supportsLargeContext: true,
+        supportsJSON: true,
+        supportsFunctionCalling: true,
+        supportsMCP: false
+      };
+
+      registry.register('openai-mock', mockCapabilities);
+      expect(registry.has('openai-mock')).toBe(true);
+      expect(registry.get('openai-mock')?.capabilities?.supportsVision).toBe(true);
+
+      const selection = registry.selectByCapabilities({
+        supportsVision: true,
+        supportsEmbeddings: true
+      });
+      expect(selection.length).toBe(1);
+      expect(selection[0]?.name).toBe('openai-mock');
+    });
+  });
+});

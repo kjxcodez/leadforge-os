@@ -1,12 +1,13 @@
-import assert from 'assert';
-import { AgentRuntime, ResearchAgent } from '../index';
+/**
+ * Agent Runtime & ResearchAgent Delegation Unit Tests
+ */
+
+import { describe, it, expect } from 'vitest';
+import { AgentRuntime, ResearchAgent } from '../index.js';
 import { ToolRegistry } from '@leadforge/agent-core';
 import type { Tool, ToolResult, ExecutionContext } from '@leadforge/agent-core';
 import { z } from 'zod';
 
-console.log('\n── AgentRuntime E2E Unit Tests ──');
-
-// Mock search tool
 const mockSearchTool: Tool = {
   name: 'search_local_businesses',
   description: 'Mock search businesses',
@@ -31,7 +32,6 @@ const mockSearchTool: Tool = {
   })
 };
 
-// Mock crawl tool
 const mockCrawlTool: Tool = {
   name: 'crawl_company_website',
   description: 'Mock website crawler',
@@ -56,47 +56,32 @@ const mockCrawlTool: Tool = {
   })
 };
 
-// Test complete runtime sequence via WorkflowRunner
-{
-  const registry = new ToolRegistry();
-  registry.register(mockSearchTool);
-  registry.register(mockCrawlTool);
+describe('AgentRuntime Suite', () => {
+  it('executes ResearchAgent with state transitions and tool result collection', async () => {
+    const registry = new ToolRegistry();
+    registry.register(mockSearchTool);
+    registry.register(mockCrawlTool);
 
-  const runtime = new AgentRuntime(registry, { aiMode: 'mock' });
+    const runtime = new AgentRuntime(registry, { aiMode: 'mock' });
 
-  const statesEmitted: string[] = [];
-  runtime.subscribe((session) => {
-    statesEmitted.push(session.getState());
-  });
+    const statesEmitted: string[] = [];
+    runtime.subscribe((session) => {
+      statesEmitted.push(session.getState());
+    });
 
-  runtime
-    .execute(ResearchAgent, 'Austin software companies', {
+    const response = await runtime.execute(ResearchAgent, 'Austin software companies', {
       workspaceId: 'ws-test',
       executionId: 'exec-test',
       traceId: 'trace-test',
       actorId: 'user-test'
-    })
-    .then((response) => {
-      assert.strictEqual(response.success, true, 'Execution should be successful');
-      assert.ok(response.message.length > 0, 'Should return a summary message');
-
-      // The runtime delegates to WorkflowRunner — session states now include
-      // PREPARING_CONTEXT, EXECUTING_TOOL (per step), RECEIVING_TOOL_RESULT (per step),
-      // CALLING_LLM (delegating to runner), GENERATING_RESPONSE, COMPLETED.
-      assert.ok(statesEmitted.includes('PREPARING_CONTEXT'), 'Should emit PREPARING_CONTEXT');
-      assert.ok(statesEmitted.includes('EXECUTING_TOOL'), 'Should emit EXECUTING_TOOL');
-      assert.ok(
-        statesEmitted.includes('RECEIVING_TOOL_RESULT'),
-        'Should emit RECEIVING_TOOL_RESULT'
-      );
-      assert.ok(statesEmitted.includes('COMPLETED'), 'Should emit COMPLETED');
-
-      // toolsExecuted reflects steps with tool results
-      assert.ok(response.toolsExecuted.length >= 1, 'Should have executed at least 1 tool');
-
-      console.log('  ✅ AgentRuntime → WorkflowRunner delegation verified successfully.');
-    })
-    .catch((err) => {
-      assert.fail(`AgentRuntime execute failed: ${err.message}`);
     });
-}
+
+    expect(response.success).toBe(true);
+    expect(response.message.length).toBeGreaterThan(0);
+    expect(statesEmitted).toContain('PREPARING_CONTEXT');
+    expect(statesEmitted).toContain('EXECUTING_TOOL');
+    expect(statesEmitted).toContain('RECEIVING_TOOL_RESULT');
+    expect(statesEmitted).toContain('COMPLETED');
+    expect(response.toolsExecuted.length).toBeGreaterThanOrEqual(1);
+  });
+});

@@ -50,3 +50,6 @@ jobs:
 
       - name: Run Type Safety Checks
         run: pnpm run check-types
+
+      - name: Run Automated Test Suites (Vitest)
+        run: pnpm test

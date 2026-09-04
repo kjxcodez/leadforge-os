@@ -15,6 +15,10 @@
       "dependsOn": ["^build", "^check-types"],
       "inputs": ["$TURBO_DEFAULT$"]
     },
+    "test": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
     "dev": {
       "cache": false,
       "persistent": true

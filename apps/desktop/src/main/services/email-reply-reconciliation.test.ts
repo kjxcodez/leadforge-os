@@ -16,399 +16,364 @@
  * 12. Inbound HTML preview sanitization
  */
 
-import { randomUUID } from 'crypto';
-import assert from 'assert';
+import { describe, it, expect } from 'vitest';
 import {
   ContactStatus,
-  EmailEventType,
-  EmailFailureCategory,
   canTransitionContactStatus,
   evaluateOutreachEligibility,
   sanitizeHtmlForPreview
 } from '@leadforge/schema';
 
-console.log('======================================================================');
-console.log('RUNNING EMAIL REPLY INGESTION & DELIVERY RECONCILIATION TEST SUITE');
-console.log('======================================================================\n');
-
-let passedTests = 0;
-function testAssert(cond: boolean, desc: string) {
-  if (cond) {
-    passedTests++;
-    console.log(`  [PASS] ${desc}`);
-  } else {
-    console.error(`  [FAIL] ${desc}`);
-    throw new Error(`Assertion failed: ${desc}`);
-  }
-}
-
-// ── Test 1: Ambiguous Send Reconciliation State Machine ─────────────────────
-console.log('TEST 1: Ambiguous Send Reconciliation State Machine');
-{
-  interface DeliveryMock {
-    id: string;
-    status: string;
-    recipientEmail: string;
-    senderEmail: string;
-    subject: string;
-    providerMessageId: string | null;
-    providerThreadId: string | null;
-    reconciliationAttempts: number;
-    reconciliationLeaseExpiresAt: Date | null;
-    nextReconciliationAt: Date | null;
-    failureClassification: string | null;
-    quotaReleased: boolean;
-    sentAt: Date | null;
-  }
-
-  // Simulated provider database of Gmail sent messages
-  const gmailSentBox = [
-    {
-      id: 'msg-gmail-101',
-      threadId: 'th-gmail-101',
-      from: 'sales@leadforge.com',
-      to: 'target1@acme.com',
-      subject: 'Partnership Inquiry',
-      date: new Date(Date.now() - 30000)
-    }
-  ];
-
-  function reconcile(
-    delivery: DeliveryMock,
-    ageMs: number,
-    now: Date
-  ): { status: string; notes: string } {
-    // 1. Lease check
-    if (delivery.reconciliationLeaseExpiresAt && delivery.reconciliationLeaseExpiresAt > now) {
-      return { status: delivery.status, notes: 'Lease active, skipping' };
-    }
-    delivery.reconciliationAttempts++;
-    delivery.reconciliationLeaseExpiresAt = new Date(now.getTime() + 60000);
-
-    // 2. Collision-resistant search in Gmail
-    const matches = gmailSentBox.filter(
-      (m) =>
-        m.to.toLowerCase() === delivery.recipientEmail.toLowerCase() &&
-        m.from.toLowerCase() === delivery.senderEmail.toLowerCase() &&
-        m.subject.trim().toLowerCase() === delivery.subject.trim().toLowerCase()
-    );
-
-    if (matches.length === 1) {
-      const match = matches[0]!;
-      delivery.status = 'SENT';
-      delivery.providerMessageId = match.id;
-      delivery.providerThreadId = match.threadId;
-      delivery.sentAt = match.date;
-      delivery.reconciliationLeaseExpiresAt = null;
-      return { status: 'SENT', notes: 'Confirmed in Gmail' };
+describe('Email Reply Ingestion & Delivery Reconciliation Suite', () => {
+  describe('Test 1: Ambiguous Send Reconciliation State Machine', () => {
+    interface DeliveryMock {
+      id: string;
+      status: string;
+      recipientEmail: string;
+      senderEmail: string;
+      subject: string;
+      providerMessageId: string | null;
+      providerThreadId: string | null;
+      reconciliationAttempts: number;
+      reconciliationLeaseExpiresAt: Date | null;
+      nextReconciliationAt: Date | null;
+      failureClassification: string | null;
+      quotaReleased: boolean;
+      sentAt: Date | null;
     }
 
-    if (matches.length === 0) {
-      if (delivery.reconciliationAttempts < 3 && ageMs < 15 * 60 * 1000) {
-        delivery.nextReconciliationAt = new Date(now.getTime() + 120000);
-        delivery.reconciliationLeaseExpiresAt = null;
-        return { status: 'AMBIGUOUS', notes: 'Scheduled retry' };
-      } else {
-        delivery.status = 'FAILED';
-        delivery.failureClassification = 'reconciliation_verified_unsent';
-        delivery.quotaReleased = true;
-        delivery.reconciliationLeaseExpiresAt = null;
-        return { status: 'FAILED', notes: 'Definitively absent, quota released' };
+    const gmailSentBox = [
+      {
+        id: 'msg-gmail-101',
+        threadId: 'th-gmail-101',
+        from: 'sales@leadforge.com',
+        to: 'target1@acme.com',
+        subject: 'Partnership Inquiry',
+        date: new Date(Date.now() - 30000)
       }
+    ];
+
+    function reconcile(
+      delivery: DeliveryMock,
+      ageMs: number,
+      now: Date
+    ): { status: string; notes: string } {
+      // 1. Lease check
+      if (delivery.reconciliationLeaseExpiresAt && delivery.reconciliationLeaseExpiresAt > now) {
+        return { status: delivery.status, notes: 'Lease active, skipping' };
+      }
+      delivery.reconciliationAttempts++;
+      delivery.reconciliationLeaseExpiresAt = new Date(now.getTime() + 60000);
+
+      // 2. Collision-resistant search in Gmail
+      const matches = gmailSentBox.filter(
+        (m) =>
+          m.to.toLowerCase() === delivery.recipientEmail.toLowerCase() &&
+          m.from.toLowerCase() === delivery.senderEmail.toLowerCase() &&
+          m.subject.trim().toLowerCase() === delivery.subject.trim().toLowerCase()
+      );
+
+      if (matches.length === 1) {
+        const match = matches[0]!;
+        delivery.status = 'SENT';
+        delivery.providerMessageId = match.id;
+        delivery.providerThreadId = match.threadId;
+        delivery.sentAt = match.date;
+        delivery.reconciliationLeaseExpiresAt = null;
+        return { status: 'SENT', notes: 'Confirmed in Gmail' };
+      }
+
+      if (matches.length === 0) {
+        if (delivery.reconciliationAttempts < 3 && ageMs < 15 * 60 * 1000) {
+          delivery.nextReconciliationAt = new Date(now.getTime() + 120000);
+          delivery.reconciliationLeaseExpiresAt = null;
+          return { status: 'AMBIGUOUS', notes: 'Scheduled retry' };
+        } else {
+          delivery.status = 'FAILED';
+          delivery.failureClassification = 'reconciliation_verified_unsent';
+          delivery.quotaReleased = true;
+          delivery.reconciliationLeaseExpiresAt = null;
+          return { status: 'FAILED', notes: 'Definitively absent, quota released' };
+        }
+      }
+
+      delivery.reconciliationLeaseExpiresAt = null;
+      return { status: 'AMBIGUOUS', notes: 'Collision: multiple candidates' };
     }
 
-    delivery.reconciliationLeaseExpiresAt = null;
-    return { status: 'AMBIGUOUS', notes: 'Collision: multiple candidates' };
-  }
-
-  // Case 1A: Ambiguous send found in Gmail -> SENT
-  const delFound: DeliveryMock = {
-    id: 'del-1',
-    status: 'AMBIGUOUS',
-    recipientEmail: 'target1@acme.com',
-    senderEmail: 'sales@leadforge.com',
-    subject: 'Partnership Inquiry',
-    providerMessageId: null,
-    providerThreadId: null,
-    reconciliationAttempts: 0,
-    reconciliationLeaseExpiresAt: null,
-    nextReconciliationAt: null,
-    failureClassification: null,
-    quotaReleased: false,
-    sentAt: null
-  };
-
-  const res1 = reconcile(delFound, 60000, new Date());
-  testAssert(res1.status === 'SENT', 'Ambiguous delivery promoted to SENT when verified in Gmail');
-  testAssert(delFound.providerMessageId === 'msg-gmail-101', 'Provider message ID populated from Gmail');
-  testAssert(delFound.providerThreadId === 'th-gmail-101', 'Provider thread ID populated from Gmail');
-  testAssert(!delFound.quotaReleased, 'Quota remains consumed when send is verified');
-
-  // Case 1B: Ambiguous send not found, recent -> retry
-  const delMissingRecent: DeliveryMock = {
-    id: 'del-2',
-    status: 'AMBIGUOUS',
-    recipientEmail: 'nobody@nowhere.com',
-    senderEmail: 'sales@leadforge.com',
-    subject: 'Meeting Request',
-    providerMessageId: null,
-    providerThreadId: null,
-    reconciliationAttempts: 0,
-    reconciliationLeaseExpiresAt: null,
-    nextReconciliationAt: null,
-    failureClassification: null,
-    quotaReleased: false,
-    sentAt: null
-  };
-
-  const res2 = reconcile(delMissingRecent, 60000, new Date());
-  testAssert(res2.status === 'AMBIGUOUS', 'Recent missing send remains AMBIGUOUS for retry');
-  testAssert(delMissingRecent.nextReconciliationAt !== null, 'nextReconciliationAt scheduled');
-  testAssert(delMissingRecent.reconciliationAttempts === 1, 'Attempt counter incremented');
-
-  // Case 1C: Ambiguous send not found, exhausted (3 attempts or >15 mins) -> FAILED + quota release
-  delMissingRecent.reconciliationAttempts = 2; // will become 3
-  const res3 = reconcile(delMissingRecent, 20 * 60 * 1000, new Date());
-  testAssert(res3.status === 'FAILED', 'Missing send transitioned to FAILED after bounded attempts');
-  testAssert(delMissingRecent.failureClassification === 'reconciliation_verified_unsent', 'Failure classification set');
-  testAssert(delMissingRecent.quotaReleased === true, 'Quota slot released upon confirmed absence');
-}
-
-// ── Test 2: Collision-Safe Reconciliation Queries ────────────────────────────
-console.log('\nTEST 2: Collision-Safe Reconciliation Criteria');
-{
-  function isSafeMatch(
-    candidate: { to: string; from: string; subject: string },
-    target: { to: string; from: string; subject: string }
-  ): boolean {
-    const toMatch = candidate.to.toLowerCase() === target.to.toLowerCase();
-    const fromMatch = candidate.from.toLowerCase() === target.from.toLowerCase();
-    const subMatch = candidate.subject.trim().toLowerCase() === target.subject.trim().toLowerCase();
-    return toMatch && fromMatch && subMatch;
-  }
-
-  const target = {
-    to: 'john@acme.com',
-    from: 'rep@leadforge.com',
-    subject: 'Introducing LeadForge'
-  };
-
-  testAssert(
-    isSafeMatch({ to: 'john@acme.com', from: 'rep@leadforge.com', subject: 'Introducing LeadForge' }, target),
-    'Exact match accepted'
-  );
-  testAssert(
-    !isSafeMatch({ to: 'different@acme.com', from: 'rep@leadforge.com', subject: 'Introducing LeadForge' }, target),
-    'Different recipient rejected'
-  );
-  testAssert(
-    !isSafeMatch({ to: 'john@acme.com', from: 'other_rep@leadforge.com', subject: 'Introducing LeadForge' }, target),
-    'Different sender rejected'
-  );
-  testAssert(
-    !isSafeMatch({ to: 'john@acme.com', from: 'rep@leadforge.com', subject: 'Completely Different Subject' }, target),
-    'Different subject rejected'
-  );
-}
-
-// ── Test 3: Thread-Based Reply Correlation ──────────────────────────────────
-console.log('\nTEST 3: Thread-Based Inbound Reply Correlation');
-{
-  const outboundDeliveries = [
-    {
-      id: 'del-out-1',
-      workspaceId: 'ws-1',
-      providerThreadId: 'thread-alpha-123',
-      providerMessageId: 'msg-out-1',
-      contactId: 'contact-42',
-      campaignId: 'camp-99'
-    }
-  ];
-
-  function correlateInbound(incoming: { threadId: string; from: string }): {
-    matchedDeliveryId?: string;
-    contactId?: string;
-    confidence: string;
-  } {
-    // Strategy 1: Thread ID match
-    const match = outboundDeliveries.find((d) => d.providerThreadId === incoming.threadId);
-    if (match) {
-      return {
-        matchedDeliveryId: match.id,
-        contactId: match.contactId,
-        confidence: 'thread'
+    it('promotes ambiguous delivery to SENT when verified in Gmail with intact quota', () => {
+      const delFound: DeliveryMock = {
+        id: 'del-1',
+        status: 'AMBIGUOUS',
+        recipientEmail: 'target1@acme.com',
+        senderEmail: 'sales@leadforge.com',
+        subject: 'Partnership Inquiry',
+        providerMessageId: null,
+        providerThreadId: null,
+        reconciliationAttempts: 0,
+        reconciliationLeaseExpiresAt: null,
+        nextReconciliationAt: null,
+        failureClassification: null,
+        quotaReleased: false,
+        sentAt: null
       };
+
+      const res = reconcile(delFound, 60000, new Date());
+      expect(res.status).toBe('SENT');
+      expect(delFound.providerMessageId).toBe('msg-gmail-101');
+      expect(delFound.providerThreadId).toBe('th-gmail-101');
+      expect(delFound.quotaReleased).toBe(false);
+    });
+
+    it('schedules retry for recent missing ambiguous send', () => {
+      const delMissing: DeliveryMock = {
+        id: 'del-2',
+        status: 'AMBIGUOUS',
+        recipientEmail: 'nobody@nowhere.com',
+        senderEmail: 'sales@leadforge.com',
+        subject: 'Meeting Request',
+        providerMessageId: null,
+        providerThreadId: null,
+        reconciliationAttempts: 0,
+        reconciliationLeaseExpiresAt: null,
+        nextReconciliationAt: null,
+        failureClassification: null,
+        quotaReleased: false,
+        sentAt: null
+      };
+
+      const res = reconcile(delMissing, 60000, new Date());
+      expect(res.status).toBe('AMBIGUOUS');
+      expect(delMissing.nextReconciliationAt).not.toBeNull();
+      expect(delMissing.reconciliationAttempts).toBe(1);
+    });
+
+    it('transitions missing send to FAILED and releases quota after bounded attempts', () => {
+      const delExhausted: DeliveryMock = {
+        id: 'del-3',
+        status: 'AMBIGUOUS',
+        recipientEmail: 'nobody@nowhere.com',
+        senderEmail: 'sales@leadforge.com',
+        subject: 'Meeting Request',
+        providerMessageId: null,
+        providerThreadId: null,
+        reconciliationAttempts: 2,
+        reconciliationLeaseExpiresAt: null,
+        nextReconciliationAt: null,
+        failureClassification: null,
+        quotaReleased: false,
+        sentAt: null
+      };
+
+      const res = reconcile(delExhausted, 20 * 60 * 1000, new Date());
+      expect(res.status).toBe('FAILED');
+      expect(delExhausted.failureClassification).toBe('reconciliation_verified_unsent');
+      expect(delExhausted.quotaReleased).toBe(true);
+    });
+  });
+
+  describe('Test 2: Collision-Safe Reconciliation Queries', () => {
+    function isSafeMatch(
+      candidate: { to: string; from: string; subject: string },
+      target: { to: string; from: string; subject: string }
+    ): boolean {
+      const toMatch = candidate.to.toLowerCase() === target.to.toLowerCase();
+      const fromMatch = candidate.from.toLowerCase() === target.from.toLowerCase();
+      const subMatch = candidate.subject.trim().toLowerCase() === target.subject.trim().toLowerCase();
+      return toMatch && fromMatch && subMatch;
     }
-    return { confidence: 'none' };
-  }
 
-  const incomingReply = {
-    threadId: 'thread-alpha-123',
-    from: 'client@example.com'
-  };
+    const target = {
+      to: 'john@acme.com',
+      from: 'rep@leadforge.com',
+      subject: 'Introducing LeadForge'
+    };
 
-  const result = correlateInbound(incomingReply);
-  testAssert(result.matchedDeliveryId === 'del-out-1', 'Reply correlated to correct outbound delivery via thread');
-  testAssert(result.contactId === 'contact-42', 'Reply correlated to correct contact ID');
-  testAssert(result.confidence === 'thread', 'Confidence level recorded as thread');
-}
+    it('accepts exact recipient, sender, and subject match', () => {
+      expect(isSafeMatch({ to: 'john@acme.com', from: 'rep@leadforge.com', subject: 'Introducing LeadForge' }, target)).toBe(true);
+    });
 
-// ── Test 4: Header-Based Reply Correlation (In-Reply-To / References) ────────
-console.log('\nTEST 4: Header-Based Reply Correlation');
-{
-  const outboundDeliveries = [
-    {
-      id: 'del-out-2',
-      providerMessageId: 'msg-out-2-unique',
-      contactId: 'contact-55'
-    }
-  ];
+    it('rejects candidate with different recipient, sender, or subject', () => {
+      expect(isSafeMatch({ to: 'different@acme.com', from: 'rep@leadforge.com', subject: 'Introducing LeadForge' }, target)).toBe(false);
+      expect(isSafeMatch({ to: 'john@acme.com', from: 'other_rep@leadforge.com', subject: 'Introducing LeadForge' }, target)).toBe(false);
+      expect(isSafeMatch({ to: 'john@acme.com', from: 'rep@leadforge.com', subject: 'Completely Different Subject' }, target)).toBe(false);
+    });
+  });
 
-  function correlateByHeaders(headers: { inReplyTo?: string; references?: string[] }): string | null {
-    const refs = [headers.inReplyTo, ...(headers.references || [])].filter(Boolean);
-    for (const ref of refs) {
-      const clean = ref!.replace(/[<>]/g, '').trim();
-      const match = outboundDeliveries.find((d) => d.providerMessageId === clean);
-      if (match) return match.id;
-    }
-    return null;
-  }
+  describe('Test 3: Thread-Based Reply Correlation', () => {
+    it('correlates incoming reply to delivery and contact via threadId', () => {
+      const outboundDeliveries = [
+        {
+          id: 'del-out-1',
+          workspaceId: 'ws-1',
+          providerThreadId: 'thread-alpha-123',
+          providerMessageId: 'msg-out-1',
+          contactId: 'contact-42',
+          campaignId: 'camp-99'
+        }
+      ];
 
-  const resultInReplyTo = correlateByHeaders({ inReplyTo: '<msg-out-2-unique>' });
-  testAssert(resultInReplyTo === 'del-out-2', 'Correlated via In-Reply-To header');
+      function correlateInbound(incoming: { threadId: string; from: string }) {
+        const match = outboundDeliveries.find((d) => d.providerThreadId === incoming.threadId);
+        if (match) {
+          return {
+            matchedDeliveryId: match.id,
+            contactId: match.contactId,
+            confidence: 'thread'
+          };
+        }
+        return { confidence: 'none' };
+      }
 
-  const resultReferences = correlateByHeaders({ references: ['<other-msg>', '<msg-out-2-unique>'] });
-  testAssert(resultReferences === 'del-out-2', 'Correlated via References header');
+      const incomingReply = {
+        threadId: 'thread-alpha-123',
+        from: 'client@example.com'
+      };
 
-  const resultUnmatched = correlateByHeaders({ inReplyTo: '<unknown-msg-xyz>' });
-  testAssert(resultUnmatched === null, 'Unknown header returns null (no false match)');
-}
+      const result = correlateInbound(incomingReply);
+      expect(result.matchedDeliveryId).toBe('del-out-1');
+      expect(result.contactId).toBe('contact-42');
+      expect(result.confidence).toBe('thread');
+    });
+  });
 
-// ── Test 5: Monotonic Contact Lifecycle State Transitions ───────────────────
-console.log('\nTEST 5: Monotonic Contact Status Transitions');
-{
-  testAssert(canTransitionContactStatus(ContactStatus.CONTACTED, ContactStatus.REPLIED), 'CONTACTED -> REPLIED is permitted');
-  testAssert(canTransitionContactStatus(ContactStatus.NEW, ContactStatus.REPLIED), 'NEW -> REPLIED is permitted');
-  testAssert(canTransitionContactStatus(ContactStatus.REPLIED, ContactStatus.REPLIED), 'REPLIED -> REPLIED is idempotent');
+  describe('Test 4: Header-Based Reply Correlation (In-Reply-To / References)', () => {
+    it('correlates incoming reply via message headers and rejects unknown references', () => {
+      const outboundDeliveries = [
+        {
+          id: 'del-out-2',
+          providerMessageId: 'msg-out-2-unique',
+          contactId: 'contact-55'
+        }
+      ];
 
-  // Terminal suppression states cannot be reversed by an incoming reply
-  testAssert(!canTransitionContactStatus(ContactStatus.UNSUBSCRIBED, ContactStatus.REPLIED), 'UNSUBSCRIBED -> REPLIED is FORBIDDEN');
-  testAssert(!canTransitionContactStatus(ContactStatus.BOUNCED, ContactStatus.REPLIED), 'BOUNCED -> REPLIED is FORBIDDEN');
-  testAssert(!canTransitionContactStatus(ContactStatus.DO_NOT_CONTACT, ContactStatus.REPLIED), 'DO_NOT_CONTACT -> REPLIED is FORBIDDEN');
-  testAssert(!canTransitionContactStatus(ContactStatus.ARCHIVED, ContactStatus.REPLIED), 'ARCHIVED -> REPLIED is FORBIDDEN');
-}
+      function correlateByHeaders(headers: { inReplyTo?: string; references?: string[] }): string | null {
+        const refs = [headers.inReplyTo, ...(headers.references || [])].filter(Boolean);
+        for (const ref of refs) {
+          const clean = ref!.replace(/[<>]/g, '').trim();
+          const match = outboundDeliveries.find((d) => d.providerMessageId === clean);
+          if (match) return match.id;
+        }
+        return null;
+      }
 
-// ── Test 6: Sequence Outreach Suppression on Reply ──────────────────────────
-console.log('\nTEST 6: Sequence Outreach Suppression on Reply');
-{
-  // 1. CRM Eligibility check: replied contact must NOT be eligible for outreach
-  const repliedContact = {
-    id: 'contact-replied-1',
-    email: 'bob@acme.com',
-    status: ContactStatus.REPLIED
-  };
+      expect(correlateByHeaders({ inReplyTo: '<msg-out-2-unique>' })).toBe('del-out-2');
+      expect(correlateByHeaders({ references: ['<other-msg>', '<msg-out-2-unique>'] })).toBe('del-out-2');
+      expect(correlateByHeaders({ inReplyTo: '<unknown-msg-xyz>' })).toBeNull();
+    });
+  });
 
-  const campaign = { id: 'camp-1', status: 'ACTIVE' };
-  const eligibility = evaluateOutreachEligibility({ contact: repliedContact, campaign });
+  describe('Test 5: Monotonic Contact Status Transitions', () => {
+    it('permits progressions to REPLIED and forbids reversing terminal suppression', () => {
+      expect(canTransitionContactStatus(ContactStatus.CONTACTED, ContactStatus.REPLIED)).toBe(true);
+      expect(canTransitionContactStatus(ContactStatus.NEW, ContactStatus.REPLIED)).toBe(true);
+      expect(canTransitionContactStatus(ContactStatus.REPLIED, ContactStatus.REPLIED)).toBe(true);
 
-  testAssert(!eligibility.eligible, 'Replied contact is deemed INELIGIBLE for outreach');
-  testAssert(eligibility.reason === 'CONTACT_REPLIED', 'Ineligibility reason is CONTACT_REPLIED');
+      expect(canTransitionContactStatus(ContactStatus.UNSUBSCRIBED, ContactStatus.REPLIED)).toBe(false);
+      expect(canTransitionContactStatus(ContactStatus.BOUNCED, ContactStatus.REPLIED)).toBe(false);
+      expect(canTransitionContactStatus(ContactStatus.DO_NOT_CONTACT, ContactStatus.REPLIED)).toBe(false);
+      expect(canTransitionContactStatus(ContactStatus.ARCHIVED, ContactStatus.REPLIED)).toBe(false);
+    });
+  });
 
-  // 2. Active sequence executions state cancellation simulation
-  interface ExecutionMock {
-    id: string;
-    contactId: string;
-    status: string;
-    replies: number;
-  }
+  describe('Test 6: Sequence Outreach Suppression on Reply', () => {
+    it('deems replied contact ineligible and cancels waiting sequence steps', () => {
+      const repliedContact = {
+        id: 'contact-replied-1',
+        email: 'bob@acme.com',
+        status: ContactStatus.REPLIED
+      };
 
-  const executions: ExecutionMock[] = [
-    { id: 'exec-1', contactId: 'contact-replied-1', status: 'waiting', replies: 0 },
-    { id: 'exec-2', contactId: 'contact-other-2', status: 'waiting', replies: 0 }
-  ];
+      const campaign = { id: 'camp-1', status: 'ACTIVE' };
+      const eligibility = evaluateOutreachEligibility({ contact: repliedContact, campaign });
 
-  // Inbound reply halts active executions for that contact
-  for (const exec of executions) {
-    if (exec.contactId === 'contact-replied-1' && exec.status === 'waiting') {
-      exec.status = 'completed';
-      exec.replies += 1;
-    }
-  }
+      expect(eligibility.eligible).toBe(false);
+      expect(eligibility.reason).toBe('CONTACT_REPLIED');
 
-  const exec1 = executions.find((e) => e.id === 'exec-1')!;
-  const exec2 = executions.find((e) => e.id === 'exec-2')!;
+      interface ExecutionMock {
+        id: string;
+        contactId: string;
+        status: string;
+        replies: number;
+      }
 
-  testAssert(exec1.status === 'completed', 'Execution for replied contact completed immediately');
-  testAssert(exec1.replies === 1, 'Replies counter incremented');
-  testAssert(exec2.status === 'waiting', 'Unrelated contact execution remained unaffected');
-}
+      const executions: ExecutionMock[] = [
+        { id: 'exec-1', contactId: 'contact-replied-1', status: 'waiting', replies: 0 },
+        { id: 'exec-2', contactId: 'contact-other-2', status: 'waiting', replies: 0 }
+      ];
 
-// ── Test 7: Inbound Polling Idempotency ──────────────────────────────────────
-console.log('\nTEST 7: Inbound Polling Idempotency');
-{
-  const eventStore = new Set<string>();
+      for (const exec of executions) {
+        if (exec.contactId === 'contact-replied-1' && exec.status === 'waiting') {
+          exec.status = 'completed';
+          exec.replies += 1;
+        }
+      }
 
-  function recordEvent(wsId: string, dedupeKey: string): boolean {
-    const compoundKey = `${wsId}:${dedupeKey}`;
-    if (eventStore.has(compoundKey)) {
-      return false; // Duplicate rejected
-    }
-    eventStore.add(compoundKey);
-    return true;
-  }
+      const exec1 = executions.find((e) => e.id === 'exec-1')!;
+      const exec2 = executions.find((e) => e.id === 'exec-2')!;
 
-  const ws = 'ws-test';
-  const providerMessageId = 'gmail-inbound-msg-777';
-  const dedupeKey = `reply_${ws}_${providerMessageId}`;
+      expect(exec1.status).toBe('completed');
+      expect(exec1.replies).toBe(1);
+      expect(exec2.status).toBe('waiting');
+    });
+  });
 
-  // First poll cycle processes the message
-  const firstPoll = recordEvent(ws, dedupeKey);
-  testAssert(firstPoll === true, 'First poll records REPLIED event');
+  describe('Test 7: Inbound Polling Idempotency', () => {
+    it('safely rejects duplicate incoming events with same dedupeKey', () => {
+      const eventStore = new Set<string>();
 
-  // Second poll cycle encounters the same message
-  const secondPoll = recordEvent(ws, dedupeKey);
-  testAssert(secondPoll === false, 'Duplicate poll cycle safely rejected by idempotency constraint');
+      function recordEvent(wsId: string, dedupeKey: string): boolean {
+        const compoundKey = `${wsId}:${dedupeKey}`;
+        if (eventStore.has(compoundKey)) {
+          return false;
+        }
+        eventStore.add(compoundKey);
+        return true;
+      }
 
-  testAssert(eventStore.size === 1, 'Exactly 1 event preserved in database');
-}
+      const ws = 'ws-test';
+      const providerMessageId = 'gmail-inbound-msg-777';
+      const dedupeKey = `reply_${ws}_${providerMessageId}`;
 
-// ── Test 8: Inbound HTML Preview Sanitization ────────────────────────────────
-console.log('\nTEST 8: Inbound HTML Preview Sanitization');
-{
-  const rawReplyHtml = `
-    <div>
-      <p>Thanks for your email! Let's schedule a call.</p>
-      <script>alert('malicious payload');</script>
-      <iframe src="http://evil.com"></iframe>
-      <img src="https://acme.com/signature.png" onload="alert(1)" />
-      <a href="javascript:stealCookie()">Click here</a>
-    </div>
-  `;
+      expect(recordEvent(ws, dedupeKey)).toBe(true);
+      expect(recordEvent(ws, dedupeKey)).toBe(false);
+      expect(eventStore.size).toBe(1);
+    });
+  });
 
-  const safe = sanitizeHtmlForPreview(rawReplyHtml);
-  testAssert(!safe.includes('<script'), 'Scripts stripped from inbound reply');
-  testAssert(!safe.includes('<iframe'), 'Iframes stripped from inbound reply');
-  testAssert(!safe.includes('onload='), 'Inline event handlers removed');
-  testAssert(!safe.includes('javascript:'), 'javascript: URI neutralized');
-  testAssert(safe.includes('schedule a call'), 'Legitimate reply text preserved');
-  testAssert(safe.includes('src="https://acme.com/signature.png"'), 'Safe image preserved');
-}
+  describe('Test 8: Inbound HTML Preview Sanitization', () => {
+    it('strips malicious tags while preserving legitimate reply formatting', () => {
+      const rawReplyHtml = `
+        <div>
+          <p>Thanks for your email! Let's schedule a call.</p>
+          <script>alert('malicious payload');</script>
+          <iframe src="http://evil.com"></iframe>
+          <img src="https://acme.com/signature.png" onload="alert(1)" />
+          <a href="javascript:stealCookie()">Click here</a>
+        </div>
+      `;
 
-// ── Test 9: Multi-Tenant Workspace Isolation ────────────────────────────────
-console.log('\nTEST 9: Multi-Tenant Workspace Data Isolation');
-{
-  const deliveries = [
-    { id: 'del-a', workspaceId: 'ws-alpha', providerThreadId: 'thread-common', status: 'SENT' },
-    { id: 'del-b', workspaceId: 'ws-beta', providerThreadId: 'thread-common', status: 'SENT' }
-  ];
+      const safe = sanitizeHtmlForPreview(rawReplyHtml);
+      expect(safe).not.toContain('<script');
+      expect(safe).not.toContain('<iframe');
+      expect(safe).not.toContain('onload=');
+      expect(safe).not.toContain('javascript:');
+      expect(safe).toContain('schedule a call');
+      expect(safe).toContain('src="https://acme.com/signature.png"');
+    });
+  });
 
-  // Incoming reply to Workspace Alpha for 'thread-common'
-  const alphaMatch = deliveries.find((d) => d.workspaceId === 'ws-alpha' && d.providerThreadId === 'thread-common');
+  describe('Test 9: Multi-Tenant Workspace Data Isolation', () => {
+    it('prevents replies from crossing workspace boundaries', () => {
+      const deliveries = [
+        { id: 'del-a', workspaceId: 'ws-alpha', providerThreadId: 'thread-common', status: 'SENT' },
+        { id: 'del-b', workspaceId: 'ws-beta', providerThreadId: 'thread-common', status: 'SENT' }
+      ];
 
-  testAssert(alphaMatch?.id === 'del-a', 'Workspace Alpha matches only its own delivery');
-  testAssert(alphaMatch?.id !== 'del-b', 'Workspace Alpha cannot cross into Workspace Beta');
-}
+      const alphaMatch = deliveries.find((d) => d.workspaceId === 'ws-alpha' && d.providerThreadId === 'thread-common');
 
-console.log('\n======================================================================');
-console.log(`REPLY INGESTION & RECONCILIATION SUITE COMPLETE: ${passedTests} TESTS PASSED!`);
-console.log('======================================================================');
+      expect(alphaMatch?.id).toBe('del-a');
+      expect(alphaMatch?.id).not.toBe('del-b');
+    });
+  });
+});

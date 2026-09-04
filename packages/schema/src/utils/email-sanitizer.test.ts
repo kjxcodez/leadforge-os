@@ -5,6 +5,7 @@
  * defined in Phase 2: Email Discovery Remediation.
  */
 
+import { describe, it, expect } from 'vitest';
 import {
   evaluateEmailCandidate,
   sanitizeAndValidateEmail,
@@ -465,94 +466,46 @@ const corpus: TestCase[] = [
   }
 ];
 
-// ---------------------------------------------------------------------------
-// Test Runner
-// ---------------------------------------------------------------------------
+describe('Email Candidate Normalization & Validation Suite', () => {
+  for (const t of corpus) {
+    it(`[${t.category}] ${t.name}: "${t.input}"`, () => {
+      const candidate = evaluateEmailCandidate(t.input, t.context);
+      const result = sanitizeAndValidateEmail(t.input, t.context);
 
-let passedCount = 0;
-let failedCount = 0;
+      // Check Status
+      expect(result.status).toBe(t.expectedStatus);
 
-console.log('=================================================================');
-console.log('RUNNING DETERMINISTIC EMAIL CANDIDATE CORRECTNESS CORPUS');
-console.log('=================================================================\n');
+      // Check Email
+      if (t.expectedEmail) {
+        expect((result as any).email).toBe(t.expectedEmail);
+      }
 
-for (const t of corpus) {
-  const result = sanitizeAndValidateEmail(t.input, t.context);
-  const candidate = evaluateEmailCandidate(t.input, t.context);
+      // Check Classification
+      if (t.expectedClassification) {
+        expect(candidate.classification).toBe(t.expectedClassification);
+      }
 
-  let success = true;
-  const errors: string[] = [];
+      // Check Repaired flag
+      if (t.expectedRepaired !== undefined) {
+        expect(candidate.repaired).toBe(t.expectedRepaired);
+      }
 
-  // Check Status
-  if (result.status !== t.expectedStatus) {
-    success = false;
-    errors.push(`Status mismatch: expected "${t.expectedStatus}", got "${result.status}"`);
+      // Check Domain Matched flag
+      if (t.expectedDomainMatched !== undefined) {
+        expect(candidate.domainMatched).toBe(t.expectedDomainMatched);
+      }
+
+      // Check Strict Sending Gate
+      if (t.validateStrictExpected !== undefined) {
+        expect(validateEmailStrict(t.input)).toBe(t.validateStrictExpected);
+      }
+
+      // Check Idempotency Property
+      if (candidate.normalized && candidate.classification !== 'invalid') {
+        const secondPass = evaluateEmailCandidate(candidate.normalized, t.context);
+        expect(secondPass.normalized).toBe(candidate.normalized);
+      }
+    });
   }
+});
 
-  // Check Email
-  if (t.expectedEmail) {
-    const actualEmail = (result as any).email;
-    if (actualEmail !== t.expectedEmail) {
-      success = false;
-      errors.push(`Email mismatch: expected "${t.expectedEmail}", got "${actualEmail}"`);
-    }
-  }
-
-  // Check Classification
-  if (t.expectedClassification && candidate.classification !== t.expectedClassification) {
-    success = false;
-    errors.push(`Classification mismatch: expected "${t.expectedClassification}", got "${candidate.classification}"`);
-  }
-
-  // Check Repaired flag
-  if (t.expectedRepaired !== undefined && candidate.repaired !== t.expectedRepaired) {
-    success = false;
-    errors.push(`Repaired flag mismatch: expected ${t.expectedRepaired}, got ${candidate.repaired}`);
-  }
-
-  // Check Domain Matched flag
-  if (t.expectedDomainMatched !== undefined && candidate.domainMatched !== t.expectedDomainMatched) {
-    success = false;
-    errors.push(`DomainMatched mismatch: expected ${t.expectedDomainMatched}, got ${candidate.domainMatched}`);
-  }
-
-  // Check Strict Sending Gate
-  if (t.validateStrictExpected !== undefined) {
-    const strictPass = validateEmailStrict(t.input);
-    if (strictPass !== t.validateStrictExpected) {
-      success = false;
-      errors.push(`validateEmailStrict mismatch: expected ${t.validateStrictExpected}, got ${strictPass}`);
-    }
-  }
-
-  // Check Idempotency Property: candidate.normalized passed back in must yield same normalized
-  if (candidate.normalized && candidate.classification !== 'invalid') {
-    const secondPass = evaluateEmailCandidate(candidate.normalized, t.context);
-    if (secondPass.normalized !== candidate.normalized) {
-      success = false;
-      errors.push(`Idempotency failure: 2nd pass normalized "${secondPass.normalized}" != 1st pass "${candidate.normalized}"`);
-    }
-  }
-
-  if (success) {
-    passedCount++;
-    console.log(`[PASS] [${t.category}] ${t.name}`);
-  } else {
-    failedCount++;
-    console.error(`[FAIL] [${t.category}] ${t.name}`);
-    console.error(`       Input: "${t.input}"`);
-    for (const err of errors) {
-      console.error(`       -> ${err}`);
-    }
-  }
-}
-
-console.log('\n=================================================================');
-console.log(`TOTAL TESTS: ${corpus.length} | PASSED: ${passedCount} | FAILED: ${failedCount}`);
-console.log('=================================================================');
-
-if (failedCount > 0) {
-  process.exit(1);
-} else {
-  console.log('ALL DETERMINISTIC CANDIDATE CORRECTNESS TESTS PASSED!');
-}

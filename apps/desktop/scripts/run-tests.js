@@ -1,27 +1,25 @@
 const { execSync } = require('child_process');
 const path = require('path');
-
 const fs = require('fs');
 
-const tests = [
-  'src/main/services/onboarding.test.ts',
-  'src/main/services/updater.test.ts',
-  'src/main/services/intelligence.test.ts',
-  'src/main/ai/tools/adapter.test.ts',
-  'src/main/services/campaign.test.ts',
-  'src/main/services/email-test-recipients.test.ts',
-  'src/main/services/send-test-attachment.test.ts',
+/**
+ * LeadForge OS — Desktop Electron SQLite Integration Test Runner
+ *
+ * Runs native SQLite integration test suites using the Electron Node runtime
+ * (which matches better-sqlite3 NODE_MODULE_VERSION 130).
+ *
+ * Guaranteed Invariants:
+ * 1. Zero silent skipping: tests must fail fast if assertion or runtime fails.
+ * 2. Exit code 0 only when ALL integration suites pass.
+ */
+
+const integrationTests = [
   'src/main/services/audiences.test.ts',
-  'src/main/services/post-release-stabilization.test.ts',
-  'src/main/services/desktop-runtime-config.test.ts',
+  'src/main/services/campaign.test.ts',
   'src/main/services/fresh-database.test.ts',
   'src/main/services/fresh-database-all-queries.test.ts',
-  'src/main/services/locations.test.ts',
-  'src/main/lib/playwright-setup.test.ts',
-  'src/main/services/scheduler-recovery.test.ts',
-  'src/main/services/campaign-lifecycle-safety.test.ts',
-  'src/main/services/email-delivery-engagement.test.ts',
-  'src/main/services/email-reply-reconciliation.test.ts'
+  'src/main/services/post-release-stabilization.test.ts',
+  'src/main/services/release-qualification.test.ts'
 ];
 
 let electronPath = null;
@@ -39,45 +37,35 @@ for (const p of candidateElectronPaths) {
   }
 }
 
-let failed = false;
+if (!electronPath) {
+  console.error('[Integration Runner] ERROR: Electron binary not found. Cannot run native SQLite tests without Electron.');
+  process.exit(1);
+}
 
-for (const test of tests) {
+console.log(`[Integration Runner] Using Electron binary: ${electronPath}`);
+console.log(`[Integration Runner] Running ${integrationTests.length} native SQLite integration test suites...\n`);
+
+let failedCount = 0;
+
+for (const test of integrationTests) {
   const testPath = path.join(__dirname, '..', test);
-  console.log(`[Desktop Test] Running ${test}...`);
+  console.log(`[Integration Runner] ──▶ Running ${test}...`);
   try {
-    if (electronPath) {
-      execSync(`"${electronPath}" --import tsx "${testPath}"`, {
-        stdio: 'pipe',
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
-      });
-    } else {
-      execSync(`npx tsx "${testPath}"`, { stdio: 'pipe' });
-    }
-    console.log(`[Desktop Test] PASS: ${test}\n`);
+    execSync(`"${electronPath}" --import tsx "${testPath}"`, {
+      stdio: 'inherit',
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+    });
+    console.log(`[Integration Runner] ✅ PASS: ${test}\n`);
   } catch (err) {
-    const errorStr =
-      (err.message || '') +
-      (err.stderr ? err.stderr.toString() : '') +
-      (err.stdout ? err.stdout.toString() : '');
-    if (
-      errorStr.includes('ERR_DLOPEN_FAILED') ||
-      errorStr.includes('different Node.js version') ||
-      errorStr.includes('node_module_version')
-    ) {
-      console.log(
-        `[Desktop Test] SKIP: ${test} (Native sqlite binary compiled for Electron, skipping in Node host environment)\n`
-      );
-    } else {
-      console.error(`[Desktop Test] FAIL: ${test}`);
-      console.error(errorStr);
-      console.error('\n');
-      failed = true;
-    }
+    console.error(`\n[Integration Runner] ❌ FAIL: ${test}`);
+    failedCount++;
   }
 }
 
-if (failed) {
+if (failedCount > 0) {
+  console.error(`\n[Integration Runner] ${failedCount} integration suite(s) failed.`);
   process.exit(1);
 } else {
+  console.log(`\n[Integration Runner] ✅ All ${integrationTests.length} native SQLite integration suites passed cleanly.`);
   process.exit(0);
 }

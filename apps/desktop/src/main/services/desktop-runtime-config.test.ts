@@ -1,88 +1,34 @@
-import assert from 'node:assert';
+/**
+ * Desktop Runtime Configuration Regression Test Suite
+ */
+
+import { describe, it, expect } from 'vitest';
 import { normalizeApiUrl, DEFAULT_PRODUCTION_API_URL, DEFAULT_DEVELOPMENT_API_URL } from '../lib/config.js';
 import { resolveWorkerApiUrl } from '../workers/worker-host.js';
 import type { JobContext } from '../../shared/types/job.js';
 
-export async function runDesktopRuntimeConfigTests() {
-  console.log('\n============================================================');
-  console.log('--- DESKTOP RUNTIME CONFIGURATION REGRESSION TEST SUITE ---');
-  console.log('============================================================\n');
+describe('Desktop Runtime Configuration Suite', () => {
+  it('verifies default endpoints constants', () => {
+    expect(DEFAULT_PRODUCTION_API_URL).toBe('https://api.leadforge.kapiljangid.pro/api/v1');
+    expect(DEFAULT_DEVELOPMENT_API_URL).toBe('http://localhost:3001/api/v1');
+  });
 
-  // ── 1. DEFAULT ENDPOINTS CONSTANTS ──────────────────────────────────────────
-  console.log('[Test 1] Testing default development and production endpoints...');
-  assert.strictEqual(
-    DEFAULT_PRODUCTION_API_URL,
-    'https://api.leadforge.kapiljangid.pro/api/v1',
-    'DEFAULT_PRODUCTION_API_URL must match production server endpoint'
-  );
-  assert.strictEqual(
-    DEFAULT_DEVELOPMENT_API_URL,
-    'http://localhost:3001/api/v1',
-    'DEFAULT_DEVELOPMENT_API_URL must match local development API endpoint'
-  );
-  console.log('✅ Default endpoint constants verified.');
+  it('normalizes API URLs accurately across edge cases', () => {
+    expect(normalizeApiUrl('http://localhost:3001')).toBe('http://localhost:3001/api/v1');
+    expect(normalizeApiUrl('http://localhost:3001/')).toBe('http://localhost:3001/api/v1');
+    expect(normalizeApiUrl('https://api.leadforge.kapiljangid.pro/api/v1')).toBe('https://api.leadforge.kapiljangid.pro/api/v1');
+    expect(normalizeApiUrl('api.leadforge.kapiljangid.pro/api/v1')).toBe('https://api.leadforge.kapiljangid.pro/api/v1');
+    expect(normalizeApiUrl('')).toBe('');
+  });
 
-  // ── 2. NORMALIZE API URL HELPER ────────────────────────────────────────────
-  console.log('\n[Test 2] Testing normalizeApiUrl logic...');
-  assert.strictEqual(
-    normalizeApiUrl('http://localhost:3001'),
-    'http://localhost:3001/api/v1',
-    'Must append /api/v1 if missing'
-  );
-  assert.strictEqual(
-    normalizeApiUrl('http://localhost:3001/'),
-    'http://localhost:3001/api/v1',
-    'Must trim trailing slashes before appending /api/v1'
-  );
-  assert.strictEqual(
-    normalizeApiUrl('https://api.leadforge.kapiljangid.pro/api/v1'),
-    'https://api.leadforge.kapiljangid.pro/api/v1',
-    'Must preserve existing /api/v1'
-  );
-  assert.strictEqual(
-    normalizeApiUrl('api.leadforge.kapiljangid.pro/api/v1'),
-    'https://api.leadforge.kapiljangid.pro/api/v1',
-    'Must prefix https:// if protocol is omitted'
-  );
-  assert.strictEqual(normalizeApiUrl(''), '', 'Empty input must return empty string');
-  console.log('✅ normalizeApiUrl verified across edge cases.');
-
-  // ── 3. WORKER API URL RESOLUTION (LOUD FAILURE & PRECEDENCE) ────────────────
-  console.log('\n[Test 3] Testing resolveWorkerApiUrl contract...');
-
-  // Mock JobContext with payload._config.apiUrl
-  const mockCtxWithConfig: JobContext = {
-    jobId: 'job_1',
-    workspaceId: 'ws_1',
-    payload: {
-      _config: {
-        apiUrl: 'https://custom-api.leadforge.io/api/v1'
-      }
-    },
-    dbPath: ':memory:',
-    updateProgress: () => {},
-    emitLog: () => {},
-    isCancelled: () => false,
-    isPaused: () => false,
-    saveCheckpoint: () => {},
-    getCheckpoint: () => null
-  };
-
-  const resolved1 = resolveWorkerApiUrl(mockCtxWithConfig);
-  assert.strictEqual(
-    resolved1,
-    'https://custom-api.leadforge.io/api/v1',
-    'Must resolve apiUrl from payload._config'
-  );
-
-  // Mock JobContext with env fallback when _config is omitted
-  const originalEnvApiUrl = process.env.API_URL;
-  try {
-    process.env.API_URL = 'http://localhost:3001/api/v1';
-    const mockCtxWithoutConfig: JobContext = {
-      jobId: 'job_2',
+  it('resolves worker API URL from payload._config or process.env with loud failure on absence', () => {
+    // 1. Resolve from payload._config
+    const mockCtxWithConfig: JobContext = {
+      jobId: 'job_1',
       workspaceId: 'ws_1',
-      payload: {},
+      payload: {
+        _config: { apiUrl: 'https://custom-api.leadforge.io/api/v1' }
+      },
       dbPath: ':memory:',
       updateProgress: () => {},
       emitLog: () => {},
@@ -91,88 +37,57 @@ export async function runDesktopRuntimeConfigTests() {
       saveCheckpoint: () => {},
       getCheckpoint: () => null
     };
-    const resolved2 = resolveWorkerApiUrl(mockCtxWithoutConfig);
-    assert.strictEqual(
-      resolved2,
-      'http://localhost:3001/api/v1',
-      'Must resolve from process.env.API_URL if payload._config is omitted'
-    );
-  } finally {
-    process.env.API_URL = originalEnvApiUrl;
-  }
+    expect(resolveWorkerApiUrl(mockCtxWithConfig)).toBe('https://custom-api.leadforge.io/api/v1');
 
-  // Loud failure when both _config and process.env.API_URL are absent
-  const mockCtxEmpty: JobContext = {
-    jobId: 'job_3',
-    workspaceId: 'ws_1',
-    payload: {},
-    dbPath: ':memory:',
-    updateProgress: () => {},
-    emitLog: () => {},
-    isCancelled: () => false,
-    isPaused: () => false,
-    saveCheckpoint: () => {},
-    getCheckpoint: () => null
-  };
+    // 2. Resolve from process.env fallback
+    const originalEnv = process.env.API_URL;
+    try {
+      process.env.API_URL = 'http://localhost:3001/api/v1';
+      const mockCtxWithoutConfig: JobContext = {
+        jobId: 'job_2',
+        workspaceId: 'ws_1',
+        payload: {},
+        dbPath: ':memory:',
+        updateProgress: () => {},
+        emitLog: () => {},
+        isCancelled: () => false,
+        isPaused: () => false,
+        saveCheckpoint: () => {},
+        getCheckpoint: () => null
+      };
+      expect(resolveWorkerApiUrl(mockCtxWithoutConfig)).toBe('http://localhost:3001/api/v1');
 
-  const savedEnv = process.env.API_URL;
-  delete process.env.API_URL;
-  try {
-    assert.throws(
-      () => resolveWorkerApiUrl(mockCtxEmpty),
-      /LeadForge could not determine the API server URL for this environment/,
-      'Must throw loud descriptive error when API URL cannot be resolved'
-    );
-    console.log('✅ resolveWorkerApiUrl fails loudly when API URL is missing.');
-  } finally {
-    process.env.API_URL = savedEnv;
-  }
-
-  // ── 4. WORKER CONTEXT & SECRETS CONTRACT ──────────────────────────────────
-  console.log('\n[Test 4] Testing worker JobContext dbPath and secrets contract...');
-  const mockWorkerCtx: JobContext = {
-    jobId: 'job_4',
-    workspaceId: 'ws_test_123',
-    payload: {
-      _secrets: {
-        sessionToken: 'test_session_token_xyz',
-        linkedin_li_at: 'test_li_at_cookie_abc'
-      }
-    },
-    dbPath: 'C:\\Users\\Mock\\AppData\\Roaming\\LeadForge\\workspaces\\leadforge_ws_test_123.db',
-    updateProgress: () => {},
-    emitLog: () => {},
-    isCancelled: () => false,
-    isPaused: () => false,
-    saveCheckpoint: () => {},
-    getCheckpoint: () => null
-  };
-
-  assert.strictEqual(
-    mockWorkerCtx.dbPath,
-    'C:\\Users\\Mock\\AppData\\Roaming\\LeadForge\\workspaces\\leadforge_ws_test_123.db',
-    'Worker JobContext must expose deterministic dbPath from Main scheduler'
-  );
-  assert.strictEqual(
-    mockWorkerCtx.payload._secrets?.sessionToken,
-    'test_session_token_xyz',
-    'Worker must resolve sessionToken strictly from payload._secrets without process.env'
-  );
-  assert.strictEqual(
-    mockWorkerCtx.payload._secrets?.linkedin_li_at,
-    'test_li_at_cookie_abc',
-    'Worker must resolve linkedin_li_at strictly from payload._secrets without process.env'
-  );
-  console.log('✅ Worker JobContext dbPath and payload secrets verified.');
-
-  console.log('\n============================================================');
-  console.log('--- ALL RUNTIME CONFIGURATION TESTS PASSED (4/4) ---');
-  console.log('============================================================\n');
-}
-
-if (process.argv[1]?.includes('desktop-runtime-config.test')) {
-  runDesktopRuntimeConfigTests().catch((err) => {
-    console.error('Test execution failed:', err);
-    process.exit(1);
+      // 3. Fails loudly when missing
+      delete process.env.API_URL;
+      expect(() => resolveWorkerApiUrl(mockCtxWithoutConfig)).toThrow(
+        /LeadForge could not determine the API server URL for this environment/
+      );
+    } finally {
+      process.env.API_URL = originalEnv;
+    }
   });
-}
+
+  it('enforces worker JobContext dbPath and payload secrets contract', () => {
+    const mockWorkerCtx: JobContext = {
+      jobId: 'job_4',
+      workspaceId: 'ws_test_123',
+      payload: {
+        _secrets: {
+          sessionToken: 'test_session_token_xyz',
+          linkedin_li_at: 'test_li_at_cookie_abc'
+        }
+      },
+      dbPath: 'C:\\Users\\Mock\\AppData\\Roaming\\LeadForge\\workspaces\\leadforge_ws_test_123.db',
+      updateProgress: () => {},
+      emitLog: () => {},
+      isCancelled: () => false,
+      isPaused: () => false,
+      saveCheckpoint: () => {},
+      getCheckpoint: () => null
+    };
+
+    expect(mockWorkerCtx.dbPath).toBe('C:\\Users\\Mock\\AppData\\Roaming\\LeadForge\\workspaces\\leadforge_ws_test_123.db');
+    expect(mockWorkerCtx.payload._secrets?.sessionToken).toBe('test_session_token_xyz');
+    expect(mockWorkerCtx.payload._secrets?.linkedin_li_at).toBe('test_li_at_cookie_abc');
+  });
+});

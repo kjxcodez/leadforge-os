@@ -2,6 +2,7 @@
  * LeadForge OS — Campaign Lifecycle & Outreach Eligibility Policy Tests
  */
 
+import { describe, it, expect } from 'vitest';
 import {
   evaluateOutreachEligibility,
   isValidCampaignTransition,
@@ -10,152 +11,142 @@ import {
 } from './outreach-eligibility.js';
 import { CampaignStatus, ContactStatus, ContactEmailStatus } from '../enums/index.js';
 
-let passed = 0;
-let failed = 0;
-
-function assert(cond: boolean, msg: string) {
-  if (cond) {
-    passed++;
-    console.log(`[PASS] ${msg}`);
-  } else {
-    failed++;
-    console.error(`[FAIL] ${msg}`);
-  }
-}
-
-console.log('=================================================================');
-console.log('RUNNING CAMPAIGN LIFECYCLE & ELIGIBILITY POLICY UNIT TESTS');
-console.log('=================================================================\n');
-
-// ── 1. Campaign State Machine Transitions ──
-assert(isValidCampaignTransition(CampaignStatus.DRAFT, CampaignStatus.ACTIVE), 'DRAFT -> ACTIVE is valid');
-assert(isValidCampaignTransition(CampaignStatus.DRAFT, CampaignStatus.STOPPED), 'DRAFT -> STOPPED is valid');
-assert(!isValidCampaignTransition(CampaignStatus.DRAFT, CampaignStatus.COMPLETED), 'DRAFT -> COMPLETED is invalid');
-
-assert(isValidCampaignTransition(CampaignStatus.ACTIVE, CampaignStatus.PAUSED), 'ACTIVE -> PAUSED is valid');
-assert(isValidCampaignTransition(CampaignStatus.ACTIVE, CampaignStatus.STOPPED), 'ACTIVE -> STOPPED is valid');
-assert(isValidCampaignTransition(CampaignStatus.ACTIVE, CampaignStatus.COMPLETED), 'ACTIVE -> COMPLETED is valid');
-
-assert(isValidCampaignTransition(CampaignStatus.PAUSED, CampaignStatus.ACTIVE), 'PAUSED -> ACTIVE (resume) is valid');
-assert(isValidCampaignTransition(CampaignStatus.PAUSED, CampaignStatus.STOPPED), 'PAUSED -> STOPPED is valid');
-
-assert(!isValidCampaignTransition(CampaignStatus.STOPPED, CampaignStatus.ACTIVE), 'STOPPED -> ACTIVE is FORBIDDEN (terminal)');
-assert(!isValidCampaignTransition(CampaignStatus.STOPPED, CampaignStatus.PAUSED), 'STOPPED -> PAUSED is FORBIDDEN (terminal)');
-assert(!isValidCampaignTransition(CampaignStatus.COMPLETED, CampaignStatus.ACTIVE), 'COMPLETED -> ACTIVE is FORBIDDEN (terminal)');
-
-// ── 2. Send Authorization ──
-assert(isCampaignSendAuthorized(CampaignStatus.ACTIVE), 'ACTIVE campaign is send-authorized');
-assert(!isCampaignSendAuthorized(CampaignStatus.PAUSED), 'PAUSED campaign is NOT send-authorized');
-assert(!isCampaignSendAuthorized(CampaignStatus.STOPPED), 'STOPPED campaign is NOT send-authorized');
-assert(!isCampaignSendAuthorized(CampaignStatus.DRAFT), 'DRAFT campaign is NOT send-authorized');
-assert(!isCampaignSendAuthorized(null), 'Null status is NOT send-authorized');
-
-// ── 3. Contact Outreach Eligibility ──
-// Case A: Valid active eligible contact
-{
-  const res = evaluateOutreachEligibility({
-    contact: { email: 'john@example.com', status: ContactStatus.NEW, emailStatus: ContactEmailStatus.VALID },
-    campaign: { status: CampaignStatus.ACTIVE }
+describe('Campaign State Machine Transitions', () => {
+  it('allows valid lifecycle transitions', () => {
+    expect(isValidCampaignTransition(CampaignStatus.DRAFT, CampaignStatus.ACTIVE)).toBe(true);
+    expect(isValidCampaignTransition(CampaignStatus.DRAFT, CampaignStatus.STOPPED)).toBe(true);
+    expect(isValidCampaignTransition(CampaignStatus.ACTIVE, CampaignStatus.PAUSED)).toBe(true);
+    expect(isValidCampaignTransition(CampaignStatus.ACTIVE, CampaignStatus.STOPPED)).toBe(true);
+    expect(isValidCampaignTransition(CampaignStatus.ACTIVE, CampaignStatus.COMPLETED)).toBe(true);
+    expect(isValidCampaignTransition(CampaignStatus.PAUSED, CampaignStatus.ACTIVE)).toBe(true);
+    expect(isValidCampaignTransition(CampaignStatus.PAUSED, CampaignStatus.STOPPED)).toBe(true);
   });
-  assert(res.eligible === true, 'Eligible contact in active campaign is approved');
-}
 
-// Case B: Missing email
-{
-  const res = evaluateOutreachEligibility({
-    contact: { email: '', status: ContactStatus.NEW },
-    campaign: { status: CampaignStatus.ACTIVE }
+  it('forbids invalid transitions and enforces terminal states', () => {
+    expect(isValidCampaignTransition(CampaignStatus.DRAFT, CampaignStatus.COMPLETED)).toBe(false);
+    expect(isValidCampaignTransition(CampaignStatus.STOPPED, CampaignStatus.ACTIVE)).toBe(false);
+    expect(isValidCampaignTransition(CampaignStatus.STOPPED, CampaignStatus.PAUSED)).toBe(false);
+    expect(isValidCampaignTransition(CampaignStatus.COMPLETED, CampaignStatus.ACTIVE)).toBe(false);
   });
-  assert(res.eligible === false && res.reason === 'CONTACT_MISSING_EMAIL', 'Missing email is rejected');
-}
+});
 
-// Case C: Unsubscribed contact
-{
-  const res = evaluateOutreachEligibility({
-    contact: { email: 'unsub@example.com', status: ContactStatus.UNSUBSCRIBED },
-    campaign: { status: CampaignStatus.ACTIVE }
+describe('Send Authorization Boundary', () => {
+  it('only authorizes sending for ACTIVE campaigns', () => {
+    expect(isCampaignSendAuthorized(CampaignStatus.ACTIVE)).toBe(true);
+    expect(isCampaignSendAuthorized(CampaignStatus.PAUSED)).toBe(false);
+    expect(isCampaignSendAuthorized(CampaignStatus.STOPPED)).toBe(false);
+    expect(isCampaignSendAuthorized(CampaignStatus.DRAFT)).toBe(false);
+    expect(isCampaignSendAuthorized(CampaignStatus.COMPLETED)).toBe(false);
+    expect(isCampaignSendAuthorized(null)).toBe(false);
   });
-  assert(res.eligible === false && res.reason === 'CONTACT_UNSUBSCRIBED', 'Unsubscribed contact is rejected');
-}
+});
 
-// Case D: Bounced contact
-{
-  const res = evaluateOutreachEligibility({
-    contact: { email: 'bounced@example.com', status: ContactStatus.BOUNCED },
-    campaign: { status: CampaignStatus.ACTIVE }
+describe('Contact Outreach Eligibility Policy', () => {
+  it('approves eligible contact in active campaign', () => {
+    const res = evaluateOutreachEligibility({
+      contact: { email: 'john@example.com', status: ContactStatus.NEW, emailStatus: ContactEmailStatus.VALID },
+      campaign: { status: CampaignStatus.ACTIVE }
+    });
+    expect(res.eligible).toBe(true);
   });
-  assert(res.eligible === false && res.reason === 'CONTACT_BOUNCED', 'Bounced contact is rejected');
-}
 
-// Case E: Do-not-contact contact
-{
-  const res = evaluateOutreachEligibility({
-    contact: { email: 'dnc@example.com', status: ContactStatus.DO_NOT_CONTACT },
-    campaign: { status: CampaignStatus.ACTIVE }
+  it('rejects contact with missing email', () => {
+    const res = evaluateOutreachEligibility({
+      contact: { email: '', status: ContactStatus.NEW },
+      campaign: { status: CampaignStatus.ACTIVE }
+    });
+    expect(res.eligible).toBe(false);
+    expect(res.reason).toBe('CONTACT_MISSING_EMAIL');
   });
-  assert(res.eligible === false && res.reason === 'CONTACT_DO_NOT_CONTACT', 'Do-not-contact is rejected');
-}
 
-// Case F: Quarantined email candidate
-{
-  const res = evaluateOutreachEligibility({
-    contact: { email: 'quarantined@example.com', status: ContactStatus.NEW, emailStatus: ContactEmailStatus.QUARANTINED },
-    campaign: { status: CampaignStatus.ACTIVE }
+  it('rejects unsubscribed contact', () => {
+    const res = evaluateOutreachEligibility({
+      contact: { email: 'unsub@example.com', status: ContactStatus.UNSUBSCRIBED },
+      campaign: { status: CampaignStatus.ACTIVE }
+    });
+    expect(res.eligible).toBe(false);
+    expect(res.reason).toBe('CONTACT_UNSUBSCRIBED');
   });
-  assert(res.eligible === false && res.reason === 'EMAIL_QUARANTINED', 'Quarantined candidate is rejected');
-}
 
-// Case G: Third-party email
-{
-  const res = evaluateOutreachEligibility({
-    contact: {
-      email: 'vendor@agency.com',
-      status: ContactStatus.NEW,
-      emailStatus: ContactEmailStatus.VALID,
-      emailMeta: { confidenceTier: 'third_party', domainMatched: false }
-    },
-    campaign: { status: CampaignStatus.ACTIVE }
+  it('rejects bounced contact', () => {
+    const res = evaluateOutreachEligibility({
+      contact: { email: 'bounced@example.com', status: ContactStatus.BOUNCED },
+      campaign: { status: CampaignStatus.ACTIVE }
+    });
+    expect(res.eligible).toBe(false);
+    expect(res.reason).toBe('CONTACT_BOUNCED');
   });
-  assert(res.eligible === false && res.reason === 'EMAIL_THIRD_PARTY', 'Third-party candidate is rejected');
-}
 
-// Case H: Stopped campaign
-{
-  const res = evaluateOutreachEligibility({
-    contact: { email: 'valid@example.com', status: ContactStatus.NEW, emailStatus: ContactEmailStatus.VALID },
-    campaign: { status: CampaignStatus.STOPPED }
+  it('rejects do-not-contact contact', () => {
+    const res = evaluateOutreachEligibility({
+      contact: { email: 'dnc@example.com', status: ContactStatus.DO_NOT_CONTACT },
+      campaign: { status: CampaignStatus.ACTIVE }
+    });
+    expect(res.eligible).toBe(false);
+    expect(res.reason).toBe('CONTACT_DO_NOT_CONTACT');
   });
-  assert(res.eligible === false && res.reason === 'CAMPAIGN_STOPPED', 'Stopped campaign rejects send');
-}
 
-// Case I: Paused campaign
-{
-  const res = evaluateOutreachEligibility({
-    contact: { email: 'valid@example.com', status: ContactStatus.NEW, emailStatus: ContactEmailStatus.VALID },
-    campaign: { status: CampaignStatus.PAUSED }
+  it('rejects quarantined email candidate', () => {
+    const res = evaluateOutreachEligibility({
+      contact: { email: 'quarantined@example.com', status: ContactStatus.NEW, emailStatus: ContactEmailStatus.QUARANTINED },
+      campaign: { status: CampaignStatus.ACTIVE }
+    });
+    expect(res.eligible).toBe(false);
+    expect(res.reason).toBe('EMAIL_QUARANTINED');
   });
-  assert(res.eligible === false && res.reason === 'CAMPAIGN_PAUSED', 'Paused campaign rejects send');
-}
 
-// Case J: Already contacted deduplication
-{
-  const res = evaluateOutreachEligibility({
-    contact: { id: 'c-101', email: 'valid@example.com', status: ContactStatus.NEW, emailStatus: ContactEmailStatus.VALID },
-    campaign: { status: CampaignStatus.ACTIVE },
-    context: { alreadyContactedIds: new Set(['c-101']) }
+  it('rejects third-party domain candidate', () => {
+    const res = evaluateOutreachEligibility({
+      contact: {
+        email: 'vendor@agency.com',
+        status: ContactStatus.NEW,
+        emailStatus: ContactEmailStatus.VALID,
+        emailMeta: { confidenceTier: 'third_party', domainMatched: false }
+      },
+      campaign: { status: CampaignStatus.ACTIVE }
+    });
+    expect(res.eligible).toBe(false);
+    expect(res.reason).toBe('EMAIL_THIRD_PARTY');
   });
-  assert(res.eligible === false && res.reason === 'ALREADY_CONTACTED', 'Already contacted ID is deduplicated');
-}
 
-// ── 4. Contact Status Monotonic Transitions ──
-assert(canTransitionContactStatus(ContactStatus.NEW, ContactStatus.CONTACTED), 'NEW -> CONTACTED is valid');
-assert(canTransitionContactStatus(ContactStatus.CONTACTED, ContactStatus.REPLIED), 'CONTACTED -> REPLIED is valid');
-assert(canTransitionContactStatus(ContactStatus.CONTACTED, ContactStatus.UNSUBSCRIBED), 'CONTACTED -> UNSUBSCRIBED is valid');
-assert(!canTransitionContactStatus(ContactStatus.UNSUBSCRIBED, ContactStatus.CONTACTED), 'UNSUBSCRIBED -> CONTACTED is FORBIDDEN');
-assert(!canTransitionContactStatus(ContactStatus.BOUNCED, ContactStatus.CONTACTED), 'BOUNCED -> CONTACTED is FORBIDDEN');
+  it('rejects contact when campaign is stopped', () => {
+    const res = evaluateOutreachEligibility({
+      contact: { email: 'valid@example.com', status: ContactStatus.NEW, emailStatus: ContactEmailStatus.VALID },
+      campaign: { status: CampaignStatus.STOPPED }
+    });
+    expect(res.eligible).toBe(false);
+    expect(res.reason).toBe('CAMPAIGN_STOPPED');
+  });
 
-console.log('\n=================================================================');
-console.log(`TOTAL POLICY TESTS: ${passed + failed} | PASSED: ${passed} | FAILED: ${failed}`);
-console.log('=================================================================');
+  it('rejects contact when campaign is paused', () => {
+    const res = evaluateOutreachEligibility({
+      contact: { email: 'valid@example.com', status: ContactStatus.NEW, emailStatus: ContactEmailStatus.VALID },
+      campaign: { status: CampaignStatus.PAUSED }
+    });
+    expect(res.eligible).toBe(false);
+    expect(res.reason).toBe('CAMPAIGN_PAUSED');
+  });
 
-if (failed > 0) process.exit(1);
+  it('deduplicates already contacted recipients', () => {
+    const res = evaluateOutreachEligibility({
+      contact: { id: 'c-101', email: 'valid@example.com', status: ContactStatus.NEW, emailStatus: ContactEmailStatus.VALID },
+      campaign: { status: CampaignStatus.ACTIVE },
+      context: { alreadyContactedIds: new Set(['c-101']) }
+    });
+    expect(res.eligible).toBe(false);
+    expect(res.reason).toBe('ALREADY_CONTACTED');
+  });
+});
+
+describe('Contact Status Monotonic Transitions', () => {
+  it('permits valid contact progressions', () => {
+    expect(canTransitionContactStatus(ContactStatus.NEW, ContactStatus.CONTACTED)).toBe(true);
+    expect(canTransitionContactStatus(ContactStatus.CONTACTED, ContactStatus.REPLIED)).toBe(true);
+    expect(canTransitionContactStatus(ContactStatus.CONTACTED, ContactStatus.UNSUBSCRIBED)).toBe(true);
+  });
+
+  it('forbids overriding terminal suppression states', () => {
+    expect(canTransitionContactStatus(ContactStatus.UNSUBSCRIBED, ContactStatus.CONTACTED)).toBe(false);
+    expect(canTransitionContactStatus(ContactStatus.BOUNCED, ContactStatus.CONTACTED)).toBe(false);
+  });
+});

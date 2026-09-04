@@ -1,4 +1,4 @@
-import assert from 'assert';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 /**
  * Phase 8R — Global User-Scoped Test Recipient Limit Test
@@ -12,7 +12,6 @@ import assert from 'assert';
  * 6. User A quota does not affect User B quota.
  */
 
-// Simulated In-Memory Registry representing UserTestRecipientModel
 const globalRegistry = new Map<string, Array<{ email: string; firstUsedAt: Date; lastUsedAt: Date }>>();
 
 function normalizeEmail(raw: string): string {
@@ -46,32 +45,49 @@ function registerTestRecipient(userId: string, rawEmail: string): { success: boo
   return { success: true };
 }
 
-function runTests() {
-  console.log('[Test] Starting Global User Test Recipient Limit Tests...');
+describe('Global User Test Recipient Limit (Phase 8R)', () => {
+  beforeEach(() => {
+    globalRegistry.clear();
+  });
 
-  const userIdA = 'user_111';
-  const userIdB = 'user_222';
+  it('allows registering up to 3 unique recipients for a user', () => {
+    const userIdA = 'user_111';
+    expect(registerTestRecipient(userIdA, '  Alice@Example.com ').success).toBe(true);
+    expect(registerTestRecipient(userIdA, 'bob@example.com').success).toBe(true);
+    expect(registerTestRecipient(userIdA, 'carol@example.com').success).toBe(true);
+  });
 
-  // Test 1: User A registers 3 unique recipients across different workspaces/senders
-  assert.strictEqual(registerTestRecipient(userIdA, '  Alice@Example.com ').success, true, 'First recipient should succeed');
-  assert.strictEqual(registerTestRecipient(userIdA, 'bob@example.com').success, true, 'Second recipient should succeed');
-  assert.strictEqual(registerTestRecipient(userIdA, 'carol@example.com').success, true, 'Third recipient should succeed');
+  it('rejects 4th unique recipient with user-friendly error', () => {
+    const userIdA = 'user_111';
+    registerTestRecipient(userIdA, 'Alice@Example.com');
+    registerTestRecipient(userIdA, 'bob@example.com');
+    registerTestRecipient(userIdA, 'carol@example.com');
 
-  // Test 2: User A attempts 4th unique recipient -> REJECTED
-  const res4 = registerTestRecipient(userIdA, 'dave@example.com');
-  assert.strictEqual(res4.success, false, '4th recipient should be rejected');
-  assert.ok(res4.error?.includes('up to 3 different test recipients'), 'Error should be user-friendly');
+    const res4 = registerTestRecipient(userIdA, 'dave@example.com');
+    expect(res4.success).toBe(false);
+    expect(res4.error).toContain('up to 3 different test recipients');
+  });
 
-  // Test 3: User A reuses 1st recipient ('alice@example.com') with different case -> ALLOWED
-  assert.strictEqual(registerTestRecipient(userIdA, 'ALICE@EXAMPLE.COM').success, true, 'Reusing 1st recipient should be allowed');
+  it('allows reusing existing recipient with case-insensitivity', () => {
+    const userIdA = 'user_111';
+    registerTestRecipient(userIdA, 'alice@example.com');
+    registerTestRecipient(userIdA, 'bob@example.com');
+    registerTestRecipient(userIdA, 'carol@example.com');
 
-  // Test 4: User B (different user) has independent quota
-  assert.strictEqual(registerTestRecipient(userIdB, 'dave@example.com').success, true, 'User B should be able to add dave@example.com');
-  assert.strictEqual(registerTestRecipient(userIdB, 'eve@example.com').success, true, 'User B second recipient');
-  assert.strictEqual(registerTestRecipient(userIdB, 'frank@example.com').success, true, 'User B third recipient');
-  assert.strictEqual(registerTestRecipient(userIdB, 'grace@example.com').success, false, 'User B 4th recipient rejected');
+    expect(registerTestRecipient(userIdA, 'ALICE@EXAMPLE.COM').success).toBe(true);
+  });
 
-  console.log('[Test] PASS: All Global User Test Recipient Limit Tests Passed!');
-}
+  it('isolates quotas between independent users', () => {
+    const userIdA = 'user_111';
+    const userIdB = 'user_222';
 
-runTests();
+    registerTestRecipient(userIdA, 'alice@example.com');
+    registerTestRecipient(userIdA, 'bob@example.com');
+    registerTestRecipient(userIdA, 'carol@example.com');
+
+    expect(registerTestRecipient(userIdB, 'dave@example.com').success).toBe(true);
+    expect(registerTestRecipient(userIdB, 'eve@example.com').success).toBe(true);
+    expect(registerTestRecipient(userIdB, 'frank@example.com').success).toBe(true);
+    expect(registerTestRecipient(userIdB, 'grace@example.com').success).toBe(false);
+  });
+});

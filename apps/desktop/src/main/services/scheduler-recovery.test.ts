@@ -1,84 +1,136 @@
-import Database from 'better-sqlite3';
+import { describe, it, expect } from 'vitest';
 import { randomUUID } from 'crypto';
-import assert from 'assert';
 
-console.log('--- Testing Scheduler WAITING Execution Recovery (Invariants 11 & 12) ---');
+interface SequenceExecutionRow {
+  id: string;
+  workspaceId: string;
+  sequenceId: string;
+  contactId: string;
+  campaignId: string;
+  currentStep: number;
+  status: string;
+  nextExecutionAt: string;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
-const db = new Database(':memory:');
-const workspaceId = randomUUID();
+class InMemoryExecutionStore {
+  private rows: Map<string, SequenceExecutionRow> = new Map();
 
-// Create schema matching LeadForge OS sequence_executions
-db.exec(`
-  CREATE TABLE sequence_executions (
-    id TEXT PRIMARY KEY,
-    workspaceId TEXT NOT NULL,
-    sequenceId TEXT NOT NULL,
-    contactId TEXT NOT NULL,
-    campaignId TEXT,
-    currentStep INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'WAITING',
-    nextExecutionAt TEXT,
-    deletedAt TEXT,
-    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
-    updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-`);
+  public insert(row: SequenceExecutionRow) {
+    this.rows.set(row.id, { ...row });
+  }
 
-const execDueId = randomUUID();
-const execFutureId = randomUUID();
+  public findDueWaiting(workspaceId: string, limit = 20): SequenceExecutionRow[] {
+    const nowIso = new Date().toISOString();
+    const results: SequenceExecutionRow[] = [];
 
-// Insert two executions: one due in past, one in future
-db.prepare(`
-  INSERT INTO sequence_executions (id, workspaceId, sequenceId, contactId, campaignId, status, nextExecutionAt)
-  VALUES (?, ?, 'seq-1', 'contact-1', 'camp-1', 'WAITING', datetime('now', '-10 seconds'))
-`).run(execDueId, workspaceId);
+    for (const row of this.rows.values()) {
+      if (
+        row.workspaceId === workspaceId &&
+        row.status.toUpperCase() === 'WAITING' &&
+        row.nextExecutionAt &&
+        row.nextExecutionAt <= nowIso &&
+        !row.deletedAt
+      ) {
+        results.push({ ...row });
+        if (results.length >= limit) break;
+      }
+    }
+    return results;
+  }
 
-db.prepare(`
-  INSERT INTO sequence_executions (id, workspaceId, sequenceId, contactId, campaignId, status, nextExecutionAt)
-  VALUES (?, ?, 'seq-2', 'contact-2', 'camp-1', 'WAITING', datetime('now', '+300 seconds'))
-`).run(execFutureId, workspaceId);
+  public atomicClaim(id: string): { changes: number } {
+    const row = this.rows.get(id);
+    if (!row || row.status.toUpperCase() !== 'WAITING') {
+      return { changes: 0 };
+    }
+    row.status = 'RUNNING';
+    row.updatedAt = new Date().toISOString();
+    this.rows.set(id, row);
+    return { changes: 1 };
+  }
 
-// 1. Invariant 11: Scan for due executions
-const dueExecutions = db.prepare(`
-  SELECT id, sequenceId, contactId, campaignId
-  FROM sequence_executions
-  WHERE workspaceId = ?
-    AND UPPER(status) = 'WAITING'
-    AND nextExecutionAt IS NOT NULL
-    AND nextExecutionAt <= datetime('now')
-    AND deletedAt IS NULL
-  LIMIT 20
-`).all(workspaceId) as Array<{ id: string; sequenceId: string; contactId: string }>;
+  public get(id: string): SequenceExecutionRow | undefined {
+    return this.rows.get(id);
+  }
+}
 
-assert.strictEqual(dueExecutions.length, 1, 'Expected exactly 1 due execution');
-assert.strictEqual(dueExecutions[0]!.id, execDueId, 'Expected due execution ID match');
-console.log('✅ Invariant 11: Correctly identified only due WAITING execution');
+describe('Scheduler WAITING Execution Recovery (Invariants 11 & 12)', () => {
+  it('correctly identifies only due WAITING executions (Invariant 11)', () => {
+    const store = new InMemoryExecutionStore();
+    const workspaceId = randomUUID();
 
-// 2. Invariant 12: Atomic Claim (Compare-and-Swap)
-// Worker 1 claims:
-const claimResult1 = db.prepare(`
-  UPDATE sequence_executions
-  SET status = 'RUNNING', updatedAt = datetime('now')
-  WHERE id = ? AND UPPER(status) = 'WAITING'
-`).run(execDueId);
+    const execDueId = randomUUID();
+    const execFutureId = randomUUID();
 
-assert.strictEqual(claimResult1.changes, 1, 'Worker 1 claim must return changes === 1');
-console.log('✅ Invariant 12a: Worker 1 claimed due execution atomically');
+    const pastDate = new Date(Date.now() - 10_000).toISOString();
+    const futureDate = new Date(Date.now() + 300_000).toISOString();
 
-// Worker 2 attempts concurrent claim on same execution:
-const claimResult2 = db.prepare(`
-  UPDATE sequence_executions
-  SET status = 'RUNNING', updatedAt = datetime('now')
-  WHERE id = ? AND UPPER(status) = 'WAITING'
-`).run(execDueId);
+    store.insert({
+      id: execDueId,
+      workspaceId,
+      sequenceId: 'seq-1',
+      contactId: 'contact-1',
+      campaignId: 'camp-1',
+      currentStep: 0,
+      status: 'WAITING',
+      nextExecutionAt: pastDate,
+      deletedAt: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
 
-assert.strictEqual(claimResult2.changes, 0, 'Worker 2 double claim must be rejected with changes === 0');
-console.log('✅ Invariant 12b: Worker 2 rejected with 0 changes (double recovery impossible)');
+    store.insert({
+      id: execFutureId,
+      workspaceId,
+      sequenceId: 'seq-2',
+      contactId: 'contact-2',
+      campaignId: 'camp-1',
+      currentStep: 0,
+      status: 'WAITING',
+      nextExecutionAt: futureDate,
+      deletedAt: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
 
-// 3. Confirm execution status is now RUNNING
-const finalRow = db.prepare('SELECT status FROM sequence_executions WHERE id = ?').get(execDueId) as any;
-assert.strictEqual(finalRow.status, 'RUNNING', 'Final execution status must be RUNNING');
-console.log('✅ Execution successfully transitioned to RUNNING');
+    const dueExecutions = store.findDueWaiting(workspaceId);
+    expect(dueExecutions.length).toBe(1);
+    expect(dueExecutions[0]?.id).toBe(execDueId);
+  });
 
-db.close();
-console.log('ALL SCHEDULER RECOVERY INVARIANTS PASSED!');
+  it('performs atomic claim compare-and-swap preventing double recovery (Invariant 12)', () => {
+    const store = new InMemoryExecutionStore();
+    const workspaceId = randomUUID();
+    const execDueId = randomUUID();
+    const pastDate = new Date(Date.now() - 10_000).toISOString();
+
+    store.insert({
+      id: execDueId,
+      workspaceId,
+      sequenceId: 'seq-1',
+      contactId: 'contact-1',
+      campaignId: 'camp-1',
+      currentStep: 0,
+      status: 'WAITING',
+      nextExecutionAt: pastDate,
+      deletedAt: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+
+    // Worker 1 claims:
+    const claimResult1 = store.atomicClaim(execDueId);
+    expect(claimResult1.changes).toBe(1);
+
+    // Worker 2 attempts concurrent claim on same execution:
+    const claimResult2 = store.atomicClaim(execDueId);
+    expect(claimResult2.changes).toBe(0);
+
+    // Confirm execution status is now RUNNING:
+    const finalRow = store.get(execDueId);
+    expect(finalRow?.status).toBe('RUNNING');
+  });
+});

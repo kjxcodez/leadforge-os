@@ -1,84 +1,89 @@
-import assert from 'node:assert';
-import { plainTextToHtml, formatEmailBody, renderCanonicalVariables, type CanonicalVariableContext } from './variable-resolver.js';
+import { describe, it, expect } from 'vitest';
+import {
+  plainTextToHtml,
+  formatEmailBody,
+  renderCanonicalVariables,
+  extractTemplateVariables,
+  wrapHtmlWithDefaultTypography,
+  normalizeEmailSignature,
+  type CanonicalVariableContext
+} from './variable-resolver.js';
 
-console.log('[SDK Test] Testing variable-resolver and formatting utilities...');
+describe('Variable Resolver & Email Formatting Utilities', () => {
+  it('renders plain text variables correctly', () => {
+    const ctx: CanonicalVariableContext = {
+      contact: { firstName: 'Sarah', lastName: 'Connor', email: 'sarah@resistance.org' },
+      company: { name: 'Cyberdyne Systems', domain: 'cyberdyne.com' },
+      sender: { name: 'John Doe', email: 'john@leadforge.ai' }
+    };
 
-// Test 1: Plain text variable rendering
-const ctx: CanonicalVariableContext = {
-  contact: { firstName: 'Sarah', lastName: 'Connor', email: 'sarah@resistance.org' },
-  company: { name: 'Cyberdyne Systems', domain: 'cyberdyne.com' },
-  sender: { name: 'John Doe', email: 'john@leadforge.ai' }
-};
+    const inputTpl = 'Hello {{contact.firstName}},\n\nI noticed {{company.name}} is hiring.\nLet me know if you are open to chatting.\n\nBest,\n{{sender.name}}';
+    const rendered = renderCanonicalVariables(inputTpl, ctx);
 
-const inputTpl = 'Hello {{contact.firstName}},\n\nI noticed {{company.name}} is hiring.\nLet me know if you are open to chatting.\n\nBest,\n{{sender.name}}';
-const rendered = renderCanonicalVariables(inputTpl, ctx);
+    expect(rendered).toBe(
+      'Hello Sarah,\n\nI noticed Cyberdyne Systems is hiring.\nLet me know if you are open to chatting.\n\nBest,\nJohn Doe'
+    );
+  });
 
-assert.strictEqual(
-  rendered,
-  'Hello Sarah,\n\nI noticed Cyberdyne Systems is hiring.\nLet me know if you are open to chatting.\n\nBest,\nJohn Doe'
-);
-console.log('✅ Variable interpolation passed.');
+  it('converts plainTextToHtml with paragraphs, line breaks, and default typography', () => {
+    const input = 'Hello Sarah,\n\nI noticed Cyberdyne Systems is hiring.\nLet me know if you are open to chatting.\n\nBest,\nJohn Doe';
+    const html = plainTextToHtml(input);
 
-// Test 2: plainTextToHtml paragraph and line-break conversion with Gmail default typography
-const html = plainTextToHtml(rendered);
-assert.ok(html.startsWith('<div style="font-family:sans-serif;line-height:107%;">'));
-assert.ok(html.endsWith('</div>'));
-assert.ok(html.includes('<p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:11pt;font-family:Calibri,sans-serif">Hello Sarah,</p>'));
-assert.ok(html.includes('<p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:11pt;font-family:Calibri,sans-serif">I noticed Cyberdyne Systems is hiring.<br/>Let me know if you are open to chatting.</p>'));
-assert.ok(html.includes('<p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:11pt;font-family:Calibri,sans-serif">Best,<br/>John Doe</p>'));
-console.log('✅ plainTextToHtml paragraph blocks, line breaks, and default typography passed.');
+    expect(html.startsWith('<div style="font-family:sans-serif;line-height:107%;">')).toBe(true);
+    expect(html.endsWith('</div>')).toBe(true);
+    expect(html).toContain('<p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:11pt;font-family:Calibri,sans-serif">Hello Sarah,</p>');
+    expect(html).toContain('<p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:11pt;font-family:Calibri,sans-serif">I noticed Cyberdyne Systems is hiring.<br/>Let me know if you are open to chatting.</p>');
+    expect(html).toContain('<p class="MsoNormal" style="margin:0in 0in 8pt;line-height:107%;font-size:11pt;font-family:Calibri,sans-serif">Best,<br/>John Doe</p>');
+  });
 
-// Test 3: formatEmailBody returns both text and html
-const formatted = formatEmailBody(rendered);
-assert.strictEqual(formatted.text, rendered);
-assert.strictEqual(formatted.html, html);
-console.log('✅ formatEmailBody structure passed.');
+  it('returns both text and html from formatEmailBody', () => {
+    const raw = 'Hello world';
+    const formatted = formatEmailBody(raw);
+    expect(formatted.text).toBe(raw);
+    expect(formatted.html).toContain('Hello world');
+  });
 
-// Test 4: HTML entity escaping
-const rawWithEntities = 'Price < $100 & profit > 50% "quoted" \'single\'';
-const escapedHtml = plainTextToHtml(rawWithEntities);
-assert.ok(escapedHtml.includes('&lt;'));
-assert.ok(escapedHtml.includes('&gt;'));
-assert.ok(escapedHtml.includes('&amp;'));
-assert.ok(escapedHtml.includes('&quot;'));
-assert.ok(escapedHtml.includes('&#39;'));
-assert.ok(escapedHtml.includes('font-family:sans-serif'));
-assert.ok(escapedHtml.includes('line-height:107%'));
-console.log('✅ HTML escaping and root typography passed.');
+  it('escapes HTML entities safely in plainTextToHtml', () => {
+    const rawWithEntities = 'Price < $100 & profit > 50% "quoted" \'single\'';
+    const escapedHtml = plainTextToHtml(rawWithEntities);
+    expect(escapedHtml).toContain('&lt;');
+    expect(escapedHtml).toContain('&gt;');
+    expect(escapedHtml).toContain('&amp;');
+    expect(escapedHtml).toContain('&quot;');
+    expect(escapedHtml).toContain('&#39;');
+    expect(escapedHtml).toContain('font-family:sans-serif');
+  });
 
-// Test 5: extractTemplateVariables with namespaced and dot tokens
-const { extractTemplateVariables, wrapHtmlWithDefaultTypography } = await import('./variable-resolver.js');
-const extracted = extractTemplateVariables('Hi {{contact.firstName}} from {{company.name}} ({{company.domain}})! Contact us at {{sender.email}}.');
-assert.deepStrictEqual(extracted, ['contact.firstName', 'company.name', 'company.domain', 'sender.email']);
-console.log('✅ extractTemplateVariables with namespaced tokens passed.');
+  it('extracts template variables with dot and namespace notation', () => {
+    const extracted = extractTemplateVariables('Hi {{contact.firstName}} from {{company.name}} ({{company.domain}})! Contact us at {{sender.email}}.');
+    expect(extracted).toEqual(['contact.firstName', 'company.name', 'company.domain', 'sender.email']);
+  });
 
-// Test 6: Fallback when company is null
-const nullCompanyCtx: CanonicalVariableContext = {
-  contact: { firstName: 'Alice', lastName: 'Smith', email: 'alice@example.com' },
-  company: null,
-  sender: { name: 'Bob', email: 'bob@sender.com' }
-};
-const missingCompanyRendered = renderCanonicalVariables('Hi {{contact.firstName}}, working at {{company.name}}', nullCompanyCtx);
-assert.strictEqual(missingCompanyRendered, 'Hi Alice, working at ');
-console.log('✅ Null company fallback handling passed.');
+  it('handles null company and missing values gracefully', () => {
+    const nullCompanyCtx: CanonicalVariableContext = {
+      contact: { firstName: 'Alice', lastName: 'Smith', email: 'alice@example.com' },
+      company: null,
+      sender: { name: 'Bob', email: 'bob@sender.com' }
+    };
+    const rendered = renderCanonicalVariables('Hi {{contact.firstName}}, working at {{company.name}}', nullCompanyCtx);
+    expect(rendered).toBe('Hi Alice, working at ');
+  });
 
-// Test 7: wrapHtmlWithDefaultTypography
-const rawHtmlSnippet = '<p>Custom HTML paragraph</p>';
-const wrappedSnippet = wrapHtmlWithDefaultTypography(rawHtmlSnippet);
-assert.strictEqual(wrappedSnippet, '<div style="font-family:sans-serif;line-height:107%;"><p>Custom HTML paragraph</p></div>');
+  it('wraps HTML with default typography without double wrapping', () => {
+    const rawHtmlSnippet = '<p>Custom HTML paragraph</p>';
+    const wrappedSnippet = wrapHtmlWithDefaultTypography(rawHtmlSnippet);
+    expect(wrappedSnippet).toBe('<div style="font-family:sans-serif;line-height:107%;"><p>Custom HTML paragraph</p></div>');
 
-// Already wrapped should not be double wrapped
-const doubleWrapped = wrapHtmlWithDefaultTypography(wrappedSnippet);
-assert.strictEqual(doubleWrapped, wrappedSnippet);
-console.log('✅ wrapHtmlWithDefaultTypography passed.');
+    // Already wrapped should not be double wrapped
+    const doubleWrapped = wrapHtmlWithDefaultTypography(wrappedSnippet);
+    expect(doubleWrapped).toBe(wrappedSnippet);
+  });
 
-// Test 8: normalizeEmailSignature handles entity-escaped and bare td table cells
-const { normalizeEmailSignature } = await import('./variable-resolver.js');
-const rawEscapedSig = '<div dir="ltr"><pre><code>&lt;td style=&quot;padding-left:18px;&quot;&gt;&lt;div&gt;&lt;strong&gt;Test Company&lt;/strong&gt;&lt;/div&gt;&lt;/td&gt;</code></pre></div>';
-const normalized = normalizeEmailSignature(rawEscapedSig);
-assert.ok(normalized.includes('<table'), 'Bare td should be wrapped in table');
-assert.ok(normalized.includes('<strong>Test Company</strong>'), 'Entities should be decoded to HTML');
-assert.ok(!normalized.includes('<pre>'), 'Pre tags should be stripped');
-console.log('✅ normalizeEmailSignature passed.');
-
-console.log('[SDK Test] All variable-resolver and formatting tests PASSED!');
+  it('normalizes email signature with bare td table cells and escaped entities', () => {
+    const rawEscapedSig = '<div dir="ltr"><pre><code>&lt;td style=&quot;padding-left:18px;&quot;&gt;&lt;div&gt;&lt;strong&gt;Test Company&lt;/strong&gt;&lt;/div&gt;&lt;/td&gt;</code></pre></div>';
+    const normalized = normalizeEmailSignature(rawEscapedSig);
+    expect(normalized).toContain('<table');
+    expect(normalized).toContain('<strong>Test Company</strong>');
+    expect(normalized).not.toContain('<pre>');
+  });
+});
