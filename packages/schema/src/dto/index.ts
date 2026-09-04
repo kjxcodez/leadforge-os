@@ -10,3 +10,4 @@ export * from './intelligence.js';
 export * from './memory.js';
 export * from './audit.js';
 export * from './operations.js';
+export * from './analytics.js';

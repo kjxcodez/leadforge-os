@@ -952,6 +952,36 @@ export interface IpcChannelMap {
     output: { success: boolean; message: string; result?: any };
   };
 
+  // ── Phase 11: Campaign Analytics & Performance Intelligence Channels ──
+  'analytics:campaign:overview': {
+    input: { workspaceId?: string; campaignId: string } & import('../dto/analytics.js').CampaignAnalyticsQuery;
+    output: import('../dto/analytics.js').CampaignAnalyticsOverview;
+  };
+  'analytics:campaign:timeline': {
+    input: { workspaceId?: string; campaignId: string } & import('../dto/analytics.js').CampaignAnalyticsQuery;
+    output: { points: import('../dto/analytics.js').CampaignTimelinePoint[]; timezone: string };
+  };
+  'analytics:campaign:steps': {
+    input: { workspaceId?: string; campaignId: string };
+    output: { steps: import('../dto/analytics.js').SequenceStepAnalytics[] };
+  };
+  'analytics:campaign:mailboxes': {
+    input: { workspaceId?: string; campaignId: string };
+    output: { mailboxes: import('../dto/analytics.js').MailboxSenderAnalytics[] };
+  };
+  'analytics:campaign:quality': {
+    input: { workspaceId?: string; campaignId: string };
+    output: import('../dto/analytics.js').AudienceQualityBreakdown;
+  };
+  'analytics:campaign:compare': {
+    input: { workspaceId?: string } & import('../dto/analytics.js').CampaignCompareQuery;
+    output: import('../dto/analytics.js').CampaignComparisonResult;
+  };
+  'analytics:campaign:export': {
+    input: { workspaceId?: string; campaignId: string; format?: 'json' | 'csv' } & import('../dto/analytics.js').CampaignAnalyticsQuery;
+    output: import('../dto/analytics.js').CampaignAnalyticsExport;
+  };
+
   // ── Push-event channels (main → renderer via ipc.on) ────────────────────
   'email-accounts:changed': {
     input: void;
