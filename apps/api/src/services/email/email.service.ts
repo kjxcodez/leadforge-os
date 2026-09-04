@@ -8,7 +8,9 @@ import { EmailAccountRepository } from '../../repositories/email-account/email-a
 import { plainTextToHtml, wrapHtmlWithDefaultTypography, normalizeEmailSignature } from '@leadforge/sdk';
 import {
   ContactStatus,
+  ContactEmailStatus,
   EmailFailureCategory,
+  SuppressionReason,
   evaluateOutreachEligibility,
   generateTrackingToken,
   injectOpenTrackingPixel,
@@ -20,6 +22,7 @@ import {
   type SendEmailResult
 } from './types.js';
 import { EmailAccountService } from './email-account.service.js';
+import { SuppressionRepository } from '../../repositories/suppression/suppression.repository.js';
 import { logger } from '../../config/index.js';
 import crypto from 'crypto';
 
@@ -157,6 +160,16 @@ export class EmailService {
       throw new EmailDomainError(
         'INVALID_RECIPIENT',
         `Invalid recipient email address: "${input.to}". Must be a valid RFC 5321 email.`
+      );
+    }
+
+    // 0a. Pre-flight suppression check: block if recipient is suppressed in workspace (even for direct sends)
+    const suppressionRepo = new SuppressionRepository(this.workspaceId);
+    const isSuppressed = await suppressionRepo.isSuppressed(input.to);
+    if (isSuppressed) {
+      throw new EmailDomainError(
+        'RECIPIENT_SUPPRESSED',
+        `Recipient "${input.to}" is suppressed in this workspace and cannot receive outreach.`
       );
     }
 
@@ -590,6 +603,43 @@ export class EmailService {
           ambiguous: failure.ambiguous
         }
       );
+
+      // Phase 10: Automatic suppression & contact transition on permanent hard bounce
+      const isHardBounce =
+        failure.category === EmailFailureCategory.INVALID_RECIPIENT ||
+        err.code === 'INVALID_RECIPIENT';
+
+      if (isHardBounce) {
+        try {
+          await suppressionRepo.suppress(
+            input.to,
+            SuppressionReason.HARD_BOUNCE,
+            'outbound_send_rejection',
+            {
+              failureCode: failure.code,
+              technicalMessage: failure.technicalMessage,
+              deliveryId: deliveryRecord._id.toString()
+            }
+          );
+
+          if (input.contactId && input.contactId !== 'direct-contact') {
+            await ContactModel.updateOne(
+              {
+                _id: input.contactId,
+                workspaceId: this.workspaceId
+              },
+              {
+                $set: {
+                  status: ContactStatus.BOUNCED,
+                  emailStatus: ContactEmailStatus.INVALID
+                }
+              }
+            );
+          }
+        } catch (suppressErr) {
+          logger.warn({ suppressErr, to: input.to }, 'Failed to record hard bounce suppression on outbound send failure');
+        }
+      }
 
       throw err;
     } finally {

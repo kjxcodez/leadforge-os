@@ -9,12 +9,16 @@ import { GoogleAuthService } from '../google/auth.service.js';
 import { GmailProvider } from '../google/gmail.provider.js';
 import {
   ContactStatus,
+  ContactEmailStatus,
   EmailEventType,
   EmailFailureCategory,
+  SuppressionReason,
   canTransitionContactStatus,
   generateEntityId,
+  parseDsnReport,
   sanitizeHtmlForPreview
 } from '@leadforge/schema';
+import { SuppressionRepository } from '../../repositories/suppression/suppression.repository.js';
 import { EmailDomainError } from './types.js';
 import { logger } from '../../config/index.js';
 
@@ -434,6 +438,156 @@ export class ReconciliationService {
 
       // Skip self-sent messages
       if (normalizedFrom === (account.email || '').toLowerCase().trim()) {
+        continue;
+      }
+
+      // ── Phase 10: Inbound Delivery Status Notification (DSN / Bounce) Handling ──
+      const dsnReport = parseDsnReport(detail.bodyText || detail.bodyHtml, detail.headers);
+      if (dsnReport && dsnReport.isDsn) {
+        logger.info(
+          { inboundMessageId: item.id, failedRecipient: dsnReport.failedRecipient, category: dsnReport.classification.category },
+          'Detected inbound Delivery Status Notification (bounce) from mail subsystem'
+        );
+
+        let bouncedDelivery: EmailDeliveryDocument | null = null;
+        if (item.threadId) {
+          bouncedDelivery = await EmailDeliveryModel.findOne({
+            workspaceId: this.workspaceId,
+            direction: 'OUTBOUND',
+            providerThreadId: item.threadId
+          }).sort({ sentAt: -1 });
+        }
+
+        if (!bouncedDelivery && dsnReport.failedRecipient) {
+          bouncedDelivery = await EmailDeliveryModel.findOne({
+            workspaceId: this.workspaceId,
+            direction: 'OUTBOUND',
+            recipientEmail: dsnReport.failedRecipient
+          }).sort({ sentAt: -1 });
+        }
+
+        const targetRecipient = dsnReport.failedRecipient || bouncedDelivery?.recipientEmail;
+        let bouncedContact = null;
+        if (targetRecipient) {
+          bouncedContact = await ContactModel.findOne({
+            workspaceId: this.workspaceId,
+            email: targetRecipient,
+            deletedAt: null
+          });
+        }
+
+        if (bouncedDelivery) {
+          await EmailDeliveryModel.updateOne(
+            { _id: bouncedDelivery._id },
+            {
+              $set: {
+                status: 'FAILED',
+                failureCategory: EmailFailureCategory.INVALID_RECIPIENT,
+                failureCode: dsnReport.classification.enhancedStatusCode || String(dsnReport.classification.statusCode || 'BOUNCE'),
+                safeHumanMessage: dsnReport.classification.safeDescription,
+                technicalMessage: dsnReport.classification.diagnosticMessage
+              }
+            }
+          );
+
+          // Emit immutable BOUNCED event
+          const bounceEventKey = `bounce_${this.workspaceId}_${item.id}`;
+          await eventRepo.recordEvent({
+            deliveryId: bouncedDelivery._id.toString(),
+            contactId: bouncedContact ? bouncedContact._id.toString() : (bouncedDelivery.contactId || 'unknown'),
+            campaignId: bouncedDelivery.campaignId || null,
+            type: EmailEventType.BOUNCED,
+            occurredAt: detail.internalDate || new Date(),
+            metadata: {
+              dsnMessageId: item.id,
+              failedRecipient: targetRecipient,
+              category: dsnReport.classification.category,
+              statusCode: dsnReport.classification.statusCode,
+              enhancedStatusCode: dsnReport.classification.enhancedStatusCode
+            },
+            dedupeKey: bounceEventKey
+          });
+        }
+
+        // Auto-suppress on hard bounce
+        if (dsnReport.classification.isHardBounce && targetRecipient) {
+          const suppressionRepo = new SuppressionRepository(this.workspaceId);
+          await suppressionRepo.suppress(
+            targetRecipient,
+            SuppressionReason.HARD_BOUNCE,
+            'inbound_dsn_bounce',
+            {
+              dsnMessageId: item.id,
+              diagnostic: dsnReport.classification.diagnosticMessage,
+              statusCode: dsnReport.classification.statusCode,
+              enhancedStatusCode: dsnReport.classification.enhancedStatusCode
+            }
+          );
+
+          if (bouncedContact) {
+            await ContactModel.updateOne(
+              { _id: bouncedContact._id, workspaceId: this.workspaceId },
+              {
+                $set: {
+                  status: ContactStatus.BOUNCED,
+                  emailStatus: ContactEmailStatus.INVALID
+                }
+              }
+            );
+
+            // Halt any running sequence executions for this bounced contact
+            const cancelled = await SequenceExecutionModel.updateMany(
+              {
+                workspaceId: this.workspaceId,
+                contactId: bouncedContact._id.toString(),
+                status: { $in: ['active', 'running', 'waiting', 'pending', 'WAITING', 'ACTIVE', 'RUNNING', 'PENDING'] }
+              },
+              {
+                $set: {
+                  status: 'completed',
+                  completedAt: new Date(),
+                  nextExecutionAt: null
+                },
+                $push: {
+                  logs: {
+                    timestamp: new Date(),
+                    level: 'warn',
+                    message: 'Sequence execution halted: recipient hard bounced.'
+                  }
+                }
+              }
+            );
+            suppressedExecutionsCount += cancelled.modifiedCount;
+          }
+        }
+
+        // Persist the DSN message in unified ledger
+        await EmailDeliveryModel.create({
+          workspaceId: this.workspaceId,
+          direction: 'INBOUND',
+          status: 'SENT',
+          idempotencyKey,
+          matchedDeliveryId: bouncedDelivery ? bouncedDelivery._id.toString() : null,
+          contactId: bouncedContact ? bouncedContact._id.toString() : 'bounce-subsystem',
+          campaignId: bouncedDelivery?.campaignId || null,
+          sequenceId: bouncedDelivery?.sequenceId || 'inbound-dsn',
+          executionId: bouncedDelivery?.executionId || 'inbound-dsn',
+          stepIndex: (bouncedDelivery?.stepIndex || 0) + 1,
+          accountId: account._id.toString(),
+          senderEmail: normalizedFrom,
+          recipientEmail: account.email,
+          subject: detail.headers.subject || 'Delivery Status Notification',
+          htmlBody: detail.bodyHtml ? sanitizeHtmlForPreview(detail.bodyHtml) : null,
+          textBody: detail.bodyText || null,
+          provider: 'gmail',
+          providerMessageId: item.id,
+          providerThreadId: item.threadId,
+          matchConfidence: bouncedDelivery ? 'thread' : 'none',
+          processingStatus: 'BOUNCED',
+          sentAt: detail.internalDate || new Date()
+        });
+
+        processedCount++;
         continue;
       }
 
