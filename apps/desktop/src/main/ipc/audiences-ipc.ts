@@ -31,15 +31,16 @@ export function resolveAudienceLocally(
     const placeholders = ids.map(() => '?').join(', ');
     const rows = db
       .prepare(
-        `SELECT id, companyId FROM contacts 
-         WHERE id IN (${placeholders}) 
-           AND workspaceId = ? 
-           AND deletedAt IS NULL
-           AND email IS NOT NULL AND email != ''
-           AND UPPER(COALESCE(status, 'NEW')) NOT IN ('UNSUBSCRIBED', 'BOUNCED', 'DO_NOT_CONTACT', 'ARCHIVED')
-           AND UPPER(COALESCE(emailStatus, 'VALID')) NOT IN ('QUARANTINED', 'INVALID')`
+         `SELECT id, companyId FROM contacts 
+          WHERE id IN (${placeholders}) 
+            AND workspaceId = ? 
+            AND deletedAt IS NULL
+            AND email IS NOT NULL AND email != ''
+            AND UPPER(COALESCE(status, 'NEW')) NOT IN ('UNSUBSCRIBED', 'BOUNCED', 'DO_NOT_CONTACT', 'ARCHIVED')
+            AND UPPER(COALESCE(emailStatus, 'UNVERIFIED')) NOT IN ('QUARANTINED', 'INVALID')
+            AND LOWER(email) NOT IN (SELECT LOWER(email) FROM suppressions WHERE workspaceId = ?)`
       )
-      .all(...ids, workspaceId) as Array<{ id: string; companyId: string | null }>;
+      .all(...ids, workspaceId, workspaceId) as Array<{ id: string; companyId: string | null }>;
 
     const contactIds = rows.map((r) => r.id);
     const companyIds = Array.from(
@@ -60,8 +61,9 @@ export function resolveAudienceLocally(
       AND deletedAt IS NULL 
       AND email IS NOT NULL AND email != ''
       AND UPPER(COALESCE(status, 'NEW')) NOT IN ('UNSUBSCRIBED', 'BOUNCED', 'DO_NOT_CONTACT', 'ARCHIVED')
-      AND UPPER(COALESCE(emailStatus, 'VALID')) NOT IN ('QUARANTINED', 'INVALID')`;
-  const contactParams: any[] = [workspaceId];
+      AND UPPER(COALESCE(emailStatus, 'UNVERIFIED')) NOT IN ('QUARANTINED', 'INVALID')
+      AND LOWER(email) NOT IN (SELECT LOWER(email) FROM suppressions WHERE workspaceId = ?)`;
+  const contactParams: any[] = [workspaceId, workspaceId];
   let hasCompanyFilter = false;
 
   if (filter.search) {

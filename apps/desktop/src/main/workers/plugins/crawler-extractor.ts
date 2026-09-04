@@ -355,14 +355,11 @@ export function extractCandidatesFromHtml(
       classification = 'quarantined';
     }
 
-    // Map candidate classification to ContactEmailStatus
+    // Phase 10 Invariant: Never automatically promote newly discovered candidates to VALID.
+    // Address remains UNVERIFIED until verified through email quality or verification layers.
     let emailStatus: ContactEmailStatus;
     if (classification === 'quarantined' || classification === 'ambiguous') {
       emailStatus = ContactEmailStatus.QUARANTINED;
-    } else if (classification === 'exact' || classification === 'role_based') {
-      emailStatus = ContactEmailStatus.VALID;
-    } else if (classification === 'recovered') {
-      emailStatus = ContactEmailStatus.UNVERIFIED;
     } else {
       emailStatus = ContactEmailStatus.UNVERIFIED;
     }

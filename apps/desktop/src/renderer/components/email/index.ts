@@ -5,3 +5,4 @@ export * from './ConversationTimeline';
 export * from './MessageDetailView';
 export * from './EmailLogsList';
 export * from './SendTestModal';
+export * from './EmailQualityBadge';

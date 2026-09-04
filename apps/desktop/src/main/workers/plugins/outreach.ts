@@ -239,8 +239,17 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
       continue;
     }
 
+    let isSuppressed = false;
+    try {
+      const { getDatabase } = await import('../../database/connection');
+      const { DesktopSuppressionRepository } = await import('../../database/suppression-repository');
+      const suppRepo = new DesktopSuppressionRepository(getDatabase(campaign.workspaceId));
+      isSuppressed = suppRepo.isSuppressed(campaign.workspaceId, contact.email);
+    } catch {}
+
     const eligibility = evaluateOutreachEligibility({
       contact,
+      suppression: isSuppressed,
       campaign: freshCampaign || campaign,
       context: { alreadyContactedIds: processedContactIds }
     });
@@ -392,6 +401,29 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
           subject: renderedSubject,
           campaignId
         });
+
+        // Phase 10: Auto-suppress on hard bounce
+        const isHardBounce =
+          err.code === 'INVALID_RECIPIENT' ||
+          err.status === 400 ||
+          sendError.includes('INVALID_RECIPIENT') ||
+          sendError.includes('550');
+
+        if (isHardBounce) {
+          try {
+            const { getDatabase } = await import('../../database/connection');
+            const { DesktopSuppressionRepository } = await import('../../database/suppression-repository');
+            const { SuppressionReason } = await import('@leadforge/schema');
+            const suppRepo = new DesktopSuppressionRepository(getDatabase(campaign.workspaceId));
+            suppRepo.suppress(
+              campaign.workspaceId,
+              contact.email,
+              SuppressionReason.HARD_BOUNCE,
+              'outreach_worker_bounce',
+              { error: sendError }
+            );
+          } catch {}
+        }
       }
     }
 

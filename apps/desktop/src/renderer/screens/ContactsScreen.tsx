@@ -25,6 +25,7 @@ import { Sheet, SheetContent } from '../components/ui/sheet';
 import { toast } from 'sonner';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { EmailStatusBadge, EngagementPills, DirectionBadge } from '../components/email/EmailStatusBadge';
+import { EmailQualityBadge } from '../components/email/EmailQualityBadge';
 
 function ContactEmailHistory({ contactId, workspaceId }: { contactId: string; workspaceId: string }) {
   const navigate = useNavigate();
@@ -559,7 +560,17 @@ export default function ContactsScreen() {
                             <span className="opacity-40">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 font-mono text-primary">{item.email || '—'}</td>
+                        <td className="px-4 py-3 font-mono text-primary">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{item.email || '—'}</span>
+                            {item.email && (
+                              <EmailQualityBadge
+                                status={item.emailQuality?.status || (item.status === 'BOUNCED' ? 'INVALID' : item.emailStatus)}
+                                size="sm"
+                              />
+                            )}
+                          </div>
+                        </td>
                         <td className="px-4 py-3 text-muted-foreground font-mono">{item.phone || '—'}</td>
                         <td className="px-4 py-3 text-muted-foreground">{item.title || '—'}</td>
                         <td className="px-4 py-3">
@@ -758,6 +769,112 @@ export default function ContactsScreen() {
                   <span className="text-foreground truncate font-mono">
                     {selectedContact.linkedin || 'N/A'}
                   </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Email Deliverability & Quality */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  Deliverability & Quality
+                </h4>
+                <EmailQualityBadge
+                  status={selectedContact.emailQuality?.status || (selectedContact.status === 'BOUNCED' ? 'INVALID' : selectedContact.emailStatus)}
+                  size="sm"
+                />
+              </div>
+
+              <div className="bg-surface-3 border border-border-subtle rounded-none p-2.5 space-y-2 text-[11px]">
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-muted-foreground">Outreach Gating:</span>
+                  <span
+                    className={`font-bold ${
+                      ['BOUNCED', 'UNSUBSCRIBED', 'DO_NOT_CONTACT'].includes(selectedContact.status) ||
+                      selectedContact.emailStatus === 'INVALID' ||
+                      selectedContact.emailQuality?.sendable === false
+                        ? 'text-danger'
+                        : 'text-success'
+                    }`}
+                  >
+                    {['BOUNCED', 'UNSUBSCRIBED', 'DO_NOT_CONTACT'].includes(selectedContact.status) ||
+                    selectedContact.emailStatus === 'INVALID' ||
+                    selectedContact.emailQuality?.sendable === false
+                      ? 'Prohibited / Blocked'
+                      : 'Send-Eligible'}
+                  </span>
+                </div>
+
+                {selectedContact.emailMeta && (
+                  <div className="pt-1 border-t border-border-subtle/50 space-y-1 text-[10px] text-muted-foreground">
+                    {selectedContact.emailMeta.confidenceTier && (
+                      <div className="flex justify-between">
+                        <span>Scrape Tier:</span>
+                        <span className="font-mono text-foreground">{selectedContact.emailMeta.confidenceTier}</span>
+                      </div>
+                    )}
+                    {selectedContact.emailMeta.isRoleAccount && (
+                      <div className="flex justify-between">
+                        <span>Role Account:</span>
+                        <span className="font-mono text-amber-500">Yes (info/support/sales)</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Suppression actions */}
+                <div className="pt-2 border-t border-border-subtle flex gap-1.5">
+                  {['BOUNCED', 'UNSUBSCRIBED', 'DO_NOT_CONTACT'].includes(selectedContact.status) ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 text-[9px] rounded-none text-success hover:bg-success/10 w-full"
+                      onClick={async () => {
+                        try {
+                          await (window as any).ipc.invoke('suppressions:unsuppress', {
+                            workspaceId: selectedContact.workspaceId,
+                            email: selectedContact.email
+                          });
+                          const updated = await updateMutation.mutateAsync({
+                            id: selectedContact.id,
+                            data: { status: ContactStatus.NEW }
+                          });
+                          setSelectedContact(updated);
+                          toast.success(`Unsuppressed ${selectedContact.email}`);
+                        } catch (err: any) {
+                          toast.error(err.message || 'Failed to unsuppress');
+                        }
+                      }}
+                    >
+                      Remove Suppression
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 text-[9px] rounded-none text-danger hover:bg-danger/10 w-full"
+                      onClick={async () => {
+                        try {
+                          await (window as any).ipc.invoke('suppressions:suppress', {
+                            workspaceId: selectedContact.workspaceId,
+                            email: selectedContact.email,
+                            reason: 'MANUAL_SUPPRESSION',
+                            notes: 'Manually suppressed from Contact Drawer'
+                          });
+                          const updated = await updateMutation.mutateAsync({
+                            id: selectedContact.id,
+                            data: { status: ContactStatus.DO_NOT_CONTACT }
+                          });
+                          setSelectedContact(updated);
+                          toast.success(`Suppressed ${selectedContact.email}`);
+                        } catch (err: any) {
+                          toast.error(err.message || 'Failed to suppress');
+                        }
+                      }}
+                    >
+                      Suppress Address
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

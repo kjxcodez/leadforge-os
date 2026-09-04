@@ -129,11 +129,18 @@ export const FailureDiagnosticsCard: React.FC<FailureDiagnosticsCardProps> = ({
             </div>
           </div>
 
-          {failureCategory && (
-            <Badge variant="outline" className="text-[10px] uppercase shrink-0">
-              {failureCategory}
-            </Badge>
-          )}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {failureCategory === 'INVALID_RECIPIENT' && (
+              <Badge variant="outline" className="bg-purple-500/20 text-purple-300 border-purple-500/40 text-[10px] font-mono">
+                Auto-Suppressed
+              </Badge>
+            )}
+            {failureCategory && (
+              <Badge variant="outline" className="text-[10px] uppercase">
+                {failureCategory}
+              </Badge>
+            )}
+          </div>
         </div>
 
         {/* Ambiguous Reconcile Action Banner */}

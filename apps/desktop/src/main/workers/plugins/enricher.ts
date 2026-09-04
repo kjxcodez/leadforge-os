@@ -26,50 +26,42 @@ function normalizeEmail(raw: string | null): string {
 }
 
 /**
- * Scores email verification confidence based on MX status, syntax, and domain popularity.
+ * Phase 10: Checks domain MX routability without falsely claiming mailbox verification.
+ * Invariant: Never represent an email as "verified" merely because MX records exist.
  */
-async function verifyEmail(email: string): Promise<{
-  verificationStatus: 'verified' | 'unverified' | 'failed' | 'risky';
+async function checkDomainMx(email: string): Promise<{
+  mxStatus: 'mx_valid' | 'mx_missing' | 'failed' | 'risky';
   confidence: number;
   mxDomain: string | null;
 }> {
   const parts = email.split('@');
   if (parts.length !== 2) {
-    return { verificationStatus: 'failed', confidence: 0, mxDomain: null };
+    return { mxStatus: 'failed', confidence: 0, mxDomain: null };
   }
   const domain = parts[1];
   if (!domain) {
-    return { verificationStatus: 'failed', confidence: 0, mxDomain: null };
+    return { mxStatus: 'failed', confidence: 0, mxDomain: null };
   }
 
   try {
     const records = await resolveMxAsync(domain);
     if (!records || records.length === 0) {
-      return { verificationStatus: 'failed', confidence: 0, mxDomain: null };
+      return { mxStatus: 'mx_missing', confidence: 0.9, mxDomain: null };
     }
 
     const primaryMx = records.sort((a: { priority: number }, b: { priority: number }) => a.priority - b.priority)[0]?.exchange.toLowerCase() || '';
-
-    if (
-      primaryMx.includes('google.com') ||
-      primaryMx.includes('googlemail.com') ||
-      primaryMx.includes('outlook.com') ||
-      primaryMx.includes('protection.outlook.com')
-    ) {
-      return { verificationStatus: 'verified', confidence: 0.95, mxDomain: primaryMx };
-    }
 
     if (
       primaryMx.includes('pphosted.com') ||
       primaryMx.includes('mimecast.com') ||
       primaryMx.includes('barracudanetworks.com')
     ) {
-      return { verificationStatus: 'risky', confidence: 0.7, mxDomain: primaryMx };
+      return { mxStatus: 'risky', confidence: 0.7, mxDomain: primaryMx };
     }
 
-    return { verificationStatus: 'verified', confidence: 0.85, mxDomain: primaryMx };
+    return { mxStatus: 'mx_valid', confidence: 0.85, mxDomain: primaryMx };
   } catch {
-    return { verificationStatus: 'failed', confidence: 0, mxDomain: null };
+    return { mxStatus: 'failed', confidence: 0, mxDomain: null };
   }
 }
 
@@ -265,7 +257,7 @@ export async function enrichWebsite(ctx: JobContext): Promise<any> {
       }
 
       try {
-        const { verificationStatus, confidence, mxDomain } = await verifyEmail(normEmail);
+        const { mxStatus, confidence, mxDomain } = await checkDomainMx(normEmail);
         const { type } = classifyEmail(normEmail);
         const { firstName, lastName } = extractNameFromEmail(normEmail, type);
 
@@ -273,13 +265,13 @@ export async function enrichWebsite(ctx: JobContext): Promise<any> {
         await sdk.contacts.update(contact.id, {
           firstName: firstName || undefined,
           lastName: lastName || undefined,
-          notes: `[Enriched] mxDomain=${mxDomain || 'N/A'}, status=${verificationStatus}, confidence=${confidence}`
+          notes: `[Enriched] mxDomain=${mxDomain || 'N/A'}, mxStatus=${mxStatus}, confidence=${confidence}`
         });
 
         enrichedCount++;
         processedContacts.add(contact.id);
         ctx.emitLog(
-          `Enriched contact ${contact.id} (${normEmail}): Status: ${verificationStatus} | Confidence: ${confidence}`,
+          `Enriched contact ${contact.id} (${normEmail}): MX Status: ${mxStatus} | Confidence: ${confidence}`,
           'info'
         );
       } catch (err: any) {

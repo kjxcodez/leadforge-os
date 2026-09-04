@@ -13,7 +13,7 @@ import Database from 'better-sqlite3';
  *  4. Database can be dropped (rm leadforge_<wsId>.db) and fully recreated without data loss.
  */
 
-export const CACHE_SCHEMA_VERSION = 3;
+export const CACHE_SCHEMA_VERSION = 4;
 
 export const CACHE_TABLES = [
   'workspaces',
@@ -26,6 +26,8 @@ export const CACHE_TABLES = [
   'email_accounts',
   'email_deliveries',
   'operations_cache',
+  'suppressions',
+  'email_quality',
   'audiences',
   'discovery_runs',
   'company_discovery_runs',
@@ -156,7 +158,7 @@ export function initCacheSchema(db: Database.Database): void {
       )
     `).run();
 
-    // Ensure emailStatus and emailMeta columns exist on existing databases
+    // Ensure emailStatus, emailMeta, emailQuality, and additionalEmails columns exist on existing databases
     try {
       const contactCols = (db.pragma(`table_info(contacts)`) as Array<{ name: string }>).map((c) => c.name);
       if (!contactCols.includes('emailStatus')) {
@@ -164,6 +166,12 @@ export function initCacheSchema(db: Database.Database): void {
       }
       if (!contactCols.includes('emailMeta')) {
         db.prepare(`ALTER TABLE contacts ADD COLUMN emailMeta TEXT DEFAULT NULL`).run();
+      }
+      if (!contactCols.includes('emailQuality')) {
+        db.prepare(`ALTER TABLE contacts ADD COLUMN emailQuality TEXT DEFAULT NULL`).run();
+      }
+      if (!contactCols.includes('additionalEmails')) {
+        db.prepare(`ALTER TABLE contacts ADD COLUMN additionalEmails TEXT DEFAULT '[]'`).run();
       }
     } catch {}
 
@@ -637,6 +645,45 @@ export function initCacheSchema(db: Database.Database): void {
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_settings_ws ON settings(workspaceId, key)`).run();
 
     // Store schema version in metadata
+    // 21. Suppressions Cache (Phase 10)
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS suppressions (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        email TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        source TEXT DEFAULT 'system',
+        evidence TEXT DEFAULT NULL,
+        suppressedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        suppressedBy TEXT DEFAULT NULL,
+        notes TEXT DEFAULT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run();
+    db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cache_suppressions_ws_email ON suppressions(workspaceId, email)`).run();
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_suppressions_ws_reason ON suppressions(workspaceId, reason)`).run();
+
+    // 22. Email Quality Cache (Phase 10)
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS email_quality (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        email TEXT NOT NULL,
+        status TEXT NOT NULL,
+        sendable INTEGER DEFAULT 1,
+        riskLevel TEXT DEFAULT 'moderate',
+        reasons TEXT DEFAULT '[]',
+        evidence TEXT DEFAULT '[]',
+        recommendedAction TEXT DEFAULT 'send',
+        evaluatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expiresAt DATETIME,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run();
+    db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cache_email_quality_ws_email ON email_quality(workspaceId, email)`).run();
+
     db.prepare(`
       INSERT OR REPLACE INTO cache_metadata (key, value, updatedAt)
       VALUES ('schema_version', ?, datetime('now'))

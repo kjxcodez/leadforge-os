@@ -22,6 +22,7 @@ export default defineConfig({
       // Native Electron SQLite integration tests executed via test:integration runner
       'apps/desktop/src/main/services/audiences.test.ts',
       'apps/desktop/src/main/services/campaign.test.ts',
+      'apps/desktop/src/main/services/email-quality-intelligence.test.ts',
       'apps/desktop/src/main/services/fresh-database.test.ts',
       'apps/desktop/src/main/services/fresh-database-all-queries.test.ts',
       'apps/desktop/src/main/services/operations-cache.test.ts',

@@ -16,6 +16,7 @@ import { registerAgentIPCHandlers } from './agent-ipc';
 import { registerDiscoveryIpc } from './discovery-ipc';
 import { registerAudiencesIpc } from './audiences-ipc';
 import { registerDriveIpc } from './drive-ipc';
+import { registerSuppressionsIpc } from './suppressions-ipc';
 import { registerPlaywrightIpc } from '../lib/playwright-setup';
 import { WorkspaceManager } from '../lib/workspace-manager';
 
@@ -70,5 +71,6 @@ export function registerAllIpc(
   registerDiscoveryIpc();
   registerAudiencesIpc();
   registerDriveIpc();
+  registerSuppressionsIpc();
   registerPlaywrightIpc();
 }
