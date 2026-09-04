@@ -20,3 +20,4 @@ export * from './system-logs.js';
 export * from './google-connections.js';
 export * from './attachments.js';
 export * from './operations.js';
+export * from './analytics.js';
