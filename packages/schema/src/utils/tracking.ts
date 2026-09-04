@@ -109,12 +109,30 @@ export function rewriteLinksForClickTracking(
   return { rewrittenHtml, tokens };
 }
 
+export interface SanitizePreviewOptions {
+  /** When true (default), strips tracking pixels matching /tracking/open/ */
+  stripTrackingPixels?: boolean;
+  /** When true, rewrites remote image src to data-src and placeholder to protect privacy */
+  blockRemoteImages?: boolean;
+  /** When true (default), ensures links open in new tab and neutralizes script links */
+  neutralizeLinks?: boolean;
+}
+
 /**
  * Sanitizes stored email HTML for secure desktop rendering in an isolated preview container.
- * Strips script tags, objects, embeds, iframes, and inline on* event handlers.
+ * Strips script tags, objects, embeds, iframes, inline on* event handlers, and open tracking pixels.
  */
-export function sanitizeHtmlForPreview(rawHtml: string): string {
+export function sanitizeHtmlForPreview(
+  rawHtml: string,
+  options: SanitizePreviewOptions = {}
+): string {
   if (!rawHtml) return '';
+
+  const {
+    stripTrackingPixels = true,
+    blockRemoteImages = false,
+    neutralizeLinks = true
+  } = options;
 
   let sanitized = rawHtml;
 
@@ -136,5 +154,35 @@ export function sanitizeHtmlForPreview(rawHtml: string): string {
   sanitized = sanitized.replace(/href\s*=\s*(["'])\s*(javascript|vbscript):/gi, 'href=$1#blocked-');
   sanitized = sanitized.replace(/src\s*=\s*(["'])\s*(javascript|vbscript):/gi, 'src=$1#blocked-');
 
+  // 6. Strip LeadForge open tracking pixels to prevent false open events inside preview
+  if (stripTrackingPixels) {
+    sanitized = sanitized.replace(/<img\b[^>]*\/tracking\/open\/[^>]*>/gi, '');
+  }
+
+  // 7. Neutralize remote images if privacy protection is enabled
+  if (blockRemoteImages) {
+    sanitized = sanitized.replace(
+      /<img\b([^>]*)src=(["'])(https?:\/\/[^"']+)\2([^>]*)>/gi,
+      '<img$1data-src=$2$3$2 src="data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\'><rect width=\'100%\' height=\'100%\' fill=\'%23333\'/></svg>"$4>'
+    );
+  }
+
+  // 8. Ensure links have target="_blank" and rel="noopener noreferrer" for safe interception
+  if (neutralizeLinks) {
+    sanitized = sanitized.replace(/<a\b([^>]*)>/gi, (match, attrs) => {
+      let updated = attrs;
+      if (!/target\s*=/i.test(updated)) {
+        updated += ' target="_blank"';
+      } else {
+        updated = updated.replace(/target\s*=\s*["'][^"']*["']/i, 'target="_blank"');
+      }
+      if (!/rel\s*=/i.test(updated)) {
+        updated += ' rel="noopener noreferrer"';
+      }
+      return `<a${updated}>`;
+    });
+  }
+
   return sanitized;
 }
+

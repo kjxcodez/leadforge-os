@@ -52,6 +52,7 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { PageHeader } from '../components/common/PageHeader';
 import { MediaPickerDialog } from '../components/media/MediaPickerDialog';
+import { EngagementPills } from '../components/email/EmailStatusBadge';
 import {
   ProgressiveSequenceEditor,
   type SequenceStepItem
@@ -1668,17 +1669,36 @@ export default function CampaignsScreen() {
                                       {sentTime ? formatDistanceToNow(new Date(sentTime), { addSuffix: true }) : '—'}
                                     </TableCell>
                                     <TableCell className="py-2 text-right">
-                                      {deliv.providerMessageId ? (
-                                        <span className="font-mono text-[9px] bg-surface-3 border border-border-subtle px-1.5 py-0.5 rounded-none text-foreground" title={deliv.providerMessageId}>
-                                          ID: {deliv.providerMessageId.slice(0, 12)}...
-                                        </span>
-                                      ) : deliv.error ? (
-                                        <span className="text-danger text-[9px] font-mono truncate max-w-[160px] inline-block" title={deliv.error}>
-                                          {deliv.error}
-                                        </span>
-                                      ) : (
-                                        <span className="text-muted-foreground text-[9px] font-mono">—</span>
-                                      )}
+                                      <div className="flex items-center justify-end gap-2">
+                                        <EngagementPills
+                                          openCount={deliv.openCount}
+                                          clickCount={deliv.clickCount}
+                                          replyCount={deliv.replyCount}
+                                          firstOpenedAt={deliv.firstOpenedAt}
+                                          firstClickedAt={deliv.firstClickedAt}
+                                          lastRepliedAt={deliv.lastRepliedAt}
+                                          size="sm"
+                                        />
+                                        {deliv.providerMessageId ? (
+                                          <span className="font-mono text-[9px] bg-surface-3 border border-border-subtle px-1.5 py-0.5 rounded-none text-foreground hidden sm:inline" title={deliv.providerMessageId}>
+                                            ID: {deliv.providerMessageId.slice(0, 10)}...
+                                          </span>
+                                        ) : deliv.error ? (
+                                          <span className="text-danger text-[9px] font-mono truncate max-w-[120px] inline-block" title={deliv.error}>
+                                            {deliv.error}
+                                          </span>
+                                        ) : null}
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 px-1.5 text-[10px] text-primary hover:text-primary rounded-none"
+                                          onClick={() => navigate(`/emails?id=${deliv.id}`)}
+                                          title="Inspect full rendered message and lifecycle timeline in Email Logs"
+                                        >
+                                          Inspect &rarr;
+                                        </Button>
+                                      </div>
                                     </TableCell>
                                   </TableRow>
                                 );

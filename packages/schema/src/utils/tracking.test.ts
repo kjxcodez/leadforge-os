@@ -2,6 +2,7 @@
  * LeadForge OS — Tracking Utilities Unit Test Suite
  */
 
+import { describe, it, expect } from 'vitest';
 import {
   generateTrackingToken,
   injectOpenTrackingPixel,
@@ -9,107 +10,130 @@ import {
   sanitizeHtmlForPreview
 } from './tracking.js';
 
-let passed = 0;
-let failed = 0;
+describe('Email Tracking Utilities', () => {
+  describe('Token Generation', () => {
+    it('generates unique 32-character hex tokens', () => {
+      const t1 = generateTrackingToken();
+      const t2 = generateTrackingToken();
+      expect(typeof t1).toBe('string');
+      expect(t1.length).toBe(32);
+      expect(/^[0-9a-f]{32}$/.test(t1)).toBe(true);
+      expect(t1).not.toBe(t2);
+    });
+  });
 
-function assert(cond: boolean, msg: string) {
-  if (cond) {
-    passed++;
-    console.log(`[PASS] ${msg}`);
-  } else {
-    failed++;
-    console.error(`[FAIL] ${msg}`);
-  }
-}
+  describe('Open Tracking Pixel Injection', () => {
+    it('injects pixel before closing body tag', () => {
+      const htmlWithBody = '<html><body><p>Hello World</p></body></html>';
+      const injected = injectOpenTrackingPixel(htmlWithBody, 'https://track.leadforge.com', 'tok-123');
+      expect(injected).toContain('src="https://track.leadforge.com/t/open/tok-123"');
+      expect(injected).toContain('width="1" height="1"');
+      expect(injected).toContain('</body>');
+    });
 
-console.log('=================================================================');
-console.log('RUNNING EMAIL TRACKING UTILITIES UNIT TESTS');
-console.log('=================================================================\n');
+    it('handles trailing slash in trackingBaseUrl and fragments without body tag', () => {
+      const htmlWithoutBody = '<div><p>Direct Snippet</p></div>';
+      const injected = injectOpenTrackingPixel(htmlWithoutBody, 'https://track.leadforge.com/', 'tok-456');
+      expect(injected).toContain('src="https://track.leadforge.com/t/open/tok-456"');
+      expect(injected.endsWith('/>')).toBe(true);
+    });
+  });
 
-// ── 1. Token Generation ──
-const t1 = generateTrackingToken();
-const t2 = generateTrackingToken();
-assert(typeof t1 === 'string' && t1.length === 32, 'Token is 32-character hex string');
-assert(/^[0-9a-f]{32}$/.test(t1), 'Token contains valid hex characters');
-assert(t1 !== t2, 'Tokens are uniquely generated');
+  describe('Click Tracking Link Rewriting', () => {
+    it('rewrites external links while strictly excluding non-http and protected links', () => {
+      const originalHtml = `
+        <div>
+          <p>Please review:</p>
+          <a href="https://acme.com/pricing">See Pricing</a>
+          <a href="https://acme.com/docs" target="_blank">Documentation</a>
+          <a href="mailto:support@acme.com">Contact Support</a>
+          <a href="tel:+18005551234">Call Us</a>
+          <a href="#section-2">Jump Down</a>
+          <a href="https://acme.com/unsubscribe" class="leadforge-unsubscribe">Unsubscribe</a>
+          <a href="https://acme.com/privacy" data-no-track="true">Privacy Policy</a>
+        </div>
+      `;
 
-// ── 2. Open Tracking Pixel Injection ──
-{
-  const htmlWithBody = '<html><body><p>Hello World</p></body></html>';
-  const injected = injectOpenTrackingPixel(htmlWithBody, 'https://track.leadforge.com', 'tok-123');
-  assert(injected.includes('src="https://track.leadforge.com/t/open/tok-123"'), 'Pixel URL constructed with base URL and token');
-  assert(injected.includes('width="1" height="1"'), 'Pixel has 1x1 dimensions');
-  assert(injected.includes('</body>'), 'Pixel injected before closing body tag');
-}
+      let counter = 0;
+      const mockTokenGen = () => `mock-token-${++counter}`;
+      const result = rewriteLinksForClickTracking(originalHtml, 'https://track.leadforge.com', mockTokenGen);
 
-{
-  const htmlWithoutBody = '<div><p>Direct Snippet</p></div>';
-  const injected = injectOpenTrackingPixel(htmlWithoutBody, 'https://track.leadforge.com/', 'tok-456');
-  assert(injected.includes('src="https://track.leadforge.com/t/open/tok-456"'), 'Handles trailing slash in trackingBaseUrl');
-  assert(injected.endsWith('/>'), 'Appended at end of fragment without body tag');
-}
+      expect(result.tokens.length).toBe(2);
+      expect(result.tokens[0]?.targetUrl).toBe('https://acme.com/pricing');
+      expect(result.tokens[1]?.targetUrl).toBe('https://acme.com/docs');
 
-// ── 3. Click Tracking Link Rewriting ──
-{
-  const originalHtml = `
-    <div>
-      <p>Please review:</p>
-      <a href="https://acme.com/pricing">See Pricing</a>
-      <a href="https://acme.com/docs" target="_blank">Documentation</a>
-      <a href="mailto:support@acme.com">Contact Support</a>
-      <a href="tel:+18005551234">Call Us</a>
-      <a href="#section-2">Jump Down</a>
-      <a href="https://acme.com/unsubscribe" class="leadforge-unsubscribe">Unsubscribe</a>
-      <a href="https://acme.com/privacy" data-no-track="true">Privacy Policy</a>
-    </div>
-  `;
+      expect(result.rewrittenHtml).toContain('href="https://track.leadforge.com/t/click/mock-token-1"');
+      expect(result.rewrittenHtml).toContain('href="https://track.leadforge.com/t/click/mock-token-2"');
 
-  let counter = 0;
-  const mockTokenGen = () => `mock-token-${++counter}`;
-  const result = rewriteLinksForClickTracking(originalHtml, 'https://track.leadforge.com', mockTokenGen);
+      // Verify exclusions
+      expect(result.rewrittenHtml).toContain('href="mailto:support@acme.com"');
+      expect(result.rewrittenHtml).toContain('href="tel:+18005551234"');
+      expect(result.rewrittenHtml).toContain('href="#section-2"');
+      expect(result.rewrittenHtml).toContain('href="https://acme.com/unsubscribe"');
+      expect(result.rewrittenHtml).toContain('href="https://acme.com/privacy"');
+    });
+  });
 
-  assert(result.tokens.length === 2, 'Exactly 2 links rewritten (pricing & docs)');
-  assert(result.tokens[0]?.targetUrl === 'https://acme.com/pricing', 'First target URL preserved');
-  assert(result.tokens[1]?.targetUrl === 'https://acme.com/docs', 'Second target URL preserved');
+  describe('HTML Preview Sanitization (Phase 5E Security)', () => {
+    it('strips scripts, iframes, objects, embeds, and event handlers while preserving benign markup', () => {
+      const maliciousHtml = `
+        <div>
+          <h1>Clean Header</h1>
+          <script>alert('pwned');</script>
+          <iframe src="http://evil.com"></iframe>
+          <img src="https://safe.com/pic.png" onload="alert('xss')" />
+          <a href="javascript:alert('click-xss')">Click Me</a>
+          <object data="evil.swf"></object>
+          <embed src="evil.swf" />
+        </div>
+      `;
 
-  assert(result.rewrittenHtml.includes('href="https://track.leadforge.com/t/click/mock-token-1"'), 'Pricing link rewritten to tracking URL');
-  assert(result.rewrittenHtml.includes('href="https://track.leadforge.com/t/click/mock-token-2"'), 'Docs link rewritten to tracking URL');
+      const safe = sanitizeHtmlForPreview(maliciousHtml);
+      expect(safe).not.toContain('<script');
+      expect(safe).not.toContain('<iframe');
+      expect(safe).not.toContain('<object');
+      expect(safe).not.toContain('<embed');
+      expect(safe).not.toContain('onload=');
+      expect(safe).not.toContain('javascript:');
+      expect(safe).toContain('<h1>Clean Header</h1>');
+      expect(safe).toContain('src="https://safe.com/pic.png"');
+    });
 
-  // Verify exclusions
-  assert(result.rewrittenHtml.includes('href="mailto:support@acme.com"'), 'mailto: link was NOT rewritten');
-  assert(result.rewrittenHtml.includes('href="tel:+18005551234"'), 'tel: link was NOT rewritten');
-  assert(result.rewrittenHtml.includes('href="#section-2"'), 'anchor (#) link was NOT rewritten');
-  assert(result.rewrittenHtml.includes('href="https://acme.com/unsubscribe"'), 'unsubscribe link was NOT rewritten');
-  assert(result.rewrittenHtml.includes('href="https://acme.com/privacy"'), 'data-no-track link was NOT rewritten');
-}
+    it('strips open tracking pixels to prevent false open events inside desktop preview', () => {
+      const htmlWithTracking = `
+        <p>Hello John,</p>
+        <p>Here is your email content.</p>
+        <img src="https://leadforge.app/api/v1/tracking/open/token_abc_123" width="1" height="1" style="display:none" alt="" />
+      `;
 
-// ── 4. HTML Preview Sanitization (Phase 5E) ──
-{
-  const maliciousHtml = `
-    <div>
-      <h1>Clean Header</h1>
-      <script>alert('pwned');</script>
-      <iframe src="http://evil.com"></iframe>
-      <img src="https://safe.com/pic.png" onload="alert('xss')" />
-      <a href="javascript:alert('click-xss')">Click Me</a>
-      <object data="evil.swf"></object>
-      <embed src="evil.swf" />
-    </div>
-  `;
+      const sanitized = sanitizeHtmlForPreview(htmlWithTracking);
+      expect(sanitized).not.toContain('/tracking/open/');
+      expect(sanitized).toContain('<p>Hello John,</p>');
+    });
 
-  const safe = sanitizeHtmlForPreview(maliciousHtml);
-  assert(!safe.includes('<script'), 'Script tag stripped');
-  assert(!safe.includes('<iframe'), 'Iframe tag stripped');
-  assert(!safe.includes('<object'), 'Object tag stripped');
-  assert(!safe.includes('<embed'), 'Embed tag stripped');
-  assert(!safe.includes('onload='), 'Inline onload handler stripped');
-  assert(!safe.includes('javascript:'), 'javascript: URI neutralized');
-  assert(safe.includes('<h1>Clean Header</h1>'), 'Benign HTML content preserved');
-  assert(safe.includes('src="https://safe.com/pic.png"'), 'Safe image preserved');
-}
+    it('blocks remote images when privacy protection option is enabled', () => {
+      const htmlWithImages = `
+        <p>Look at this logo:</p>
+        <img src="https://cdn.example.com/logo.png" alt="Logo" />
+      `;
 
-console.log('\n=================================================================');
-console.log(`TOTAL TRACKING TESTS: ${passed + failed} | PASSED: ${passed} | FAILED: ${failed}`);
-console.log('=================================================================');
+      const blocked = sanitizeHtmlForPreview(htmlWithImages, { blockRemoteImages: true });
+      expect(blocked).toContain('data-src="https://cdn.example.com/logo.png"');
+      expect(blocked).toContain('src="data:image/svg+xml;utf8');
 
-if (failed > 0) process.exit(1);
+      const allowed = sanitizeHtmlForPreview(htmlWithImages, { blockRemoteImages: false });
+      expect(allowed).toContain('src="https://cdn.example.com/logo.png"');
+    });
+
+    it('enforces target="_blank" and rel="noopener noreferrer" on links', () => {
+      const htmlWithLinks = `
+        <a href="https://example.com/pricing">Pricing Page</a>
+        <a href="https://example.com/demo" target="_self">Demo</a>
+      `;
+
+      const sanitized = sanitizeHtmlForPreview(htmlWithLinks);
+      expect(sanitized).toContain('target="_blank"');
+      expect(sanitized).toContain('rel="noopener noreferrer"');
+    });
+  });
+});

@@ -26,6 +26,8 @@ deliveriesRouter.get('/', async (c) => {
   const companyId = c.req.query('companyId');
   const accountId = c.req.query('accountId');
   const status = c.req.query('status');
+  const direction = c.req.query('direction');
+  const search = c.req.query('search');
   const startDate = c.req.query('startDate');
   const endDate = c.req.query('endDate');
 
@@ -36,6 +38,16 @@ deliveriesRouter.get('/', async (c) => {
   if (companyId && companyId !== 'undefined' && companyId !== 'null') filter.companyId = companyId;
   if (accountId && accountId !== 'undefined' && accountId !== 'null') filter.accountId = accountId;
   if (status && status !== 'undefined' && status !== 'null') filter.status = status;
+  if (direction && direction !== 'undefined' && direction !== 'null') filter.direction = direction;
+
+  if (search && search.trim()) {
+    const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    filter.$or = [
+      { subject: { $regex: escaped, $options: 'i' } },
+      { recipientEmail: { $regex: escaped, $options: 'i' } },
+      { senderEmail: { $regex: escaped, $options: 'i' } }
+    ];
+  }
 
   if (startDate || endDate) {
     filter.createdAt = {};

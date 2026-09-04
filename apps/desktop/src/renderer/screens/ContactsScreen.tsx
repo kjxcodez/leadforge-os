@@ -23,6 +23,79 @@ import { ContactStatus } from '@leadforge/schema';
 import { PageHeader } from '../components/common/PageHeader';
 import { Sheet, SheetContent } from '../components/ui/sheet';
 import { toast } from 'sonner';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { EmailStatusBadge, EngagementPills, DirectionBadge } from '../components/email/EmailStatusBadge';
+
+function ContactEmailHistory({ contactId, workspaceId }: { contactId: string; workspaceId: string }) {
+  const navigate = useNavigate();
+  const deliveriesQuery = useQuery({
+    queryKey: ['contact_deliveries', workspaceId, contactId],
+    queryFn: async () => {
+      const res = await (window as any).ipc.invoke('email-deliveries:list', {
+        workspaceId,
+        contactId,
+        limit: 10
+      });
+      return res;
+    },
+    enabled: !!workspaceId && !!contactId
+  });
+
+  const deliveries: any[] = React.useMemo(() => {
+    const data = deliveriesQuery.data;
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.data)) return data.data;
+    if (Array.isArray(data?.items)) return data.items;
+    return [];
+  }, [deliveriesQuery.data]);
+
+  if (deliveriesQuery.isLoading) {
+    return <div className="text-[10px] text-muted-foreground p-2">Loading email activity...</div>;
+  }
+
+  if (deliveries.length === 0) {
+    return (
+      <div className="bg-surface-3 border border-border-subtle p-3 text-[11px] text-muted-foreground italic text-center">
+        No email activity recorded for this contact yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {deliveries.map((delivery) => (
+        <div
+          key={delivery.id}
+          onClick={() => navigate(`/emails?id=${delivery.id}`)}
+          className="p-2.5 bg-surface-3 hover:bg-surface-3/80 border border-border-subtle rounded-none cursor-pointer transition-colors space-y-1.5"
+        >
+          <div className="flex items-center justify-between text-[11px]">
+            <div className="flex items-center gap-1.5 font-medium text-foreground truncate">
+              <DirectionBadge direction={delivery.direction || 'OUTBOUND'} size="sm" />
+              <span className="truncate">{delivery.subject || '(No Subject)'}</span>
+            </div>
+            <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+              {delivery.sentAt ? new Date(delivery.sentAt).toLocaleDateString() : ''}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-1 text-[10px]">
+            <EmailStatusBadge status={delivery.status} size="sm" />
+            <EngagementPills
+              openCount={delivery.openCount}
+              clickCount={delivery.clickCount}
+              replyCount={delivery.replyCount}
+              firstOpenedAt={delivery.firstOpenedAt}
+              firstClickedAt={delivery.firstClickedAt}
+              lastRepliedAt={delivery.lastRepliedAt}
+              size="sm"
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /**
  * ContactsScreen handles contact directory listing, side profile drawer,
@@ -101,6 +174,19 @@ export default function ContactsScreen() {
 
   const contacts = contactsQuery.data || [];
   const companies = companiesQuery.data || [];
+
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const urlContactId = searchParams.get('id');
+
+  React.useEffect(() => {
+    if (urlContactId && contacts.length > 0) {
+      const match = contacts.find((c: any) => c.id === urlContactId);
+      if (match) {
+        setSelectedContact(match);
+      }
+    }
+  }, [urlContactId, contacts]);
 
   // Distinct values query for contact dropdowns
   const distinctQuery = useQuery({
@@ -740,6 +826,24 @@ export default function ContactsScreen() {
                   setSelectedContact(updated);
                 }}
               />
+            </div>
+
+            {/* Email Activity & History */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  Email Activity
+                </h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 px-1.5 text-[10px] text-primary hover:text-primary"
+                  onClick={() => navigate(`/emails?search=${encodeURIComponent(selectedContact.email || '')}`)}
+                >
+                  View in Ledger &rarr;
+                </Button>
+              </div>
+              <ContactEmailHistory contactId={selectedContact.id} workspaceId={workspaceId} />
             </div>
           </div>
             </>

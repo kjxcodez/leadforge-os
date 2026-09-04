@@ -18,10 +18,29 @@ export class EmailDeliveriesModule {
     limit?: number;
     campaignId?: string;
     sequenceId?: string;
+    contactId?: string;
+    companyId?: string;
+    accountId?: string;
     status?: string;
+    direction?: 'OUTBOUND' | 'INBOUND' | string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
   }): Promise<{ data: EmailDelivery[]; total: number }> {
     const queryParams = toQueryString(params);
     return this.client.get<{ data: EmailDelivery[]; total: number }>(`/email-deliveries${queryParams}`);
+  }
+
+  public async getEvents(id: string): Promise<any[]> {
+    return this.client.get<any[]>(`/email-deliveries/${id}/events`);
+  }
+
+  public async reconcileDelivery(id: string): Promise<any> {
+    return this.client.post<any>(`/email-deliveries/${id}/reconcile`, {});
+  }
+
+  public async pollReplies(): Promise<any> {
+    return this.client.post<any>('/email-deliveries/poll-replies', {});
   }
 
   public async get(id: string): Promise<EmailDelivery> {

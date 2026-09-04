@@ -501,8 +501,38 @@ export interface IpcChannelMap {
     output: { subject: string; body: string };
   };
   'email-deliveries:list': {
-    input: { workspaceId: string; campaignId?: string; contactId?: string; status?: string };
+    input: {
+      workspaceId?: string;
+      campaignId?: string;
+      sequenceId?: string;
+      contactId?: string;
+      companyId?: string;
+      accountId?: string;
+      status?: string;
+      direction?: string;
+      startDate?: string;
+      endDate?: string;
+      search?: string;
+      page?: number;
+      limit?: number;
+    };
+    output: any;
+  };
+  'email-deliveries:get': {
+    input: { id: string; workspaceId?: string } | string;
+    output: any;
+  };
+  'email-deliveries:events': {
+    input: { id: string; workspaceId?: string } | string;
     output: any[];
+  };
+  'email-deliveries:reconcile': {
+    input: { id: string; workspaceId?: string } | string;
+    output: any;
+  };
+  'email-deliveries:poll-replies': {
+    input?: { workspaceId?: string } | void;
+    output: any;
   };
   'campaigns:schedule': {
     input: string;

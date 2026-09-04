@@ -340,12 +340,117 @@ export function registerOutreachIpc(sdk: SdkClient) {
       const res = await sdk.emailDeliveries.list({
         campaignId: payload?.campaignId,
         sequenceId: payload?.sequenceId,
+        contactId: payload?.contactId,
+        companyId: payload?.companyId,
+        accountId: payload?.accountId,
         status: payload?.status,
+        direction: payload?.direction,
+        search: payload?.search,
+        startDate: payload?.startDate,
+        endDate: payload?.endDate,
         page: payload?.page || 1,
         limit: payload?.limit || 100
       });
-      const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
-      return list;
+      const list: any[] = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+
+      // Cache returned deliveries locally in background
+      try {
+        if (list.length > 0) {
+          const db = getDatabase(targetWsId);
+          const upsert = db.prepare(`
+            INSERT INTO email_deliveries (
+              id, workspaceId, campaignId, sequenceId, executionId, stepIndex,
+              contactId, companyId, accountId, senderEmail, recipientEmail, subject,
+              providerMessageId, providerThreadId, htmlBody, textBody,
+              safeHumanMessage, technicalMessage, error, retryable, ambiguous,
+              direction, openCount, clickCount, hasReply, replyCount,
+              lastOpenedAt, lastClickedAt, lastRepliedAt, status, attempt,
+              idempotencyKey, sentAt, createdAt, updatedAt
+            ) VALUES (
+              @id, @workspaceId, @campaignId, @sequenceId, @executionId, @stepIndex,
+              @contactId, @companyId, @accountId, @senderEmail, @recipientEmail, @subject,
+              @providerMessageId, @providerThreadId, @htmlBody, @textBody,
+              @safeHumanMessage, @technicalMessage, @error, @retryable, @ambiguous,
+              @direction, @openCount, @clickCount, @hasReply, @replyCount,
+              @lastOpenedAt, @lastClickedAt, @lastRepliedAt, @status, @attempt,
+              @idempotencyKey, @sentAt, @createdAt, @updatedAt
+            )
+            ON CONFLICT(id) DO UPDATE SET
+              status = excluded.status,
+              providerMessageId = excluded.providerMessageId,
+              providerThreadId = excluded.providerThreadId,
+              htmlBody = excluded.htmlBody,
+              textBody = excluded.textBody,
+              safeHumanMessage = excluded.safeHumanMessage,
+              technicalMessage = excluded.technicalMessage,
+              error = excluded.error,
+              retryable = excluded.retryable,
+              ambiguous = excluded.ambiguous,
+              direction = excluded.direction,
+              openCount = excluded.openCount,
+              clickCount = excluded.clickCount,
+              hasReply = excluded.hasReply,
+              replyCount = excluded.replyCount,
+              lastOpenedAt = excluded.lastOpenedAt,
+              lastClickedAt = excluded.lastClickedAt,
+              lastRepliedAt = excluded.lastRepliedAt,
+              sentAt = excluded.sentAt,
+              updatedAt = excluded.updatedAt
+          `);
+          const tx = db.transaction((rows: any[]) => {
+            for (const row of rows) {
+              upsert.run({
+                id: row.id || row._id,
+                workspaceId: targetWsId,
+                campaignId: row.campaignId || null,
+                sequenceId: row.sequenceId || null,
+                executionId: row.executionId || null,
+                stepIndex: row.stepIndex ?? 0,
+                contactId: row.contactId || null,
+                companyId: row.companyId || null,
+                accountId: row.accountId || null,
+                senderEmail: row.senderEmail || '',
+                recipientEmail: row.recipientEmail || '',
+                subject: row.subject || '',
+                providerMessageId: row.providerMessageId || null,
+                providerThreadId: row.providerThreadId || null,
+                htmlBody: row.htmlBody || null,
+                textBody: row.textBody || null,
+                safeHumanMessage: row.safeHumanMessage || null,
+                technicalMessage: row.technicalMessage || null,
+                error: row.error || null,
+                retryable: row.retryable ? 1 : 0,
+                ambiguous: row.ambiguous ? 1 : 0,
+                direction: row.direction || 'OUTBOUND',
+                openCount: row.openCount || 0,
+                clickCount: row.clickCount || 0,
+                hasReply: row.hasReply ? 1 : 0,
+                replyCount: row.replyCount || 0,
+                lastOpenedAt: row.lastOpenedAt ? new Date(row.lastOpenedAt).toISOString() : null,
+                lastClickedAt: row.lastClickedAt ? new Date(row.lastClickedAt).toISOString() : null,
+                lastRepliedAt: row.lastRepliedAt ? new Date(row.lastRepliedAt).toISOString() : null,
+                status: row.status || 'PENDING',
+                attempt: row.attempt || 1,
+                idempotencyKey: row.idempotencyKey || null,
+                sentAt: row.sentAt ? new Date(row.sentAt).toISOString() : null,
+                createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
+                updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+              });
+            }
+          });
+          tx(list);
+        }
+      } catch (cacheErr) {
+        console.warn('[IPC] Failed to cache deliveries to SQLite:', cacheErr);
+      }
+
+      const resAny = res as any;
+      const resultArr: any = list;
+      resultArr.total = typeof resAny?.total === 'number' ? resAny.total : list.length;
+      resultArr.page = typeof resAny?.page === 'number' ? resAny.page : (payload?.page || 1);
+      resultArr.limit = typeof resAny?.limit === 'number' ? resAny.limit : (payload?.limit || 100);
+      resultArr.totalPages = typeof resAny?.totalPages === 'number' ? resAny.totalPages : Math.ceil(resultArr.total / (payload?.limit || 100));
+      return resultArr;
     } catch {
       // Fallback to local cache query if API is temporarily unavailable
       const db = getDatabase(targetWsId);
@@ -370,12 +475,91 @@ export function registerOutreachIpc(sdk: SdkClient) {
         query += ` AND ed.status = ?`;
         params.push(payload.status);
       }
-      query += ` ORDER BY ed.createdAt DESC LIMIT 100`;
+      if (payload?.direction) {
+        query += ` AND ed.direction = ?`;
+        params.push(payload.direction);
+      }
+      if (payload?.search && payload.search.trim()) {
+        query += ` AND (ed.subject LIKE ? OR ed.recipientEmail LIKE ? OR ed.senderEmail LIKE ?)`;
+        const s = `%${payload.search.trim()}%`;
+        params.push(s, s, s);
+      }
+      const page = payload?.page || 1;
+      const limit = payload?.limit || 100;
+      const offset = (page - 1) * limit;
+      query += ` ORDER BY ed.createdAt DESC LIMIT ? OFFSET ?`;
+      params.push(limit, offset);
       try {
-        return db.prepare(query).all(...params);
+        const rows = db.prepare(query).all(...params);
+        const resultArr: any = rows;
+        resultArr.total = rows.length;
+        resultArr.page = page;
+        resultArr.limit = limit;
+        resultArr.totalPages = 1;
+        return resultArr;
       } catch {
-        return [];
+        const emptyArr: any = [];
+        emptyArr.total = 0;
+        emptyArr.page = 1;
+        emptyArr.limit = limit;
+        emptyArr.totalPages = 0;
+        return emptyArr;
       }
     }
+  });
+
+  safeRegister('email-deliveries:get', async (_event, payload) => {
+    const id = typeof payload === 'string' ? payload : payload?.id;
+    if (!id) throw new Error('Delivery ID is required.');
+    const targetWsId = (typeof payload === 'object' && payload?.workspaceId) || WorkspaceManager.getActiveRuntime()?.workspaceId;
+
+    try {
+      const sdk = WorkspaceManager.getSdk();
+      const delivery = await sdk.emailDeliveries.get(id);
+      return delivery;
+    } catch {
+      if (targetWsId) {
+        try {
+          const db = getDatabase(targetWsId);
+          const row = db.prepare(`
+            SELECT ed.*, c.firstName, c.lastName, c.email as contactEmail, comp.name as companyName, camp.name as campaignName
+            FROM email_deliveries ed
+            LEFT JOIN contacts c ON ed.contactId = c.id
+            LEFT JOIN companies comp ON c.companyId = comp.id
+            LEFT JOIN campaigns camp ON ed.campaignId = camp.id
+            WHERE ed.id = ? AND ed.workspaceId = ?
+          `).get(id, targetWsId);
+          if (row) return row;
+        } catch {}
+      }
+      throw new Error(`Email delivery with id ${id} not found.`);
+    }
+  });
+
+  safeRegister('email-deliveries:events', async (_event, payload) => {
+    const id = typeof payload === 'string' ? payload : payload?.id;
+    if (!id) throw new Error('Delivery ID is required.');
+
+    try {
+      const sdk = WorkspaceManager.getSdk();
+      const events = await sdk.emailDeliveries.getEvents(id);
+      return Array.isArray(events) ? events : [];
+    } catch (err) {
+      console.warn('[IPC] Failed to fetch events for delivery:', err);
+      return [];
+    }
+  });
+
+  safeRegister('email-deliveries:reconcile', async (_event, payload) => {
+    const id = typeof payload === 'string' ? payload : payload?.id;
+    if (!id) throw new Error('Delivery ID is required.');
+
+    const sdk = WorkspaceManager.getSdk();
+    return await sdk.emailDeliveries.reconcileDelivery(id);
+  });
+
+  safeRegister('email-deliveries:poll-replies', async () => {
+    const sdk = WorkspaceManager.getSdk();
+    return await sdk.emailDeliveries.pollReplies();
   });
 }

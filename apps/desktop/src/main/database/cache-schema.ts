@@ -337,6 +337,22 @@ export function initCacheSchema(db: Database.Database): void {
         recipientEmail TEXT,
         subject TEXT,
         providerMessageId TEXT,
+        htmlBody TEXT,
+        textBody TEXT,
+        providerThreadId TEXT,
+        safeHumanMessage TEXT,
+        technicalMessage TEXT,
+        error TEXT,
+        retryable INTEGER DEFAULT 0,
+        ambiguous INTEGER DEFAULT 0,
+        direction TEXT DEFAULT 'OUTBOUND',
+        openCount INTEGER DEFAULT 0,
+        clickCount INTEGER DEFAULT 0,
+        hasReply INTEGER DEFAULT 0,
+        replyCount INTEGER DEFAULT 0,
+        lastOpenedAt DATETIME,
+        lastClickedAt DATETIME,
+        lastRepliedAt DATETIME,
         status TEXT DEFAULT 'PENDING',
         attempt INTEGER DEFAULT 1,
         idempotencyKey TEXT UNIQUE,
@@ -345,6 +361,30 @@ export function initCacheSchema(db: Database.Database): void {
         updatedAt DATETIME
       )
     `).run();
+
+    const extraDeliveryCols = [
+      'htmlBody TEXT',
+      'textBody TEXT',
+      'providerThreadId TEXT',
+      'safeHumanMessage TEXT',
+      'technicalMessage TEXT',
+      'error TEXT',
+      'retryable INTEGER DEFAULT 0',
+      'ambiguous INTEGER DEFAULT 0',
+      'direction TEXT DEFAULT "OUTBOUND"',
+      'openCount INTEGER DEFAULT 0',
+      'clickCount INTEGER DEFAULT 0',
+      'hasReply INTEGER DEFAULT 0',
+      'replyCount INTEGER DEFAULT 0',
+      'lastOpenedAt DATETIME',
+      'lastClickedAt DATETIME',
+      'lastRepliedAt DATETIME'
+    ];
+    for (const col of extraDeliveryCols) {
+      try {
+        db.prepare(`ALTER TABLE email_deliveries ADD COLUMN ${col}`).run();
+      } catch {}
+    }
 
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_email_del_ws ON email_deliveries(workspaceId)`).run();
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_email_del_idem ON email_deliveries(idempotencyKey)`).run();
