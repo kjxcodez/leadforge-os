@@ -118,6 +118,26 @@ export async function pollImapReplies(ctx: JobContext): Promise<any> {
 
         const matchedExecutionIds = new Set<string>();
 
+        // Pre-resolve contact emails for active executions to prevent accidental cross-contact correlation
+        const contactEmailToExec = new Map<string, (typeof activeExecutions)[0]>();
+        for (const exec of activeExecutions) {
+          if (exec.contactId) {
+            try {
+              const c = await sdk.contacts.get(exec.contactId);
+              if (c?.email) {
+                contactEmailToExec.set(c.email.toLowerCase().trim(), exec);
+              }
+              if (Array.isArray(c?.additionalEmails)) {
+                for (const add of c.additionalEmails) {
+                  if (add?.email) {
+                    contactEmailToExec.set(add.email.toLowerCase().trim(), exec);
+                  }
+                }
+              }
+            } catch {}
+          }
+        }
+
         for (let i = 0; i < limitCount; i++) {
           const msg = messageList[i];
           const envelope = msg?.envelope;
@@ -133,11 +153,10 @@ export async function pollImapReplies(ctx: JobContext): Promise<any> {
 
           const allThreadRelMsgIds = new Set([...inReplyToIds, ...referencesIds]);
 
-          // Attempt correlation with active execution
-          let correlatedExec: (typeof activeExecutions)[0] | undefined = undefined;
-
-          if (allThreadRelMsgIds.size > 0) {
-            correlatedExec = activeExecutions[0];
+          // Strict correlation: require senderEmail to match the target contact of an active execution
+          const correlatedExec = contactEmailToExec.get(senderEmail);
+          if (!correlatedExec) {
+            continue;
           }
 
           if (correlatedExec && !matchedExecutionIds.has(correlatedExec.executionId)) {
