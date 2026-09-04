@@ -926,6 +926,32 @@ export interface IpcChannelMap {
     };
   };
 
+  // ── Operations Center ────────────────────────────────────────────────────
+  'operations:health': {
+    input: { workspaceId?: string };
+    output: import('../dto/operations.js').OperationsHealthSummary;
+  };
+  'operations:list': {
+    input: { workspaceId?: string } & import('../dto/operations.js').OperationsQueryDto;
+    output: { items: import('../dto/operations.js').OperationRecord[]; total: number; page: number; isCached?: boolean };
+  };
+  'operations:get': {
+    input: { workspaceId?: string; id: string };
+    output: import('../dto/operations.js').OperationRecord | null;
+  };
+  'operations:events': {
+    input: { workspaceId?: string; id: string };
+    output: import('../dto/operations.js').OperationTimelineEvent[];
+  };
+  'operations:retry': {
+    input: { workspaceId?: string; id: string; force?: boolean };
+    output: { success: boolean; message: string; operation?: any };
+  };
+  'operations:reconcile': {
+    input: { workspaceId?: string; id: string };
+    output: { success: boolean; message: string; result?: any };
+  };
+
   // ── Push-event channels (main → renderer via ipc.on) ────────────────────
   'email-accounts:changed': {
     input: void;

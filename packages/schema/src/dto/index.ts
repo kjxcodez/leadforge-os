@@ -9,3 +9,4 @@ export * from './bulk.js';
 export * from './intelligence.js';
 export * from './memory.js';
 export * from './audit.js';
+export * from './operations.js';
