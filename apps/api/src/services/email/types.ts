@@ -67,6 +67,9 @@ export interface SendEmailInput {
   executionId?: string | undefined;
   stepIndex?: number | undefined;
   contactId?: string | undefined;
+  templateId?: string | undefined;
+  templateVersion?: number | undefined;
+  variablesSnapshot?: Record<string, any> | undefined;
 }
 
 export interface SendEmailResult {
@@ -113,6 +116,7 @@ export interface EmailProviderErrorShape {
     | 'MESSAGE_SIZE_EXCEEDED'
     | 'HEADER_INJECTION_DETECTED'
     | 'INVALID_RECIPIENT'
+    | 'INVALID_SUBJECT'
     | 'RECIPIENT_SUPPRESSED'
     | 'AMBIGUOUS_SEND_TIMEOUT'
     | 'DELIVERY_ALREADY_SENT'

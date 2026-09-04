@@ -5,7 +5,14 @@ import { ContactModel } from '../../db/models/contact.model.js';
 import { EmailDeliveryModel } from '../../db/models/email-delivery.model.js';
 import { EmailDeliveryRepository } from '../../repositories/email-delivery/email-delivery.repository.js';
 import { EmailAccountRepository } from '../../repositories/email-account/email-account.repository.js';
-import { plainTextToHtml, wrapHtmlWithDefaultTypography, normalizeEmailSignature } from '@leadforge/sdk';
+import {
+  plainTextToHtml,
+  wrapHtmlWithDefaultTypography,
+  normalizeEmailSignature,
+  sanitizeSubject,
+  htmlToPlainText,
+  computeMessageFingerprint
+} from '@leadforge/sdk';
 import {
   ContactStatus,
   ContactEmailStatus,
@@ -54,9 +61,11 @@ export function classifyEmailFailure(err: any): {
     category = EmailFailureCategory.RATE_LIMIT;
     safeHumanMessage = 'Gmail sending rate limit reached. Outgoing message paused until cooldown expires.';
     retryable = true;
-  } else if (code === 'INVALID_RECIPIENT') {
+  } else if (code === 'INVALID_RECIPIENT' || code === 'INVALID_SUBJECT') {
     category = EmailFailureCategory.INVALID_RECIPIENT;
-    safeHumanMessage = 'Recipient address was rejected by Gmail as invalid or unroutable.';
+    safeHumanMessage = code === 'INVALID_SUBJECT'
+      ? 'Email subject was rejected as invalid (must not contain newlines or be empty).'
+      : 'Recipient address was rejected by Gmail as invalid or unroutable.';
     retryable = false;
   } else if (code === 'CAMPAIGN_NOT_ACTIVE' || code === 'CONTACT_NOT_ELIGIBLE') {
     category = EmailFailureCategory.POLICY;
@@ -154,7 +163,22 @@ export class EmailService {
       );
     }
 
-    // 0. Pre-flight recipient validation: do not burn quota or reserve slots on malformed recipients!
+    // 0. Pre-flight subject validation: do not allow empty subjects or CRLF injection
+    const subjRes = sanitizeSubject(input.subject);
+    if (!subjRes.isValid) {
+      throw new EmailDomainError(
+        'INVALID_SUBJECT',
+        `Email subject is invalid: ${subjRes.error || 'must not be empty or contain CRLF'}.`
+      );
+    }
+    input.subject = subjRes.sanitized;
+
+    // 0a. Deterministic fallback plaintext body if only HTML was provided
+    if (!input.text && input.html) {
+      input.text = htmlToPlainText(input.html);
+    }
+
+    // 0b. Pre-flight recipient validation: do not burn quota or reserve slots on malformed recipients!
     const { validateEmailStrict } = await import('@leadforge/schema');
     if (!validateEmailStrict(input.to)) {
       throw new EmailDomainError(
@@ -254,8 +278,18 @@ export class EmailService {
       );
     }
 
-    // 2. Derive deterministic idempotency key
+    // 2. Derive deterministic idempotency key and composition fingerprint
     const idempotencyKey = this.generateDeterministicIdempotencyKey(input);
+    const messageFingerprint = computeMessageFingerprint({
+      workspaceId: this.workspaceId,
+      senderEmail: account.email,
+      recipientEmail: input.to,
+      subject: input.subject,
+      htmlBody: input.html || null,
+      textBody: input.text || null,
+      templateId: input.templateId || null,
+      templateVersion: input.templateVersion || null
+    });
 
     // 3. Atomically reserve delivery in MongoDB ledger
     let deliveryRecord: any;
@@ -272,13 +306,19 @@ export class EmailService {
         recipientEmail: input.to.toLowerCase().trim(),
         subject: input.subject,
         idempotencyKey,
+        templateId: input.templateId || null,
+        templateVersion: input.templateVersion || null,
+        variablesSnapshot: input.variablesSnapshot || null,
+        messageFingerprint,
         snapshot: {
           accountId: input.accountId,
           senderEmail: account.email,
           recipientEmail: input.to,
           subject: input.subject,
           hasHtml: Boolean(input.html),
-          attachmentCount: input.attachments?.length || 0
+          attachmentCount: input.attachments?.length || 0,
+          templateId: input.templateId || null,
+          templateVersion: input.templateVersion || null
         }
       } as any);
 
@@ -472,13 +512,17 @@ export class EmailService {
       process.env.TRACKING_BASE_URL ||
       process.env.API_BASE_URL ||
       'http://localhost:3000';
-    const openTrackingToken = generateTrackingToken();
-    let clickTokens: Array<{ token: string; targetUrl: string }> = [];
+    const openTrackingToken = deliveryRecord.openTrackingToken || generateTrackingToken();
+    let clickTokens: Array<{ token: string; targetUrl: string }> = deliveryRecord.clickTrackingTokens?.length
+      ? deliveryRecord.clickTrackingTokens
+      : [];
 
     if (finalHtml) {
       const clickRes = rewriteLinksForClickTracking(finalHtml, trackingBaseUrl);
       finalHtml = clickRes.rewrittenHtml;
-      clickTokens = clickRes.tokens;
+      if (!clickTokens.length) {
+        clickTokens = clickRes.tokens;
+      }
       finalHtml = injectOpenTrackingPixel(finalHtml, trackingBaseUrl, openTrackingToken);
     }
 
@@ -496,7 +540,8 @@ export class EmailService {
             fileId: a.fileId || null
           })),
           openTrackingToken,
-          clickTrackingTokens: clickTokens
+          clickTrackingTokens: clickTokens,
+          messageFingerprint
         }
       }
     );

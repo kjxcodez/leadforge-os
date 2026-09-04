@@ -28,8 +28,22 @@ export interface EmailTemplateDocument
   body: string;
   variables: string[];
   attachments: TemplateAttachment[];
+  version: number;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface TemplateVersionDocument
+  extends mongoose.Document,
+    WorkspaceScopedDocument {
+  templateId: string;
+  version: number;
+  name: string;
+  subject: string;
+  body: string;
+  variables: string[];
+  attachments: TemplateAttachment[];
+  createdAt: Date;
 }
 
 const templateAttachmentSchema = new Schema<TemplateAttachment>(
@@ -54,7 +68,8 @@ const emailTemplateSchema = new Schema<EmailTemplateDocument>(
     subject: { type: String, required: true },
     body: { type: String, required: true },
     variables: { type: [String], default: [] },
-    attachments: { type: [templateAttachmentSchema], default: [] }
+    attachments: { type: [templateAttachmentSchema], default: [] },
+    version: { type: Number, default: 1, required: true }
   },
   {
     timestamps: true,
@@ -69,4 +84,27 @@ emailTemplateSchema.plugin(softDeletePlugin);
 export const EmailTemplateModel = mongoose.models.EmailTemplate
   ? (mongoose.models.EmailTemplate as mongoose.Model<EmailTemplateDocument>)
   : mongoose.model<EmailTemplateDocument>('EmailTemplate', emailTemplateSchema);
+
+const templateVersionSchema = new Schema<TemplateVersionDocument>(
+  {
+    templateId: { type: String, required: true, index: true },
+    version: { type: Number, required: true },
+    name: { type: String, required: true },
+    subject: { type: String, required: true },
+    body: { type: String, required: true },
+    variables: { type: [String], default: [] },
+    attachments: { type: [templateAttachmentSchema], default: [] }
+  },
+  {
+    timestamps: { createdAt: true, updatedAt: false },
+    strict: true
+  }
+);
+
+templateVersionSchema.index({ workspaceId: 1, templateId: 1, version: 1 }, { unique: true });
+templateVersionSchema.plugin(workspacePlugin);
+
+export const TemplateVersionModel = mongoose.models.TemplateVersion
+  ? (mongoose.models.TemplateVersion as mongoose.Model<TemplateVersionDocument>)
+  : mongoose.model<TemplateVersionDocument>('TemplateVersion', templateVersionSchema);
 

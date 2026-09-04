@@ -42,6 +42,12 @@ export interface EmailDeliveryDocument
   status: EmailDeliveryStatus;
   attempt?: number;
 
+  // Template Lineage & Composition Ledger
+  templateId?: string | null;
+  templateVersion?: number | null;
+  variablesSnapshot?: Record<string, any> | null;
+  messageFingerprint?: string | null;
+
   // Engagement tracking
   openTrackingToken?: string | null;
   clickTrackingTokens?: ClickTrackingDoc[];
@@ -101,6 +107,12 @@ const emailDeliverySchema = new Schema<EmailDeliveryDocument>(
     subject: { type: String, required: true },
     htmlBody: { type: String, default: null },
     textBody: { type: String, default: null },
+
+    // Template Lineage & Composition Ledger
+    templateId: { type: String, default: null, index: true },
+    templateVersion: { type: Number, default: null },
+    variablesSnapshot: { type: Schema.Types.Mixed, default: null },
+    messageFingerprint: { type: String, default: null, index: true },
     attachments: [
       {
         filename: { type: String, required: true },

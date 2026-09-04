@@ -5,7 +5,15 @@ import { CampaignModel } from '../../db/models/campaign.model.js';
 import { ContactModel } from '../../db/models/contact.model.js';
 import { CompanyModel } from '../../db/models/company.model.js';
 import { encrypt } from '../../utils/encryption.js';
-import { renderCanonicalVariables } from '@leadforge/sdk';
+import {
+  renderCanonicalVariables,
+  captureVariablesSnapshot,
+  sanitizeSubject,
+  htmlToPlainText,
+  wrapHtmlWithDefaultTypography,
+  plainTextToHtml
+} from '@leadforge/sdk';
+import { EmailTemplateRepository } from '../../repositories/email-template/email-template.repository.js';
 import mongoose from 'mongoose';
 
 export class OutreachService {
@@ -205,14 +213,8 @@ export class OutreachService {
       }
     }
 
-    const updated = await EmailTemplateModel.findOneAndUpdate(
-      {
-        _id: id,
-        workspaceId: this.workspaceId
-      } as any,
-      { $set: updatePayload },
-      { returnDocument: 'after' }
-    );
+    const templateRepo = new EmailTemplateRepository(this.workspaceId);
+    const updated = await templateRepo.updateWithVersioning(id, updatePayload);
     if (!updated) throw new Error('Template not found or does not belong to this workspace.');
     return updated;
   }
@@ -231,7 +233,8 @@ export class OutreachService {
   }
 
   /**
-   * Renders preview subject and body using a mock contact profile.
+   * Renders preview subject and body using a mock contact profile,
+   * returning both HTML and plain-text alongside an immutable variable snapshot.
    */
   public async previewTemplate(templateId: string, contactId?: string): Promise<any> {
     const template = await EmailTemplateModel.findOne({
@@ -284,9 +287,21 @@ export class OutreachService {
       }
     };
 
+    const renderedSubject = renderCanonicalVariables(template.subject, renderCtx, { isHtml: false });
+    const renderedBody = renderCanonicalVariables(template.body, renderCtx, { isHtml: true });
+    const variablesSnapshot = captureVariablesSnapshot(template.subject + ' ' + template.body, renderCtx);
+
+    const isHtml = /<[a-z][\s\S]*>/i.test(renderedBody);
+    const htmlBody = isHtml ? wrapHtmlWithDefaultTypography(renderedBody) : plainTextToHtml(renderedBody);
+    const textBody = isHtml ? htmlToPlainText(renderedBody) : renderedBody;
+
     return {
-      subject: renderCanonicalVariables(template.subject, renderCtx),
-      body: renderCanonicalVariables(template.body, renderCtx)
+      subject: sanitizeSubject(renderedSubject).sanitized,
+      body: renderedBody,
+      html: htmlBody,
+      text: textBody,
+      variablesSnapshot,
+      version: template.version || 1
     };
   }
 

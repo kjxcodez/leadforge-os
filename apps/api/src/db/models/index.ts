@@ -5,7 +5,12 @@ export { ContactModel, type ContactDocument } from './contact.model.js';
 export { CampaignModel, type CampaignDocument } from './campaign.model.js';
 export { OutreachModel, type OutreachDocument } from './outreach.model.js';
 export { EmailAccountModel, type EmailAccountDocument } from './email-account.model.js';
-export { EmailTemplateModel, type EmailTemplateDocument } from './email-template.model.js';
+export {
+  EmailTemplateModel,
+  type EmailTemplateDocument,
+  TemplateVersionModel,
+  type TemplateVersionDocument
+} from './email-template.model.js';
 export { SequenceModel, type SequenceDocument } from './sequence.model.js';
 export {
   SequenceExecutionModel,
