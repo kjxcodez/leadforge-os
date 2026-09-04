@@ -136,6 +136,38 @@ describe('Contact Outreach Eligibility Policy', () => {
     expect(res.eligible).toBe(false);
     expect(res.reason).toBe('ALREADY_CONTACTED');
   });
+
+  it('rejects contact when explicit suppression record is present', () => {
+    const res = evaluateOutreachEligibility({
+      contact: { email: 'suppressed@example.com', status: ContactStatus.NEW },
+      campaign: { status: CampaignStatus.ACTIVE },
+      suppression: { reason: 'DO_NOT_CONTACT' }
+    });
+    expect(res.eligible).toBe(false);
+    expect(res.reason).toBe('EMAIL_SUPPRESSED');
+  });
+
+  it('rejects contact when email domain is a disposable address', () => {
+    const res = evaluateOutreachEligibility({
+      contact: { email: 'lead@mailinator.com', status: ContactStatus.NEW },
+      campaign: { status: CampaignStatus.ACTIVE }
+    });
+    expect(res.eligible).toBe(false);
+    expect(res.reason).toBe('EMAIL_DISPOSABLE');
+  });
+
+  it('rejects contact when emailQuality marks address as unsendable', () => {
+    const res = evaluateOutreachEligibility({
+      contact: {
+        email: 'lead@target.com',
+        status: ContactStatus.NEW,
+        emailQuality: { sendable: false, status: 'INVALID', reasons: ['MX failed'] }
+      },
+      campaign: { status: CampaignStatus.ACTIVE }
+    });
+    expect(res.eligible).toBe(false);
+    expect(res.reason).toBe('EMAIL_INVALID');
+  });
 });
 
 describe('Contact Status Monotonic Transitions', () => {

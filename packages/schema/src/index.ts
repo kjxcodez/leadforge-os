@@ -8,3 +8,6 @@ export * from './ipc/index.js';
 export * from './utils/email-sanitizer.js';
 export * from './utils/outreach-eligibility.js';
 export * from './utils/tracking.js';
+export * from './utils/disposable-domains.js';
+export * from './utils/bounce-classifier.js';
+export * from './utils/email-quality-engine.js';

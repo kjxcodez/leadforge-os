@@ -39,6 +39,21 @@ export const contactSchema = z.object({
    */
   emailStatus: contactEmailStatusSchema.optional(),
   emailMeta: contactEmailMetaSchema.nullable().optional(),
+  /**
+   * Phase 10: Authoritative structured email quality evaluation.
+   */
+  emailQuality: z.record(z.any()).nullable().optional(),
+  /**
+   * Phase 10: Multi-email address identity support for contact.
+   */
+  additionalEmails: z.array(
+    z.object({
+      email: emailField,
+      status: contactEmailStatusSchema.optional(),
+      isPrimary: z.boolean().optional(),
+      emailQuality: z.record(z.any()).nullable().optional()
+    })
+  ).optional(),
   notes: z.string().nullable().optional(),
   lastContactedAt: z.coerce.date().nullable().optional(),
   createdAt: z.coerce.date(),

@@ -9,6 +9,7 @@
  */
 
 import { CampaignStatus, ContactStatus, ContactEmailStatus } from '../enums/index.js';
+import { isDisposableEmailDomain } from './disposable-domains.js';
 
 // ── 1. Campaign State Machine ──────────────────────────────────────────────────
 
@@ -58,6 +59,8 @@ export type OutreachIneligibilityReason =
   | 'CONTACT_DO_NOT_CONTACT'
   | 'CONTACT_ARCHIVED'
   | 'CONTACT_REPLIED'
+  | 'EMAIL_SUPPRESSED'
+  | 'EMAIL_DISPOSABLE'
   | 'EMAIL_INVALID'
   | 'EMAIL_QUARANTINED'
   | 'EMAIL_THIRD_PARTY'
@@ -74,11 +77,20 @@ export interface OutreachEligibilityInput {
     email?: string | null | undefined;
     status?: string | null | undefined;
     emailStatus?: string | null | undefined;
+    emailQuality?: {
+      sendable?: boolean | undefined;
+      status?: string | undefined;
+      riskLevel?: string | undefined;
+      reasons?: string[] | undefined;
+    } | null | undefined;
     emailMeta?: {
       confidenceTier?: string | null | undefined;
       domainMatched?: boolean | null | undefined;
     } | null | undefined;
   };
+  suppression?: {
+    reason?: string | undefined;
+  } | boolean | null | undefined;
   campaign?: {
     id?: string | null | undefined;
     status?: string | null | undefined;
@@ -99,11 +111,16 @@ export interface OutreachEligibilityResult {
  * Evaluates contact state, email quality status, domain affiliation, and campaign state.
  */
 export function evaluateOutreachEligibility(input: OutreachEligibilityInput): OutreachEligibilityResult {
-  const { contact, campaign, context } = input;
+  const { contact, campaign, context, suppression } = input;
 
   // 1. Email existence
   if (!contact.email || typeof contact.email !== 'string' || !contact.email.includes('@')) {
     return { eligible: false, reason: 'CONTACT_MISSING_EMAIL' };
+  }
+
+  // 1a. Explicit suppression check (Dedicated suppression record)
+  if (suppression) {
+    return { eligible: false, reason: 'EMAIL_SUPPRESSED' };
   }
 
   // 2. Contact CRM status (suppression checks)
@@ -122,6 +139,28 @@ export function evaluateOutreachEligibility(input: OutreachEligibilityInput): Ou
   }
   if (contactStatus === ContactStatus.REPLIED || contactStatus === 'REPLIED') {
     return { eligible: false, reason: 'CONTACT_REPLIED' };
+  }
+
+  // 2a. Disposable domain check
+  const domain = contact.email.split('@')[1];
+  if (isDisposableEmailDomain(domain)) {
+    return { eligible: false, reason: 'EMAIL_DISPOSABLE' };
+  }
+
+  // 2b. Explicit structured email quality evaluation
+  if (contact.emailQuality) {
+    if (contact.emailQuality.sendable === false) {
+      if (contact.emailQuality.status === 'SUPPRESSED') {
+        return { eligible: false, reason: 'EMAIL_SUPPRESSED' };
+      }
+      if (contact.emailQuality.status === 'DISPOSABLE') {
+        return { eligible: false, reason: 'EMAIL_DISPOSABLE' };
+      }
+      if (contact.emailQuality.status === 'QUARANTINED') {
+        return { eligible: false, reason: 'EMAIL_QUARANTINED' };
+      }
+      return { eligible: false, reason: 'EMAIL_INVALID' };
+    }
   }
 
   // 3. Email quality / candidate correctness status

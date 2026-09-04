@@ -224,3 +224,50 @@ export enum EmailFailureCategory {
   INTERNAL = 'INTERNAL',
   AMBIGUOUS = 'AMBIGUOUS'
 }
+
+/**
+ * Phase 10: Multi-dimensional email quality statuses.
+ * Explicitly separates syntax, domain, MX, mailbox, disposable, and suppression states.
+ */
+export enum EmailQualityStatus {
+  UNKNOWN = 'UNKNOWN',
+  DISCOVERED = 'DISCOVERED',
+  SYNTAX_VALID = 'SYNTAX_VALID',
+  DOMAIN_VALID = 'DOMAIN_VALID',
+  MX_VALID = 'MX_VALID',
+  VERIFIED = 'VERIFIED',
+  RISKY = 'RISKY',
+  DISPOSABLE = 'DISPOSABLE',
+  ROLE_ACCOUNT = 'ROLE_ACCOUNT',
+  INVALID = 'INVALID',
+  SUPPRESSED = 'SUPPRESSED'
+}
+
+/**
+ * Phase 10: Structured reasons for contact / email address suppression.
+ * Follows strict precedence hierarchy: DO_NOT_CONTACT > UNSUBSCRIBED > SPAM_COMPLAINT > HARD_BOUNCE > MANUAL_SUPPRESSION > POLICY_BLOCK > INVALID_EMAIL.
+ */
+export enum SuppressionReason {
+  DO_NOT_CONTACT = 'DO_NOT_CONTACT',
+  UNSUBSCRIBED = 'UNSUBSCRIBED',
+  SPAM_COMPLAINT = 'SPAM_COMPLAINT',
+  HARD_BOUNCE = 'HARD_BOUNCE',
+  MANUAL_SUPPRESSION = 'MANUAL_SUPPRESSION',
+  POLICY_BLOCK = 'POLICY_BLOCK',
+  INVALID_EMAIL = 'INVALID_EMAIL'
+}
+
+/**
+ * Phase 10: Canonical classification of bounce and rejection events.
+ */
+export enum BounceCategory {
+  HARD_BOUNCE = 'HARD_BOUNCE',
+  SOFT_BOUNCE = 'SOFT_BOUNCE',
+  MAILBOX_UNAVAILABLE = 'MAILBOX_UNAVAILABLE',
+  DOMAIN_UNAVAILABLE = 'DOMAIN_UNAVAILABLE',
+  POLICY_REJECTION = 'POLICY_REJECTION',
+  AUTHENTICATION_REJECTION = 'AUTHENTICATION_REJECTION',
+  RATE_LIMIT = 'RATE_LIMIT',
+  SPAM_REJECTION = 'SPAM_REJECTION',
+  UNKNOWN = 'UNKNOWN'
+}
