@@ -1,3 +1,12 @@
+import crypto from 'crypto';
+import {
+  generateTrackingToken,
+  injectOpenTrackingPixel,
+  rewriteLinksForClickTracking,
+  type ComposeMessageInput,
+  type ComposeMessageResult
+} from '@leadforge/schema';
+
 /**
  * Canonical Variable Context structure for template rendering across LeadForge.
  */
@@ -166,19 +175,58 @@ export function resolveTokenPath(path: string, ctx: CanonicalVariableContext): s
   }
 }
 
+export interface RenderVariableOptions {
+  /** If true, substituted values are HTML-entity escaped to prevent injection. */
+  isHtml?: boolean;
+  /** Optional collector map to record every substituted token and resolved value. */
+  captureSnapshot?: Record<string, string>;
+}
+
+/**
+ * Escapes HTML-special characters (&, <, >, ", ') to prevent script/markup injection.
+ */
+export function escapeHtml(str: string): string {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /**
  * Replaces all `{{token}}` occurrences in a template string using the CanonicalVariableContext.
  */
 export function renderCanonicalVariables(
   template: string | null | undefined,
-  ctx: CanonicalVariableContext
+  ctx: CanonicalVariableContext,
+  options?: RenderVariableOptions
 ): string {
   if (template === null || template === undefined) return '';
   if (typeof template !== 'string') return String(template);
 
   return template.replace(/\{\{([^}]+)\}\}/g, (_m, rawToken: string) => {
-    return resolveTokenPath(rawToken, ctx);
+    const trimmed = rawToken.trim();
+    const val = resolveTokenPath(trimmed, ctx);
+    if (options?.captureSnapshot) {
+      options.captureSnapshot[trimmed] = val;
+    }
+    return options?.isHtml ? escapeHtml(val) : val;
   });
+}
+
+/**
+ * Extracts and captures a snapshot of all variable tokens in a template with their resolved values.
+ */
+export function captureVariablesSnapshot(
+  template: string | null | undefined,
+  ctx: CanonicalVariableContext
+): Record<string, string> {
+  const snapshot: Record<string, string> = {};
+  if (!template) return snapshot;
+  renderCanonicalVariables(template, ctx, { captureSnapshot: snapshot });
+  return snapshot;
 }
 
 /**
@@ -320,5 +368,229 @@ export function formatEmailBody(body: string): { text: string; html: string } {
   return {
     text: body,
     html: plainTextToHtml(body)
+  };
+}
+
+/**
+ * Sanitizes an email subject line:
+ * 1. Strips all CRLF characters (\r, \n) to prevent email header injection attacks.
+ * 2. Normalizes multiple consecutive whitespace characters to a single space.
+ * 3. Enforces non-empty content and truncates to the RFC 5322 Section 2.1.1 maximum line limit (998 characters).
+ */
+export function sanitizeSubject(subject: string | null | undefined): {
+  sanitized: string;
+  isValid: boolean;
+  error?: string;
+} {
+  if (subject === null || subject === undefined) {
+    return { sanitized: '', isValid: false, error: 'Subject line cannot be empty.' };
+  }
+  // 1. Strip CRLF characters (\r, \n) to prevent email header injection
+  let clean = subject.replace(/[\r\n]+/g, ' ');
+  // 2. Collapse whitespace
+  clean = clean.replace(/\s+/g, ' ').trim();
+  if (!clean) {
+    return { sanitized: '', isValid: false, error: 'Subject line cannot be empty.' };
+  }
+  // 3. RFC 5322 Section 2.1.1 maximum line length is 998 characters
+  if (clean.length > 998) {
+    clean = clean.substring(0, 998);
+  }
+  return { sanitized: clean, isValid: true };
+}
+
+/**
+ * Converts an HTML email body into a clean, readable plain-text representation.
+ * Used to populate the MIME text/plain part when an outbound template is HTML-only,
+ * ensuring high deliverability and readable fallback on plain-text email clients.
+ */
+export function htmlToPlainText(html: string | null | undefined): string {
+  if (!html) return '';
+  let text = html;
+  // Convert break tags and paragraph tags to line endings
+  text = text.replace(/<br\s*\/?>/gi, '\n');
+  text = text.replace(/<\/p>/gi, '\n\n');
+  text = text.replace(/<\/div>/gi, '\n');
+  text = text.replace(/<\/li>/gi, '\n');
+  text = text.replace(/<\/tr>/gi, '\n');
+  text = text.replace(/<\/h[1-6]>/gi, '\n\n');
+  // Remove script and style elements
+  text = text.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  text = text.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+  // Strip all remaining HTML tags
+  text = text.replace(/<[^>]+>/g, '');
+  // Unescape common HTML entities
+  text = text
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&#x27;/gi, "'");
+  // Normalize line endings and multiple blank lines
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  text = text.replace(/\n{3,}/g, '\n\n');
+  return text.trim();
+}
+
+export interface MessageFingerprintInput {
+  workspaceId: string;
+  senderEmail: string;
+  recipientEmail: string;
+  subject: string;
+  textBody?: string | null;
+  htmlBody?: string | null;
+  attachmentChecksums?: string[];
+  templateId?: string | null;
+  templateVersion?: number | null;
+}
+
+/**
+ * Computes a deterministic SHA-256 fingerprint for outbound message content.
+ * Guarantees that identical intended content yields the exact same fingerprint,
+ * detecting accidental mutations and preserving audit evidence.
+ */
+export function computeMessageFingerprint(input: MessageFingerprintInput): string {
+  const normalized = {
+    workspaceId: input.workspaceId,
+    sender: (input.senderEmail || '').toLowerCase().trim(),
+    recipient: (input.recipientEmail || '').toLowerCase().trim(),
+    subject: (input.subject || '').trim(),
+    text: (input.textBody || '').trim(),
+    html: (input.htmlBody || '').trim(),
+    attachments: (input.attachmentChecksums || []).slice().sort(),
+    templateId: input.templateId || null,
+    templateVersion: input.templateVersion ?? null
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+}
+
+/**
+ * Unified canonical composition engine for outbound messages.
+ * Deterministically binds templates, resolves variables with HTML entity safety,
+ * sanitizes subjects, renders typography, appends signatures, executes tracking
+ * transformations with token idempotency, and calculates content fingerprints.
+ */
+export function composeOutboundMessage(input: ComposeMessageInput): ComposeMessageResult {
+  // 1. Resolve raw subject and body
+  const rawSubject = input.subject ?? input.template?.subject ?? '';
+  const rawBody = input.body ?? input.template?.body ?? '';
+  const templateId = input.template?.id || null;
+  const templateVersion = input.template?.version || null;
+
+  // 2. Build CanonicalVariableContext
+  const ctx: CanonicalVariableContext = {
+    ...input.context,
+    contact: {
+      ...(input.context?.contact || {}),
+      email: input.recipient.email,
+      firstName: input.recipient.firstName ?? input.context?.contact?.firstName,
+      lastName: input.recipient.lastName ?? input.context?.contact?.lastName
+    },
+    sender: {
+      name: input.sender.name || 'LeadForge',
+      email: input.sender.email
+    },
+    workspace: {
+      id: input.workspaceId
+    }
+  };
+
+  // 3. Render subject line (plain text, no HTML escaping) and sanitize for CRLF
+  const variablesSnapshot: Record<string, string> = {};
+  const renderedSubject = renderCanonicalVariables(rawSubject, ctx, {
+    isHtml: false,
+    captureSnapshot: variablesSnapshot
+  });
+  const subjectCheck = sanitizeSubject(renderedSubject);
+  const finalSubject = subjectCheck.isValid ? subjectCheck.sanitized : renderedSubject.replace(/[\r\n]+/g, ' ').trim();
+
+  // 4. Determine if template is HTML or plain text
+  const isHtml = input.isHtml ?? /<(?:p|div|br|span|table|h[1-6]|a)\b/i.test(rawBody);
+
+  // 5. Render body
+  const renderedBody = renderCanonicalVariables(rawBody, ctx, {
+    isHtml,
+    captureSnapshot: variablesSnapshot
+  });
+
+  let textBody = '';
+  let htmlBody = '';
+
+  if (isHtml) {
+    htmlBody = wrapHtmlWithDefaultTypography(renderedBody);
+    textBody = htmlToPlainText(renderedBody);
+  } else {
+    const formatted = formatEmailBody(renderedBody);
+    textBody = formatted.text;
+    htmlBody = formatted.html;
+  }
+
+  // 6. Signature handling
+  if (input.useSignature !== false && input.sender.signatureHtml && htmlBody) {
+    const cleanSig = normalizeEmailSignature(input.sender.signatureHtml);
+    if (cleanSig && !htmlBody.includes('class="gmail_signature"')) {
+      htmlBody = `${htmlBody}<br/><span class="gmail_signature_prefix">-- </span><br/><div class="gmail_signature" dir="ltr" data-smartmail="gmail_signature">${cleanSig}</div>`;
+    }
+  }
+
+  // 7. Tracking transformations
+  const trackingBaseUrl = input.trackingBaseUrl || 'http://localhost:3000';
+  let openTrackingToken = input.existingTracking?.openTrackingToken || '';
+  let clickTrackingTokens = input.existingTracking?.clickTrackingTokens
+    ? [...input.existingTracking.clickTrackingTokens]
+    : [];
+
+  if (htmlBody) {
+    if (!clickTrackingTokens || clickTrackingTokens.length === 0) {
+      const clickRes = rewriteLinksForClickTracking(htmlBody, trackingBaseUrl);
+      htmlBody = clickRes.rewrittenHtml;
+      clickTrackingTokens = clickRes.tokens;
+    }
+
+    if (!openTrackingToken) {
+      openTrackingToken = generateTrackingToken();
+      htmlBody = injectOpenTrackingPixel(htmlBody, trackingBaseUrl, openTrackingToken);
+    }
+  }
+
+  // 8. Attachment checksum calculation
+  const attachments = input.attachments || [];
+  const attachmentChecksums: string[] = attachments.map((a) => {
+    if (a.sha256) return a.sha256;
+    if (a.contentBase64) {
+      return crypto.createHash('sha256').update(Buffer.from(a.contentBase64, 'base64')).digest('hex');
+    }
+    if (a.data && Buffer.isBuffer(a.data)) {
+      return crypto.createHash('sha256').update(a.data).digest('hex');
+    }
+    return crypto.createHash('sha256').update(a.filename || 'unknown').digest('hex');
+  });
+
+  // 9. Message Fingerprint
+  const messageFingerprint = computeMessageFingerprint({
+    workspaceId: input.workspaceId,
+    senderEmail: input.sender.email,
+    recipientEmail: input.recipient.email,
+    subject: finalSubject,
+    textBody,
+    htmlBody,
+    attachmentChecksums,
+    templateId,
+    templateVersion
+  });
+
+  return {
+    subject: finalSubject,
+    htmlBody,
+    textBody,
+    variablesSnapshot,
+    openTrackingToken,
+    clickTrackingTokens,
+    attachments,
+    messageFingerprint,
+    templateId,
+    templateVersion
   };
 }
