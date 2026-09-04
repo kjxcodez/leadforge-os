@@ -81,6 +81,12 @@ export const emailDeliverySchema = z.object({
   replyCount: z.number().int().nonnegative().default(0).optional(),
   lastRepliedAt: z.coerce.date().nullable().optional(),
 
+  // Composition & Versioning Snapshot
+  templateId: entityIdFieldNullable.optional(),
+  templateVersion: z.number().int().positive().nullable().optional(),
+  variablesSnapshot: z.record(z.string()).nullable().optional(),
+  messageFingerprint: z.string().nullable().optional(),
+
   // Idempotency & Lease
   idempotencyKey: z.string().min(1).max(128),
   leaseExpiresAt: z.coerce.date().nullable().optional(),
@@ -127,6 +133,10 @@ export const createEmailDeliveryDtoSchema = z.object({
   htmlBody: z.string().nullable().optional(),
   textBody: z.string().nullable().optional(),
   attachments: z.array(emailAttachmentMetaSchema).optional(),
+  templateId: entityIdFieldNullable.optional(),
+  templateVersion: z.number().int().positive().nullable().optional(),
+  variablesSnapshot: z.record(z.string()).nullable().optional(),
+  messageFingerprint: z.string().nullable().optional(),
   status: emailDeliveryStatusSchema.default('SENDING').optional(),
   idempotencyKey: z.string().min(1).max(128),
   snapshot: z.record(z.any()).nullable().optional()
@@ -148,6 +158,10 @@ export const reserveEmailDeliveryDtoSchema = z.object({
   htmlBody: z.string().nullable().optional(),
   textBody: z.string().nullable().optional(),
   attachments: z.array(emailAttachmentMetaSchema).optional(),
+  templateId: entityIdFieldNullable.optional(),
+  templateVersion: z.number().int().positive().nullable().optional(),
+  variablesSnapshot: z.record(z.string()).nullable().optional(),
+  messageFingerprint: z.string().nullable().optional(),
   openTrackingToken: z.string().nullable().optional(),
   clickTrackingTokens: z.array(clickTrackingTokenSchema).optional(),
   idempotencyKey: z.string().min(1).max(128),

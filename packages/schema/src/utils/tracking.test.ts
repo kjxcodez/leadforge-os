@@ -104,11 +104,20 @@ describe('Email Tracking Utilities', () => {
         <p>Hello John,</p>
         <p>Here is your email content.</p>
         <img src="https://leadforge.app/api/v1/tracking/open/token_abc_123" width="1" height="1" style="display:none" alt="" />
+        <img src="https://track.leadforge.com/t/open/token_def_456" width="1" height="1" style="display:none" alt="" />
       `;
 
       const sanitized = sanitizeHtmlForPreview(htmlWithTracking);
       expect(sanitized).not.toContain('/tracking/open/');
+      expect(sanitized).not.toContain('/t/open/');
       expect(sanitized).toContain('<p>Hello John,</p>');
+    });
+
+    it('prevents double-wrapping links already rewritten for tracking', () => {
+      const alreadyTrackedHtml = '<a href="https://track.leadforge.com/t/click/already-tracked-tok">Click</a>';
+      const result = rewriteLinksForClickTracking(alreadyTrackedHtml, 'https://track.leadforge.com');
+      expect(result.tokens.length).toBe(0);
+      expect(result.rewrittenHtml).toBe(alreadyTrackedHtml);
     });
 
     it('blocks remote images when privacy protection option is enabled', () => {

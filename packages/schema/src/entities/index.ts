@@ -16,4 +16,5 @@ export * from './google-connection.js';
 export * from './attachment.js';
 export * from './email-quality.js';
 export * from './suppression.js';
+export * from './composition.js';
 

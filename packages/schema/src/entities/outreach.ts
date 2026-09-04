@@ -29,10 +29,25 @@ export const emailTemplateSchema = z.object({
   body: z.string(),
   variables: z.array(z.string()).default([]),
   attachments: z.array(attachmentItemSchema).optional().default([]),
+  version: z.number().int().positive().default(1),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date()
 });
 export type EmailTemplate = z.infer<typeof emailTemplateSchema>;
+
+export const templateVersionSchema = z.object({
+  id: entityIdField,
+  templateId: entityIdField,
+  workspaceId: entityIdField,
+  version: z.number().int().positive(),
+  name: nameField,
+  subject: z.string(),
+  body: z.string(),
+  variables: z.array(z.string()).default([]),
+  attachments: z.array(attachmentItemSchema).default([]),
+  createdAt: z.coerce.date()
+});
+export type TemplateVersion = z.infer<typeof templateVersionSchema>;
 
 export const emailMessageSchema = z.object({
   messageId: z.string(),

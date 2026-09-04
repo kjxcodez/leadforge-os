@@ -98,6 +98,11 @@ export function rewriteLinksForClickTracking(
       return fullMatch;
     }
 
+    // 4b. Exclusion: already a LeadForge tracking link (prevent double-wrapping on retry)
+    if (trimmedHref.includes('/t/click/') || trimmedHref.includes('/tracking/click/')) {
+      return fullMatch;
+    }
+
     // 5. Generate opaque token and construct tracking URL
     const token = tokenGen();
     tokens.push({ token, targetUrl: trimmedHref });
@@ -110,7 +115,7 @@ export function rewriteLinksForClickTracking(
 }
 
 export interface SanitizePreviewOptions {
-  /** When true (default), strips tracking pixels matching /tracking/open/ */
+  /** When true (default), strips tracking pixels matching /t/open/ or /tracking/open/ */
   stripTrackingPixels?: boolean;
   /** When true, rewrites remote image src to data-src and placeholder to protect privacy */
   blockRemoteImages?: boolean;
@@ -156,7 +161,7 @@ export function sanitizeHtmlForPreview(
 
   // 6. Strip LeadForge open tracking pixels to prevent false open events inside preview
   if (stripTrackingPixels) {
-    sanitized = sanitized.replace(/<img\b[^>]*\/tracking\/open\/[^>]*>/gi, '');
+    sanitized = sanitized.replace(/<img\b[^>]*\/(?:t|tracking)\/open\/[^>]*>/gi, '');
   }
 
   // 7. Neutralize remote images if privacy protection is enabled
