@@ -415,6 +415,8 @@ export class JobScheduler {
                 payload: {
                   executionId: exec.id,
                   sequenceId: exec.sequenceId,
+                  entityId: exec.contactId,
+                  entityType: 'contact',
                   contactId: exec.contactId,
                   campaignId: exec.campaignId
                 }
