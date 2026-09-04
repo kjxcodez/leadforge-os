@@ -24,6 +24,8 @@ export const CACHE_TABLES = [
   'sequence_executions',
   'templates',
   'email_accounts',
+  'email_deliveries',
+  'operations_cache',
   'audiences',
   'discovery_runs',
   'company_discovery_runs',
@@ -388,6 +390,44 @@ export function initCacheSchema(db: Database.Database): void {
 
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_email_del_ws ON email_deliveries(workspaceId)`).run();
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_email_del_idem ON email_deliveries(idempotencyKey)`).run();
+
+    // 9b. Operations Cache (Phase 9)
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS operations_cache (
+        id TEXT PRIMARY KEY,
+        workspaceId TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        failureClass TEXT,
+        errorCode TEXT,
+        safeHumanMessage TEXT,
+        technicalMessage TEXT,
+        attempt INTEGER DEFAULT 1,
+        maxAttempts INTEGER DEFAULT 3,
+        nextRetryAt DATETIME,
+        lastHeartbeatAt DATETIME,
+        isStale INTEGER DEFAULT 0,
+        retryable INTEGER DEFAULT 0,
+        correlationId TEXT,
+        campaignId TEXT,
+        campaignName TEXT,
+        contactId TEXT,
+        contactEmail TEXT,
+        deliveryId TEXT,
+        sequenceExecutionId TEXT,
+        provider TEXT,
+        providerMessageId TEXT,
+        metadata TEXT DEFAULT '{}',
+        createdAt DATETIME,
+        updatedAt DATETIME
+      )
+    `).run();
+
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_ops_ws ON operations_cache(workspaceId)`).run();
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_ops_status ON operations_cache(status)`).run();
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_ops_type ON operations_cache(type)`).run();
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_ops_updated ON operations_cache(workspaceId, updatedAt)`).run();
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_ops_stale ON operations_cache(workspaceId, isStale)`).run();
 
     // 10. Audiences Cache
     db.prepare(`

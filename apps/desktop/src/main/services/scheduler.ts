@@ -78,6 +78,10 @@ export class JobScheduler {
   private typeActiveCount = new Map<string, number>();
   /** Tracks terminal jobs to guard against duplicate completion callbacks or late crash events. */
   private terminalJobs = new Set<string>();
+  /** Periodic timer for automated inbound reply polling and reconciliation. */
+  private reliabilityTimerId: NodeJS.Timeout | null = null;
+  private isPollingReplies = false;
+  private isReconcilingAmbiguous = false;
 
   constructor(
     private workspaceId: string,
@@ -146,6 +150,7 @@ export class JobScheduler {
     }
 
     this.scheduleNextTick(0);
+    this.startReliabilityRunner();
 
     AppLogger.info(
       'JobScheduler',
@@ -249,6 +254,11 @@ export class JobScheduler {
       this.timerId = null;
     }
 
+    if (this.reliabilityTimerId) {
+      clearInterval(this.reliabilityTimerId);
+      this.reliabilityTimerId = null;
+    }
+
     // Clear any pending hard-kill fallback timeouts before shutdown.
     for (const t of this.cancelTimeouts.values()) clearTimeout(t);
     this.cancelTimeouts.clear();
@@ -277,6 +287,67 @@ export class JobScheduler {
       `Scheduler stopped for workspace: ${this.workspaceId}`,
       this.workspaceId
     );
+  }
+
+  /**
+   * Starts periodic background reliability runner for automatic inbound reply polling (every 2m)
+   * and ambiguous delivery reconciliation (every 5m) with mutex locking to prevent overlap.
+   */
+  private startReliabilityRunner(): void {
+    if (this.reliabilityTimerId) return;
+
+    let lastPollAt = Date.now();
+    let lastReconcileAt = Date.now();
+
+    this.reliabilityTimerId = setInterval(async () => {
+      if (this.state === 'STOPPED' || this.state === 'PAUSED_OFFLINE') return;
+      const now = Date.now();
+
+      // 1. Inbound reply poll every 2 minutes (120s)
+      if (now - lastPollAt >= 120_000 && !this.isPollingReplies) {
+        this.isPollingReplies = true;
+        lastPollAt = now;
+        try {
+          const pollRes = await this.sdk.emailDeliveries.pollReplies().catch(() => []);
+          if (Array.isArray(pollRes) && pollRes.length > 0) {
+            const matched = pollRes.reduce((acc: number, r: any) => acc + (r.matchedCount || 0), 0);
+            if (matched > 0) {
+              AppLogger.info(
+                'JobScheduler',
+                `Background inbound reply poll processed: ${matched} correlated reply/replies.`,
+                this.workspaceId
+              );
+            }
+          }
+        } catch (err: any) {
+          AppLogger.warn(
+            'JobScheduler',
+            `Background reply poller note: ${err.message}`,
+            this.workspaceId
+          );
+        } finally {
+          this.isPollingReplies = false;
+        }
+      }
+
+      // 2. Ambiguous deliveries reconciliation check every 5 minutes (300s)
+      if (now - lastReconcileAt >= 300_000 && !this.isReconcilingAmbiguous) {
+        this.isReconcilingAmbiguous = true;
+        lastReconcileAt = now;
+        try {
+          await this.sdk.emailDeliveries.reconcileAmbiguous(10).catch(() => []);
+          await this.sdk.emailDeliveries.reconcile({ maxAgeMs: 300_000 }).catch(() => ({}));
+        } catch (rErr: any) {
+          AppLogger.warn(
+            'JobScheduler',
+            `Background delivery reconciliation note: ${rErr.message}`,
+            this.workspaceId
+          );
+        } finally {
+          this.isReconcilingAmbiguous = false;
+        }
+      }
+    }, 30_000);
   }
 
   /**

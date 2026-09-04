@@ -328,6 +328,11 @@ export function registerObservabilityIpc() {
       return { success: true, message: 'Orphaned worker processes cleaned.' };
     }
 
+    if (action === 'reconcile-ambiguous') {
+      const recResult = await sdk.emailDeliveries.reconcileAmbiguous(10).catch(() => []);
+      return { success: true, message: `Reconciliation processed: ${recResult.length} deliveries checked.` };
+    }
+
     if (action === 'restore-backup' || action === 'rebuild-cache') {
       resetWorkspaceCache(workspaceId, 'manual_reset');
       CacheHydrator.hydrateWorkspaceCache(workspaceId, sdk).catch(() => {});
@@ -557,5 +562,340 @@ export function registerObservabilityIpc() {
         } catch {}
       }
     }
+  });
+
+  // ── Operations Center (Phase 9) ──────────────────────────────────────────
+
+  // 1. Operations Health Summary
+  safeRegister('operations:health', async (_event, payload) => {
+    const workspaceId = payload?.workspaceId || WorkspaceManager.getActiveRuntime()?.workspaceId;
+    if (!workspaceId) throw new Error('workspaceId is required.');
+
+    const now = new Date().toISOString();
+    const db = getDatabase(workspaceId);
+
+    // Check local SQLite integrity
+    let sqliteStatus: { status: 'healthy' | 'failed'; message: string; lastCheckedAt: string } = {
+      status: 'healthy',
+      message: 'Local cache validated',
+      lastCheckedAt: now
+    };
+    try {
+      const check = db.prepare('PRAGMA integrity_check').get() as any;
+      const res = check ? Object.values(check)[0] : '';
+      if (res !== 'ok') {
+        sqliteStatus = { status: 'failed', message: `Database integrity compromised: ${res}`, lastCheckedAt: now };
+      }
+    } catch (e: any) {
+      sqliteStatus = { status: 'failed', message: `Integrity check failed: ${e.message}`, lastCheckedAt: now };
+    }
+
+    // Check local scheduler state
+    const activeRuntime = WorkspaceManager.getActiveRuntime();
+    const schedulerIsRunning = Boolean(
+      activeRuntime && activeRuntime.workspaceId === workspaceId && activeRuntime.scheduler.isActive
+    );
+    const schedulerHealth: { status: 'healthy' | 'degraded'; message: string; lastCheckedAt: string } = {
+      status: schedulerIsRunning ? 'healthy' : 'degraded',
+      message: schedulerIsRunning ? 'Scheduler tick loop active' : 'Scheduler stopped or idle',
+      lastCheckedAt: now
+    };
+
+    // Try fetching authoritative remote health
+    try {
+      const sdk = WorkspaceManager.getSdk();
+      const remoteHealth = await sdk.operations.getHealth();
+      if (remoteHealth && remoteHealth.subsystems) {
+        remoteHealth.subsystems.sqlite = sqliteStatus;
+        if (remoteHealth.subsystems.scheduler.status === 'healthy' && !schedulerIsRunning) {
+          remoteHealth.subsystems.scheduler = schedulerHealth;
+        }
+        return remoteHealth;
+      }
+    } catch {
+      // Remote unavailable: compute fallback health summary from local cache
+    }
+
+    // Fallback: Offline read model from SQLite
+    let cachedOpsCount = 0;
+    let cachedFailedCount = 0;
+    let cachedStaleCount = 0;
+    let cachedRetryingCount = 0;
+    try {
+      const row = db
+        .prepare(
+          `
+        SELECT 
+          COUNT(*) as total,
+          SUM(CASE WHEN status IN ('running', 'starting') THEN 1 ELSE 0 END) as activeCount,
+          SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failedCount,
+          SUM(CASE WHEN isStale = 1 THEN 1 ELSE 0 END) as staleCount,
+          SUM(CASE WHEN status = 'retrying' THEN 1 ELSE 0 END) as retryingCount
+        FROM operations_cache WHERE workspaceId = ?
+      `
+        )
+        .get(workspaceId) as any;
+      if (row) {
+        cachedOpsCount = row.activeCount || 0;
+        cachedFailedCount = row.failedCount || 0;
+        cachedStaleCount = row.staleCount || 0;
+        cachedRetryingCount = row.retryingCount || 0;
+      }
+    } catch {}
+
+    return {
+      workspaceId,
+      overallStatus: 'degraded',
+      timestamp: now,
+      subsystems: {
+        api: { status: 'not_connected', message: 'API unreachable (operating in offline cache mode)', lastCheckedAt: now },
+        mongodb: { status: 'unknown', message: 'Remote persistence unreachable', lastCheckedAt: now },
+        sqlite: sqliteStatus,
+        gmail: { status: 'unknown', message: 'Provider status unavailable offline', lastCheckedAt: now },
+        scheduler: schedulerHealth,
+        workers: { status: 'unknown', message: 'Remote worker status unavailable offline', lastCheckedAt: now },
+        inboundPolling: { status: 'unknown', message: 'Polling status unavailable offline', lastCheckedAt: now },
+        reconciliation: { status: 'unknown', message: 'Reconciliation status unavailable offline', lastCheckedAt: now }
+      },
+      metrics: {
+        activeOperationsCount: cachedOpsCount,
+        failedOperationsCount: cachedFailedCount,
+        staleOperationsCount: cachedStaleCount,
+        retryingCount: cachedRetryingCount,
+        lastSuccessfulPollAt: null,
+        lastSuccessfulReconciliationAt: null
+      }
+    };
+  });
+
+  // 2. List & Query Operations
+  safeRegister('operations:list', async (_event, payload) => {
+    const targetWsId = payload?.workspaceId || WorkspaceManager.getActiveRuntime()?.workspaceId;
+    if (!targetWsId) throw new Error('workspaceId is required.');
+
+    const page = payload?.page || 1;
+    const limit = payload?.limit || 50;
+
+    // Try fetching remote authoritative state
+    try {
+      const sdk = WorkspaceManager.getSdk();
+      const remoteRes = await sdk.operations.list({
+        page,
+        limit,
+        status: payload?.status,
+        type: payload?.type,
+        failureClass: payload?.failureClass,
+        search: payload?.search,
+        isStale: payload?.isStale,
+        retryable: payload?.retryable,
+        campaignId: payload?.campaignId,
+        contactId: payload?.contactId
+      });
+
+      const items = remoteRes?.items || [];
+
+      // Cache returned items into SQLite operations_cache
+      if (items.length > 0) {
+        try {
+          const db = getDatabase(targetWsId);
+          const upsert = db.prepare(`
+            INSERT INTO operations_cache (
+              id, workspaceId, type, status, failureClass, errorCode,
+              safeHumanMessage, technicalMessage, attempt, maxAttempts,
+              nextRetryAt, lastHeartbeatAt, isStale, retryable,
+              correlationId, campaignId, campaignName, contactId, contactEmail,
+              deliveryId, sequenceExecutionId, provider, providerMessageId,
+              metadata, createdAt, updatedAt
+            ) VALUES (
+              @id, @workspaceId, @type, @status, @failureClass, @errorCode,
+              @safeHumanMessage, @technicalMessage, @attempt, @maxAttempts,
+              @nextRetryAt, @lastHeartbeatAt, @isStale, @retryable,
+              @correlationId, @campaignId, @campaignName, @contactId, @contactEmail,
+              @deliveryId, @sequenceExecutionId, @provider, @providerMessageId,
+              @metadata, @createdAt, @updatedAt
+            ) ON CONFLICT(id) DO UPDATE SET
+              status = excluded.status,
+              failureClass = excluded.failureClass,
+              errorCode = excluded.errorCode,
+              safeHumanMessage = excluded.safeHumanMessage,
+              technicalMessage = excluded.technicalMessage,
+              attempt = excluded.attempt,
+              maxAttempts = excluded.maxAttempts,
+              nextRetryAt = excluded.nextRetryAt,
+              lastHeartbeatAt = excluded.lastHeartbeatAt,
+              isStale = excluded.isStale,
+              retryable = excluded.retryable,
+              correlationId = excluded.correlationId,
+              campaignId = excluded.campaignId,
+              campaignName = excluded.campaignName,
+              contactId = excluded.contactId,
+              contactEmail = excluded.contactEmail,
+              deliveryId = excluded.deliveryId,
+              sequenceExecutionId = excluded.sequenceExecutionId,
+              provider = excluded.provider,
+              providerMessageId = excluded.providerMessageId,
+              metadata = excluded.metadata,
+              updatedAt = excluded.updatedAt
+          `);
+
+          const tx = db.transaction((rows: any[]) => {
+            for (const r of rows) {
+              upsert.run({
+                id: r.id,
+                workspaceId: targetWsId,
+                type: r.type,
+                status: r.status,
+                failureClass: r.failureClass || null,
+                errorCode: r.errorCode || null,
+                safeHumanMessage: r.safeHumanMessage || null,
+                technicalMessage: r.technicalMessage || null,
+                attempt: r.attempt || 1,
+                maxAttempts: r.maxAttempts || 3,
+                nextRetryAt: r.nextRetryAt || null,
+                lastHeartbeatAt: r.lastHeartbeatAt || null,
+                isStale: r.isStale ? 1 : 0,
+                retryable: r.retryable ? 1 : 0,
+                correlationId: r.correlationId || null,
+                campaignId: r.campaignId || null,
+                campaignName: r.campaignName || null,
+                contactId: r.contactId || null,
+                contactEmail: r.contactEmail || null,
+                deliveryId: r.deliveryId || null,
+                sequenceExecutionId: r.sequenceExecutionId || null,
+                provider: r.provider || null,
+                providerMessageId: r.providerMessageId || null,
+                metadata: r.metadata ? JSON.stringify(r.metadata) : '{}',
+                createdAt: r.createdAt,
+                updatedAt: new Date().toISOString()
+              });
+            }
+          });
+          tx(items);
+        } catch (cacheErr) {
+          console.warn('[OperationsIPC] Failed to cache operations into SQLite:', cacheErr);
+        }
+      }
+
+      return {
+        items,
+        total: remoteRes?.total ?? items.length,
+        page,
+        isCached: false
+      };
+    } catch {
+      // Fall through to SQLite cache query
+    }
+
+    // Local SQLite Cache Query
+    const db = getDatabase(targetWsId);
+    let sql = `SELECT * FROM operations_cache WHERE workspaceId = ?`;
+    const params: any[] = [targetWsId];
+
+    if (payload?.status) {
+      sql += ` AND LOWER(status) = LOWER(?)`;
+      params.push(payload.status);
+    }
+    if (payload?.type) {
+      sql += ` AND type = ?`;
+      params.push(payload.type);
+    }
+    if (payload?.failureClass) {
+      sql += ` AND failureClass = ?`;
+      params.push(payload.failureClass);
+    }
+    if (payload?.isStale !== undefined) {
+      sql += ` AND isStale = ?`;
+      params.push(payload.isStale ? 1 : 0);
+    }
+    if (payload?.search) {
+      sql += ` AND (id LIKE ? OR safeHumanMessage LIKE ? OR contactEmail LIKE ? OR correlationId LIKE ?)`;
+      const q = `%${payload.search}%`;
+      params.push(q, q, q, q);
+    }
+
+    const countRow = db.prepare(`SELECT COUNT(*) as cnt FROM (${sql})`).get(...params) as any;
+    const total = countRow?.cnt || 0;
+
+    sql += ` ORDER BY createdAt DESC LIMIT ? OFFSET ?`;
+    params.push(limit, (page - 1) * limit);
+
+    const rows = db.prepare(sql).all(...params) as any[];
+    const items = rows.map((r) => ({
+      ...r,
+      isStale: Boolean(r.isStale),
+      retryable: Boolean(r.retryable),
+      metadata: r.metadata ? JSON.parse(r.metadata) : {}
+    }));
+
+    return {
+      items,
+      total,
+      page,
+      isCached: true
+    };
+  });
+
+  // 3. Get Single Operation Detail
+  safeRegister('operations:get', async (_event, payload) => {
+    const targetWsId = payload?.workspaceId || WorkspaceManager.getActiveRuntime()?.workspaceId;
+    const id = payload?.id;
+    if (!targetWsId) throw new Error('workspaceId is required.');
+    if (!id) throw new Error('operation ID is required.');
+
+    try {
+      const sdk = WorkspaceManager.getSdk();
+      const op = await sdk.operations.get(id);
+      if (op) return op;
+    } catch {}
+
+    const db = getDatabase(targetWsId);
+    const row = db.prepare('SELECT * FROM operations_cache WHERE id = ? AND workspaceId = ?').get(id, targetWsId) as any;
+    if (!row) return null;
+    return {
+      ...row,
+      isStale: Boolean(row.isStale),
+      retryable: Boolean(row.retryable),
+      metadata: row.metadata ? JSON.parse(row.metadata) : {}
+    };
+  });
+
+  // 4. Get Operation Timeline Events
+  safeRegister('operations:events', async (_event, payload) => {
+    const targetWsId = payload?.workspaceId || WorkspaceManager.getActiveRuntime()?.workspaceId;
+    const id = payload?.id;
+    if (!targetWsId) throw new Error('workspaceId is required.');
+    if (!id) throw new Error('operation ID is required.');
+
+    try {
+      const sdk = WorkspaceManager.getSdk();
+      return await sdk.operations.getEvents(id);
+    } catch {
+      return [];
+    }
+  });
+
+  // 5. Retry Operation
+  safeRegister('operations:retry', async (_event, payload) => {
+    const targetWsId = payload?.workspaceId || WorkspaceManager.getActiveRuntime()?.workspaceId;
+    const id = payload?.id;
+    const force = Boolean(payload?.force);
+    if (!targetWsId) throw new Error('workspaceId is required.');
+    if (!id) throw new Error('operation ID is required.');
+
+    const sdk = WorkspaceManager.getSdk();
+    const res = await sdk.operations.retry(id, { force });
+    WorkspaceManager.wakeScheduler();
+    return res;
+  });
+
+  // 6. Reconcile Operation
+  safeRegister('operations:reconcile', async (_event, payload) => {
+    const targetWsId = payload?.workspaceId || WorkspaceManager.getActiveRuntime()?.workspaceId;
+    const id = payload?.id;
+    if (!targetWsId) throw new Error('workspaceId is required.');
+    if (!id) throw new Error('operation ID is required.');
+
+    const sdk = WorkspaceManager.getSdk();
+    return await sdk.operations.reconcile(id);
   });
 }

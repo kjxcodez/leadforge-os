@@ -1,1369 +1,1124 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { useWorkspace } from '../hooks/useWorkspace';
-import { Tabs, TabsContent } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import {
   Activity,
-  History,
   AlertTriangle,
   Server,
-  Wrench,
-  Terminal,
-  FileText,
-  Copy,
-  Download,
-  RotateCcw,
-  ShieldCheck,
-  Percent,
+  RefreshCw,
+  Mail,
+  Clock,
+  ExternalLink,
   Search,
-  SlidersHorizontal,
   CheckCircle2,
-  Eye,
+  XCircle,
+  AlertCircle,
+  Database,
+  Cpu,
+  Layers,
+  Inbox,
+  ArrowRight,
+  X,
+  Play,
+  FileText,
+  ShieldCheck,
+  Terminal,
+  Zap,
   Info
 } from 'lucide-react';
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip
-} from 'recharts';
 import { PageHeader } from '../components/common/PageHeader';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import type {
+  OperationRecord,
+  OperationsHealthSummary,
+  OperationTimelineEvent,
+  SubsystemHealthStatus,
+  FailureClass
+} from '@leadforge/schema';
 
-/**
- * OperationsCenterScreen — SRE Observability Cockpit.
- *
- * Design updates:
- *   - Squared corners: all widgets, buttons, dialogs, progress bars, selects, textareas, and badges use rounded-none.
- *   - Design System Colors: matches primary/success/warning/info/danger tokens.
- *   - Custom Sliding Tab Bar: Framer Motion animated tab headers with snappy spring physics.
- *   - Client-side Table Pagination: handles large log grids smoothly.
- */
 export function OperationsCenterScreen() {
   const { activeWorkspace } = useWorkspace();
   const workspaceId = activeWorkspace?.id || '';
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [logSearch, setLogSearch] = useState('');
-  const [logSeverity, setLogSeverity] = useState('all');
-  const [devModeActive, setDevModeActive] = useState(false);
-  const [devEvents, setDevEvents] = useState<any[]>([]);
+  // Navigation tabs
+  const [activeTab, setActiveTab] = useState<'active' | 'failures' | 'all' | 'logs'>('active');
 
-  // Beta feedback state hooks
-  const [feedbackType, setFeedbackType] = useState('bug');
-  const [feedbackDescription, setFeedbackDescription] = useState('');
-  const [bugSeverity, setBugSeverity] = useState('medium');
-  const [bugReproducibility, setBugReproducibility] = useState('always');
-  const [isExportingBundle, setIsExportingBundle] = useState(false);
+  // Search and filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const limit = 25;
 
-  // Pagination states
-  const [timelinePage, setTimelinePage] = useState(1);
-  const [timelinePerPage] = useState(10);
+  // Selected operation for inspection drawer
+  const [selectedOperationId, setSelectedOperationId] = useState<string | null>(null);
 
-  const [logsPage, setLogsPage] = useState(1);
-  const [logsPerPage] = useState(15);
-
-  const handleTimelinePageChange = useCallback((page: number) => {
-    setTimelinePage(page);
-  }, []);
-
-  const handleLogsPageChange = useCallback((page: number) => {
-    setLogsPage(page);
-  }, []);
-
-  // 1. Fetch live jobs scheduler list
-  const queueQuery = useQuery({
-    queryKey: ['scheduler_queue', workspaceId],
+  // 1. Fetch Authoritative Operations Health Summary (polls every 4s)
+  const healthQuery = useQuery<OperationsHealthSummary>({
+    queryKey: ['operations_health', workspaceId],
     queryFn: async () => {
-      if (!workspaceId) return { jobs: [], waiting: [] };
-      return window.ipc.invoke('scheduler:queue:list', { workspaceId });
-    },
-    enabled: !!workspaceId,
-    refetchInterval: 3000
-  });
-
-  // 1b. Fetch authoritative infrastructure status
-  const infraQuery = useQuery({
-    queryKey: ['infrastructure-status', workspaceId],
-    queryFn: async () => {
-      if (!workspaceId) return null;
-      return window.ipc.invoke('system:infrastructure-status' as any, { workspaceId });
+      if (!workspaceId) throw new Error('No workspace selected');
+      return window.ipc.invoke('operations:health', { workspaceId });
     },
     enabled: !!workspaceId,
     refetchInterval: 4000
   });
 
-  // 2. Fetch structured logs
+  // 2. Fetch Operations List (polls every 3s)
+  const operationsQuery = useQuery<{
+    items: OperationRecord[];
+    total: number;
+    page: number;
+    isCached?: boolean;
+  }>({
+    queryKey: ['operations_list', workspaceId, activeTab, statusFilter, typeFilter, searchQuery, page],
+    queryFn: async () => {
+      if (!workspaceId) return { items: [], total: 0, page: 1 };
+
+      const params: any = {
+        workspaceId,
+        page,
+        limit,
+        search: searchQuery.trim() || undefined
+      };
+
+      if (activeTab === 'active') {
+        params.status = 'running';
+      } else if (activeTab === 'failures') {
+        // Fetch operations in failure or ambiguous states
+        params.status = undefined; // We'll filter in-memory if needed or pass failureClass
+      } else {
+        if (statusFilter !== 'all') params.status = statusFilter;
+      }
+
+      if (typeFilter !== 'all') params.type = typeFilter;
+
+      return window.ipc.invoke('operations:list', params);
+    },
+    enabled: !!workspaceId,
+    refetchInterval: 3000
+  });
+
+  // 3. Fetch Selected Operation Detail
+  const operationDetailQuery = useQuery<OperationRecord | null>({
+    queryKey: ['operation_detail', workspaceId, selectedOperationId],
+    queryFn: async () => {
+      if (!workspaceId || !selectedOperationId) return null;
+      return window.ipc.invoke('operations:get', { workspaceId, id: selectedOperationId });
+    },
+    enabled: !!workspaceId && !!selectedOperationId
+  });
+
+  // 4. Fetch Operation Events Timeline
+  const operationEventsQuery = useQuery<OperationTimelineEvent[]>({
+    queryKey: ['operation_events', workspaceId, selectedOperationId],
+    queryFn: async () => {
+      if (!workspaceId || !selectedOperationId) return [];
+      return window.ipc.invoke('operations:events', { workspaceId, id: selectedOperationId });
+    },
+    enabled: !!workspaceId && !!selectedOperationId
+  });
+
+  // 5. Fetch System Logs for Logs Tab
   const logsQuery = useQuery({
-    queryKey: ['system_logs', workspaceId, logSearch, logSeverity],
+    queryKey: ['system_logs', workspaceId, searchQuery],
     queryFn: async () => {
       if (!workspaceId) return [];
       return window.ipc.invoke('system-logs:query', {
         workspaceId,
-        query: logSearch,
-        severity: logSeverity,
-        limit: 150
+        query: searchQuery,
+        limit: 100
       });
     },
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && activeTab === 'logs',
     refetchInterval: 5000
   });
 
-  // 3. Fetch audit logs
-  const auditQuery = useQuery({
-    queryKey: ['audit_logs', workspaceId],
-    queryFn: async () => {
-      if (!workspaceId) return [];
-      return window.ipc.invoke('audit-logs:list', { workspaceId, limit: 100 });
-    },
-    enabled: !!workspaceId
-  });
-
-  // 4. Fetch SRE diagnostics
-  const diagnosticsQuery = useQuery({
-    queryKey: ['diagnostics', workspaceId],
-    queryFn: async () => {
-      if (!workspaceId) return null;
-      return window.ipc.invoke('diagnostics:run', { workspaceId });
-    },
-    enabled: !!workspaceId,
-    refetchInterval: 8000
-  });
-
-  // 4b. Fetch detailed system information diagnostics
-  const systemInfoQuery = useQuery({
-    queryKey: ['system_info', workspaceId],
-    queryFn: async () => {
-      if (!workspaceId) return null;
-      return window.ipc.invoke('diagnostics:get-system-info', { workspaceId });
-    },
-    enabled: !!workspaceId,
-    refetchInterval: 8000
-  });
-
-  // 5. Fetch performance metrics
-  const metricsQuery = useQuery({
-    queryKey: ['performance_metrics', workspaceId],
-    queryFn: async () => {
-      if (!workspaceId) return null;
-      return window.ipc.invoke('metrics:get', { workspaceId });
-    },
-    enabled: !!workspaceId
-  });
-
-  // 6. Fetch failed/error console jobs
-  const errorsQuery = useQuery({
-    queryKey: ['error_console_jobs', workspaceId],
-    queryFn: async () => {
-      if (!workspaceId) return [];
-      return window.ipc.invoke('errors:get', { workspaceId });
-    },
-    enabled: !!workspaceId,
-    refetchInterval: 5000
-  });
-
-  // 7. Fetch Developer Mode events when Dev Mode is active
-  useQuery({
-    queryKey: ['dev_mode_events', workspaceId, devModeActive],
-    queryFn: async () => {
-      if (!devModeActive) return [];
-      const events = await window.ipc.invoke('dev-mode:log' as any, { workspaceId, limit: 200 });
-      if (Array.isArray(events)) {
-        setDevEvents(events);
-      }
-      return events;
-    },
-    enabled: devModeActive,
-    refetchInterval: 2000
-  });
-
-  // Live system:log:event subscription for real-time telemetry
-  useEffect(() => {
-    const unsubLog = (window.ipc as any).on?.('system:log:event', (record: any) => {
-      setDevEvents((prev) => [
-        {
-          timestamp: record.timestamp || new Date().toISOString(),
-          type: record.severity?.toUpperCase() || 'LOG',
-          message: `[${record.task}] ${record.message}`,
-          meta: record.metadata
-        },
-        ...prev.slice(0, 499)
-      ]);
-    });
-    return () => {
-      if (typeof unsubLog === 'function') unsubLog();
-    };
-  }, []);
-
-  // SRE recovery execution mutation
-  const recoveryMutation = useMutation({
-    mutationFn: async (params: { action: string; targetId?: string }) => {
-      return window.ipc.invoke('recovery:execute', { workspaceId, ...params });
+  // Quick Action Mutations
+  const pollRepliesMutation = useMutation({
+    mutationFn: async () => {
+      return (window as any).ipc.invoke('email-deliveries:poll-replies', { workspaceId });
     },
     onSuccess: (res: any) => {
-      if (res.success) {
-        toast.success(res.message);
-        queryClient.invalidateQueries({ queryKey: ['scheduler_queue'] });
-        queryClient.invalidateQueries({ queryKey: ['error_console_jobs'] });
-      } else {
-        toast.error(res.message);
-      }
+      toast.success('Inbound reply polling initiated.');
+      queryClient.invalidateQueries({ queryKey: ['operations_health'] });
+      queryClient.invalidateQueries({ queryKey: ['operations_list'] });
     },
     onError: (err: any) => {
-      toast.error(err.message || 'Recovery trigger failed.');
+      toast.error(`Inbound poll failed: ${err.message || err}`);
     }
   });
 
-  // Poll developer mode logs in real-time
-  useEffect(() => {
-    if (!devModeActive) return;
-    const interval = setInterval(async () => {
-      try {
-        const events = await window.ipc.invoke('dev-mode:log', { workspaceId });
-        setDevEvents(events || []);
-      } catch {}
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [devModeActive, workspaceId]);
+  const reconcileMutation = useMutation({
+    mutationFn: async () => {
+      return (window as any).ipc.invoke('recovery:execute', { workspaceId, action: 'reconcile-ambiguous' });
+    },
+    onSuccess: () => {
+      toast.success('Ambiguous delivery reconciliation run initiated.');
+      queryClient.invalidateQueries({ queryKey: ['operations_health'] });
+      queryClient.invalidateQueries({ queryKey: ['operations_list'] });
+    },
+    onError: (err: any) => {
+      toast.error(`Reconciliation failed: ${err.message || err}`);
+    }
+  });
+
+  const cleanStaleMutation = useMutation({
+    mutationFn: async () => {
+      return (window as any).ipc.invoke('recovery:execute', { workspaceId, action: 'clean-orphaned' });
+    },
+    onSuccess: () => {
+      toast.success('Stale worker processes and expired leases cleaned.');
+      queryClient.invalidateQueries({ queryKey: ['operations_health'] });
+      queryClient.invalidateQueries({ queryKey: ['operations_list'] });
+    },
+    onError: (err: any) => {
+      toast.error(`Recovery execution failed: ${err.message || err}`);
+    }
+  });
+
+  // Retry Operation Mutation
+  const retryOperationMutation = useMutation({
+    mutationFn: async ({ id, force }: { id: string; force?: boolean }) => {
+      return (window as any).ipc.invoke('operations:retry', {
+        workspaceId,
+        id,
+        ...(force !== undefined ? { force } : {})
+      });
+    },
+    onSuccess: (res: any) => {
+      toast.success(res.message || 'Operation queued for retry.');
+      queryClient.invalidateQueries({ queryKey: ['operations_list'] });
+      queryClient.invalidateQueries({ queryKey: ['operation_detail', workspaceId, selectedOperationId] });
+      queryClient.invalidateQueries({ queryKey: ['operations_health'] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'Failed to retry operation.');
+    }
+  });
+
+  // Reconcile Single Operation Mutation
+  const reconcileOperationMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return window.ipc.invoke('operations:reconcile', { workspaceId, id });
+    },
+    onSuccess: (res: any) => {
+      toast.success(res.message || 'Operation reconciled.');
+      queryClient.invalidateQueries({ queryKey: ['operations_list'] });
+      queryClient.invalidateQueries({ queryKey: ['operation_detail', workspaceId, selectedOperationId] });
+      queryClient.invalidateQueries({ queryKey: ['operations_health'] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'Reconciliation failed.');
+    }
+  });
+
+  // Compute filtered items for the current tab
+  const rawItems = operationsQuery.data?.items || [];
+  const displayItems = useMemo(() => {
+    if (activeTab === 'failures') {
+      return rawItems.filter(
+        (op) =>
+          op.status === 'failed' ||
+          op.status === 'ambiguous' ||
+          op.status === 'stale' ||
+          op.failureClass === 'requires_reconciliation' ||
+          op.failureClass === 'requires_manual_intervention'
+      );
+    }
+    return rawItems;
+  }, [rawItems, activeTab]);
+
+  const health = healthQuery.data;
+  const isOfflineCached = operationsQuery.data?.isCached || healthQuery.data?.overallStatus === 'degraded' && healthQuery.data?.subsystems?.api?.status === 'not_connected';
+
+  const getStatusBadge = (status: string, isStale?: boolean) => {
+    if (isStale) {
+      return <Badge className="bg-amber-500/10 text-amber-500 border border-amber-500/30 rounded-none text-[10px] font-mono">STALE</Badge>;
+    }
+    switch (status?.toLowerCase()) {
+      case 'running':
+      case 'starting':
+        return <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-none text-[10px] font-mono animate-pulse">RUNNING</Badge>;
+      case 'completed':
+      case 'sent':
+        return <Badge className="bg-blue-500/10 text-blue-400 border border-blue-500/30 rounded-none text-[10px] font-mono">COMPLETED</Badge>;
+      case 'ambiguous':
+        return <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-none text-[10px] font-mono">AMBIGUOUS</Badge>;
+      case 'retrying':
+        return <Badge className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 rounded-none text-[10px] font-mono">RETRYING</Badge>;
+      case 'failed':
+        return <Badge className="bg-rose-500/10 text-rose-400 border border-rose-500/30 rounded-none text-[10px] font-mono">FAILED</Badge>;
+      case 'cancelled':
+        return <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/30 rounded-none text-[10px] font-mono">CANCELLED</Badge>;
+      default:
+        return <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/30 rounded-none text-[10px] font-mono">{status?.toUpperCase() || 'QUEUED'}</Badge>;
+    }
+  };
+
+  const getFailureClassBadge = (fc?: FailureClass | null) => {
+    switch (fc) {
+      case 'requires_reconciliation':
+        return <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-none text-[10px]">Requires Reconciliation</Badge>;
+      case 'retry_scheduled':
+        return <Badge className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 rounded-none text-[10px]">Retry Scheduled</Badge>;
+      case 'auto_recovering':
+        return <Badge className="bg-blue-500/10 text-blue-400 border border-blue-500/30 rounded-none text-[10px]">Auto Recovering</Badge>;
+      case 'requires_manual_intervention':
+        return <Badge className="bg-orange-500/10 text-orange-400 border border-orange-500/30 rounded-none text-[10px]">Manual Intervention</Badge>;
+      case 'permanent_failure':
+        return <Badge className="bg-rose-500/10 text-rose-400 border border-rose-500/30 rounded-none text-[10px]">Permanent Failure</Badge>;
+      default:
+        return null;
+    }
+  };
+
+  const getSubsystemIcon = (key: string) => {
+    switch (key) {
+      case 'api':
+        return <Server className="h-4 w-4" />;
+      case 'mongodb':
+        return <Database className="h-4 w-4" />;
+      case 'sqlite':
+        return <Layers className="h-4 w-4" />;
+      case 'gmail':
+        return <Mail className="h-4 w-4" />;
+      case 'scheduler':
+        return <Clock className="h-4 w-4" />;
+      case 'workers':
+        return <Cpu className="h-4 w-4" />;
+      case 'inboundPolling':
+        return <Inbox className="h-4 w-4" />;
+      case 'reconciliation':
+        return <RefreshCw className="h-4 w-4" />;
+      default:
+        return <Activity className="h-4 w-4" />;
+    }
+  };
+
+  const getHealthBadge = (status: SubsystemHealthStatus) => {
+    switch (status) {
+      case 'healthy':
+        return <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400"><CheckCircle2 className="h-3 w-3" /> Healthy</span>;
+      case 'degraded':
+        return <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400"><AlertTriangle className="h-3 w-3" /> Degraded</span>;
+      case 'failed':
+        return <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-400"><XCircle className="h-3 w-3" /> Failed</span>;
+      case 'not_connected':
+        return <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-400"><AlertCircle className="h-3 w-3" /> Not Connected</span>;
+      default:
+        return <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-400"><Info className="h-3 w-3" /> Unknown</span>;
+    }
+  };
+
+  const formatElapsed = (startedAt?: string | null) => {
+    if (!startedAt) return '—';
+    const ms = Date.now() - new Date(startedAt).getTime();
+    if (ms < 0) return '0s';
+    const sec = Math.floor(ms / 1000);
+    if (sec < 60) return `${sec}s`;
+    const min = Math.floor(sec / 60);
+    return `${min}m ${sec % 60}s`;
+  };
 
   if (!workspaceId) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 h-full text-muted-foreground font-sans">
-        <SlidersHorizontal className="h-10 w-10 mb-2 opacity-50 text-primary" />
-        <p className="text-sm font-medium">Select a workspace to enter Operations Center</p>
+        <Server className="h-10 w-10 mb-2 opacity-40 text-primary" />
+        <p className="text-sm font-medium">Select an active workspace to enter Operations Center.</p>
       </div>
     );
   }
 
-  const jobsList = queueQuery.data?.jobs || [];
-  const waitingList = queueQuery.data?.waiting || [];
-  const runningJobs = jobsList.filter((j: any) => j.status === 'running');
-  const queuedJobs = jobsList.filter((j: any) => j.status === 'queued' || j.status === 'starting');
-  const failedJobs = jobsList.filter((j: any) => j.status === 'failed');
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success('Copied to clipboard');
-  };
-
-  const handleExportJson = (data: any, fileName: string) => {
-    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', jsonString);
-    downloadAnchor.setAttribute('download', `${fileName}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-  };
-
-  const handleExportSupportBundle = async () => {
-    setIsExportingBundle(true);
-    try {
-      const res = await window.ipc.invoke('diagnostics:export-support-bundle', { workspaceId });
-      if (res.success) {
-        toast.success(res.message);
-      } else {
-        toast.error(res.message);
-      }
-    } catch (err: any) {
-      toast.error(err.message || 'Support bundle export failed.');
-    } finally {
-      setIsExportingBundle(false);
-    }
-  };
-
-  const handleSubmitFeedback = async () => {
-    if (!feedbackDescription.trim()) {
-      toast.error('Feedback description is required.');
-      return;
-    }
-
-    let body = '';
-    let title = '';
-
-    if (feedbackType === 'bug') {
-      title = `[BUG] ${feedbackDescription.substring(0, 50)}`;
-      body = `### Bug Description\n${feedbackDescription}\n\n### Metadata\n- **Severity**: ${bugSeverity.toUpperCase()}\n- **Reproducibility**: ${bugReproducibility}\n- **OS Platform**: ${navigator.platform}\n- **Workspace ID**: ${workspaceId}\n\n*Diagnostics have been copied to your clipboard. Please paste them in this issue.*`;
-    } else if (feedbackType === 'feature') {
-      title = `[FEATURE] ${feedbackDescription.substring(0, 50)}`;
-      body = `### Feature Proposal\n${feedbackDescription}\n\n### Metadata\n- **OS Platform**: ${navigator.platform}\n\n*Diagnostics have been copied to your clipboard. Please paste them in this issue.*`;
-    } else {
-      title = `[FEEDBACK] General thoughts`;
-      body = `### Feedback\n${feedbackDescription}\n\n*Diagnostics have been copied to your clipboard. Please paste them in this issue.*`;
-    }
-
-    // Fetch and Copy diagnostics
-    try {
-      const info = await window.ipc.invoke('diagnostics:get-system-info', { workspaceId });
-      navigator.clipboard.writeText(JSON.stringify(info, null, 2));
-      toast.success('Diagnostics copied to clipboard!');
-    } catch {
-      toast.error('Failed to copy diagnostics to clipboard.');
-    }
-
-    const repoUrl = 'https://github.com/kjxcodez/leadforge-os/issues/new';
-    const url = `${repoUrl}?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
-    window.open(url);
-    toast.success('Opening GitHub Issue page in browser...');
-    setFeedbackDescription('');
-  };
-
-  const getBadgeClass = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'running':
-      case 'active':
-      case 'healthy':
-      case 'operating':
-        return 'bg-success-muted text-success border border-success/20 rounded-none';
-      case 'queued':
-      case 'starting':
-      case 'waiting':
-      case 'warning':
-      case 'medium':
-        return 'bg-warning-muted text-warning border border-warning/20 rounded-none';
-      case 'failed':
-      case 'critical':
-      case 'high':
-        return 'bg-danger-muted text-danger border border-danger/20 rounded-none';
-      default:
-        return 'bg-muted-muted text-muted-foreground border-border-subtle rounded-none';
-    }
-  };
-
-  // Pagination calculation: Event Trace Timeline
-  const rawEvents = auditQuery.data || [];
-  const totalTimeline = rawEvents.length;
-  const totalTimelinePages = Math.ceil(totalTimeline / timelinePerPage);
-  const adjustedTimelinePage = Math.min(Math.max(1, timelinePage), totalTimelinePages || 1);
-  const timelineStartIndex = (adjustedTimelinePage - 1) * timelinePerPage;
-  const paginatedTimeline = rawEvents.slice(timelineStartIndex, timelineStartIndex + timelinePerPage);
-
-  // Pagination calculation: Structured Logs
-  const rawLogs = logsQuery.data || [];
-  const totalLogs = rawLogs.length;
-  const totalLogsPages = Math.ceil(totalLogs / logsPerPage);
-  const adjustedLogsPage = Math.min(Math.max(1, logsPage), totalLogsPages || 1);
-  const logsStartIndex = (adjustedLogsPage - 1) * logsPerPage;
-  const paginatedLogs = rawLogs.slice(logsStartIndex, logsStartIndex + logsPerPage);
-
   return (
-    <div className="space-y-6 text-xs font-sans h-full overflow-y-auto pr-1 select-none">
+    <div className="space-y-5 text-xs font-sans h-full overflow-y-auto pr-1 pb-10 select-none">
+      {/* 1. Header with Controls & Authoritative Status */}
       <PageHeader
         title="Operations Center"
-        description="Real-time telemetry, SRE tracing, error recovery, and system diagnostics."
+        description="Subsystem health, background job reliability, failure queue, and operational traceability."
         actions={
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center flex-wrap">
+            {/* Live vs Offline Cache Tag */}
+            <Badge
+              className={`rounded-none font-mono text-[10px] px-2 py-0.5 border ${
+                isOfflineCached
+                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+              }`}
+            >
+              {isOfflineCached ? 'OFFLINE CACHE' : 'LIVE TELEMETRY'}
+            </Badge>
+
+            {/* Overall System Health Status */}
+            <Badge
+              className={`rounded-none font-semibold text-[11px] px-2.5 py-0.5 border ${
+                health?.overallStatus === 'healthy'
+                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                  : health?.overallStatus === 'degraded'
+                    ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                    : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+              }`}
+            >
+              SYSTEM: {health?.overallStatus?.toUpperCase() || 'CHECKING'}
+            </Badge>
+
+            {/* Quick Actions */}
             <Button
               type="button"
               size="sm"
-              variant={devModeActive ? 'default' : 'outline'}
-              className="h-7 text-[10px] rounded-none"
-              onClick={() => setDevModeActive(!devModeActive)}
+              variant="outline"
+              disabled={pollRepliesMutation.isPending}
+              className="h-7 text-[11px] rounded-none border-border-subtle hover:border-primary"
+              onClick={() => pollRepliesMutation.mutate()}
             >
-              <Terminal className="h-3 w-3 mr-1" />
-              Developer Mode: {devModeActive ? 'ON' : 'OFF'}
+              <Inbox className={`h-3 w-3 mr-1 ${pollRepliesMutation.isPending ? 'animate-spin' : ''}`} />
+              Poll Replies
             </Button>
-            {(() => {
-              const schedulerStatus = infraQuery.data?.scheduler?.status;
-              const isSchedulerActive = schedulerStatus === 'Running' || schedulerStatus === 'Active' || schedulerStatus === 'ACTIVE';
-              return (
-                <Badge
-                  className={
-                    isSchedulerActive
-                      ? 'bg-success-muted text-success border border-success/20 font-semibold rounded-none'
-                      : 'bg-muted-muted text-muted-foreground border border-border-subtle font-semibold rounded-none'
-                  }
-                >
-                  Scheduler Status: {isSchedulerActive ? 'Active' : 'Stopped'}
-                </Badge>
-              );
-            })()}
+
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={reconcileMutation.isPending}
+              className="h-7 text-[11px] rounded-none border-border-subtle hover:border-primary"
+              onClick={() => reconcileMutation.mutate()}
+            >
+              <RefreshCw className={`h-3 w-3 mr-1 ${reconcileMutation.isPending ? 'animate-spin' : ''}`} />
+              Reconcile
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={cleanStaleMutation.isPending}
+              className="h-7 text-[11px] rounded-none border-border-subtle hover:border-primary"
+              onClick={() => cleanStaleMutation.mutate()}
+            >
+              <Zap className={`h-3 w-3 mr-1 ${cleanStaleMutation.isPending ? 'animate-spin' : ''}`} />
+              Clean Leases
+            </Button>
           </div>
         }
       />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        {/* custom sliding active underline tab list */}
-        <div className="border-b border-border-subtle flex gap-4 w-full relative mb-4 flex-wrap">
-          {[
-            { id: 'dashboard', label: 'Dashboard', Icon: Server },
-            { id: 'timeline', label: 'Global Timeline', Icon: History },
-            { id: 'logs', label: 'Structured Logs', Icon: FileText },
-            { id: 'diagnostics', label: 'Diagnostics', Icon: ShieldCheck },
-            { id: 'metrics', label: 'Performance', Icon: Percent },
-            { id: 'errors', label: 'Error Console', Icon: AlertTriangle },
-            { id: 'recovery', label: 'SRE Recovery', Icon: Wrench }
-          ].map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`relative pb-3 px-1 flex items-center gap-1.5 rounded-none text-xs font-semibold select-none outline-none z-10 transition-colors duration-200 ${
-                  isActive ? 'text-primary font-bold' : 'text-muted-foreground hover:text-primary'
-                }`}
-              >
-                <tab.Icon className="h-3.5 w-3.5" />
-                <span>{tab.label}</span>
-                {isActive && (
-                  <motion.div
-                    layoutId="operationsActiveTabUnderline"
-                    className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary"
-                    transition={{ type: 'spring', stiffness: 550, damping: 38 }}
-                  />
-                )}
-              </button>
-            );
-          })}
-          {devModeActive && (
+      {/* 2. Subsystem Health Grid (8 Core Subsystems) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
+        {[
+          { key: 'api', label: 'API Gateway' },
+          { key: 'mongodb', label: 'MongoDB' },
+          { key: 'sqlite', label: 'Local SQLite' },
+          { key: 'gmail', label: 'Gmail OAuth' },
+          { key: 'scheduler', label: 'Scheduler' },
+          { key: 'workers', label: 'Worker Pool' },
+          { key: 'inboundPolling', label: 'Inbound Poll' },
+          { key: 'reconciliation', label: 'Reconcile' }
+        ].map(({ key, label }) => {
+          const sub = (health?.subsystems as any)?.[key];
+          return (
+            <div
+              key={key}
+              className="bg-card border border-border-subtle p-2.5 rounded-none flex flex-col justify-between h-20 relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span className="text-[10px] font-semibold uppercase tracking-wider">{label}</span>
+                {getSubsystemIcon(key)}
+              </div>
+              <div>
+                <div className="mt-1">{getHealthBadge(sub?.status || 'unknown')}</div>
+                <p className="text-[9px] text-muted-foreground truncate mt-0.5" title={sub?.message}>
+                  {sub?.message || 'Awaiting telemetry...'}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 3. Summary Metric Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div
+          onClick={() => setActiveTab('active')}
+          className="bg-card border border-border-subtle hover:border-primary/50 cursor-pointer p-3.5 rounded-none transition-colors"
+        >
+          <div className="flex items-center justify-between text-muted-foreground mb-1">
+            <span className="text-[11px] font-medium">Active Operations</span>
+            <Play className="h-3.5 w-3.5 text-blue-400" />
+          </div>
+          <div className="text-2xl font-bold font-mono text-foreground">
+            {health?.metrics?.activeOperationsCount ?? 0}
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Currently executing tasks</p>
+        </div>
+
+        <div
+          onClick={() => setActiveTab('failures')}
+          className="bg-card border border-border-subtle hover:border-rose-500/50 cursor-pointer p-3.5 rounded-none transition-colors"
+        >
+          <div className="flex items-center justify-between text-muted-foreground mb-1">
+            <span className="text-[11px] font-medium">Failed Operations</span>
+            <AlertTriangle className="h-3.5 w-3.5 text-rose-400" />
+          </div>
+          <div className="text-2xl font-bold font-mono text-rose-400">
+            {health?.metrics?.failedOperationsCount ?? 0}
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Requiring review or recovery</p>
+        </div>
+
+        <div
+          onClick={() => setActiveTab('failures')}
+          className="bg-card border border-border-subtle hover:border-amber-500/50 cursor-pointer p-3.5 rounded-none transition-colors"
+        >
+          <div className="flex items-center justify-between text-muted-foreground mb-1">
+            <span className="text-[11px] font-medium">Stale Operations</span>
+            <Clock className="h-3.5 w-3.5 text-amber-400" />
+          </div>
+          <div className="text-2xl font-bold font-mono text-amber-400">
+            {health?.metrics?.staleOperationsCount ?? 0}
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Expired lease or stalled heartbeat</p>
+        </div>
+
+        <div
+          onClick={() => setActiveTab('all')}
+          className="bg-card border border-border-subtle hover:border-indigo-500/50 cursor-pointer p-3.5 rounded-none transition-colors"
+        >
+          <div className="flex items-center justify-between text-muted-foreground mb-1">
+            <span className="text-[11px] font-medium">Retry Scheduled</span>
+            <RefreshCw className="h-3.5 w-3.5 text-indigo-400" />
+          </div>
+          <div className="text-2xl font-bold font-mono text-indigo-400">
+            {health?.metrics?.retryingCount ?? 0}
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Exponential backoff active</p>
+        </div>
+      </div>
+
+      {/* 4. Sliding Tab Navigation */}
+      <div className="border-b border-border-subtle flex gap-4 w-full relative pt-1">
+        {[
+          { id: 'active', label: `Active (${health?.metrics?.activeOperationsCount || 0})`, icon: Play },
+          { id: 'failures', label: `Failure Queue (${health?.metrics?.failedOperationsCount || 0})`, icon: AlertTriangle },
+          { id: 'all', label: 'All Operations', icon: Layers },
+          { id: 'logs', label: 'System Logs', icon: FileText }
+        ].map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
             <button
+              key={tab.id}
               type="button"
-              onClick={() => setActiveTab('developer')}
-              className={`relative pb-3 px-1 flex items-center gap-1.5 rounded-none text-xs font-semibold select-none outline-none z-10 transition-colors duration-200 ${
-                activeTab === 'developer' ? 'text-primary font-bold' : 'text-muted-foreground hover:text-primary'
+              onClick={() => {
+                setActiveTab(tab.id as any);
+                setPage(1);
+              }}
+              className={`relative pb-2.5 px-1 flex items-center gap-1.5 rounded-none text-xs font-semibold select-none outline-none transition-colors ${
+                isActive ? 'text-primary font-bold' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <Terminal className="h-3.5 w-3.5" />
-              <span>Dev Engine</span>
-              {activeTab === 'developer' && (
+              <tab.icon className="h-3.5 w-3.5" />
+              <span>{tab.label}</span>
+              {isActive && (
                 <motion.div
-                  layoutId="operationsActiveTabUnderline"
+                  layoutId="operationsTabUnderline"
                   className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary"
-                  transition={{ type: 'spring', stiffness: 550, damping: 38 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                 />
               )}
             </button>
-          )}
-        </div>
+          );
+        })}
+      </div>
 
-        {/* 1. Dashboard Tab */}
-        <TabsContent value="dashboard" className="space-y-4 outline-none mt-0">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div className="bg-card border border-border-subtle rounded-none p-3 flex flex-col justify-between shadow-sm">
-              <span className="text-muted-foreground text-[10px] font-semibold uppercase">Active Workers</span>
-              <div className="flex items-end justify-between mt-2">
-                <span className="text-xl font-bold text-foreground font-mono">{runningJobs.length}</span>
-                <span className="text-[10px] text-success font-semibold flex items-center gap-1.5">
-                  <span className="h-2 w-2 bg-success animate-pulse shrink-0" /> Live
-                </span>
-              </div>
-            </div>
-            <div className="bg-card border border-border-subtle rounded-none p-3 flex flex-col justify-between shadow-sm">
-              <span className="text-muted-foreground text-[10px] font-semibold uppercase">Queued Tasks</span>
-              <div className="flex items-end justify-between mt-2">
-                <span className="text-xl font-bold text-foreground font-mono">{queuedJobs.length}</span>
-                <span className="text-[10px] text-warning font-semibold">In-Queue</span>
-              </div>
-            </div>
-            <div className="bg-card border border-border-subtle rounded-none p-3 flex flex-col justify-between shadow-sm">
-              <span className="text-muted-foreground text-[10px] font-semibold uppercase font-sans">
-                Dead Letter / Failures
-              </span>
-              <div className="flex items-end justify-between mt-2">
-                <span className="text-xl font-bold text-danger font-mono">{failedJobs.length}</span>
-                {failedJobs.length > 0 && (
-                  <Badge className="bg-danger-muted text-danger border border-danger/20 text-[9px] font-bold rounded-none">
-                    Action Required
-                  </Badge>
-                )}
-              </div>
-            </div>
-            <div className="bg-card border border-border-subtle rounded-none p-3 flex flex-col justify-between shadow-sm">
-              <span className="text-muted-foreground text-[10px] font-semibold uppercase">
-                Backlog Queue Size
-              </span>
-              <div className="flex items-end justify-between mt-2">
-                <span className="text-xl font-bold text-foreground font-mono">{waitingList.length}</span>
-                <span className="text-[10px] text-zinc-500 font-semibold">Scheduled Email Sends</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Live Scheduler Queue */}
-            <div className="bg-card border border-border-subtle rounded-none p-4 space-y-3 shadow-sm">
-              <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                <Server className="h-4 w-4 text-primary" />
-                Live Job Scheduler Queue
-              </h3>
-              <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
-                {jobsList.length === 0 ? (
-                  <p className="text-muted-foreground text-[10px] italic py-4 text-center">
-                    No active or recently completed jobs in queue.
-                  </p>
-                ) : (
-                  jobsList.map((job: any) => (
-                    <div
-                      key={job.id}
-                      className="bg-surface-3 border border-border-subtle rounded-none p-2.5 flex justify-between items-center gap-3"
-                    >
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-foreground">{job.type}</span>
-                          <Badge className={getBadgeClass(job.status)}>
-                            {job.status}
-                          </Badge>
-                        </div>
-                        <p className="text-[9px] text-muted-foreground mt-0.5 font-mono">
-                          Correlation ID: {job.id.substring(0, 8)}...
-                        </p>
-                      </div>
-                      <span className="text-[10px] text-muted-foreground font-mono">{job.progress}%</span>
-                    </div>
-                  ))
-                )}
-              </div>
+      {/* Filters & Search Toolbar (shown for operational tables) */}
+      {activeTab !== 'logs' && (
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+            <div className="relative flex-1">
+              <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search by ID, recipient, message, error..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setPage(1);
+                }}
+                className="h-8 pl-8 text-xs rounded-none bg-card border-border-subtle"
+              />
             </div>
 
-            {/* Scheduler Status & Database Health */}
-            <div className="bg-card border border-border-subtle rounded-none p-4 space-y-3 shadow-sm">
-              <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                <ShieldCheck className="h-4 w-4 text-primary" />
-                Operational Status Checkpoints
-              </h3>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center py-1.5 border-b border-border-subtle/50">
-                  <span className="font-semibold text-foreground">SQLite Database</span>
-                  <Badge className="bg-success-muted text-success border border-success/20 font-bold rounded-none">
-                    Healthy
-                  </Badge>
-                </div>
-                <div className="flex justify-between items-center py-1.5 border-b border-border-subtle/50">
-                  <span className="font-semibold text-foreground">Worker Host Runtime</span>
-                  <Badge className="bg-success-muted text-success border border-success/20 font-bold rounded-none">
-                    Operating
-                  </Badge>
-                </div>
-                <div className="flex justify-between items-center py-1.5 border-b border-border-subtle/50">
-                  <span className="font-semibold text-foreground">Internet Connectivity</span>
-                  <Badge className="bg-success-muted text-success border border-success/20 font-bold rounded-none">
-                    Connected
-                  </Badge>
-                </div>
-                <div className="flex justify-between items-center py-1.5">
-                  <span className="font-semibold text-foreground">Background Sync Dispatcher</span>
-                  <Badge className="bg-success-muted text-success border border-success/20 font-bold rounded-none">
-                    Idle
-                  </Badge>
-                </div>
-              </div>
-            </div>
-          </div>
-        </TabsContent>
-
-        {/* 2. Global Timeline Tab */}
-        <TabsContent value="timeline" className="space-y-4 outline-none mt-0">
-          <div className="bg-card border border-border-subtle rounded-none p-4 space-y-4 shadow-sm">
-            <div className="flex justify-between items-center">
-              <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                <History className="h-4 w-4 text-primary" />
-                Unified Event Tracing Timeline
-              </h3>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-7 text-[10px] rounded-none"
-                onClick={() => auditQuery.refetch()}
+            {activeTab === 'all' && (
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="h-8 px-2 text-xs rounded-none bg-card border border-border-subtle text-foreground outline-none"
               >
-                Refresh Timeline
-              </Button>
-            </div>
-
-            <div className="relative border-l border-border-subtle ml-3 pl-5 space-y-5 max-h-[400px] overflow-y-auto pr-1">
-              {paginatedTimeline.length === 0 ? (
-                <p className="text-muted-foreground text-[10px] italic py-6 text-center">
-                  No trace events recorded yet.
-                </p>
-              ) : (
-                paginatedTimeline.map((event: any) => (
-                  <div key={event.id} className="relative">
-                    <span className="absolute -left-[26px] top-0.5 bg-surface-3 border border-border-subtle rounded-none h-3 w-3 flex items-center justify-center">
-                      <span className="h-1.5 w-1.5 bg-primary rounded-none" />
-                    </span>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-foreground text-[11px] uppercase tracking-wide">
-                          {event.action}
-                        </span>
-                        <span className="text-[9px] text-muted-foreground font-mono">
-                          {new Date(event.timestamp).toLocaleString()}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-1">
-                        Actor: {event.actor} | Entity ID:{' '}
-                        <span className="font-mono text-muted-foreground">{event.entityId}</span> (
-                        {event.entityType})
-                      </p>
-                      {event.beforeValue && (
-                        <div className="mt-2 bg-surface-3 border border-border-subtle rounded-none p-2 font-mono text-[9px] text-muted-foreground overflow-x-auto">
-                          <span className="font-semibold text-warning block mb-0.5">
-                            State Before:
-                          </span>
-                          {event.beforeValue}
-                        </div>
-                      )}
-                      {event.afterValue && (
-                        <div className="mt-2 bg-surface-3 border border-border-subtle rounded-none p-2 font-mono text-[9px] text-muted-foreground overflow-x-auto">
-                          <span className="font-semibold text-success block mb-0.5">
-                            State After:
-                          </span>
-                          {event.afterValue}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Timeline Pagination controls */}
-            {totalTimelinePages > 1 && (
-              <div className="flex items-center justify-between border-t border-border-subtle pt-4 mt-2 select-none">
-                <span className="text-[11px] text-muted-foreground">
-                  Showing{' '}
-                  <strong className="text-foreground font-mono">{timelineStartIndex + 1}</strong>{' '}
-                  to{' '}
-                  <strong className="text-foreground font-mono">
-                    {Math.min(timelineStartIndex + timelinePerPage, totalTimeline)}
-                  </strong>{' '}
-                  of <strong className="text-foreground font-mono">{totalTimeline}</strong> traces
-                </span>
-
-                <div className="flex items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleTimelinePageChange(Math.max(1, timelinePage - 1));
-                    }}
-                    disabled={adjustedTimelinePage === 1}
-                    className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleTimelinePageChange(Math.min(totalTimelinePages, timelinePage + 1));
-                    }}
-                    disabled={adjustedTimelinePage === totalTimelinePages}
-                    className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
+                <option value="all">All Statuses</option>
+                <option value="running">Running</option>
+                <option value="queued">Queued</option>
+                <option value="retrying">Retrying</option>
+                <option value="completed">Completed</option>
+                <option value="failed">Failed</option>
+                <option value="ambiguous">Ambiguous</option>
+                <option value="stale">Stale</option>
+              </select>
             )}
+
+            <select
+              value={typeFilter}
+              onChange={(e) => {
+                setTypeFilter(e.target.value);
+                setPage(1);
+              }}
+              className="h-8 px-2 text-xs rounded-none bg-card border border-border-subtle text-foreground outline-none"
+            >
+              <option value="all">All Types</option>
+              <option value="email:send">email:send</option>
+              <option value="scraper:maps">scraper:maps</option>
+              <option value="crawler:website">crawler:website</option>
+              <option value="enrich:intelligence">enrich:intelligence</option>
+              <option value="automation:workflow">automation:workflow</option>
+            </select>
           </div>
-        </TabsContent>
 
-        {/* 3. Structured Logs Tab */}
-        <TabsContent value="logs" className="space-y-4 outline-none mt-0">
-          <div className="bg-card border border-border-subtle rounded-none p-4 space-y-4 shadow-sm">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-              <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                <FileText className="h-4 w-4 text-primary" />
-                System Structured Logs Console
-              </h3>
-              <div className="flex gap-2 items-center w-full md:w-auto">
-                <div className="relative flex-1 md:w-48">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Search logs..."
-                    value={logSearch}
-                    onChange={(e) => setLogSearch(e.target.value)}
-                    className="h-7 pl-8 text-[10px] rounded-none border-border-subtle bg-card"
-                  />
-                </div>
-                <select
-                  value={logSeverity}
-                  onChange={(e) => setLogSeverity(e.target.value)}
-                  className="bg-card border border-border-subtle rounded-none px-2 py-1 h-7 text-[10px] focus-visible:outline-none"
-                >
-                  <option value="all">All Levels</option>
-                  <option value="info">Info</option>
-                  <option value="warn">Warning</option>
-                  <option value="error">Error</option>
-                </select>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  className="h-7 w-7 rounded-none"
-                  onClick={() => handleExportJson(logsQuery.data, 'system_logs')}
-                >
-                  <Download className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
+          <div className="text-[11px] text-muted-foreground">
+            Total Records: <span className="font-mono font-bold text-foreground">{operationsQuery.data?.total || displayItems.length}</span>
+          </div>
+        </div>
+      )}
 
-            <div className="bg-surface-3 border border-border-subtle rounded-none p-3 font-mono text-[10px] max-h-[350px] overflow-y-auto space-y-1">
-              {paginatedLogs.length === 0 ? (
-                <p className="text-muted-foreground text-[10px] italic py-6 text-center">
-                  No logs match the current filters.
-                </p>
+      {/* 5. Main Table Views */}
+      {activeTab === 'active' && (
+        <div className="border border-border-subtle bg-card rounded-none overflow-hidden">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-border-subtle bg-muted/30 text-[10px] text-muted-foreground uppercase font-semibold">
+                <th className="py-2.5 px-3">Operation ID</th>
+                <th className="py-2.5 px-3">Type</th>
+                <th className="py-2.5 px-3">Context / Recipient</th>
+                <th className="py-2.5 px-3">Elapsed</th>
+                <th className="py-2.5 px-3">Attempt</th>
+                <th className="py-2.5 px-3">Last Heartbeat</th>
+                <th className="py-2.5 px-3">Status</th>
+                <th className="py-2.5 px-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {displayItems.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-8 text-center text-muted-foreground text-xs">
+                    No active operations currently running.
+                  </td>
+                </tr>
               ) : (
-                paginatedLogs.map((log: any) => (
-                  <div
-                    key={log.id}
-                    className="flex justify-between items-start hover:bg-card p-1 rounded-none gap-4"
+                displayItems.map((op) => (
+                  <tr
+                    key={op.id}
+                    onClick={() => setSelectedOperationId(op.id)}
+                    className="hover:bg-muted/20 cursor-pointer transition-colors"
                   >
-                    <span className="text-[9px] text-slate-500 shrink-0">
-                      [{new Date(log.timestamp).toLocaleTimeString()}]
-                    </span>
-                    <span
-                      className={`font-semibold shrink-0 uppercase tracking-wide text-[9px] ${
-                        log.severity === 'error'
-                          ? 'text-danger'
-                          : log.severity === 'warn'
-                            ? 'text-warning'
-                            : 'text-info'
-                      }`}
-                    >
-                      {log.severity}
-                    </span>
-                    <span className="text-info font-semibold shrink-0 font-mono">[{log.task}]</span>
-                    <p className="flex-1 text-foreground break-all">{log.message}</p>
-                    {log.metadata && (
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-foreground font-semibold">
+                      {op.id.substring(0, 12)}...
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-primary">{op.type}</td>
+                    <td className="py-2.5 px-3 text-muted-foreground truncate max-w-[200px]">
+                      {op.contactEmail || op.campaignName || op.correlationId || '—'}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-foreground">
+                      {formatElapsed(op.startedAt)}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-[11px]">
+                      {op.attempt} / {op.maxAttempts}
+                    </td>
+                    <td className="py-2.5 px-3 text-[10px] text-muted-foreground font-mono">
+                      {op.lastHeartbeatAt ? new Date(op.lastHeartbeatAt).toLocaleTimeString() : '—'}
+                    </td>
+                    <td className="py-2.5 px-3">{getStatusBadge(op.status, op.isStale)}</td>
+                    <td className="py-2.5 px-3 text-right">
                       <Button
                         type="button"
-                        size="icon"
+                        size="sm"
                         variant="ghost"
-                        className="h-4 w-4 text-muted-foreground hover:text-foreground shrink-0 rounded-none"
-                        onClick={() => copyToClipboard(JSON.stringify(log.metadata))}
+                        className="h-6 text-[11px] rounded-none px-2 text-primary hover:text-primary-foreground hover:bg-primary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedOperationId(op.id);
+                        }}
                       >
-                        <Copy className="h-3 w-3" />
+                        Inspect
                       </Button>
-                    )}
-                  </div>
+                    </td>
+                  </tr>
                 ))
               )}
-            </div>
+            </tbody>
+          </table>
+        </div>
+      )}
 
-            {/* Logs Pagination controls */}
-            {totalLogsPages > 1 && (
-              <div className="flex items-center justify-between border-t border-border-subtle pt-4 mt-2 select-none">
-                <span className="text-[11px] text-muted-foreground">
-                  Showing{' '}
-                  <strong className="text-foreground font-mono">{logsStartIndex + 1}</strong>{' '}
-                  to{' '}
-                  <strong className="text-foreground font-mono">
-                    {Math.min(logsStartIndex + logsPerPage, totalLogs)}
-                  </strong>{' '}
-                  of <strong className="text-foreground font-mono">{totalLogs}</strong> logs
-                </span>
+      {activeTab === 'failures' && (
+        <div className="border border-border-subtle bg-card rounded-none overflow-hidden">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-border-subtle bg-muted/30 text-[10px] text-muted-foreground uppercase font-semibold">
+                <th className="py-2.5 px-3">Operation ID</th>
+                <th className="py-2.5 px-3">Type</th>
+                <th className="py-2.5 px-3">Failure Classification</th>
+                <th className="py-2.5 px-3">Diagnostic Message</th>
+                <th className="py-2.5 px-3">Attempts</th>
+                <th className="py-2.5 px-3">Status</th>
+                <th className="py-2.5 px-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {displayItems.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-emerald-400 text-xs">
+                    <CheckCircle2 className="h-5 w-5 mx-auto mb-1 text-emerald-400 opacity-80" />
+                    Failure Queue is clear. All operations healthy.
+                  </td>
+                </tr>
+              ) : (
+                displayItems.map((op) => (
+                  <tr
+                    key={op.id}
+                    onClick={() => setSelectedOperationId(op.id)}
+                    className="hover:bg-muted/20 cursor-pointer transition-colors"
+                  >
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-foreground font-semibold">
+                      {op.id.substring(0, 12)}...
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-foreground">{op.type}</td>
+                    <td className="py-2.5 px-3">{getFailureClassBadge(op.failureClass)}</td>
+                    <td className="py-2.5 px-3 text-muted-foreground text-[11px] max-w-[280px] truncate" title={op.safeHumanMessage || op.lastError || ''}>
+                      {op.safeHumanMessage || op.lastError || 'Unspecified failure'}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-[11px]">
+                      {op.attempt} / {op.maxAttempts}
+                    </td>
+                    <td className="py-2.5 px-3">{getStatusBadge(op.status, op.isStale)}</td>
+                    <td className="py-2.5 px-3 text-right">
+                      <div className="flex gap-1 justify-end items-center" onClick={(e) => e.stopPropagation()}>
+                        {/* Safe Retry Button */}
+                        {op.retryable && op.status !== 'ambiguous' && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-[10px] rounded-none border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                            onClick={() => retryOperationMutation.mutate({ id: op.id })}
+                            disabled={retryOperationMutation.isPending}
+                          >
+                            Retry
+                          </Button>
+                        )}
 
-                <div className="flex items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleLogsPageChange(Math.max(1, logsPage - 1));
-                    }}
-                    disabled={adjustedLogsPage === 1}
-                    className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
+                        {/* Reconcile Button for Ambiguous */}
+                        {op.status === 'ambiguous' && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-[10px] rounded-none border-amber-500 text-amber-400 hover:bg-amber-500 hover:text-black"
+                            onClick={() => reconcileOperationMutation.mutate(op.id)}
+                            disabled={reconcileOperationMutation.isPending}
+                          >
+                            Reconcile
+                          </Button>
+                        )}
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 text-[10px] rounded-none px-1.5 text-muted-foreground hover:text-foreground"
+                          onClick={() => setSelectedOperationId(op.id)}
+                        >
+                          Details
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {activeTab === 'all' && (
+        <div className="border border-border-subtle bg-card rounded-none overflow-hidden">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-border-subtle bg-muted/30 text-[10px] text-muted-foreground uppercase font-semibold">
+                <th className="py-2.5 px-3">ID</th>
+                <th className="py-2.5 px-3">Type</th>
+                <th className="py-2.5 px-3">Created</th>
+                <th className="py-2.5 px-3">Context</th>
+                <th className="py-2.5 px-3">Attempts</th>
+                <th className="py-2.5 px-3">Status</th>
+                <th className="py-2.5 px-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {displayItems.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-muted-foreground text-xs">
+                    No operations found matching criteria.
+                  </td>
+                </tr>
+              ) : (
+                displayItems.map((op) => (
+                  <tr
+                    key={op.id}
+                    onClick={() => setSelectedOperationId(op.id)}
+                    className="hover:bg-muted/20 cursor-pointer transition-colors"
                   >
-                    Previous
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleLogsPageChange(Math.min(totalLogsPages, logsPage + 1));
-                    }}
-                    disabled={adjustedLogsPage === totalLogsPages}
-                    className="h-8 rounded-none px-3 text-[11px] font-semibold transition-colors cursor-pointer"
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-foreground font-semibold">
+                      {op.id.substring(0, 10)}...
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-primary">{op.type}</td>
+                    <td className="py-2.5 px-3 text-[10px] text-muted-foreground font-mono">
+                      {new Date(op.createdAt).toLocaleTimeString()}
+                    </td>
+                    <td className="py-2.5 px-3 text-muted-foreground truncate max-w-[200px]">
+                      {op.contactEmail || op.campaignName || op.correlationId || '—'}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-[11px]">
+                      {op.attempt} / {op.maxAttempts}
+                    </td>
+                    <td className="py-2.5 px-3">{getStatusBadge(op.status, op.isStale)}</td>
+                    <td className="py-2.5 px-3 text-right">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 text-[11px] rounded-none px-2 text-primary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedOperationId(op.id);
+                        }}
+                      >
+                        Inspect
+                      </Button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {activeTab === 'logs' && (
+        <div className="border border-border-subtle bg-card rounded-none p-3 space-y-2">
+          <div className="flex items-center justify-between pb-2 border-b border-border-subtle">
+            <span className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+              <Terminal className="h-3.5 w-3.5 text-primary" />
+              Machine-Readable Structured Logs
+            </span>
+            <span className="text-[10px] text-muted-foreground font-mono">
+              {logsQuery.data?.length || 0} events
+            </span>
+          </div>
+
+          <div className="font-mono text-[11px] space-y-1.5 max-h-[500px] overflow-y-auto">
+            {logsQuery.data?.length === 0 ? (
+              <p className="text-muted-foreground py-6 text-center">No system log events recorded.</p>
+            ) : (
+              logsQuery.data?.map((log: any, idx: number) => (
+                <div
+                  key={log.id || idx}
+                  className="p-2 border border-border-subtle/50 bg-background/50 rounded-none flex items-start gap-2"
+                >
+                  <span
+                    className={`px-1 text-[9px] uppercase font-bold rounded-none ${
+                      log.severity === 'error'
+                        ? 'bg-rose-500/20 text-rose-400'
+                        : log.severity === 'warn'
+                          ? 'bg-amber-500/20 text-amber-400'
+                          : 'bg-blue-500/20 text-blue-400'
+                    }`}
                   >
-                    Next
-                  </Button>
+                    {log.severity}
+                  </span>
+                  <span className="text-muted-foreground text-[10px]">
+                    {new Date(log.timestamp).toLocaleTimeString()}
+                  </span>
+                  <span className="text-primary font-semibold">[{log.task}]</span>
+                  <span className="text-foreground flex-1 break-words">{log.message}</span>
                 </div>
-              </div>
+              ))
             )}
           </div>
-        </TabsContent>
+        </div>
+      )}
 
-        {/* 4. Diagnostics Tab */}
-        <TabsContent value="diagnostics" className="space-y-4 outline-none mt-0">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Left Col: Metadata Table & Diagnostic Actions */}
-            <div className="lg:col-span-2 space-y-4">
-              {/* System Metadata Cockpit */}
-              <div className="bg-card border border-border-subtle rounded-none p-4 space-y-3 shadow-sm">
-                <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5 border-b border-border-subtle pb-2">
-                  <Server className="h-4 w-4 text-primary" />
-                  System Diagnostics & Specifications
-                </h3>
-
-                {systemInfoQuery.isLoading ? (
-                  <p className="text-muted-foreground text-[10px] italic py-4 text-center">
-                    Loading system specifications...
+      {/* 6. Operation Detail & Timeline Inspection Drawer */}
+      <AnimatePresence>
+        {selectedOperationId && (
+          <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+              className="w-full max-w-xl bg-card border-l border-border-subtle h-full flex flex-col shadow-2xl overflow-hidden"
+            >
+              {/* Drawer Header */}
+              <div className="p-4 border-b border-border-subtle flex items-center justify-between bg-muted/20">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-foreground">Operation Inspection</span>
+                    {operationDetailQuery.data &&
+                      getStatusBadge(operationDetailQuery.data.status, operationDetailQuery.data.isStale)}
+                  </div>
+                  <p className="font-mono text-[10px] text-muted-foreground select-all">
+                    {selectedOperationId}
                   </p>
-                ) : systemInfoQuery.data ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[10px]">
-                    <div className="space-y-1 bg-surface-3 p-2 rounded-none border border-border-subtle/50">
-                      <span className="text-muted-foreground block uppercase text-[8px] font-bold tracking-wider">
-                        Application Version
-                      </span>
-                      <span className="font-semibold text-foreground font-mono">
-                        v{systemInfoQuery.data.appVersion}-beta.1 (Unsigned Build)
-                      </span>
-                    </div>
-                    <div className="space-y-1 bg-surface-3 p-2 rounded-none border border-border-subtle/50">
-                      <span className="text-muted-foreground block uppercase text-[8px] font-bold tracking-wider">
-                        Git Commit Hash
-                      </span>
-                      <span className="font-mono text-foreground">
-                        {systemInfoQuery.data.gitCommit}
-                      </span>
-                    </div>
-                    <div className="space-y-1 bg-surface-3 p-2 rounded-none border border-border-subtle/50">
-                      <span className="text-muted-foreground block uppercase text-[8px] font-bold tracking-wider">
-                        Electron / Node Runtime
-                      </span>
-                      <span className="font-semibold text-foreground font-mono">
-                        v{systemInfoQuery.data.electronVersion} / {systemInfoQuery.data.nodeVersion}{' '}
-                        ({systemInfoQuery.data.platform})
-                      </span>
-                    </div>
-                    <div className="space-y-1 bg-surface-3 p-2 rounded-none border border-border-subtle/50">
-                      <span className="text-muted-foreground block uppercase text-[8px] font-bold tracking-wider">
-                        Workspace Database Info
-                      </span>
-                      <span className="font-semibold text-foreground font-mono">
-                        SQLite v{systemInfoQuery.data.databaseVersion} (
-                        {systemInfoQuery.data.activeWorkspaceId.substring(0, 8)}...)
-                      </span>
-                    </div>
-                    <div className="space-y-1 bg-surface-3 p-2 rounded-none border border-border-subtle/50 font-mono">
-                      <span className="text-muted-foreground block uppercase text-[8px] font-bold tracking-wider font-sans">
-                        Database Migration Schema
-                      </span>
-                      <span className="text-foreground">
-                        {systemInfoQuery.data.migrationVersion}
-                      </span>
-                    </div>
-                    <div className="space-y-1 bg-surface-3 p-2 rounded-none border border-border-subtle/50">
-                      <span className="text-muted-foreground block uppercase text-[8px] font-bold tracking-wider">
-                        Background Engines Status
-                      </span>
-                      <span className="font-semibold text-foreground">
-                        Scheduler: {systemInfoQuery.data.schedulerStatus} | Cache:{' '}
-                        {systemInfoQuery.data.cacheStatus || 'Ready'}
-                      </span>
-                    </div>
-                    <div className="space-y-1 bg-surface-3 p-2 rounded-none border border-border-subtle/50 sm:col-span-2">
-                      <span className="text-muted-foreground block uppercase text-[8px] font-bold tracking-wider">
-                        AI Execution Settings (OpenRouter Key MASKED)
-                      </span>
-                      <span className="font-semibold text-foreground">
-                        Mode: {systemInfoQuery.data.aiProviderConfig.mode} | API Key Status:{' '}
-                        {systemInfoQuery.data.aiProviderConfig.openRouterKey}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-[10px] italic py-4 text-center">
-                    Failed to fetch system specifications.
-                  </p>
-                )}
-
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[10px] rounded-none"
-                    onClick={() => copyToClipboard(JSON.stringify(systemInfoQuery.data, null, 2))}
-                  >
-                    <Copy className="h-3 w-3 mr-1" /> Copy Diagnostics
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[10px] rounded-none"
-                    onClick={() => handleExportJson(systemInfoQuery.data, 'diagnostics')}
-                  >
-                    <Download className="h-3 w-3 mr-1" /> Export Diagnostics JSON
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="default"
-                    disabled={isExportingBundle}
-                    className="h-7 text-[10px] bg-primary hover:bg-primary/80 text-white rounded-none"
-                    onClick={handleExportSupportBundle}
-                  >
-                    <Download className="h-3 w-3 mr-1" />
-                    {isExportingBundle ? 'Exporting...' : 'Export Support Bundle ZIP'}
-                  </Button>
                 </div>
-              </div>
-
-              {/* SRE Observability Verification Tests */}
-              <div className="bg-card border border-border-subtle rounded-none p-4 space-y-4 shadow-sm">
-                <div className="flex justify-between items-center border-b border-border-subtle pb-2">
-                  <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                    <ShieldCheck className="h-4 w-4 text-primary" />
-                    Local Diagnostics Triggers
-                  </h3>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[10px] rounded-none"
-                    onClick={() => diagnosticsQuery.refetch()}
-                  >
-                    Run Health Checks
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {diagnosticsQuery.data ? (
-                    Object.entries(diagnosticsQuery.data).map(([key, val]: [string, any]) => (
-                      <div
-                        key={key}
-                        className="bg-surface-3 border border-border-subtle rounded-none p-2.5 flex flex-col justify-between gap-1"
-                      >
-                        <div className="flex justify-between items-center">
-                          <span className="font-bold text-foreground uppercase text-[8px] tracking-wider">
-                            {key}
-                          </span>
-                          <Badge className={getBadgeClass(val.status)}>
-                            {val.status}
-                          </Badge>
-                        </div>
-                        <p className="text-muted-foreground text-[9px] mt-0.5">{val.message}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-muted-foreground text-[10px] italic py-4 text-center col-span-2">
-                      Execute diagnostics test suite to verify connectivity and ports...
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Right Col: Feedback Panel */}
-            <div className="bg-card border border-border-subtle rounded-none p-4 space-y-4 h-fit shadow-sm">
-              <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5 border-b border-border-subtle pb-2">
-                <Terminal className="h-4 w-4 text-primary" />
-                Beta Feedback Cockpit
-              </h3>
-
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold uppercase text-muted-foreground tracking-wider block">
-                    Feedback Category
-                  </label>
-                  <div className="flex gap-1.5">
-                    <button
-                      type="button"
-                      className={`flex-1 py-1 text-[10px] font-medium border rounded-none transition-colors ${
-                        feedbackType === 'bug'
-                          ? 'bg-primary/10 border-primary/50 text-primary'
-                          : 'bg-surface-3 border-border-subtle text-muted-foreground hover:text-foreground'
-                      }`}
-                      onClick={() => setFeedbackType('bug')}
-                    >
-                      Report Bug
-                    </button>
-                    <button
-                      type="button"
-                      className={`flex-1 py-1 text-[10px] font-medium border rounded-none transition-colors ${
-                        feedbackType === 'feature'
-                          ? 'bg-primary/10 border-primary/50 text-primary'
-                          : 'bg-surface-3 border-border-subtle text-muted-foreground hover:text-foreground'
-                      }`}
-                      onClick={() => setFeedbackType('feature')}
-                    >
-                      Suggest Feature
-                    </button>
-                  </div>
-                </div>
-
-                {feedbackType === 'bug' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-bold uppercase text-muted-foreground tracking-wider block">
-                        Severity
-                      </label>
-                      <select
-                        value={bugSeverity}
-                        onChange={(e) => setBugSeverity(e.target.value)}
-                        className="w-full bg-surface-3 border border-border-subtle rounded-none p-1 text-[10px] focus-visible:outline-none font-semibold text-foreground"
-                      >
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                        <option value="high">High</option>
-                        <option value="critical">Critical</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-bold uppercase text-muted-foreground tracking-wider block">
-                        Reproducibility
-                      </label>
-                      <select
-                        value={bugReproducibility}
-                        onChange={(e) => setBugReproducibility(e.target.value)}
-                        className="w-full bg-surface-3 border border-border-subtle rounded-none p-1 text-[10px] focus-visible:outline-none font-semibold text-foreground"
-                      >
-                        <option value="always">Always</option>
-                        <option value="sometimes">Sometimes</option>
-                        <option value="rarely">Rarely</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold uppercase text-muted-foreground tracking-wider block">
-                    Description
-                  </label>
-                  <textarea
-                    rows={4}
-                    placeholder={
-                      feedbackType === 'bug'
-                        ? 'Describe the steps to reproduce the bug...'
-                        : 'Describe your proposal and the problem it solves...'
-                    }
-                    value={feedbackDescription}
-                    onChange={(e) => setFeedbackDescription(e.target.value)}
-                    className="w-full bg-surface-3 border border-border-subtle rounded-none p-2 text-[10px] text-foreground placeholder:text-muted-foreground/60 resize-none outline-none focus:border-primary/50"
-                  />
-                </div>
-
-                <div className="bg-surface-3 border border-border-subtle/50 rounded-none p-2.5 space-y-1 text-[9px] text-muted-foreground">
-                  <span className="font-semibold block text-primary">Note:</span>
-                  Submitting copies masked diagnostics to your clipboard and redirects to the GitHub
-                  issue page.
-                </div>
-
                 <Button
                   type="button"
                   size="sm"
-                  className="w-full h-8 text-[10px] bg-primary hover:bg-primary/80 text-white font-semibold rounded-none"
-                  onClick={handleSubmitFeedback}
+                  variant="ghost"
+                  className="h-7 w-7 p-0 rounded-none text-muted-foreground hover:text-foreground"
+                  onClick={() => setSelectedOperationId(null)}
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                  Submit Feedback & Copy Diagnostics
+                  <X className="h-4 w-4" />
                 </Button>
               </div>
-            </div>
-          </div>
-        </TabsContent>
 
-        {/* 5. Metrics Tab */}
-        <TabsContent value="metrics" className="space-y-4 outline-none mt-0">
-          <div className="bg-card border border-border-subtle rounded-none p-4 space-y-4 shadow-sm">
-            <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-              <Percent className="h-4 w-4 text-primary" />
-              Runtime Durations & Performance Latency
-            </h3>
-
-            {metricsQuery.data ? (
-              <div className="space-y-6">
-                {/* Metric Cards Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="bg-surface-3 border border-border-subtle rounded-none p-3">
-                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">
-                      Discovery Avg
-                    </span>
-                    <p className="text-lg font-bold text-foreground mt-1 font-mono">
-                      {(metricsQuery.data.discoveryDurationAvg / 1000).toFixed(1)}s
-                    </p>
-                  </div>
-                  <div className="bg-surface-3 border border-border-subtle rounded-none p-3">
-                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">
-                      Crawl Avg
-                    </span>
-                    <p className="text-lg font-bold text-foreground mt-1 font-mono">
-                      {(metricsQuery.data.crawlerDurationAvg / 1000).toFixed(1)}s
-                    </p>
-                  </div>
-                  <div className="bg-surface-3 border border-border-subtle rounded-none p-3">
-                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">
-                      Enrichment Avg
-                    </span>
-                    <p className="text-lg font-bold text-foreground mt-1 font-mono">
-                      {(metricsQuery.data.enrichmentDurationAvg / 1000).toFixed(1)}s
-                    </p>
-                  </div>
-                  <div className="bg-surface-3 border border-border-subtle rounded-none p-3">
-                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">
-                      Workflow Delay Avg
-                    </span>
-                    <p className="text-lg font-bold text-foreground mt-1 font-mono">
-                      {(metricsQuery.data.queueWaitTimeAvg / 1000).toFixed(1)}s
-                    </p>
-                  </div>
-                </div>
-
-                {/* Simulated Chart of execution latency */}
-                <div className="h-48 w-full mt-4">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={[
-                        { name: '1', discovery: 2000, crawler: 12000, enrichment: 1500 },
-                        { name: '2', discovery: 2200, crawler: 14000, enrichment: 1700 },
-                        { name: '3', discovery: 1800, crawler: 11000, enrichment: 1400 },
-                        { name: '4', discovery: 2500, crawler: 15000, enrichment: 1800 },
-                        { name: '5', discovery: 2100, crawler: 13000, enrichment: 1600 }
-                      ]}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                      <XAxis dataKey="name" stroke="#555" fontSize={9} />
-                      <YAxis
-                        stroke="#555"
-                        fontSize={9}
-                        label={{ value: 'Latency (ms)', angle: -90, position: 'insideLeft', fill: '#555' }}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#0a0a0a',
-                          borderColor: '#1f1f1f',
-                          color: '#fff',
-                          borderRadius: '0px'
-                        }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="discovery"
-                        stroke="#ff8c00"
-                        strokeWidth={1.5}
-                        name="Discovery"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="crawler"
-                        stroke="#00bfff"
-                        strokeWidth={1.5}
-                        name="Crawler"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="enrichment"
-                        stroke="#da70d6"
-                        strokeWidth={1.5}
-                        name="Enrichment"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-[10px] italic py-6 text-center">
-                Loading performance stats...
-              </p>
-            )}
-          </div>
-        </TabsContent>
-
-        {/* 6. Error Console Tab */}
-        <TabsContent value="errors" className="space-y-4 outline-none mt-0">
-          <div className="bg-card border border-border-subtle rounded-none p-4 space-y-4 shadow-sm">
-            <div className="flex justify-between items-center">
-              <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                <AlertTriangle className="h-4 w-4 text-danger animate-bounce" />
-                Centralized SRE Error Console
-              </h3>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-7 text-[10px] rounded-none"
-                onClick={() => errorsQuery.refetch()}
-              >
-                Refresh Errors
-              </Button>
-            </div>
-
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-              {errorsQuery.data?.length === 0 ? (
-                <div className="flex flex-col items-center py-8 text-muted-foreground">
-                  <CheckCircle2 className="h-8 w-8 text-success opacity-60 mb-2" />
-                  <p className="text-[10px] font-semibold">Zero failed jobs in Dead Letter queue</p>
-                </div>
-              ) : (
-                errorsQuery.data?.map((job: any) => (
-                  <div
-                    key={job.id}
-                    className="bg-surface-3 border border-danger/10 rounded-none p-3 flex flex-col md:flex-row justify-between items-start md:items-center gap-3"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-foreground text-[11px] font-mono">{job.type}</span>
-                        <Badge className="bg-danger-muted text-danger border border-danger/20 text-[8px] font-bold rounded-none">
-                          FAILED
-                        </Badge>
+              {/* Drawer Content */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {operationDetailQuery.isLoading ? (
+                  <p className="text-muted-foreground text-center py-10">Loading operation telemetry...</p>
+                ) : !operationDetailQuery.data ? (
+                  <p className="text-muted-foreground text-center py-10">Operation not found.</p>
+                ) : (
+                  <>
+                    {/* Key Attributes Grid */}
+                    <div className="grid grid-cols-2 gap-2 bg-background/60 p-3 border border-border-subtle">
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block">Type</span>
+                        <span className="font-mono font-bold text-primary">{operationDetailQuery.data.type}</span>
                       </div>
-                      <p className="text-danger text-[10px] font-mono select-text break-all leading-normal">
-                        {job.error || 'Unknown runtime error exception.'}
-                      </p>
-                      <p className="text-[9px] text-muted-foreground font-mono">
-                        Job ID: {job.id} | Priority: {job.priority}
-                      </p>
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block">Attempts</span>
+                        <span className="font-mono text-foreground font-bold">
+                          {operationDetailQuery.data.attempt} / {operationDetailQuery.data.maxAttempts}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block">Created</span>
+                        <span className="font-mono text-foreground">
+                          {new Date(operationDetailQuery.data.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block">Elapsed / Duration</span>
+                        <span className="font-mono text-foreground">
+                          {operationDetailQuery.data.durationMs
+                            ? `${operationDetailQuery.data.durationMs}ms`
+                            : formatElapsed(operationDetailQuery.data.startedAt)}
+                        </span>
+                      </div>
+                      {operationDetailQuery.data.correlationId && (
+                        <div className="col-span-2">
+                          <span className="text-[10px] text-muted-foreground block">Correlation ID</span>
+                          <span className="font-mono text-[10px] text-foreground select-all break-all">
+                            {operationDetailQuery.data.correlationId}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex gap-1.5 shrink-0">
+
+                    {/* Business Context & Deep Links */}
+                    <div className="border border-border-subtle p-3 bg-muted/10 space-y-2">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">
+                        Associated Business Context
+                      </span>
+                      <div className="space-y-1 text-xs">
+                        {operationDetailQuery.data.campaignId && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Campaign:</span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-[11px] rounded-none px-1.5 text-primary flex items-center gap-1"
+                              onClick={() => {
+                                setSelectedOperationId(null);
+                                navigate('/campaigns');
+                              }}
+                            >
+                              <span>{operationDetailQuery.data.campaignName || operationDetailQuery.data.campaignId}</span>
+                              <ExternalLink className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+
+                        {operationDetailQuery.data.contactEmail && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Recipient / Contact:</span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-[11px] rounded-none px-1.5 text-primary flex items-center gap-1"
+                              onClick={() => {
+                                setSelectedOperationId(null);
+                                navigate('/crm');
+                              }}
+                            >
+                              <span>{operationDetailQuery.data.contactEmail}</span>
+                              <ExternalLink className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+
+                        {operationDetailQuery.data.deliveryId && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Email Delivery Record:</span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-[11px] rounded-none px-1.5 text-primary flex items-center gap-1"
+                              onClick={() => {
+                                setSelectedOperationId(null);
+                                navigate(`/email-logs?deliveryId=${operationDetailQuery.data?.deliveryId}`);
+                              }}
+                            >
+                              <span>View in Email Logs</span>
+                              <ExternalLink className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Diagnostic Messages */}
+                    {(operationDetailQuery.data.safeHumanMessage || operationDetailQuery.data.technicalMessage) && (
+                      <div className="border border-rose-500/30 bg-rose-500/5 p-3 space-y-1.5">
+                        <span className="text-[10px] uppercase font-bold text-rose-400 tracking-wider flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" /> Diagnostic Error Analysis
+                        </span>
+                        {operationDetailQuery.data.safeHumanMessage && (
+                          <p className="text-xs text-foreground font-medium">
+                            {operationDetailQuery.data.safeHumanMessage}
+                          </p>
+                        )}
+                        {operationDetailQuery.data.technicalMessage && (
+                          <pre className="font-mono text-[10px] text-muted-foreground bg-black/40 p-2 border border-border-subtle/40 overflow-x-auto whitespace-pre-wrap">
+                            {operationDetailQuery.data.technicalMessage}
+                          </pre>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Operational Event Timeline */}
+                    <div className="space-y-2 pt-2">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">
+                        Lifecycle Event Timeline
+                      </span>
+                      <div className="border-l-2 border-border-subtle ml-2 pl-4 space-y-3">
+                        {operationEventsQuery.data?.length === 0 ? (
+                          <p className="text-[11px] text-muted-foreground">No events recorded yet.</p>
+                        ) : (
+                          operationEventsQuery.data?.map((ev) => (
+                            <div key={ev.id} className="relative space-y-0.5">
+                              {/* Timeline bullet dot */}
+                              <div
+                                className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full border-2 border-card ${
+                                  ev.severity === 'error'
+                                    ? 'bg-rose-500'
+                                    : ev.severity === 'warn'
+                                      ? 'bg-amber-500'
+                                      : 'bg-primary'
+                                }`}
+                              />
+                              <div className="flex items-center justify-between">
+                                <span className="font-mono font-bold text-[11px] text-foreground">
+                                  {ev.eventName}
+                                </span>
+                                <span className="font-mono text-[9px] text-muted-foreground">
+                                  {new Date(ev.timestamp).toLocaleTimeString()}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground">{ev.message}</p>
+                              {ev.details && Object.keys(ev.details).length > 0 && (
+                                <pre className="font-mono text-[9px] text-muted-foreground bg-black/30 p-1.5 mt-1 border border-border-subtle/30 overflow-x-auto">
+                                  {JSON.stringify(ev.details, null, 2)}
+                                </pre>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Drawer Footer Actions */}
+              {operationDetailQuery.data && (
+                <div className="p-3 border-t border-border-subtle bg-muted/20 flex items-center justify-between">
+                  <div className="flex gap-2">
+                    {operationDetailQuery.data.retryable && operationDetailQuery.data.status !== 'ambiguous' && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="rounded-none h-7 text-[11px]"
+                        onClick={() => retryOperationMutation.mutate({ id: operationDetailQuery.data!.id })}
+                        disabled={retryOperationMutation.isPending}
+                      >
+                        <RefreshCw className={`h-3 w-3 mr-1 ${retryOperationMutation.isPending ? 'animate-spin' : ''}`} />
+                        Retry Operation
+                      </Button>
+                    )}
+
+                    {operationDetailQuery.data.status === 'ambiguous' && (
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="h-7 text-[10px] border-success/20 text-success hover:bg-success/10 rounded-none"
-                        onClick={() =>
-                          recoveryMutation.mutate({ action: 'retry-job', targetId: job.id })
-                        }
+                        className="rounded-none h-7 text-[11px] border-amber-500 text-amber-400 hover:bg-amber-500 hover:text-black"
+                        onClick={() => reconcileOperationMutation.mutate(operationDetailQuery.data!.id)}
+                        disabled={reconcileOperationMutation.isPending}
                       >
-                        <RotateCcw className="h-3 w-3 mr-1" /> Retry Job
+                        <RefreshCw className={`h-3 w-3 mr-1 ${reconcileOperationMutation.isPending ? 'animate-spin' : ''}`} />
+                        Reconcile with Gmail
                       </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-[10px] text-danger hover:bg-danger-muted rounded-none"
-                        onClick={() =>
-                          recoveryMutation.mutate({ action: 'cancel-job', targetId: job.id })
-                        }
-                      >
-                        Cancel Job
-                      </Button>
-                    </div>
+                    )}
                   </div>
-                ))
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="rounded-none h-7 text-[11px]"
+                    onClick={() => setSelectedOperationId(null)}
+                  >
+                    Close
+                  </Button>
+                </div>
               )}
-            </div>
+            </motion.div>
           </div>
-        </TabsContent>
-
-        {/* 7. SRE Recovery Tab */}
-        <TabsContent value="recovery" className="space-y-4 outline-none mt-0">
-          <div className="bg-card border border-border-subtle rounded-none p-4 space-y-4 shadow-sm">
-            <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-              <Wrench className="h-4 w-4 text-primary" />
-              SRE Recovery Toolkit
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="bg-surface-3 border border-border-subtle rounded-none p-3 flex justify-between items-center gap-4">
-                <div>
-                  <span className="font-bold text-foreground block text-[10px] uppercase tracking-wide">
-                    Purge Backlog Task Queues
-                  </span>
-                  <p className="text-muted-foreground text-[10px] mt-0.5 font-medium">
-                    Wipe all pending job queue and sync operations cache.
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="text-danger border border-danger/20 hover:bg-danger-muted rounded-none text-[10px]"
-                  onClick={() => recoveryMutation.mutate({ action: 'clear-queues' })}
-                >
-                  Clear Queues
-                </Button>
-              </div>
-
-              <div className="bg-surface-3 border border-border-subtle rounded-none p-3 flex justify-between items-center gap-4">
-                <div>
-                  <span className="font-bold text-foreground block text-[10px] uppercase tracking-wide">
-                    Clean Stale Running Workers
-                  </span>
-                  <p className="text-muted-foreground text-[10px] mt-0.5 font-medium">
-                    Reconcile stuck jobs whose runner hosts have halted.
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="text-warning border border-warning/20 hover:bg-warning-muted rounded-none text-[10px]"
-                  onClick={() => recoveryMutation.mutate({ action: 'clean-orphaned' })}
-                >
-                  Clean Orphans
-                </Button>
-              </div>
-
-              <div className="bg-surface-3 border border-border-subtle rounded-none p-3 flex justify-between items-center gap-4">
-                <div>
-                  <span className="font-bold text-foreground block text-[10px] uppercase tracking-wide">
-                    Rebuild Local Cache
-                  </span>
-                  <p className="text-muted-foreground text-[10px] mt-0.5 font-medium">
-                    Reset and rebuild local SQLite disposable cache directly from MongoDB.
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="rounded-none text-[10px]"
-                  onClick={() => recoveryMutation.mutate({ action: 'restore-backup' })}
-                >
-                  Restore SQLite
-                </Button>
-              </div>
-            </div>
-          </div>
-        </TabsContent>
-
-        {/* 8. Developer Mode Tab */}
-        {devModeActive && (
-          <TabsContent value="developer" className="space-y-4 outline-none mt-0">
-            <div className="bg-card border border-border-subtle rounded-none p-4 space-y-3 shadow-sm">
-              <h3 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                <Terminal className="h-4 w-4 text-primary" />
-                Raw Dev Engine Ticks & Signals Stream
-              </h3>
-
-              <div className="bg-surface-3 border border-border-subtle rounded-none p-3 font-mono text-[9px] text-muted-foreground space-y-1.5 max-h-[300px] overflow-y-auto">
-                {devEvents.length === 0 ? (
-                  <p className="italic text-muted-foreground py-6 text-center">
-                    Listening for query logs, IPC requests, and worker heartbeats...
-                  </p>
-                ) : (
-                  devEvents.map((evt: any, i: number) => (
-                    <div
-                      key={i}
-                      className="flex justify-between items-start border-b border-border-subtle/30 pb-1"
-                    >
-                      <span className="text-slate-600 shrink-0 font-mono">[{evt.timestamp}]</span>
-                      <Badge className="bg-primary/10 text-primary border border-primary/20 text-[8px] rounded-none">
-                        {evt.type}
-                      </Badge>
-                      <p className="flex-1 text-foreground break-all ml-2">{evt.message}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </TabsContent>
         )}
-      </Tabs>
+      </AnimatePresence>
     </div>
   );
 }
+
+export default OperationsCenterScreen;
