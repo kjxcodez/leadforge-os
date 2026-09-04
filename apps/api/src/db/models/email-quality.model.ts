@@ -32,7 +32,7 @@ const emailQualitySchema = new Schema<EmailQualityDocument>(
       required: true
     },
     reasons: { type: [String], default: [] },
-    evidence: { type: [Schema.Types.Mixed], default: [] },
+    evidence: { type: Schema.Types.Mixed, default: [] },
     recommendedAction: { type: String, required: true },
     evaluatedAt: { type: Date, default: Date.now, required: true },
     expiresAt: { type: Date, required: true }

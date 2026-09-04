@@ -56,7 +56,7 @@ describe('Suppression & Email Quality Route Contracts', () => {
       const res = await app.request('/suppressions', { method: 'GET' });
       expect(res.status).toBe(200);
 
-      const json = await res.json();
+      const json = (await res.json()) as any;
       expect(json.success).toBe(true);
       expect(json.data.total).toBe(1);
       expect(json.data.items[0].email).toBe('blocked@example.com');
@@ -80,7 +80,7 @@ describe('Suppression & Email Quality Route Contracts', () => {
       });
       expect(res.status).toBe(200);
 
-      const json = await res.json();
+      const json = (await res.json()) as any;
       expect(json.success).toBe(true);
       expect(json.data.suppressed).toBe(true);
       expect(json.data.suppression.reason).toBe(SuppressionReason.HARD_BOUNCE);
@@ -113,7 +113,7 @@ describe('Suppression & Email Quality Route Contracts', () => {
       });
 
       expect(res.status).toBe(201);
-      const json = await res.json();
+      const json = (await res.json()) as any;
       expect(json.success).toBe(true);
       expect(json.data.email).toBe('unsub@example.com');
       expect(json.data.reason).toBe(SuppressionReason.UNSUBSCRIBED);
@@ -133,7 +133,7 @@ describe('Suppression & Email Quality Route Contracts', () => {
       });
 
       expect(res.status).toBe(200);
-      const json = await res.json();
+      const json = (await res.json()) as any;
       expect(json.success).toBe(true);
       expect(json.data.unsuppressed).toBe(true);
     });
@@ -167,7 +167,7 @@ describe('Suppression & Email Quality Route Contracts', () => {
       });
 
       expect(res.status).toBe(200);
-      const json = await res.json();
+      const json = (await res.json()) as any;
       expect(json.success).toBe(true);
       expect(json.data.email).toBe('prospect@acme.com');
       expect(json.data.status).toBe(EmailQualityStatus.MX_VALID);

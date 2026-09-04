@@ -2,7 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { SuppressionRepository } from '../repositories/suppression/suppression.repository.js';
 import { createSuppressionDtoSchema } from '@leadforge/schema';
 import { successResponse } from '../utils/index.js';
-import { getWorkspaceId } from './common.js';
+import { getWorkspaceId, getUserId } from './common.js';
 import { BadRequestError } from '../errors/index.js';
 
 export const suppressionsRouter = new OpenAPIHono();
@@ -44,13 +44,20 @@ suppressionsRouter.post('/', async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const validated = createSuppressionDtoSchema.parse(body);
 
+  let userId: string | null = null;
+  try {
+    userId = getUserId(c);
+  } catch {
+    userId = null;
+  }
+
   const repo = new SuppressionRepository(wsId);
   const record = await repo.suppress(
     validated.email,
     validated.reason,
     validated.source || 'manual',
     validated.evidence || null,
-    c.get('userId') || null,
+    userId,
     validated.notes || null
   );
 
@@ -61,8 +68,16 @@ suppressionsRouter.post('/', async (c) => {
 suppressionsRouter.delete('/:email', async (c) => {
   const wsId = getWorkspaceId(c);
   const email = decodeURIComponent(c.req.param('email'));
+
+  let userId: string | null = null;
+  try {
+    userId = getUserId(c);
+  } catch {
+    userId = 'user';
+  }
+
   const repo = new SuppressionRepository(wsId);
-  const removed = await repo.unsuppress(email, c.get('userId') || 'user');
+  const removed = await repo.unsuppress(email, userId || 'user');
 
   return c.json(successResponse({ email, unsuppressed: removed }));
 });

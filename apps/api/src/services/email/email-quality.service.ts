@@ -142,10 +142,10 @@ export class EmailQualityService {
 
     const historicalDeliveries = deliveries.map((d) => ({
       status: d.status,
-      failureCategory: d.failureCategory,
+      failureCategory: d.failureCategory || undefined,
       hasReply: Boolean(d.hasReply),
-      lastRepliedAt: d.lastRepliedAt,
-      sentAt: d.sentAt
+      lastRepliedAt: d.lastRepliedAt || undefined,
+      sentAt: d.sentAt || undefined
     }));
 
     const quality = evaluateEmailQuality({

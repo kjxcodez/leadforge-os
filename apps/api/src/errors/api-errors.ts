@@ -46,6 +46,15 @@ export class ValidationError extends ApiError {
 }
 
 /**
+ * Bad Request Error indicating malformed or missing payload parameters (HTTP 400).
+ */
+export class BadRequestError extends ApiError {
+  constructor(message = 'Bad request', details: unknown = null) {
+    super(400, 'BAD_REQUEST', message, details);
+  }
+}
+
+/**
  * Unauthorized Error indicating missing or invalid credentials (HTTP 401).
  */
 export class UnauthorizedError extends ApiError {

@@ -26,9 +26,12 @@ emailQualityRouter.post('/evaluate', async (c) => {
   }
 
   const service = new EmailQualityService(wsId);
-  const result = await service.evaluateEmail(validated.data.email, {
-    forceRefresh: validated.data.forceRefresh
-  });
+  const result = await service.evaluateEmail(
+    validated.data.email,
+    validated.data.forceRefresh !== undefined
+      ? { forceRefresh: validated.data.forceRefresh }
+      : undefined
+  );
 
   return c.json(successResponse(result));
 });

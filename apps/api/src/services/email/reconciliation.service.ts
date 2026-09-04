@@ -583,7 +583,7 @@ export class ReconciliationService {
           providerMessageId: item.id,
           providerThreadId: item.threadId,
           matchConfidence: bouncedDelivery ? 'thread' : 'none',
-          processingStatus: 'BOUNCED',
+          processingStatus: bouncedDelivery ? 'MATCHED' : 'UNMATCHED',
           sentAt: detail.internalDate || new Date()
         });
 

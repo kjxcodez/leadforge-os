@@ -7,3 +7,4 @@ export * from './id/index.js';
 export * from './utils/index.js';
 export * from './guards/index.js';
 export * from './test-utils/index.js';
+export * from './email/verification-provider.js';
