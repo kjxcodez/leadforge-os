@@ -471,7 +471,7 @@ export class ReconciliationService {
         if (targetRecipient) {
           bouncedContact = await ContactModel.findOne({
             workspaceId: this.workspaceId,
-            email: targetRecipient,
+            $or: [{ email: targetRecipient }, { 'additionalEmails.email': targetRecipient }],
             deletedAt: null
           });
         }
@@ -525,39 +525,56 @@ export class ReconciliationService {
           );
 
           if (bouncedContact) {
-            await ContactModel.updateOne(
-              { _id: bouncedContact._id, workspaceId: this.workspaceId },
-              {
-                $set: {
-                  status: ContactStatus.BOUNCED,
-                  emailStatus: ContactEmailStatus.INVALID
-                }
-              }
-            );
-
-            // Halt any running sequence executions for this bounced contact
-            const cancelled = await SequenceExecutionModel.updateMany(
-              {
-                workspaceId: this.workspaceId,
-                contactId: bouncedContact._id.toString(),
-                status: { $in: ['active', 'running', 'waiting', 'pending', 'WAITING', 'ACTIVE', 'RUNNING', 'PENDING'] }
-              },
-              {
-                $set: {
-                  status: 'completed',
-                  completedAt: new Date(),
-                  nextExecutionAt: null
-                },
-                $push: {
-                  logs: {
-                    timestamp: new Date(),
-                    level: 'warn',
-                    message: 'Sequence execution halted: recipient hard bounced.'
+            const isPrimary = bouncedContact.email?.toLowerCase().trim() === targetRecipient.toLowerCase().trim();
+            if (isPrimary) {
+              await ContactModel.updateOne(
+                { _id: bouncedContact._id, workspaceId: this.workspaceId },
+                {
+                  $set: {
+                    status: ContactStatus.BOUNCED,
+                    emailStatus: ContactEmailStatus.INVALID
                   }
                 }
-              }
-            );
-            suppressedExecutionsCount += cancelled.modifiedCount;
+              );
+
+              // Halt running sequence executions for this primary address
+              const cancelled = await SequenceExecutionModel.updateMany(
+                {
+                  workspaceId: this.workspaceId,
+                  contactId: bouncedContact._id.toString(),
+                  status: { $in: ['active', 'running', 'waiting', 'pending', 'WAITING', 'ACTIVE', 'RUNNING', 'PENDING'] }
+                },
+                {
+                  $set: {
+                    status: 'completed',
+                    completedAt: new Date(),
+                    nextExecutionAt: null
+                  },
+                  $push: {
+                    logs: {
+                      timestamp: new Date(),
+                      level: 'warn',
+                      message: 'Sequence execution halted: recipient primary email hard bounced.'
+                    }
+                  }
+                }
+              );
+              suppressedExecutionsCount += cancelled.modifiedCount;
+            } else {
+              // Address-scoped bounce for secondary email: mark only that additional email invalid
+              await ContactModel.updateOne(
+                {
+                  _id: bouncedContact._id,
+                  workspaceId: this.workspaceId,
+                  'additionalEmails.email': targetRecipient
+                },
+                {
+                  $set: {
+                    'additionalEmails.$.status': ContactEmailStatus.INVALID
+                  }
+                }
+              );
+            }
           }
         }
 
@@ -637,7 +654,7 @@ export class ReconciliationService {
       if (!matchedDelivery) {
         contactDoc = await ContactModel.findOne({
           workspaceId: this.workspaceId,
-          email: normalizedFrom,
+          $or: [{ email: normalizedFrom }, { 'additionalEmails.email': normalizedFrom }],
           deletedAt: null
         });
 
@@ -645,6 +662,7 @@ export class ReconciliationService {
           matchedDelivery = await EmailDeliveryModel.findOne({
             workspaceId: this.workspaceId,
             contactId: contactDoc._id.toString(),
+            accountId: account._id.toString(),
             direction: 'OUTBOUND',
             status: 'SENT'
           }).sort({ sentAt: -1 });
@@ -743,14 +761,22 @@ export class ReconciliationService {
           );
         }
 
-        // ── Sequence Outreach Suppression (Phase 6S) ─────────────────────────
-        // Cancel/complete any active/waiting sequence executions for this contact
+        // ── Sequence Outreach Suppression (Phase 6S / Phase 12) ─────────────
+        // Scope cancellation to the matched campaign / execution to preserve unrelated campaigns
+        const cancelFilter: any = {
+          workspaceId: this.workspaceId,
+          contactId: contactDoc._id.toString(),
+          status: { $in: ['active', 'running', 'waiting', 'pending', 'WAITING', 'ACTIVE', 'RUNNING', 'PENDING'] }
+        };
+
+        if (matchedDelivery.executionId && matchedDelivery.executionId !== 'inbound-direct' && !matchedDelivery.executionId.startsWith('direct-')) {
+          cancelFilter._id = matchedDelivery.executionId;
+        } else if (matchedDelivery.campaignId) {
+          cancelFilter.campaignId = matchedDelivery.campaignId;
+        }
+
         const cancelled = await SequenceExecutionModel.updateMany(
-          {
-            workspaceId: this.workspaceId,
-            contactId: contactDoc._id.toString(),
-            status: { $in: ['active', 'running', 'waiting', 'pending', 'WAITING', 'ACTIVE', 'RUNNING', 'PENDING'] }
-          },
+          cancelFilter,
           {
             $set: {
               status: 'completed',
