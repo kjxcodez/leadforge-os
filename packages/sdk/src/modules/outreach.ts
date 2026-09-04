@@ -31,6 +31,9 @@ export interface SendEmailPayload {
   executionId?: string;
   stepIndex?: number;
   contactId?: string;
+  templateId?: string;
+  templateVersion?: number;
+  variablesSnapshot?: Record<string, any>;
 }
 
 export interface OAuthConnectResult {

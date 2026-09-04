@@ -498,7 +498,14 @@ export interface IpcChannelMap {
   };
   'templates:preview': {
     input: { id: string; contactId?: string };
-    output: { subject: string; body: string };
+    output: {
+      subject: string;
+      body: string;
+      html?: string;
+      text?: string;
+      version?: number;
+      variablesSnapshot?: Record<string, any>;
+    };
   };
   'email-deliveries:list': {
     input: {
