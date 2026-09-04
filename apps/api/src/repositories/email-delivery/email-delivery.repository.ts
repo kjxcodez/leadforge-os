@@ -302,9 +302,11 @@ export class EmailDeliveryRepository extends BaseRepository<EmailDeliveryDocumen
         {
           $set: {
             status: 'AMBIGUOUS',
+            ambiguous: true,
             failureClassification: 'stale_lease_timeout',
             reconciledAt: new Date(),
             reconciliationNotes: 'Automated reconciliation marked stale SENDING delivery with expired lease as AMBIGUOUS.',
+            nextReconciliationAt: new Date(),
             leaseExpiresAt: null,
             updatedAt: new Date()
           }
