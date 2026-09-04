@@ -186,26 +186,56 @@ export class EmailService {
     }
 
     // 0b. Server-authoritative contact outreach eligibility check
+    const normRecipient = input.to.toLowerCase().trim();
+    let contactDoc: any = null;
     if (input.contactId && input.contactId !== 'direct-contact') {
-      const contactDoc = await ContactModel.findOne({ _id: input.contactId, workspaceId: this.workspaceId });
+      contactDoc = await ContactModel.findOne({ _id: input.contactId, workspaceId: this.workspaceId });
+    } else {
+      // Direct send fallback: lookup contact by recipient address (primary or additional)
+      contactDoc = await ContactModel.findOne({
+        workspaceId: this.workspaceId,
+        $or: [{ email: normRecipient }, { 'additionalEmails.email': normRecipient }],
+        deletedAt: null
+      });
       if (contactDoc) {
-        const eligibility = evaluateOutreachEligibility({
-          contact: {
-            id: contactDoc._id.toString(),
-            email: contactDoc.email,
-            status: contactDoc.status,
-            emailStatus: contactDoc.emailStatus,
-            emailMeta: contactDoc.emailMeta as any
-          },
-          campaign: campaignDoc ? { id: campaignDoc._id.toString(), status: campaignDoc.status } : null
-        });
-        if (!eligibility.eligible) {
-          throw new EmailDomainError(
-            'CONTACT_NOT_ELIGIBLE',
-            `Contact "${contactDoc.email}" is not eligible for outreach: ${eligibility.reason}.`
-          );
-        }
+        input.contactId = contactDoc._id.toString();
       }
+    }
+
+    if (contactDoc) {
+      const eligibility = evaluateOutreachEligibility({
+        contact: {
+          id: contactDoc._id.toString(),
+          email: contactDoc.email,
+          status: contactDoc.status,
+          emailStatus: contactDoc.emailStatus,
+          emailMeta: contactDoc.emailMeta as any,
+          emailQuality: contactDoc.emailQuality as any
+        },
+        campaign: campaignDoc ? { id: campaignDoc._id.toString(), status: campaignDoc.status } : null
+      });
+      if (!eligibility.eligible) {
+        throw new EmailDomainError(
+          'CONTACT_NOT_ELIGIBLE',
+          `Contact "${contactDoc.email}" is not eligible for outreach: ${eligibility.reason}.`
+        );
+      }
+    }
+
+    // 0c. Recipient concurrent dispatch guard: prevent parallel workers racing to dispatch to the exact same recipient simultaneously
+    const activeSendingToRecipient = await EmailDeliveryModel.findOne({
+      workspaceId: this.workspaceId,
+      recipientEmail: normRecipient,
+      status: 'SENDING',
+      leaseExpiresAt: { $gt: new Date() }
+    });
+    if (activeSendingToRecipient) {
+      throw new EmailDomainError(
+        'DELIVERY_ALREADY_RESERVED',
+        `An outbound message to recipient "${normRecipient}" is currently actively being dispatched by another worker lease.`,
+        false,
+        true
+      );
     }
 
     // 1. Atomic send slot reservation (prevents counter race conditions)
