@@ -269,7 +269,7 @@ export type CampaignComparisonResult = z.infer<typeof campaignComparisonResultSc
 export const campaignAnalyticsQuerySchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
-  timezone: z.string().default('UTC'),
+  timezone: z.string().optional(),
   stepIndex: z.coerce.number().optional(),
   accountId: z.string().optional()
 });
@@ -279,7 +279,7 @@ export const campaignCompareQuerySchema = z.object({
   campaignIds: z.union([z.string(), z.array(z.string())]),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
-  timezone: z.string().default('UTC')
+  timezone: z.string().optional()
 });
 export type CampaignCompareQuery = z.infer<typeof campaignCompareQuerySchema>;
 

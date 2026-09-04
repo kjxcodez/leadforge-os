@@ -26,6 +26,7 @@ import { trackingRouter } from './tracking.js';
 import { operationsRouter } from './operations.js';
 import { suppressionsRouter } from './suppressions.js';
 import { emailQualityRouter } from './email-quality.js';
+import { analyticsRouter } from './analytics.js';
 
 import { authMiddleware, workspaceMiddleware, rateLimiter } from '../middleware/index.js';
 import { BetaApplicantModel } from '../db/models/index.js';
@@ -100,6 +101,7 @@ apiRouter.use('/system-logs/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/operations/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/suppressions/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/email-quality/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/analytics/*', authMiddleware, workspaceMiddleware);
 
 apiRouter.use('/attachments/*', authMiddleware, workspaceMiddleware);
 
@@ -143,6 +145,7 @@ apiRouter.route('/system-logs', systemLogsRouter);
 apiRouter.route('/operations', operationsRouter);
 apiRouter.route('/suppressions', suppressionsRouter);
 apiRouter.route('/email-quality', emailQualityRouter);
+apiRouter.route('/analytics', analyticsRouter);
 
 export { apiRouter };
 export { healthRouter, authRouter };
