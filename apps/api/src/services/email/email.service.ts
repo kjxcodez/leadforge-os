@@ -139,6 +139,27 @@ export class EmailService {
    * rate limit enforcement, and ambiguous-send protection.
    */
   async send(input: SendEmailInput): Promise<SendEmailResult> {
+    // 0. Pre-flight subject validation: do not allow empty subjects or CRLF injection
+    if (input.subject && /[\r\n]/.test(input.subject)) {
+      throw new EmailDomainError(
+        'INVALID_SUBJECT',
+        'Email subject is invalid: must not contain newline or carriage return characters.'
+      );
+    }
+    const subjRes = sanitizeSubject(input.subject);
+    if (!subjRes.isValid) {
+      throw new EmailDomainError(
+        'INVALID_SUBJECT',
+        `Email subject is invalid: ${subjRes.error || 'must not be empty.'}.`
+      );
+    }
+    input.subject = subjRes.sanitized;
+
+    // 0a. Deterministic fallback plaintext body if only HTML was provided
+    if (!input.text && input.html) {
+      input.text = htmlToPlainText(input.html);
+    }
+
     const account = await EmailAccountModel.findOne({
       _id: input.accountId,
       workspaceId: this.workspaceId
@@ -161,21 +182,6 @@ export class EmailService {
         'MAILBOX_NOT_SUPPORTED',
         `Mailbox "${account.email}" is in status "${account.status}". Only active Gmail accounts are supported.`
       );
-    }
-
-    // 0. Pre-flight subject validation: do not allow empty subjects or CRLF injection
-    const subjRes = sanitizeSubject(input.subject);
-    if (!subjRes.isValid) {
-      throw new EmailDomainError(
-        'INVALID_SUBJECT',
-        `Email subject is invalid: ${subjRes.error || 'must not be empty or contain CRLF'}.`
-      );
-    }
-    input.subject = subjRes.sanitized;
-
-    // 0a. Deterministic fallback plaintext body if only HTML was provided
-    if (!input.text && input.html) {
-      input.text = htmlToPlainText(input.html);
     }
 
     // 0b. Pre-flight recipient validation: do not burn quota or reserve slots on malformed recipients!
