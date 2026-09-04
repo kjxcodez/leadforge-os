@@ -98,7 +98,9 @@ export function registerCampaignsIpc(): void {
               entityId: contactId,
               entityType: 'contact',
               executionId: created.id,
-              workspaceId: runtime.workspaceId
+              workspaceId: runtime.workspaceId,
+              campaignId,
+              contactId
             }
           });
         } catch (err) {
@@ -266,7 +268,9 @@ export function registerCampaignsIpc(): void {
               entityId: item.contactId,
               entityType: 'contact',
               executionId: item.id,
-              workspaceId: runtime.workspaceId
+              workspaceId: runtime.workspaceId,
+              campaignId,
+              contactId: item.contactId
             }
           });
         } catch (err) {
@@ -423,7 +427,9 @@ export function registerCampaignsIpc(): void {
               entityId: enroll.contactId,
               entityType: 'contact',
               executionId: enroll.id,
-              workspaceId: runtime.workspaceId
+              workspaceId: runtime.workspaceId,
+              campaignId,
+              contactId: enroll.contactId
             }
           });
           enqueuedJobsCount++;
@@ -476,7 +482,8 @@ export function registerCampaignsIpc(): void {
       const jobsToCancel = (jobsList.data || []).filter(
         (j: any) =>
           (j.payload?.campaignId === campaignId ||
-            j.type === 'outreach:campaign' && j.payload?.campaignId === campaignId) &&
+            (j.type === 'outreach:campaign' && j.payload?.campaignId === campaignId) ||
+            (j.payload?.executionId && Boolean(db.prepare('SELECT campaignId FROM sequence_executions WHERE id = ? AND campaignId = ?').get(j.payload.executionId, campaignId)))) &&
           ['queued', 'starting', 'running', 'retrying'].includes(j.status)
       );
       for (const job of jobsToCancel) {
@@ -524,7 +531,8 @@ export function registerCampaignsIpc(): void {
       const jobsToCancel = (jobsList.data || []).filter(
         (j: any) =>
           (j.payload?.campaignId === campaignId ||
-            j.type === 'outreach:campaign' && j.payload?.campaignId === campaignId) &&
+            (j.type === 'outreach:campaign' && j.payload?.campaignId === campaignId) ||
+            (j.payload?.executionId && Boolean(db.prepare('SELECT campaignId FROM sequence_executions WHERE id = ? AND campaignId = ?').get(j.payload.executionId, campaignId)))) &&
           ['queued', 'starting', 'running', 'retrying'].includes(j.status)
       );
       for (const job of jobsToCancel) {

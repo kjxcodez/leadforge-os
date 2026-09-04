@@ -65,6 +65,38 @@ export class CampaignService {
         );
       }
       updatePayload.status = targetStatus;
+
+      if (targetStatus === 'STOPPED') {
+        try {
+          const executionIds = await SequenceExecutionModel.find({
+            workspaceId: this.workspaceId,
+            campaignId: id
+          }).distinct('_id');
+
+          await JobModel.updateMany(
+            {
+              workspaceId: this.workspaceId,
+              status: { $in: ['queued', 'starting', 'running', 'retrying'] },
+              $or: [
+                { 'payload.campaignId': id },
+                { 'payload.executionId': { $in: executionIds.map((eid) => String(eid)) } }
+              ]
+            },
+            { $set: { status: 'cancelled' } }
+          );
+
+          await SequenceExecutionModel.updateMany(
+            {
+              workspaceId: this.workspaceId,
+              campaignId: id,
+              status: { $in: ['PENDING', 'RUNNING', 'WAITING', 'PAUSED'] }
+            },
+            { $set: { status: 'CANCELLED' } }
+          );
+        } catch (cancelErr) {
+          console.warn(`[CampaignService] Warning during stop cleanup for ${id}:`, cancelErr);
+        }
+      }
     }
     return this.campaignRepository.update(id, updatePayload);
   }
@@ -78,33 +110,7 @@ export class CampaignService {
   }
 
   public async stopCampaign(id: string): Promise<CampaignDocument> {
-    const stopped = await this.updateCampaign(id, { status: CampaignStatus.STOPPED as any });
-
-    // Server-authoritative cancellation: cancel queued/in-flight jobs and waiting executions
-    try {
-      await JobModel.updateMany(
-        {
-          workspaceId: this.workspaceId,
-          type: 'automation:workflow',
-          status: { $in: ['queued', 'starting', 'running', 'retrying'] },
-          'payload.campaignId': id
-        },
-        { $set: { status: 'cancelled' } }
-      );
-
-      await SequenceExecutionModel.updateMany(
-        {
-          workspaceId: this.workspaceId,
-          campaignId: id,
-          status: { $in: ['PENDING', 'RUNNING', 'WAITING', 'PAUSED'] }
-        },
-        { $set: { status: 'CANCELLED' } }
-      );
-    } catch (cancelErr) {
-      console.warn(`[CampaignService] Warning during stop cleanup for ${id}:`, cancelErr);
-    }
-
-    return stopped;
+    return this.updateCampaign(id, { status: CampaignStatus.STOPPED as any });
   }
 
   public async deleteCampaign(id: string): Promise<boolean> {
