@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { AIRuntime, PromptsLibrary } from '@leadforge/ai';
 import type { JobContext } from '../../../shared/types/job';
-import { SdkClient, renderCanonicalVariables, formatEmailBody } from '@leadforge/sdk';
+import { SdkClient, renderCanonicalVariables, formatEmailBody, captureVariablesSnapshot } from '@leadforge/sdk';
 import { generateEntityId, CampaignStatus, evaluateOutreachEligibility } from '@leadforge/schema';
 import { resolveWorkerApiUrl } from '../worker-host';
 
@@ -114,87 +114,11 @@ function publishAutomationEvent(event: string, payload: any): void {
   }
 }
 
-// ── Variable Resolution ────────────────────────────────────────────────────────
-
 /**
- * Resolves a single dotted-path token (e.g. "contact.email", "variables.score", "today")
- * against the ExecutionContext. Returns a string representation of the value.
- *
- * This is the single source of truth for all variable resolution. Both
- * `resolveVariables()` (template strings) and the expression engine (TEMPLATE tokens)
- * call through here.
+ * Resolves a single token path against the ExecutionContext using canonical variable resolution.
  */
-function resolveTokenPath(path: string, ctx: ExecutionContext): string {
-  const trimmed = path.trim();
-  const dotIdx = trimmed.indexOf('.');
-  const ns = dotIdx === -1 ? trimmed : trimmed.slice(0, dotIdx);
-  const field = dotIdx === -1 ? '' : trimmed.slice(dotIdx + 1);
-
-  switch (ns) {
-    case 'contact':
-      if (field === 'name') {
-        return `${ctx.contact.firstName || ''} ${ctx.contact.lastName || ''}`.trim();
-      }
-      return String(ctx.contact[field] ?? '');
-
-    case 'company':
-      return String(ctx.company[field] ?? '');
-
-    case 'workspace':
-      return ctx.workspace.id;
-
-    case 'execution':
-      if (field === 'id') return ctx.execution.id;
-      if (field === 'currentStep') return String(ctx.execution.currentStep);
-      if (field === 'startedAt') return ctx.execution.startedAt;
-      return '';
-
-    case 'sequence':
-      if (field === 'id') return ctx.sequence.id;
-      if (field === 'name') return ctx.sequence.name;
-      return '';
-
-    case 'variables':
-      // Support nested object access in execution context (e.g. variables.apiResponse.status)
-      if (field.includes('.')) {
-        const parts = field.split('.');
-        let currentObj: any = ctx.variables;
-        for (const p of parts) {
-          if (currentObj === null || currentObj === undefined) return '';
-          currentObj = currentObj[p];
-        }
-        return String(currentObj ?? '');
-      }
-      return String(ctx.variables[field] ?? '');
-
-    case 'today':
-      return new Date().toISOString().split('T')[0] ?? '';
-
-    case 'now':
-      return new Date().toISOString();
-
-    case 'currentStep':
-      return String(ctx.execution.currentStep);
-
-    default: {
-      // Legacy single-word tokens ({{firstName}}, {{sequence}}, etc.) and
-      // bare variable names ({{score}} maps to ctx.variables.score).
-      const legacy: Record<string, () => string> = {
-        firstName: () => String(ctx.contact.firstName ?? ''),
-        lastName: () => String(ctx.contact.lastName ?? ''),
-        fullName: () => `${ctx.contact.firstName || ''} ${ctx.contact.lastName || ''}`.trim(),
-        email: () => String(ctx.contact.email ?? ''),
-        phone: () => String(ctx.contact.phone ?? ''),
-        title: () => String(ctx.contact.title ?? ''),
-        sequence: () => ctx.sequence.name,
-        today: () => new Date().toISOString().split('T')[0] ?? '',
-        now: () => new Date().toISOString()
-      };
-      if (trimmed in legacy) return legacy[trimmed]!();
-      if (trimmed in ctx.variables) return String(ctx.variables[trimmed] ?? '');
-      return '';
-    }
-  }
+export function resolveTokenPath(path: string, ctx: ExecutionContext): string {
+  return renderCanonicalVariables(`{{${path.trim()}}}`, ctx as any);
 }
 
 /**
@@ -1553,12 +1477,14 @@ async function handleSendEmailStep(
   let rawSubject = step.config?.subject || '';
   let rawBody = step.config?.body || '';
   let rawAttachments: any[] = step.config?.attachments || [];
+  let matchedTemplate: any = null;
 
   if (templateId) {
     try {
       const templates = await sdk.outreach.listTemplates();
       const tpl = templates.find((t: any) => t.id === templateId);
       if (tpl) {
+        matchedTemplate = tpl;
         if (!rawSubject) rawSubject = tpl.subject;
         if (!rawBody) rawBody = tpl.body;
         if (!rawAttachments || rawAttachments.length === 0) {
@@ -1649,7 +1575,10 @@ async function handleSendEmailStep(
       sequenceId,
       executionId: execCtx.execution.id,
       stepIndex: stepIndexNum,
-      contactId: entityId
+      contactId: entityId,
+      templateId: templateId || undefined,
+      templateVersion: matchedTemplate?.version || undefined,
+      variablesSnapshot: captureVariablesSnapshot(rawSubject + ' ' + rawBody, renderCtx as any)
     });
     const sentMsgId = sendResult.messageId || null;
 

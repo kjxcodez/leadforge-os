@@ -1,5 +1,5 @@
 import type { JobContext } from '../../../shared/types/job';
-import { SdkClient, renderCanonicalVariables, formatEmailBody, type CanonicalVariableContext } from '@leadforge/sdk';
+import { SdkClient, renderCanonicalVariables, formatEmailBody, captureVariablesSnapshot, type CanonicalVariableContext } from '@leadforge/sdk';
 import { generateEntityId, evaluateOutreachEligibility } from '@leadforge/schema';
 import { resolveWorkerApiUrl } from '../worker-host';
 
@@ -72,11 +72,13 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
   let body: string = ctx.payload.body || '';
   let rawAttachments: any[] = ctx.payload.attachments || [];
 
+  let matchedTemplate: any = null;
   if (ctx.payload.templateId) {
     try {
       const templates = await sdk.outreach.listTemplates();
       const tpl = templates.find((t: any) => t.id === ctx.payload.templateId);
       if (tpl) {
+        matchedTemplate = tpl;
         if (!subject) subject = tpl.subject;
         if (!body) body = tpl.body;
         if (!rawAttachments || rawAttachments.length === 0) {
@@ -339,7 +341,10 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
         sequenceId: campaign.sequenceId || `campaign-${campaignId}`,
         executionId: `exec_${campaignId}_${contact.id}`,
         stepIndex: 0,
-        contactId: contact.id
+        contactId: contact.id,
+        templateId: ctx.payload.templateId || undefined,
+        templateVersion: matchedTemplate?.version || undefined,
+        variablesSnapshot: captureVariablesSnapshot(subject + ' ' + body, renderCtx as any)
       });
 
       messageId = res.messageId || '';
@@ -396,7 +401,10 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
               sequenceId: campaign.sequenceId || `campaign-${campaignId}`,
               executionId: `exec_${campaignId}_${contact.id}`,
               stepIndex: 0,
-              contactId: contact.id
+              contactId: contact.id,
+              templateId: ctx.payload.templateId || undefined,
+              templateVersion: matchedTemplate?.version || undefined,
+              variablesSnapshot: captureVariablesSnapshot(subject + ' ' + body, renderCtx as any)
             });
             messageId = retryRes.messageId || '';
             sendSuccess = true;

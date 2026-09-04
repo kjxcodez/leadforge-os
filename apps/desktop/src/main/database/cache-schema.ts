@@ -265,11 +265,19 @@ export function initCacheSchema(db: Database.Database): void {
         body TEXT,
         variables TEXT DEFAULT '[]',
         attachments TEXT DEFAULT '[]',
+        version INTEGER DEFAULT 1,
         createdAt DATETIME,
         updatedAt DATETIME,
         deletedAt DATETIME DEFAULT NULL
       )
     `).run();
+
+    try {
+      const tplCols = (db.pragma('table_info(templates)') as Array<{ name: string }>).map((c) => c.name);
+      if (!tplCols.includes('version')) {
+        db.prepare('ALTER TABLE templates ADD COLUMN version INTEGER DEFAULT 1').run();
+      }
+    } catch {}
 
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_templates_ws ON templates(workspaceId)`).run();
 
@@ -349,6 +357,10 @@ export function initCacheSchema(db: Database.Database): void {
         providerMessageId TEXT,
         htmlBody TEXT,
         textBody TEXT,
+        templateId TEXT,
+        templateVersion INTEGER,
+        variablesSnapshot TEXT,
+        messageFingerprint TEXT,
         providerThreadId TEXT,
         safeHumanMessage TEXT,
         technicalMessage TEXT,
@@ -375,6 +387,10 @@ export function initCacheSchema(db: Database.Database): void {
     const extraDeliveryCols = [
       'htmlBody TEXT',
       'textBody TEXT',
+      'templateId TEXT',
+      'templateVersion INTEGER',
+      'variablesSnapshot TEXT',
+      'messageFingerprint TEXT',
       'providerThreadId TEXT',
       'safeHumanMessage TEXT',
       'technicalMessage TEXT',

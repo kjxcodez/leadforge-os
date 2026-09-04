@@ -54,6 +54,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { PageHeader } from '../components/common/PageHeader';
 import { MediaPickerDialog } from '../components/media/MediaPickerDialog';
 import { EngagementPills } from '../components/email/EmailStatusBadge';
+import { SafeEmailPreview } from '../components/email/SafeEmailPreview';
 import { CampaignAnalyticsView } from '../components/analytics';
 import {
   ProgressiveSequenceEditor,
@@ -2279,7 +2280,7 @@ export default function CampaignsScreen() {
 
       {/* ── Live Preview Drawer Dialog ────────────────────────────────────── */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-md rounded-none bg-background border border-border-subtle shadow-elevation-2">
+        <DialogContent className="max-w-2xl rounded-none bg-background border border-border-subtle shadow-elevation-2">
           <DialogHeader>
             <DialogTitle>Template Live Preview</DialogTitle>
           </DialogHeader>
@@ -2304,16 +2305,28 @@ export default function CampaignsScreen() {
             {previewQuery.isLoading ? (
               <div className="text-center py-4 text-muted-foreground animate-pulse">Compiling template...</div>
             ) : previewQuery.data ? (
-              <div className="border border-border-subtle rounded-none p-3 bg-surface-3 space-y-2 font-mono text-[10px]">
-                <div className="font-bold text-foreground">
-                  Subject:{' '}
-                  <span className="font-normal font-sans text-muted-foreground">
-                    {previewQuery.data.subject}
-                  </span>
+              <div className="space-y-2">
+                <div className="border border-border-subtle p-2.5 bg-surface-3 text-xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-foreground font-mono">Subject: </span>
+                      <span className="font-medium text-foreground">{previewQuery.data.subject}</span>
+                    </div>
+                    {previewQuery.data.version && (
+                      <span className="text-[10px] text-muted-foreground bg-surface-2 px-1.5 py-0.5 border border-border-subtle font-mono">
+                        v{previewQuery.data.version}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="border-t border-border-subtle pt-2 text-foreground font-sans whitespace-pre-wrap leading-relaxed">
-                  {previewQuery.data.body}
-                </div>
+
+                <SafeEmailPreview
+                  subject={previewQuery.data.subject}
+                  htmlBody={previewQuery.data.html || previewQuery.data.body}
+                  textBody={previewQuery.data.text || previewQuery.data.body}
+                  className="min-h-[160px]"
+                />
+
                 {previewTemplateId && (() => {
                   const currentTpl = (templatesQuery.data || []).find((t: any) => t.id === previewTemplateId);
                   const atts = currentTpl?.attachments
@@ -2321,7 +2334,7 @@ export default function CampaignsScreen() {
                     : [];
                   if (atts.length === 0) return null;
                   return (
-                    <div className="border-t border-border-subtle pt-2">
+                    <div className="border border-border-subtle p-2 bg-surface-3">
                       <div className="text-[10px] font-semibold text-muted-foreground mb-1 flex items-center gap-1">
                         <Paperclip className="w-3 h-3" /> Attached Files ({atts.length}):
                       </div>
