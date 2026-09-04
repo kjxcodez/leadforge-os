@@ -23,6 +23,7 @@ import { systemLogsRouter } from './system-logs.js';
 import { googleConnectionsRouter } from './google-connections.js';
 import { attachmentsRouter } from './attachments.js';
 import { trackingRouter } from './tracking.js';
+import { operationsRouter } from './operations.js';
 
 import { authMiddleware, workspaceMiddleware, rateLimiter } from '../middleware/index.js';
 import { BetaApplicantModel } from '../db/models/index.js';
@@ -94,6 +95,7 @@ apiRouter.use('/intelligence/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/workspace-memory/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/audit-logs/*', authMiddleware, workspaceMiddleware);
 apiRouter.use('/system-logs/*', authMiddleware, workspaceMiddleware);
+apiRouter.use('/operations/*', authMiddleware, workspaceMiddleware);
 
 apiRouter.use('/attachments/*', authMiddleware, workspaceMiddleware);
 
@@ -134,6 +136,7 @@ apiRouter.route('/intelligence', intelligenceRouter);
 apiRouter.route('/workspace-memory', memoryRouter);
 apiRouter.route('/audit-logs', auditRouter);
 apiRouter.route('/system-logs', systemLogsRouter);
+apiRouter.route('/operations', operationsRouter);
 
 export { apiRouter };
 export { healthRouter, authRouter };

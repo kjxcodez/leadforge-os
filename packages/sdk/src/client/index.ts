@@ -22,7 +22,8 @@ import {
   AuditLogsModule,
   SystemLogsModule,
   GoogleConnectionsModule,
-  AttachmentsModule
+  AttachmentsModule,
+  OperationsModule
 } from '../modules/index.js';
 
 export class SdkClient {
@@ -50,6 +51,7 @@ export class SdkClient {
   public readonly systemLogs: SystemLogsModule;
   public readonly googleConnections: GoogleConnectionsModule;
   public readonly attachments: AttachmentsModule;
+  public readonly operations: OperationsModule;
 
   constructor(config: HttpClientConfig) {
     this.httpClient = new HttpClient(config);
@@ -76,5 +78,6 @@ export class SdkClient {
     this.systemLogs = new SystemLogsModule(this.httpClient);
     this.googleConnections = new GoogleConnectionsModule(this.httpClient);
     this.attachments = new AttachmentsModule(this.httpClient);
+    this.operations = new OperationsModule(this.httpClient);
   }
 }

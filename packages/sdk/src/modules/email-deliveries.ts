@@ -39,6 +39,10 @@ export class EmailDeliveriesModule {
     return this.client.post<any>(`/email-deliveries/${id}/reconcile`, {});
   }
 
+  public async reconcileAmbiguous(limit = 10): Promise<any> {
+    return this.client.post<any>('/email-deliveries/reconcile-ambiguous', { limit });
+  }
+
   public async pollReplies(): Promise<any> {
     return this.client.post<any>('/email-deliveries/poll-replies', {});
   }
