@@ -18,6 +18,7 @@ const integrationTests = [
   'src/main/services/campaign.test.ts',
   'src/main/services/fresh-database.test.ts',
   'src/main/services/fresh-database-all-queries.test.ts',
+  'src/main/services/operations-cache.test.ts',
   'src/main/services/post-release-stabilization.test.ts',
   'src/main/services/release-qualification.test.ts'
 ];

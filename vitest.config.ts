@@ -24,6 +24,7 @@ export default defineConfig({
       'apps/desktop/src/main/services/campaign.test.ts',
       'apps/desktop/src/main/services/fresh-database.test.ts',
       'apps/desktop/src/main/services/fresh-database-all-queries.test.ts',
+      'apps/desktop/src/main/services/operations-cache.test.ts',
       'apps/desktop/src/main/services/post-release-stabilization.test.ts',
       'apps/desktop/src/main/services/release-qualification.test.ts'
     ],
