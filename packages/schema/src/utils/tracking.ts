@@ -29,6 +29,10 @@ export function injectOpenTrackingPixel(
 ): string {
   if (!html || !openToken) return html;
 
+  if (html.includes('/t/open/') || html.includes('/tracking/open/')) {
+    return html;
+  }
+
   const normalizedBase = trackingBaseUrl.replace(/\/+$/, '');
   const pixelUrl = `${normalizedBase}/t/open/${openToken}`;
   const pixelTag = `<img src="${pixelUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;border:0;" />`;
