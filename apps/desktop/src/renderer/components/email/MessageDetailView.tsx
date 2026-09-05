@@ -12,7 +12,8 @@ import {
   Send,
   MessageSquareQuote,
   Copy,
-  Check
+  Check,
+  Fingerprint
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
@@ -94,6 +95,16 @@ export const MessageDetailView: React.FC<MessageDetailViewProps> = ({
 
   const delivery = deliveryQuery.data;
   const events = eventsQuery.data || [];
+
+  const parsedVariables = React.useMemo(() => {
+    if (!delivery?.variablesSnapshot) return null;
+    if (typeof delivery.variablesSnapshot === 'object') return delivery.variablesSnapshot;
+    try {
+      return JSON.parse(delivery.variablesSnapshot);
+    } catch {
+      return null;
+    }
+  }, [delivery?.variablesSnapshot]);
 
   const handleRefetch = () => {
     queryClient.invalidateQueries({ queryKey: ['email_delivery', deliveryId] });
@@ -237,6 +248,58 @@ export const MessageDetailView: React.FC<MessageDetailViewProps> = ({
           {delivery.providerThreadId && <CopyableIdentifier label="Provider Thread ID" value={delivery.providerThreadId} />}
           {delivery.idempotencyKey && <CopyableIdentifier label="Idempotency Key" value={delivery.idempotencyKey} />}
         </div>
+      </div>
+
+      {/* Outreach Lineage & Composition Provenance (Phase 16) */}
+      <div className="space-y-1.5 pt-0.5">
+        <div className="text-[11px] font-semibold text-muted-foreground/80 uppercase tracking-wider flex items-center gap-1.5">
+          <Fingerprint className="w-3 h-3 text-primary" />
+          Outreach Lineage & Composition
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+          <CopyableIdentifier
+            label="Template"
+            value={delivery.templateId || undefined}
+            title={delivery.templateId ? `Template ID: ${delivery.templateId}` : 'Direct Outreach / No Template'}
+          />
+          <div className="flex items-center justify-between gap-1.5 bg-muted/30 hover:bg-muted/50 transition-colors rounded px-2 py-1 border border-border/50 text-[11px] font-mono text-muted-foreground min-w-0">
+            <span className="text-muted-foreground/70 shrink-0 select-none font-sans font-medium">Version:</span>
+            <span className="truncate select-all text-foreground/90 font-mono">
+              {typeof delivery.templateVersion === 'number'
+                ? `v${delivery.templateVersion} (Immutable Historical)`
+                : 'Legacy / Unversioned'}
+            </span>
+          </div>
+          {delivery.messageFingerprint && (
+            <div className="md:col-span-2">
+              <CopyableIdentifier
+                label="Content Fingerprint"
+                value={delivery.messageFingerprint}
+                title={`SHA-256 Canonical Message Fingerprint: ${delivery.messageFingerprint}`}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Variables Snapshot Badges */}
+        {parsedVariables && Object.keys(parsedVariables).length > 0 && (
+          <div className="bg-muted/20 border border-border/40 rounded p-2 text-xs space-y-1 mt-1">
+            <div className="text-[10px] uppercase font-semibold text-muted-foreground/70 tracking-wider">
+              Variables Snapshot
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(parsedVariables).map(([key, val]) => (
+                <span
+                  key={key}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-background/80 border border-border/60 text-[11px] font-mono text-foreground/90"
+                >
+                  <span className="text-muted-foreground/70 font-sans">{key}:</span>
+                  <span className="font-semibold select-all">{String(val)}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Failure & Ambiguous Diagnostics */}
