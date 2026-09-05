@@ -15,6 +15,7 @@ const fs = require('fs');
 
 const integrationTests = [
   'src/main/services/audiences.test.ts',
+  'src/main/services/campaign-lifecycle-safety-phase15.test.ts',
   'src/main/services/campaign.test.ts',
   'src/main/services/campaign-analytics.test.ts',
   'src/main/services/email-quality-intelligence.test.ts',

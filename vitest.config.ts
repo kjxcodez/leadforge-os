@@ -21,6 +21,7 @@ export default defineConfig({
       '**/*.d.ts',
       // Native Electron SQLite integration tests executed via test:integration runner
       'apps/desktop/src/main/services/audiences.test.ts',
+      'apps/desktop/src/main/services/campaign-lifecycle-safety-phase15.test.ts',
       'apps/desktop/src/main/services/campaign.test.ts',
       'apps/desktop/src/main/services/campaign-analytics.test.ts',
       'apps/desktop/src/main/services/email-quality-intelligence.test.ts',

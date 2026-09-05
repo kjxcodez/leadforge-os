@@ -376,6 +376,7 @@ export function initCacheSchema(db: Database.Database): void {
         lastClickedAt DATETIME,
         lastRepliedAt DATETIME,
         status TEXT DEFAULT 'PENDING',
+        processingStatus TEXT DEFAULT NULL,
         attempt INTEGER DEFAULT 1,
         idempotencyKey TEXT UNIQUE,
         sentAt DATETIME,
@@ -385,6 +386,7 @@ export function initCacheSchema(db: Database.Database): void {
     `).run();
 
     const extraDeliveryCols = [
+      'processingStatus TEXT DEFAULT NULL',
       'htmlBody TEXT',
       'textBody TEXT',
       'templateId TEXT',
