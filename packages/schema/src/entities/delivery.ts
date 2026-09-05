@@ -14,6 +14,16 @@ export const emailDeliveryStatusSchema = z.enum([
 ]);
 export type EmailDeliveryStatus = z.infer<typeof emailDeliveryStatusSchema>;
 
+export const emailDeliveryProcessingStatusSchema = z.enum([
+  'RECEIVED',
+  'MATCHED',
+  'UNMATCHED',
+  'CORRELATION_PENDING',
+  'AMBIGUOUS_MATCH',
+  'IGNORED'
+]);
+export type EmailDeliveryProcessingStatus = z.infer<typeof emailDeliveryProcessingStatusSchema>;
+
 export const emailAttachmentMetaSchema = z.object({
   filename: z.string(),
   contentType: z.string(),
@@ -76,7 +86,7 @@ export const emailDeliverySchema = z.object({
   references: z.array(z.string()).default([]),
   matchedDeliveryId: entityIdFieldNullable.optional(),
   matchConfidence: z.enum(['thread', 'header', 'contact', 'none']).nullable().optional(),
-  processingStatus: z.enum(['RECEIVED', 'MATCHED', 'UNMATCHED', 'AMBIGUOUS_MATCH', 'IGNORED']).default('MATCHED').optional(),
+  processingStatus: emailDeliveryProcessingStatusSchema.default('MATCHED').optional(),
   hasReply: z.boolean().default(false).optional(),
   replyCount: z.number().int().nonnegative().default(0).optional(),
   lastRepliedAt: z.coerce.date().nullable().optional(),

@@ -76,6 +76,11 @@ export enum CampaignStatus {
   FAILED = 'FAILED'
 }
 
+export enum CampaignPauseReason {
+  USER_REQUESTED = 'USER_REQUESTED',
+  MAILBOX_DISCONNECTED = 'MAILBOX_DISCONNECTED'
+}
+
 export enum ContactStatus {
   NEW = 'NEW',
   CONTACTED = 'CONTACTED',
