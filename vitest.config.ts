@@ -28,6 +28,7 @@ export default defineConfig({
       'apps/desktop/src/main/services/fresh-database.test.ts',
       'apps/desktop/src/main/services/fresh-database-all-queries.test.ts',
       'apps/desktop/src/main/services/operations-cache.test.ts',
+      'apps/desktop/src/main/services/outreach-lineage-phase16.test.ts',
       'apps/desktop/src/main/services/post-release-stabilization.test.ts',
       'apps/desktop/src/main/services/release-qualification.test.ts',
       'apps/desktop/src/main/services/scheduler-execution-hardening.test.ts'
