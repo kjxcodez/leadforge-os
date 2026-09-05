@@ -180,9 +180,33 @@ export class ProjectionService {
       }
 
       // 3. Campaign / Workflow Outreach Outcome -> Reconcile Campaign & Executions
-      if (jobType === 'outreach:campaign' || jobType === 'automation:workflow' || payload?.campaignId) {
-        let campaignId = payload?.campaignId;
-        const executionId = payload?.executionId;
+      if (jobType === 'outreach:campaign' || jobType === 'automation:workflow' || payload?.campaignId || result?.campaignId) {
+        let campaignId = payload?.campaignId || result?.campaignId;
+        const executionId = payload?.executionId || result?.executionId;
+
+        // If the worker yielded WAITING (step delay or mailbox throttle), immediately project into SQLite
+        if (executionId && result?.status === 'waiting') {
+          try {
+            const db = getDatabase(workspaceId);
+            const nowIso = new Date().toISOString();
+            db.prepare(`
+              UPDATE sequence_executions
+              SET status = 'WAITING',
+                  currentStep = ?,
+                  nextExecutionAt = ?,
+                  updatedAt = ?
+              WHERE id = ? AND workspaceId = ?
+            `).run(
+              result.currentStep ?? 0,
+              result.nextExecutionAt || nowIso,
+              nowIso,
+              executionId,
+              workspaceId
+            );
+          } catch (updateErr: any) {
+            AppLogger.warn('ProjectionService', `Direct SQLite WAITING projection note: ${updateErr.message}`, workspaceId);
+          }
+        }
 
         // If executionId is present, project the individual execution
         if (executionId) {

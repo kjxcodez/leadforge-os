@@ -729,19 +729,23 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
     sequenceId = payload?.sequenceId;
     entityId = payload?.entityId;
     entityType = payload?.entityType;
+    let resolvedCampaignId: string | undefined = (payload as any)?.campaignId || (ctx.payload as any)?.campaignId;
 
     // Recover missing fields from API if needed
-    if (!sequenceId && executionId) {
+    if ((!sequenceId || !resolvedCampaignId) && executionId) {
       try {
         const execRecord = await sdk.executions.get(executionId);
         if (execRecord) {
-          sequenceId = execRecord.sequenceId;
-          if (execRecord.contactId) {
-            entityId = execRecord.contactId;
-            entityType = 'contact';
-          } else if (execRecord.companyId) {
-            entityId = execRecord.companyId;
-            entityType = 'company';
+          if (!sequenceId) sequenceId = execRecord.sequenceId;
+          if (!resolvedCampaignId && execRecord.campaignId) resolvedCampaignId = execRecord.campaignId;
+          if (!entityId) {
+            if (execRecord.contactId) {
+              entityId = execRecord.contactId;
+              entityType = 'contact';
+            } else if (execRecord.companyId) {
+              entityId = execRecord.companyId;
+              entityType = 'company';
+            }
           }
         }
       } catch {}
@@ -1223,7 +1227,8 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             executionId,
             sequenceId,
             entityId,
-            currentStep
+            currentStep,
+            campaignId: resolvedCampaignId
           };
         }
       } else if (dispatchResult.status === 'wait') {
@@ -1292,7 +1297,10 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
           executionId,
           sequenceId,
           entityId,
-          currentStep: nextStep
+          currentStep: nextStep,
+          delaySeconds: delay,
+          nextExecutionAt,
+          campaignId: resolvedCampaignId
         };
       } else if (dispatchResult.status === 'goto') {
         const { targetIndex, targetLabel } = dispatchResult as {

@@ -82,6 +82,7 @@ export class JobScheduler {
   private reliabilityTimerId: NodeJS.Timeout | null = null;
   private isPollingReplies = false;
   private isReconcilingAmbiguous = false;
+  private isReconcilingOrphans = false;
 
   constructor(
     private workspaceId: string,
@@ -146,6 +147,24 @@ export class JobScheduler {
         'Failed to reconcile stale jobs on startup',
         this.workspaceId,
         err
+      );
+    }
+
+    // Reconcile orphaned SQLite RUNNING executions on startup
+    try {
+      const orphanResult = await this.reconcileOrphanedExecutions();
+      if (orphanResult.recovered > 0 || orphanResult.updated > 0) {
+        AppLogger.info(
+          'JobScheduler',
+          `Reconciled orphaned executions on startup: ${orphanResult.recovered} restored to WAITING, ${orphanResult.updated} synchronized.`,
+          this.workspaceId
+        );
+      }
+    } catch (orphanErr: any) {
+      AppLogger.warn(
+        'JobScheduler',
+        `Startup orphan reconciliation note: ${orphanErr?.message || orphanErr}`,
+        this.workspaceId
       );
     }
 
@@ -298,6 +317,7 @@ export class JobScheduler {
 
     let lastPollAt = Date.now();
     let lastReconcileAt = Date.now();
+    let lastOrphanCheckAt = Date.now();
 
     this.reliabilityTimerId = setInterval(async () => {
       if (this.state === 'STOPPED' || this.state === 'PAUSED_OFFLINE') return;
@@ -347,7 +367,135 @@ export class JobScheduler {
           this.isReconcilingAmbiguous = false;
         }
       }
+
+      // 3. Reconcile orphaned SQLite RUNNING executions every 60 seconds
+      if (now - lastOrphanCheckAt >= 60_000 && !this.isReconcilingOrphans) {
+        this.isReconcilingOrphans = true;
+        lastOrphanCheckAt = now;
+        try {
+          await this.reconcileOrphanedExecutions();
+        } catch {} finally {
+          this.isReconcilingOrphans = false;
+        }
+      }
     }, 30_000);
+  }
+
+  /**
+   * Reconciles orphaned executions stuck in RUNNING in local SQLite with authoritative MongoDB state.
+   * Runs at startup and periodically.
+   * If MongoDB execution is WAITING and no active job exists, restores SQLite to WAITING.
+   * If MongoDB execution is terminal (COMPLETED, FAILED, CANCELLED), projects terminal state.
+   * If MongoDB campaign is STOPPED or PAUSED, projects cancellation or pause.
+   */
+  public async reconcileOrphanedExecutions(): Promise<{ recovered: number; updated: number }> {
+    let recovered = 0;
+    let updated = 0;
+    try {
+      const db = getDatabase(this.workspaceId);
+      const runningExecs = db
+        .prepare(`
+          SELECT se.id, se.sequenceId, se.contactId, se.campaignId, se.currentStep, se.nextExecutionAt, se.updatedAt
+          FROM sequence_executions se
+          WHERE se.workspaceId = ?
+            AND UPPER(se.status) = 'RUNNING'
+            AND se.deletedAt IS NULL
+          LIMIT 50
+        `)
+        .all(this.workspaceId) as Array<{
+          id: string;
+          sequenceId: string;
+          contactId: string;
+          campaignId?: string;
+          currentStep?: number;
+          nextExecutionAt?: string;
+          updatedAt?: string;
+        }>;
+
+      if (runningExecs.length === 0) return { recovered: 0, updated: 0 };
+
+      const nowIso = new Date().toISOString();
+
+      for (const exec of runningExecs) {
+        try {
+          const mongoExec = await this.sdk.executions.get(exec.id).catch(() => null);
+          if (!mongoExec) {
+            // Execution does not exist on server or network error; skip
+            continue;
+          }
+
+          const mongoStatus = String(mongoExec.status || '').toUpperCase();
+
+          if (['COMPLETED', 'FAILED', 'CANCELLED', 'REPLIED'].includes(mongoStatus)) {
+            db.prepare(`
+              UPDATE sequence_executions
+              SET status = ?, updatedAt = ?
+              WHERE id = ? AND workspaceId = ?
+            `).run(mongoStatus, nowIso, exec.id, this.workspaceId);
+            updated++;
+          } else if (mongoStatus === 'PAUSED') {
+            db.prepare(`
+              UPDATE sequence_executions
+              SET status = 'PAUSED', updatedAt = ?
+              WHERE id = ? AND workspaceId = ?
+            `).run(nowIso, exec.id, this.workspaceId);
+            updated++;
+          } else if (mongoStatus === 'WAITING' || mongoStatus === 'RUNNING') {
+            // Check campaign status if applicable
+            if (exec.campaignId) {
+              const camp = await this.sdk.campaigns.get(exec.campaignId).catch(() => null);
+              if (camp) {
+                const campStatus = String(camp.status || '').toUpperCase();
+                if (campStatus === 'STOPPED' || campStatus === 'FAILED') {
+                  db.prepare(`
+                    UPDATE sequence_executions
+                    SET status = 'CANCELLED', updatedAt = ?
+                    WHERE id = ? AND workspaceId = ?
+                  `).run(nowIso, exec.id, this.workspaceId);
+                  updated++;
+                  continue;
+                }
+                if (campStatus === 'PAUSED') {
+                  db.prepare(`
+                    UPDATE sequence_executions
+                    SET status = 'PAUSED', updatedAt = ?
+                    WHERE id = ? AND workspaceId = ?
+                  `).run(nowIso, exec.id, this.workspaceId);
+                  updated++;
+                  continue;
+                }
+              }
+            }
+
+            // Restore orphaned execution to WAITING with nextExecutionAt
+            const nextAt = mongoExec.nextExecutionAt
+              ? new Date(mongoExec.nextExecutionAt).toISOString()
+              : (exec.nextExecutionAt || nowIso);
+
+            if (mongoStatus === 'RUNNING') {
+              // Ensure MongoDB execution is also set to WAITING so it is cleanly resumable
+              await this.sdk.executions.update(exec.id, {
+                status: 'WAITING',
+                nextExecutionAt: nextAt
+              }).catch(() => {});
+            }
+
+            db.prepare(`
+              UPDATE sequence_executions
+              SET status = 'WAITING', nextExecutionAt = ?, updatedAt = ?
+              WHERE id = ? AND workspaceId = ?
+            `).run(nextAt, nowIso, exec.id, this.workspaceId);
+            recovered++;
+            AppLogger.info('JobScheduler', `Recovered orphaned RUNNING execution ${exec.id} to WAITING`, this.workspaceId);
+          }
+        } catch (execErr: any) {
+          AppLogger.warn('JobScheduler', `Orphan reconciliation error for ${exec.id}: ${execErr.message}`, this.workspaceId);
+        }
+      }
+    } catch (err: any) {
+      AppLogger.warn('JobScheduler', `Orphaned execution scan skipped: ${err.message}`, this.workspaceId);
+    }
+    return { recovered, updated };
   }
 
   /**
@@ -362,56 +510,87 @@ export class JobScheduler {
       // 1. WAITING Sequence Recovery: Scan SQLite sequence_executions for due WAITING executions
       try {
         const db = getDatabase(this.workspaceId);
+        const nowIso = new Date().toISOString();
 
         // Cancel any WAITING executions belonging to permanently STOPPED or FAILED campaigns
         try {
           db.prepare(`
             UPDATE sequence_executions
-            SET status = 'CANCELLED', updatedAt = datetime('now')
+            SET status = 'CANCELLED', updatedAt = ?
             WHERE workspaceId = ?
               AND UPPER(status) = 'WAITING'
               AND campaignId IN (
                 SELECT id FROM campaigns
                 WHERE workspaceId = ? AND UPPER(status) IN ('STOPPED', 'FAILED')
               )
-          `).run(this.workspaceId, this.workspaceId);
+          `).run(nowIso, this.workspaceId, this.workspaceId);
         } catch {}
 
         const dueExecutions = db
           .prepare(`
-            SELECT se.id, se.sequenceId, se.contactId, se.campaignId
+            SELECT se.id, se.sequenceId, se.contactId, se.campaignId, se.currentStep, se.nextExecutionAt
             FROM sequence_executions se
             LEFT JOIN campaigns c ON se.campaignId = c.id
             WHERE se.workspaceId = ?
               AND UPPER(se.status) = 'WAITING'
               AND se.nextExecutionAt IS NOT NULL
-              AND se.nextExecutionAt <= datetime('now')
+              AND strftime('%s', se.nextExecutionAt) <= strftime('%s', ?)
               AND se.deletedAt IS NULL
               AND (se.campaignId IS NULL OR UPPER(COALESCE(c.status, 'ACTIVE')) = 'ACTIVE')
             LIMIT 20
           `)
-          .all(this.workspaceId) as Array<{
+          .all(this.workspaceId, nowIso) as Array<{
             id: string;
             sequenceId: string;
             contactId: string;
             campaignId?: string;
+            currentStep?: number;
+            nextExecutionAt?: string;
           }>;
 
         for (const exec of dueExecutions) {
+          // Authoritative MongoDB campaign safety gate: verify campaign status in MongoDB
+          if (exec.campaignId) {
+            try {
+              const mongoCampaign = await this.sdk.campaigns.get(exec.campaignId).catch(() => null);
+              if (mongoCampaign) {
+                const campStatus = String(mongoCampaign.status || '').toUpperCase();
+                if (campStatus === 'STOPPED' || campStatus === 'FAILED') {
+                  db.prepare(`
+                    UPDATE sequence_executions
+                    SET status = 'CANCELLED', updatedAt = ?
+                    WHERE id = ? AND workspaceId = ?
+                  `).run(nowIso, exec.id, this.workspaceId);
+                  continue;
+                }
+                if (campStatus === 'PAUSED') {
+                  db.prepare(`
+                    UPDATE sequence_executions
+                    SET status = 'PAUSED', updatedAt = ?
+                    WHERE id = ? AND workspaceId = ?
+                  `).run(nowIso, exec.id, this.workspaceId);
+                  continue;
+                }
+              }
+            } catch {}
+          }
+
           // Atomic compare-and-swap transition in SQLite: WAITING -> RUNNING
           const updateResult = db
             .prepare(`
               UPDATE sequence_executions
-              SET status = 'RUNNING', updatedAt = datetime('now')
+              SET status = 'RUNNING', updatedAt = ?
               WHERE id = ? AND UPPER(status) = 'WAITING'
             `)
-            .run(exec.id);
+            .run(nowIso, exec.id);
 
           if (updateResult.changes === 1) {
             AppLogger.info('JobScheduler', `Recovered WAITING sequence execution: ${exec.id}`, this.workspaceId);
-            await this.sdk.jobs
-              .create({
+            const idempotencyKey = `workflow_${exec.id}_step${exec.currentStep ?? 0}_${exec.nextExecutionAt || nowIso}`;
+            try {
+              await this.sdk.jobs.create({
                 type: 'automation:workflow',
+                idempotencyKey,
                 payload: {
                   executionId: exec.id,
                   sequenceId: exec.sequenceId,
@@ -420,10 +599,18 @@ export class JobScheduler {
                   contactId: exec.contactId,
                   campaignId: exec.campaignId
                 }
-              })
-              .catch((err) => {
-                AppLogger.error('JobScheduler', `Failed to enqueue automation:workflow job for ${exec.id}`, this.workspaceId, err);
               });
+            } catch (createErr: any) {
+              AppLogger.error('JobScheduler', `Failed to enqueue automation:workflow job for ${exec.id}`, this.workspaceId, createErr);
+              // Revert SQLite status back to WAITING so execution is not permanently orphaned
+              try {
+                db.prepare(`
+                  UPDATE sequence_executions
+                  SET status = 'WAITING', updatedAt = ?
+                  WHERE id = ? AND UPPER(status) = 'RUNNING'
+                `).run(nowIso, exec.id);
+              } catch {}
+            }
           }
         }
       } catch (recoveryErr) {
@@ -573,7 +760,7 @@ export class JobScheduler {
                   } catch {}
                   this.activeWorkers.delete(job.id);
                 }
-                this.handleJobFailure(job.id, job.retryCount, job.maxRetries, 'Heartbeat timeout', workerId);
+                this.handleJobFailure(job.id, job.retryCount, job.maxRetries, 'Heartbeat timeout', workerId, job.type, job.payload);
                 this.eventBus.publish('job:heartbeat:timeout', { jobId: job.id });
               } else if (worker.connected) {
                 worker.send({ command: 'ping' } as MainToWorkerMsg);
@@ -668,7 +855,7 @@ export class JobScheduler {
           break;
 
         case 'error':
-          this.handleJobFailure(job.id, job.retryCount, job.maxRetries, msg.error, workerId);
+          this.handleJobFailure(job.id, job.retryCount, job.maxRetries, msg.error, workerId, job.type, job.payload);
           break;
 
         case 'automation_event':
@@ -691,7 +878,7 @@ export class JobScheduler {
           this.workspaceId,
           { jobId: job.id }
         );
-        this.handleJobFailure(job.id, job.retryCount, job.maxRetries, errorMsg, workerId);
+        this.handleJobFailure(job.id, job.retryCount, job.maxRetries, errorMsg, workerId, job.type, job.payload);
       }
 
       const resolveCancel = this.pendingCancels.get(job.id);
@@ -818,7 +1005,9 @@ export class JobScheduler {
     currentRetry: number,
     maxRetries: number,
     error: string,
-    workerId?: string
+    workerId?: string,
+    jobType?: string,
+    payload?: any
   ): Promise<void> {
     if (this.terminalJobs.has(jobId)) {
       return;
@@ -833,6 +1022,7 @@ export class JobScheduler {
       } catch {}
       this.activeWorkers.delete(jobId);
     }
+    if (jobType) this.decrementTypeCount(jobType);
 
     if (nextRetry <= maxRetries) {
       const delaySec = Math.min(Math.pow(2, nextRetry), 60);
@@ -862,6 +1052,17 @@ export class JobScheduler {
       );
       await this.sdk.jobs.fail(jobId, error, workerId).catch(() => {});
       this.eventBus.publish('job:failed', { jobId, error, willRetry: false });
+
+      // Project failure into SQLite for automation workflows
+      if (jobType === 'automation:workflow' || payload?.executionId) {
+        await ProjectionService.reconcileJobOutcome(
+          this.workspaceId,
+          jobType,
+          payload,
+          { status: 'failed', error },
+          this.sdk
+        ).catch(() => {});
+      }
     }
 
     const resolveCancel = this.pendingCancels.get(jobId);
