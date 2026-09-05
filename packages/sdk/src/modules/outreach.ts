@@ -6,6 +6,7 @@ import type {
   OutreachFilters,
   EmailAccount,
   EmailTemplate,
+  TemplateVersion,
   CreateEmailTemplateDto,
   UpdateEmailTemplateDto
 } from '@leadforge/schema';
@@ -147,6 +148,14 @@ export class OutreachModule {
     return this.client.get<EmailTemplate[]>('/outreach/templates');
   }
 
+  public async getTemplate(id: string): Promise<EmailTemplate> {
+    return this.client.get<EmailTemplate>(`/outreach/templates/${id}`);
+  }
+
+  public async getTemplateVersion(id: string, version: number): Promise<TemplateVersion> {
+    return this.client.get<TemplateVersion>(`/outreach/templates/${id}/versions/${version}`);
+  }
+
   public async createTemplate(dto: CreateEmailTemplateDto): Promise<EmailTemplate> {
     return this.client.post<EmailTemplate>('/outreach/templates', dto);
   }
@@ -161,9 +170,13 @@ export class OutreachModule {
 
   public async previewTemplate(
     id: string,
-    contactId?: string
+    contactId?: string,
+    version?: number
   ): Promise<{ subject: string; body: string }> {
-    const queryParams = contactId ? `?contactId=${contactId}` : '';
+    const params = new URLSearchParams();
+    if (contactId) params.append('contactId', contactId);
+    if (typeof version === 'number' && version > 0) params.append('version', String(version));
+    const queryParams = params.toString() ? `?${params.toString()}` : '';
     return this.client.get<{ subject: string; body: string }>(
       `/outreach/templates/${id}/preview${queryParams}`
     );
