@@ -43,6 +43,8 @@ interface AutomationCheckpoint {
 interface ExecutionContext {
   /** User-defined workflow variables set by SET_VARIABLE steps. */
   variables: Record<string, any>;
+  /** Pinned historical template versions used by this execution (TPL-05). */
+  templateVersions?: Record<string, number>;
   /** Snapshot of the target contact row at run start. */
   contact: Record<string, any>;
   /** Snapshot of the target company row at run start (if applicable). */
@@ -74,6 +76,7 @@ function createExecutionContext(
 ): ExecutionContext {
   return {
     variables: {},
+    templateVersions: {},
     contact: contact || {},
     company: company || {},
     sequence: { id: sequenceId, name: sequenceName },
@@ -1616,24 +1619,55 @@ async function handleSendEmailStep(
   let rawBody = step.config?.body || '';
   let rawAttachments: any[] = step.config?.attachments || [];
   let matchedTemplate: any = null;
+  let pinnedTemplateVersion: number | undefined = undefined;
 
   if (templateId) {
+    if (!execCtx.templateVersions) {
+      execCtx.templateVersions = {};
+    }
+
+    // Determine pinned version:
+    // 1. Explicitly pinned on sequence step
+    // 2. Previously pinned in this execution context
+    // 3. Initial lookup pinned at send time
+    let resolvedVersion = 1;
+    if (typeof step.config?.templateVersion === 'number' && step.config.templateVersion > 0) {
+      resolvedVersion = step.config.templateVersion;
+    } else if (execCtx.templateVersions[templateId]) {
+      resolvedVersion = execCtx.templateVersions[templateId];
+    } else {
+      // First materialization for this execution: query active template to pin its current version
+      const activeTpl = await sdk.outreach.getTemplate(templateId).catch(() => null);
+      resolvedVersion = activeTpl?.version || 1;
+    }
+
+    pinnedTemplateVersion = resolvedVersion;
+    execCtx.templateVersions[templateId] = resolvedVersion;
+
+    // Fetch the pinned historical version through typed SDK contract (TPL-05)
     try {
-      const templates = await sdk.outreach.listTemplates();
-      const tpl = templates.find((t: any) => t.id === templateId);
-      if (tpl) {
-        matchedTemplate = tpl;
-        if (!rawSubject) rawSubject = tpl.subject;
-        if (!rawBody) rawBody = tpl.body;
-        if (!rawAttachments || rawAttachments.length === 0) {
-          rawAttachments = Array.isArray(tpl.attachments)
-            ? tpl.attachments
-            : typeof tpl.attachments === 'string'
-            ? JSON.parse(tpl.attachments)
-            : [];
-        }
+      matchedTemplate = await sdk.outreach.getTemplateVersion(templateId, resolvedVersion);
+    } catch (verErr: any) {
+      ctx.emitLog(
+        `Failed to resolve pinned template version ${pinnedTemplateVersion} for template "${templateId}": ${verErr?.message || verErr}`,
+        'error'
+      );
+      throw new Error(
+        `Automation workflow: pinned version ${pinnedTemplateVersion} of template "${templateId}" not found.`
+      );
+    }
+
+    if (matchedTemplate) {
+      if (!rawSubject) rawSubject = matchedTemplate.subject;
+      if (!rawBody) rawBody = matchedTemplate.body;
+      if (!rawAttachments || rawAttachments.length === 0) {
+        rawAttachments = Array.isArray(matchedTemplate.attachments)
+          ? matchedTemplate.attachments
+          : typeof matchedTemplate.attachments === 'string'
+          ? JSON.parse(matchedTemplate.attachments)
+          : [];
       }
-    } catch {}
+    }
   }
 
   if (!rawSubject || !rawBody) {
@@ -1654,13 +1688,21 @@ async function handleSendEmailStep(
   if (!candidateEmail) throw new Error(`Contact ${entityId} has no valid email address.`);
   const recipientEmail: string = candidateEmail;
 
+  // Phase 16: Variables snapshot determinism (VARIABLES-SNAPSHOT)
+  // Interpolation context prioritizes execCtx.contact snapshot taken at execution initialization,
+  // preventing later edits to the contact table from mutating the committed outreach content.
   const renderCtx: ExecutionContext = {
     ...execCtx,
-    contact: { ...execCtx.contact, ...contact, email: recipientEmail }
+    contact: {
+      ...contact,
+      ...(execCtx.contact || {}),
+      email: recipientEmail
+    }
   };
   const renderedSubject = resolveVariables(rawSubject, renderCtx);
   const renderedBody = resolveVariables(rawBody, renderCtx);
   const formattedBody = formatEmailBody(renderedBody);
+  const variablesSnapshot = captureVariablesSnapshot(rawSubject + ' ' + rawBody, renderCtx as any);
 
   const accounts = await sdk.outreach.listAccounts();
   const targetAccountId = step.config?.sendingAccountId || step.config?.accountId;
@@ -1734,9 +1776,9 @@ async function handleSendEmailStep(
       executionId: execCtx.execution.id,
       stepIndex: stepIndexNum,
       contactId: entityId,
-      templateId: templateId || undefined,
-      templateVersion: matchedTemplate?.version || undefined,
-      variablesSnapshot: captureVariablesSnapshot(rawSubject + ' ' + rawBody, renderCtx as any)
+      ...(templateId ? { templateId } : {}),
+      ...(typeof pinnedTemplateVersion === 'number' ? { templateVersion: pinnedTemplateVersion } : {}),
+      ...(variablesSnapshot ? { variablesSnapshot } : {})
     });
     const sentMsgId = sendResult.messageId || null;
 
@@ -1798,7 +1840,10 @@ async function handleSendEmailStep(
             sequenceId,
             executionId: execCtx.execution.id,
             stepIndex: stepIndexNum,
-            contactId: entityId
+            contactId: entityId,
+            ...(templateId ? { templateId } : {}),
+            ...(typeof pinnedTemplateVersion === 'number' ? { templateVersion: pinnedTemplateVersion } : {}),
+            ...(variablesSnapshot ? { variablesSnapshot } : {})
           });
           const sentMsgId = retryResult.messageId || null;
           ctx.emitLog(
