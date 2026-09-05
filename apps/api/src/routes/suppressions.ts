@@ -82,7 +82,7 @@ suppressionsRouter.delete('/:email', async (c) => {
     ? { email, unsuppressed: result }
     : {
         email: result?.email || email,
-        unsuppressed: Boolean(result?.unsuppressed),
+        unsuppressed: typeof result?.unsuppressed === 'boolean' ? result.unsuppressed : Boolean((result as any)?.success ?? true),
         restoredContactIds: result?.restoredContactIds || []
       };
 
