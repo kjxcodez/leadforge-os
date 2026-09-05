@@ -75,6 +75,7 @@ export interface OutreachEligibilityInput {
   contact: {
     id?: string | null | undefined;
     email?: string | null | undefined;
+    bouncedEmail?: string | null | undefined;
     status?: string | null | undefined;
     emailStatus?: string | null | undefined;
     emailQuality?: {
@@ -129,7 +130,15 @@ export function evaluateOutreachEligibility(input: OutreachEligibilityInput): Ou
     return { eligible: false, reason: 'CONTACT_UNSUBSCRIBED' };
   }
   if (contactStatus === ContactStatus.BOUNCED || contactStatus === 'BOUNCED') {
-    return { eligible: false, reason: 'CONTACT_BOUNCED' };
+    // Multi-address bounce isolation: If contact bounced on a different address (e.g. primary bounced
+    // but secondary is being dispatched, or vice-versa), do not block an unrelated valid address.
+    const cleanBounced = contact.bouncedEmail?.toLowerCase().trim();
+    const cleanTarget = contact.email.toLowerCase().trim();
+    if (cleanBounced && cleanBounced !== cleanTarget) {
+      // Address is distinct from the bounced address on this contact: proceed to address-level checks.
+    } else {
+      return { eligible: false, reason: 'CONTACT_BOUNCED' };
+    }
   }
   if (contactStatus === ContactStatus.DO_NOT_CONTACT || contactStatus === 'DO_NOT_CONTACT') {
     return { eligible: false, reason: 'CONTACT_DO_NOT_CONTACT' };
@@ -256,3 +265,26 @@ export function canTransitionContactStatus(current: ContactStatus | string, next
   if (!allowed) return false;
   return allowed.includes(target);
 }
+
+/**
+ * Evaluates whether an administrative unsuppression or operator correction
+ * can safely restore a contact's status to CONTACTED or NEW.
+ *
+ * Invariants (UNSUPPRESS-13):
+ * 1. BOUNCED can be restored to CONTACTED or NEW when suppression is lifted.
+ * 2. Higher-priority safety states (REPLIED, UNSUBSCRIBED, DO_NOT_CONTACT) can NEVER
+ *    be overridden or undone by unsuppression.
+ */
+export function canRestoreContactStatus(current: ContactStatus | string, target: ContactStatus | string = ContactStatus.CONTACTED): boolean {
+  const cur = (String(current || '').toUpperCase()) as ContactStatus;
+  const tgt = (String(target || '').toUpperCase()) as ContactStatus;
+  if (cur === ContactStatus.BOUNCED) {
+    return tgt === ContactStatus.CONTACTED || tgt === ContactStatus.NEW;
+  }
+  if (cur === ContactStatus.NEW || cur === ContactStatus.CONTACTED) {
+    return true;
+  }
+  // REPLIED, UNSUBSCRIBED, DO_NOT_CONTACT, ARCHIVED cannot be overwritten by unsuppression
+  return false;
+}
+

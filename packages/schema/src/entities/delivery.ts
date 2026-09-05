@@ -85,7 +85,7 @@ export const emailDeliverySchema = z.object({
   inReplyTo: z.string().nullable().optional(),
   references: z.array(z.string()).default([]),
   matchedDeliveryId: entityIdFieldNullable.optional(),
-  matchConfidence: z.enum(['thread', 'header', 'contact', 'none']).nullable().optional(),
+  matchConfidence: z.enum(['thread', 'header', 'contact', 'manual', 'none']).nullable().optional(),
   processingStatus: emailDeliveryProcessingStatusSchema.default('MATCHED').optional(),
   hasReply: z.boolean().default(false).optional(),
   replyCount: z.number().int().nonnegative().default(0).optional(),
@@ -220,3 +220,13 @@ export const updateEmailDeliveryDtoSchema = z.object({
   reconciliationNotes: z.string().nullable().optional()
 });
 export type UpdateEmailDeliveryDto = z.infer<typeof updateEmailDeliveryDtoSchema>;
+
+export const manualReconcileReplyDtoSchema = z.object({
+  inboundDeliveryId: entityIdField,
+  contactId: entityIdField,
+  campaignId: entityIdFieldNullable.optional(),
+  matchedDeliveryId: entityIdFieldNullable.optional(),
+  notes: z.string().nullable().optional()
+});
+export type ManualReconcileReplyDto = z.infer<typeof manualReconcileReplyDtoSchema>;
+
