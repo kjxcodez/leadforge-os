@@ -297,7 +297,7 @@ export default function EmailLogsScreen() {
           <ResizableHandle withHandle />
 
           {/* Right Pane: Selected Delivery / Message Detail */}
-          <ResizablePanel defaultSize={58} minSize={45}>
+          <ResizablePanel defaultSize={58} minSize={35}>
             {selectedDeliveryId ? (
               <MessageDetailView
                 deliveryId={selectedDeliveryId}
