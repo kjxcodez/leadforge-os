@@ -362,6 +362,7 @@ export function registerOutreachIpc(sdk: SdkClient) {
               id, workspaceId, campaignId, sequenceId, executionId, stepIndex,
               contactId, companyId, accountId, senderEmail, recipientEmail, subject,
               providerMessageId, providerThreadId, htmlBody, textBody,
+              templateId, templateVersion, variablesSnapshot, messageFingerprint,
               safeHumanMessage, technicalMessage, error, retryable, ambiguous,
               direction, openCount, clickCount, hasReply, replyCount,
               lastOpenedAt, lastClickedAt, lastRepliedAt, status, attempt,
@@ -370,6 +371,7 @@ export function registerOutreachIpc(sdk: SdkClient) {
               @id, @workspaceId, @campaignId, @sequenceId, @executionId, @stepIndex,
               @contactId, @companyId, @accountId, @senderEmail, @recipientEmail, @subject,
               @providerMessageId, @providerThreadId, @htmlBody, @textBody,
+              @templateId, @templateVersion, @variablesSnapshot, @messageFingerprint,
               @safeHumanMessage, @technicalMessage, @error, @retryable, @ambiguous,
               @direction, @openCount, @clickCount, @hasReply, @replyCount,
               @lastOpenedAt, @lastClickedAt, @lastRepliedAt, @status, @attempt,
@@ -381,6 +383,10 @@ export function registerOutreachIpc(sdk: SdkClient) {
               providerThreadId = excluded.providerThreadId,
               htmlBody = excluded.htmlBody,
               textBody = excluded.textBody,
+              templateId = excluded.templateId,
+              templateVersion = excluded.templateVersion,
+              variablesSnapshot = excluded.variablesSnapshot,
+              messageFingerprint = excluded.messageFingerprint,
               safeHumanMessage = excluded.safeHumanMessage,
               technicalMessage = excluded.technicalMessage,
               error = excluded.error,
@@ -416,6 +422,14 @@ export function registerOutreachIpc(sdk: SdkClient) {
                 providerThreadId: row.providerThreadId || null,
                 htmlBody: row.htmlBody || null,
                 textBody: row.textBody || null,
+                templateId: row.templateId || null,
+                templateVersion: row.templateVersion ?? null,
+                variablesSnapshot: row.variablesSnapshot
+                  ? typeof row.variablesSnapshot === 'string'
+                    ? row.variablesSnapshot
+                    : JSON.stringify(row.variablesSnapshot)
+                  : null,
+                messageFingerprint: row.messageFingerprint || null,
                 safeHumanMessage: row.safeHumanMessage || null,
                 technicalMessage: row.technicalMessage || null,
                 error: row.error || null,
