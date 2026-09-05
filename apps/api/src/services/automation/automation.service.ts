@@ -1,7 +1,9 @@
 import { SequenceModel } from '../../db/models/sequence.model.js';
 import { SequenceExecutionModel } from '../../db/models/sequence-execution.model.js';
+import { CampaignModel } from '../../db/models/campaign.model.js';
 import { SequenceLogModel } from '../../db/models/sequence-log.model.js';
 import { SequenceStatus, ExecutionStatus } from '@leadforge/schema';
+import { ConflictError } from '../../errors/index.js';
 
 export class AutomationService {
   constructor(private workspaceId: string) {}
@@ -58,6 +60,40 @@ export class AutomationService {
   // ── Executions Management ────────────────────────────────────────────────
 
   public async createExecution(data: any): Promise<any> {
+    if (data.contactId && data.campaignId) {
+      // Phase 15 (ENROLL-08): Contact cross-campaign active exclusivity check
+      const existingActive = await SequenceExecutionModel.findOne({
+        workspaceId: this.workspaceId,
+        contactId: data.contactId,
+        status: { $in: ['PENDING', 'RUNNING', 'WAITING', 'PAUSED'] }
+      });
+
+      if (existingActive) {
+        // Verify if previous campaign was stopped or completed
+        let isStale = false;
+        if (existingActive.campaignId) {
+          const camp = await CampaignModel.findById(existingActive.campaignId);
+          if (camp && (camp.status === 'STOPPED' || camp.status === 'COMPLETED' || camp.status === 'FAILED')) {
+            existingActive.status = 'CANCELLED';
+            await existingActive.save();
+            isStale = true;
+          }
+        }
+
+        if (!isStale) {
+          if (String(existingActive.campaignId) !== String(data.campaignId)) {
+            throw new ConflictError(
+              `Contact "${data.contactId}" is already actively enrolled in campaign "${existingActive.campaignId}". Cross-campaign simultaneous outreach is prohibited.`
+            );
+          } else {
+            throw new ConflictError(
+              `Contact "${data.contactId}" is already enrolled in this campaign (execution: ${existingActive._id}).`
+            );
+          }
+        }
+      }
+    }
+
     const exec = new SequenceExecutionModel({
       _id: data.id || data._id || undefined,
       workspaceId: this.workspaceId as any,
@@ -73,7 +109,17 @@ export class AutomationService {
       logs: data.logs || [],
       sentMessageIds: data.sentMessageIds || []
     });
-    await exec.save();
+
+    try {
+      await exec.save();
+    } catch (saveErr: any) {
+      if (saveErr.code === 11000) {
+        throw new ConflictError(
+          `Contact "${data.contactId}" already has an active execution in progress in this workspace.`
+        );
+      }
+      throw saveErr;
+    }
     return exec;
   }
 

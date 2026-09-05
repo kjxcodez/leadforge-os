@@ -3,6 +3,8 @@ import { generateEntityId } from '@leadforge/schema';
 import { EmailAccountModel } from '../../db/models/email-account.model.js';
 import { GoogleConnectionModel } from '../../db/models/google-connection.model.js';
 import { OAuthTransactionModel } from '../../db/models/oauth-transaction.model.js';
+import { CampaignModel } from '../../db/models/campaign.model.js';
+import { CampaignService } from '../campaign/campaign.service.js';
 import { encrypt, decrypt } from '../../utils/encryption.js';
 import { env, logger } from '../../config/index.js';
 import { EmailDomainError, type SafeEmailAccount } from './types.js';
@@ -221,6 +223,24 @@ export class EmailAccountService {
         } catch (sigErr) {
           logger.warn({ sigErr, email }, 'Could not fetch signature during Gmail OAuth connection');
         }
+
+        // Phase 15 (DISCONNECT-16): Auto-resume campaigns that were paused strictly because the mailbox disconnected.
+        // Preserve manual user pause intent: campaigns paused with 'USER_REQUESTED' must NOT auto-resume.
+        try {
+          const campaignService = new CampaignService(transaction.workspaceId);
+          const pausedCampaigns = await CampaignModel.find({
+            workspaceId: transaction.workspaceId,
+            sendingAccountId: accountDoc._id.toString(),
+            status: 'PAUSED',
+            'settings.pauseReason': 'MAILBOX_DISCONNECTED'
+          });
+
+          for (const camp of pausedCampaigns) {
+            await campaignService.resumeCampaign(camp._id.toString());
+          }
+        } catch (reconnectErr) {
+          logger.warn({ err: reconnectErr }, 'Warning during post-reconnect campaign resumption');
+        }
       }
 
       transaction.status = 'completed';
@@ -316,6 +336,22 @@ export class EmailAccountService {
     account.tokenExpiresAt = null;
     account.lastError = 'Disconnected by user';
     await account.save();
+
+    // Phase 15 (DISCONNECT-16): Transition campaigns using this sending account into safe recoverable PAUSED state
+    try {
+      const campaignService = new CampaignService(this.workspaceId);
+      const affectedCampaigns = await CampaignModel.find({
+        workspaceId: this.workspaceId,
+        sendingAccountId: id,
+        status: 'ACTIVE'
+      });
+
+      for (const camp of affectedCampaigns) {
+        await campaignService.pauseCampaign(camp._id.toString(), 'MAILBOX_DISCONNECTED');
+      }
+    } catch (campErr) {
+      logger.warn({ err: campErr, accountId: id }, 'Warning pausing campaigns for disconnected account');
+    }
 
     if (account.googleConnectionId) {
       // Check if any other email accounts in this workspace are using the connection

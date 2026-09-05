@@ -74,7 +74,7 @@ export interface EmailDeliveryDocument
   references?: string[];
   matchedDeliveryId?: string | null;
   matchConfidence?: 'thread' | 'header' | 'contact' | 'none' | null;
-  processingStatus?: 'RECEIVED' | 'MATCHED' | 'UNMATCHED' | 'AMBIGUOUS_MATCH' | 'IGNORED';
+  processingStatus?: 'RECEIVED' | 'MATCHED' | 'UNMATCHED' | 'CORRELATION_PENDING' | 'AMBIGUOUS_MATCH' | 'IGNORED';
   hasReply?: boolean;
   replyCount?: number;
   lastRepliedAt?: Date | null;
@@ -164,7 +164,12 @@ const emailDeliverySchema = new Schema<EmailDeliveryDocument>(
     references: [{ type: String }],
     matchedDeliveryId: { type: String, default: null, index: true },
     matchConfidence: { type: String, default: null },
-    processingStatus: { type: String, default: 'MATCHED', index: true },
+    processingStatus: {
+      type: String,
+      enum: ['RECEIVED', 'MATCHED', 'UNMATCHED', 'CORRELATION_PENDING', 'AMBIGUOUS_MATCH', 'IGNORED'],
+      default: 'MATCHED',
+      index: true
+    },
     hasReply: { type: Boolean, default: false },
     replyCount: { type: Number, default: 0 },
     lastRepliedAt: { type: Date, default: null },

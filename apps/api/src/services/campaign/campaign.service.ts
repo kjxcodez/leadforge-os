@@ -66,6 +66,57 @@ export class CampaignService {
       }
       updatePayload.status = targetStatus;
 
+      if (targetStatus === 'PAUSED') {
+        try {
+          const executionIds = await SequenceExecutionModel.find({
+            workspaceId: this.workspaceId,
+            campaignId: id
+          }).distinct('_id');
+
+          await JobModel.updateMany(
+            {
+              workspaceId: this.workspaceId,
+              status: { $in: ['queued', 'starting', 'running', 'retrying'] },
+              $or: [
+                { 'payload.campaignId': id },
+                { 'payload.executionId': { $in: executionIds.map((eid) => String(eid)) } }
+              ]
+            },
+            { $set: { status: 'cancelled' } }
+          );
+
+          await SequenceExecutionModel.updateMany(
+            {
+              workspaceId: this.workspaceId,
+              campaignId: id,
+              status: { $in: ['PENDING', 'RUNNING', 'WAITING'] }
+            },
+            { $set: { status: 'PAUSED' } }
+          );
+        } catch (pauseErr) {
+          console.warn(`[CampaignService] Warning during pause cleanup for ${id}:`, pauseErr);
+        }
+      }
+
+      if (targetStatus === 'ACTIVE' && existing.status === 'PAUSED') {
+        try {
+          const now = new Date();
+          const pausedExecutions = await SequenceExecutionModel.find({
+            workspaceId: this.workspaceId,
+            campaignId: id,
+            status: 'PAUSED'
+          });
+
+          for (const exec of pausedExecutions) {
+            const isWaiting = exec.nextExecutionAt && new Date(exec.nextExecutionAt) > now;
+            exec.status = isWaiting ? 'WAITING' : 'RUNNING';
+            await exec.save();
+          }
+        } catch (resumeErr) {
+          console.warn(`[CampaignService] Warning during resume reconciliation for ${id}:`, resumeErr);
+        }
+      }
+
       if (targetStatus === 'STOPPED') {
         try {
           const executionIds = await SequenceExecutionModel.find({
@@ -101,12 +152,26 @@ export class CampaignService {
     return this.campaignRepository.update(id, updatePayload);
   }
 
-  public async pauseCampaign(id: string): Promise<CampaignDocument> {
-    return this.updateCampaign(id, { status: CampaignStatus.PAUSED as any });
+  public async pauseCampaign(id: string, reason?: string): Promise<CampaignDocument> {
+    const existing = await this.campaignRepository.findById(id);
+    const updatedSettings = {
+      ...(existing.settings || {}),
+      pauseReason: reason || 'USER_REQUESTED'
+    };
+    return this.updateCampaign(id, {
+      status: CampaignStatus.PAUSED as any,
+      settings: updatedSettings
+    });
   }
 
   public async resumeCampaign(id: string): Promise<CampaignDocument> {
-    return this.updateCampaign(id, { status: CampaignStatus.ACTIVE as any });
+    const existing = await this.campaignRepository.findById(id);
+    const updatedSettings = { ...(existing.settings || {}) };
+    delete updatedSettings.pauseReason;
+    return this.updateCampaign(id, {
+      status: CampaignStatus.ACTIVE as any,
+      settings: updatedSettings
+    });
   }
 
   public async stopCampaign(id: string): Promise<CampaignDocument> {

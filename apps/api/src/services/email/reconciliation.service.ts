@@ -807,7 +807,8 @@ export class ReconciliationService {
           'Successfully ingested and matched inbound email reply'
         );
       } else {
-        // Unmatched incoming email: ingest with UNMATCHED status without guessing
+        // Phase 15 (INBOUND-03): Unmatched incoming email: ingest with CORRELATION_PENDING status
+        // to permit recovery if outbound delivery was SENDING or provider IDs are still indexing.
         unmatchedCount++;
 
         await EmailDeliveryModel.create({
@@ -833,16 +834,23 @@ export class ReconciliationService {
           inReplyTo: detail.headers.inReplyTo || null,
           references: detail.headers.references || [],
           matchConfidence: 'none',
-          processingStatus: 'UNMATCHED',
+          processingStatus: 'CORRELATION_PENDING',
+          reconciliationAttempts: 1,
+          nextReconciliationAt: new Date(Date.now() + 60000),
           sentAt: incomingDate
         });
 
         logger.info(
           { inboundMessageId: item.id, from: normalizedFrom },
-          'Ingested unmatched inbound email (preserved without contact mutation)'
+          'Ingested inbound email as CORRELATION_PENDING (awaiting reconciliation against outbound deliveries)'
         );
       }
     }
+
+    // Reconcile any pending inbound replies
+    const pendingReconciliation = await this.reconcilePendingInboundReplies();
+    matchedCount += pendingReconciliation.matchedCount;
+    suppressedExecutionsCount += pendingReconciliation.suppressedExecutionsCount;
 
     // Update mailbox lastInboundPollAt
     await EmailAccountModel.updateOne(
@@ -856,6 +864,255 @@ export class ReconciliationService {
       processedCount,
       matchedCount,
       unmatchedCount,
+      suppressedExecutionsCount
+    };
+  }
+
+  /**
+   * Phase 15 (INBOUND-03): Reconciles inbound messages that were previously marked CORRELATION_PENDING.
+   * This handles the race where a recipient replies while the outbound message was still SENDING or
+   * before the provider message/thread IDs were finalized in the database.
+   */
+  public async reconcilePendingInboundReplies(): Promise<{
+    processedCount: number;
+    matchedCount: number;
+    expiredCount: number;
+    suppressedExecutionsCount: number;
+  }> {
+    const pendingInbounds = await EmailDeliveryModel.find({
+      workspaceId: this.workspaceId,
+      direction: 'INBOUND',
+      processingStatus: 'CORRELATION_PENDING'
+    }).limit(50);
+
+    let processedCount = 0;
+    let matchedCount = 0;
+    let expiredCount = 0;
+    let suppressedExecutionsCount = 0;
+
+    const eventRepo = new EmailEventRepository(this.workspaceId);
+
+    for (const pending of pendingInbounds) {
+      processedCount++;
+
+      let matchedDelivery: EmailDeliveryDocument | null = null;
+      let matchConfidence: 'thread' | 'header' | 'contact' | 'none' = 'none';
+
+      // 1. Thread ID Correlation (Strongest)
+      if (pending.providerThreadId) {
+        matchedDelivery = await EmailDeliveryModel.findOne({
+          workspaceId: this.workspaceId,
+          direction: 'OUTBOUND',
+          providerThreadId: pending.providerThreadId,
+          status: { $in: ['SENT', 'AMBIGUOUS'] }
+        }).sort({ sentAt: -1 });
+
+        if (matchedDelivery) {
+          matchConfidence = 'thread';
+        }
+      }
+
+      // 2. Message Header Correlation (In-Reply-To / References)
+      if (!matchedDelivery) {
+        const headerRefs: string[] = [];
+        if (pending.inReplyTo) headerRefs.push(pending.inReplyTo);
+        if (Array.isArray(pending.references)) headerRefs.push(...pending.references);
+
+        for (const ref of headerRefs) {
+          const cleanRef = ref.replace(/[<>]/g, '').trim();
+          matchedDelivery = await EmailDeliveryModel.findOne({
+            workspaceId: this.workspaceId,
+            direction: 'OUTBOUND',
+            status: { $in: ['SENT', 'AMBIGUOUS'] },
+            $or: [{ providerMessageId: cleanRef }, { providerMessageId: ref }]
+          });
+
+          if (matchedDelivery) {
+            matchConfidence = 'header';
+            break;
+          }
+        }
+      }
+
+      // 3. Sender Contact Correlation (Fallback)
+      let contactDoc = null;
+      if (!matchedDelivery) {
+        contactDoc = await ContactModel.findOne({
+          workspaceId: this.workspaceId,
+          $or: [{ email: pending.senderEmail }, { 'additionalEmails.email': pending.senderEmail }],
+          deletedAt: null
+        });
+
+        if (contactDoc) {
+          matchedDelivery = await EmailDeliveryModel.findOne({
+            workspaceId: this.workspaceId,
+            contactId: contactDoc._id.toString(),
+            accountId: pending.accountId,
+            direction: 'OUTBOUND',
+            status: { $in: ['SENT', 'AMBIGUOUS'] }
+          }).sort({ sentAt: -1 });
+
+          if (matchedDelivery) {
+            matchConfidence = 'contact';
+          }
+        }
+      } else if (pending.contactId && pending.contactId !== 'unmatched-contact') {
+        contactDoc = await ContactModel.findOne({
+          _id: pending.contactId,
+          workspaceId: this.workspaceId
+        });
+      }
+
+      if (matchedDelivery && contactDoc) {
+        matchedCount++;
+
+        // Upgrade pending inbound delivery to MATCHED
+        await EmailDeliveryModel.updateOne(
+          { _id: pending._id },
+          {
+            $set: {
+              matchedDeliveryId: matchedDelivery._id.toString(),
+              contactId: contactDoc._id.toString(),
+              campaignId: matchedDelivery.campaignId || null,
+              sequenceId: matchedDelivery.sequenceId || 'inbound-direct',
+              executionId: matchedDelivery.executionId || 'inbound-direct',
+              stepIndex: (matchedDelivery.stepIndex || 0) + 1,
+              matchConfidence,
+              processingStatus: 'MATCHED',
+              reconciledAt: new Date()
+            }
+          }
+        );
+
+        // Record immutable REPLIED event
+        const dedupeKey = `reply_${this.workspaceId}_${pending.providerMessageId || pending._id.toString()}`;
+        await eventRepo.recordEvent({
+          deliveryId: matchedDelivery._id.toString(),
+          contactId: contactDoc._id.toString(),
+          campaignId: matchedDelivery.campaignId || null,
+          type: EmailEventType.REPLIED,
+          occurredAt: pending.sentAt || new Date(),
+          metadata: {
+            providerMessageId: pending.providerMessageId,
+            providerThreadId: pending.providerThreadId,
+            from: pending.senderEmail,
+            subject: pending.subject,
+            matchConfidence,
+            reconciledFromPending: true
+          },
+          dedupeKey
+        });
+
+        // Update parent delivery
+        await EmailDeliveryModel.updateOne(
+          { _id: matchedDelivery._id },
+          {
+            $set: {
+              hasReply: true,
+              lastRepliedAt: pending.sentAt || new Date()
+            },
+            $inc: { replyCount: 1 }
+          }
+        );
+
+        // Monotonic Contact Status Transition: NEW / CONTACTED -> REPLIED
+        if (canTransitionContactStatus(contactDoc.status, ContactStatus.REPLIED)) {
+          await ContactModel.updateOne(
+            {
+              _id: contactDoc._id,
+              workspaceId: this.workspaceId,
+              status: { $nin: ['UNSUBSCRIBED', 'BOUNCED', 'DO_NOT_CONTACT', 'ARCHIVED'] }
+            } as any,
+            {
+              $set: {
+                status: ContactStatus.REPLIED,
+                lastRepliedAt: pending.sentAt || new Date()
+              }
+            }
+          );
+        }
+
+        // Halt running sequence executions for this contact and campaign
+        const cancelFilter: any = {
+          workspaceId: this.workspaceId,
+          contactId: contactDoc._id.toString(),
+          status: { $in: ['active', 'running', 'waiting', 'pending', 'WAITING', 'ACTIVE', 'RUNNING', 'PENDING'] }
+        };
+
+        if (matchedDelivery.executionId && matchedDelivery.executionId !== 'inbound-direct' && !matchedDelivery.executionId.startsWith('direct-')) {
+          cancelFilter._id = matchedDelivery.executionId;
+        } else if (matchedDelivery.campaignId) {
+          cancelFilter.campaignId = matchedDelivery.campaignId;
+        }
+
+        const cancelled = await SequenceExecutionModel.updateMany(
+          cancelFilter,
+          {
+            $set: {
+              status: 'completed',
+              completedAt: new Date(),
+              nextExecutionAt: null
+            },
+            $inc: { replies: 1 },
+            $push: {
+              logs: {
+                timestamp: new Date(),
+                level: 'info',
+                message: 'Sequence execution halted: contact replied to email outreach (reconciled from pending).',
+                step: matchedDelivery.stepIndex
+              }
+            }
+          }
+        );
+
+        suppressedExecutionsCount += cancelled.modifiedCount;
+
+        logger.info(
+          {
+            inboundDeliveryId: pending._id.toString(),
+            contactId: contactDoc._id.toString(),
+            matchedDeliveryId: matchedDelivery._id.toString()
+          },
+          'Successfully reconciled pending inbound reply to MATCHED'
+        );
+      } else {
+        // No match found on this attempt: check bounded expiration window
+        const attempts = (pending.reconciliationAttempts || 1) + 1;
+        const createdAt = (pending as any).createdAt ? new Date((pending as any).createdAt).getTime() : Date.now();
+        const ageMs = Date.now() - createdAt;
+        const maxAttempts = 3;
+        const maxAgeMs = 15 * 60 * 1000; // 15 minutes
+
+        if (attempts >= maxAttempts || ageMs >= maxAgeMs) {
+          expiredCount++;
+          await EmailDeliveryModel.updateOne(
+            { _id: pending._id },
+            {
+              $set: {
+                processingStatus: 'UNMATCHED',
+                reconciliationAttempts: attempts,
+                reconciliationNotes: 'Exhausted correlation window without finding matching outbound delivery.'
+              }
+            }
+          );
+        } else {
+          await EmailDeliveryModel.updateOne(
+            { _id: pending._id },
+            {
+              $set: {
+                reconciliationAttempts: attempts,
+                nextReconciliationAt: new Date(Date.now() + 60000)
+              }
+            }
+          );
+        }
+      }
+    }
+
+    return {
+      processedCount,
+      matchedCount,
+      expiredCount,
       suppressedExecutionsCount
     };
   }

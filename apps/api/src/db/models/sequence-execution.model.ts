@@ -103,6 +103,16 @@ const sequenceExecutionSchema = new Schema<SequenceExecutionDocument>(
 
 sequenceExecutionSchema.index({ workspaceId: 1, sequenceId: 1 });
 sequenceExecutionSchema.index({ workspaceId: 1, status: 1, nextExecutionAt: 1 });
+sequenceExecutionSchema.index(
+  { workspaceId: 1, contactId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      contactId: { $type: 'string' },
+      status: { $in: ['PENDING', 'RUNNING', 'WAITING', 'PAUSED'] }
+    }
+  }
+);
 sequenceExecutionSchema.plugin(workspacePlugin);
 
 export const SequenceExecutionModel = mongoose.models.SequenceExecution
