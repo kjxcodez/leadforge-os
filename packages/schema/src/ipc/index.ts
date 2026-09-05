@@ -239,6 +239,18 @@ export interface IpcChannelMap {
     input: { campaignId: string | null; enrollmentIds: string[] };
     output: { success: boolean };
   };
+  'campaigns:pause': {
+    input: string;
+    output: { success: boolean; campaignId: string; status: string };
+  };
+  'campaigns:resume': {
+    input: string;
+    output: { success: boolean; campaignId: string; status: string; enqueuedCount?: number };
+  };
+  'campaigns:stop': {
+    input: string;
+    output: { success: boolean; campaignId: string; status: string };
+  };
   'scheduler:queue:list': {
     input: { workspaceId: string };
     output: { jobs: any[]; waiting: any[] };

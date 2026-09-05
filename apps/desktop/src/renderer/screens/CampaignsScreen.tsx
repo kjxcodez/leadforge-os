@@ -390,6 +390,54 @@ export default function CampaignsScreen() {
     }
   });
 
+  const pauseCampaignMutation = useMutation({
+    mutationFn: async (campaignId: string) => {
+      return window.ipc.invoke('campaigns:pause', campaignId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns', workspaceId] });
+      queryClient.invalidateQueries({
+        queryKey: ['campaign_enrollments', workspaceId, selectedCampaignId]
+      });
+      toast.success('Campaign paused.');
+    },
+    onError: (err: any) => {
+      toast.error(`Failed to pause campaign: ${err.message || err}`);
+    }
+  });
+
+  const resumeCampaignMutation = useMutation({
+    mutationFn: async (campaignId: string) => {
+      return window.ipc.invoke('campaigns:resume', campaignId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns', workspaceId] });
+      queryClient.invalidateQueries({
+        queryKey: ['campaign_enrollments', workspaceId, selectedCampaignId]
+      });
+      toast.success('Campaign resumed.');
+    },
+    onError: (err: any) => {
+      toast.error(`Failed to resume campaign: ${err.message || err}`);
+    }
+  });
+
+  const stopCampaignMutation = useMutation({
+    mutationFn: async (campaignId: string) => {
+      return window.ipc.invoke('campaigns:stop', campaignId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns', workspaceId] });
+      queryClient.invalidateQueries({
+        queryKey: ['campaign_enrollments', workspaceId, selectedCampaignId]
+      });
+      toast.success('Campaign stopped.');
+    },
+    onError: (err: any) => {
+      toast.error(`Failed to stop campaign: ${err.message || err}`);
+    }
+  });
+
   const deleteCampaignMutation = useMutation({
     mutationFn: async (id: string) => {
       return window.ipc.invoke('campaigns:delete', { workspaceId, id });
@@ -661,7 +709,7 @@ export default function CampaignsScreen() {
     return matchSearch && enroll.status.toLowerCase() === enrollmentStatusFilter.toLowerCase();
   });
 
-  const getCampaignStatusBadge = (status: string) => {
+  const getCampaignStatusBadge = (status: string, pauseReason?: string) => {
     const s = (status || '').toUpperCase();
     switch (s) {
       case 'ACTIVE':
@@ -671,9 +719,23 @@ export default function CampaignsScreen() {
           </Badge>
         );
       case 'PAUSED':
+        if (pauseReason === 'MAILBOX_DISCONNECTED') {
+          return (
+            <Badge className="bg-danger-muted text-danger border border-danger/20 text-[9px] font-semibold px-2 rounded-none flex items-center gap-1">
+              <AlertCircle className="h-2.5 w-2.5" />
+              Paused (Mailbox Disconnected)
+            </Badge>
+          );
+        }
         return (
           <Badge className="bg-warning-muted text-warning border border-warning/20 text-[9px] font-semibold px-2 rounded-none">
             Paused
+          </Badge>
+        );
+      case 'STOPPED':
+        return (
+          <Badge className="bg-danger-muted text-danger border border-danger/20 text-[9px] font-semibold px-2 rounded-none">
+            Stopped
           </Badge>
         );
       case 'COMPLETED':
@@ -941,7 +1003,20 @@ export default function CampaignsScreen() {
                                 {camp.description || 'No description provided.'}
                               </span>
                             </TableCell>
-                            <TableCell>{getCampaignStatusBadge(camp.status)}</TableCell>
+                            <TableCell>
+                              {getCampaignStatusBadge(
+                                camp.status,
+                                typeof camp.settings === 'string'
+                                  ? (() => {
+                                      try {
+                                        return JSON.parse(camp.settings)?.pauseReason;
+                                      } catch {
+                                        return undefined;
+                                      }
+                                    })()
+                                  : camp.settings?.pauseReason
+                              )}
+                            </TableCell>
                             <TableCell>{sequence?.name || '—'}</TableCell>
                             <TableCell className="font-mono">{account?.email || '—'}</TableCell>
                             <TableCell className="text-center font-mono font-bold">
@@ -965,12 +1040,8 @@ export default function CampaignsScreen() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() =>
-                                      updateCampaignStatusMutation.mutate({
-                                        id: camp.id,
-                                        status: CampaignStatus.ACTIVE
-                                      })
-                                    }
+                                    onClick={() => resumeCampaignMutation.mutate(camp.id)}
+                                    disabled={resumeCampaignMutation.isPending}
                                     className="h-7 text-success hover:bg-success-muted gap-0.5 rounded-none"
                                   >
                                     <Play className="h-3 w-3" />
@@ -980,12 +1051,8 @@ export default function CampaignsScreen() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() =>
-                                      updateCampaignStatusMutation.mutate({
-                                        id: camp.id,
-                                        status: CampaignStatus.PAUSED
-                                      })
-                                    }
+                                    onClick={() => pauseCampaignMutation.mutate(camp.id)}
+                                    disabled={pauseCampaignMutation.isPending}
                                     className="h-7 text-warning hover:bg-warning-muted gap-0.5 rounded-none"
                                   >
                                     <Pause className="h-3 w-3" />
@@ -1093,12 +1160,8 @@ export default function CampaignsScreen() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() =>
-                            updateCampaignStatusMutation.mutate({
-                              id: campaign.id,
-                              status: CampaignStatus.PAUSED
-                            })
-                          }
+                          onClick={() => pauseCampaignMutation.mutate(campaign.id)}
+                          disabled={pauseCampaignMutation.isPending}
                           className="h-8 text-[10px] text-warning border-warning/20 gap-1 hover:bg-warning-muted rounded-none"
                         >
                           <Pause className="h-3.5 w-3.5" />
@@ -1108,16 +1171,29 @@ export default function CampaignsScreen() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() =>
-                            updateCampaignStatusMutation.mutate({
-                              id: campaign.id,
-                              status: CampaignStatus.ACTIVE
-                            })
-                          }
+                          onClick={() => resumeCampaignMutation.mutate(campaign.id)}
+                          disabled={resumeCampaignMutation.isPending}
                           className="h-8 text-[10px] text-success border-success/20 gap-1 hover:bg-success-muted rounded-none"
                         >
                           <Play className="h-3.5 w-3.5" />
                           Resume Campaign
+                        </Button>
+                      )}
+
+                      {campaign.status?.toUpperCase() !== 'STOPPED' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (confirm('Permanently stop this campaign? All active and waiting enrollments will be cancelled.')) {
+                              stopCampaignMutation.mutate(campaign.id);
+                            }
+                          }}
+                          disabled={stopCampaignMutation.isPending}
+                          className="h-8 text-[10px] text-danger border-danger/20 gap-1 hover:bg-danger-muted rounded-none"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          Stop Campaign
                         </Button>
                       )}
 
@@ -1140,13 +1216,45 @@ export default function CampaignsScreen() {
                     </div>
                   </div>
 
+                  {/* Mailbox Disconnected Warning Banner (DISCONNECT-16) */}
+                  {campaign.status?.toUpperCase() === 'PAUSED' &&
+                    (typeof campaign.settings === 'string'
+                      ? (() => {
+                          try {
+                            return JSON.parse(campaign.settings)?.pauseReason;
+                          } catch {
+                            return undefined;
+                          }
+                        })()
+                      : campaign.settings?.pauseReason) === 'MAILBOX_DISCONNECTED' && (
+                      <div className="bg-danger-muted/30 border border-danger/30 text-danger px-4 py-2.5 text-xs flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4 shrink-0" />
+                          <span>
+                            <strong>Campaign Paused:</strong> Sending mailbox was disconnected. Reconnecting the mailbox will automatically resume this campaign.
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                   {/* Campaign Info Cards Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="bg-card border border-border-subtle rounded-none p-3.5 space-y-1">
                       <span className="text-[10px] text-muted-foreground">Campaign Status</span>
                       <div className="flex items-center justify-between">
                         <span className="text-base font-bold text-foreground">{campaign.name}</span>
-                        {getCampaignStatusBadge(campaign.status)}
+                        {getCampaignStatusBadge(
+                          campaign.status,
+                          typeof campaign.settings === 'string'
+                            ? (() => {
+                                try {
+                                  return JSON.parse(campaign.settings)?.pauseReason;
+                                } catch {
+                                  return undefined;
+                                }
+                              })()
+                            : campaign.settings?.pauseReason
+                        )}
                       </div>
                       <span className="block text-[9px] text-muted-foreground mt-0.5">
                         {campaign.description || '—'}
