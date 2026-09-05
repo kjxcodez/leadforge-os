@@ -34,51 +34,61 @@ export const EmailStatusBadge: React.FC<EmailStatusBadgeProps> = ({
   let variant: 'default' | 'secondary' | 'destructive' | 'outline' = 'secondary';
   let colorClass = 'bg-muted text-muted-foreground border-border';
   let label = normStatus;
+  let description = '';
   let icon = <Clock className="w-3 h-3 mr-1" />;
 
   switch (normStatus) {
     case 'SENT':
       colorClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
       icon = <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-400" />;
-      label = 'Sent';
+      label = size === 'sm' ? 'Sent' : 'Sent (Accepted)';
+      description = 'Message accepted by provider for transmission (provider accepted; not inbox proof)';
       break;
     case 'SENDING':
       colorClass = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
       icon = <Loader2 className="w-3 h-3 mr-1 text-blue-400 animate-spin" />;
       label = 'Sending';
+      description = 'Active in-flight message transmission lease';
       break;
     case 'RETRYING':
       colorClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
       icon = <RefreshCw className="w-3 h-3 mr-1 text-amber-400 animate-spin" />;
       label = 'Retrying';
+      description = 'Temporary provider throttle or transient error; waiting to retry';
       break;
     case 'AMBIGUOUS':
       colorClass = 'bg-amber-500/15 text-amber-300 border-amber-500/30 font-semibold';
       icon = <AlertTriangle className="w-3 h-3 mr-1 text-amber-400" />;
       label = 'Ambiguous';
+      description = 'Network timeout occurred during provider transmission; requires sent-folder reconciliation';
       break;
     case 'FAILED':
       colorClass = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
       icon = <XCircle className="w-3 h-3 mr-1 text-rose-400" />;
       label = 'Failed';
+      description = 'Transmission failed permanently or was rejected';
       break;
     case 'QUEUED':
       colorClass = 'bg-slate-500/10 text-slate-400 border-slate-500/20';
       icon = <Clock className="w-3 h-3 mr-1 text-slate-400" />;
       label = 'Queued';
+      description = 'Queued for dispatcher processing';
       break;
     case 'CANCELLED':
       colorClass = 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20';
       icon = <Slash className="w-3 h-3 mr-1 text-zinc-400" />;
       label = 'Cancelled';
+      description = 'Cancelled by operator or campaign stop';
       break;
     case 'SUPPRESSED':
       colorClass = 'bg-neutral-500/10 text-neutral-400 border-neutral-500/20';
       icon = <Slash className="w-3 h-3 mr-1 text-neutral-400" />;
       label = 'Suppressed';
+      description = 'Outbound delivery prevented by suppression list or contact eligibility gate';
       break;
     default:
       label = normStatus;
+      description = normStatus;
       break;
   }
 
@@ -87,6 +97,7 @@ export const EmailStatusBadge: React.FC<EmailStatusBadgeProps> = ({
   return (
     <Badge
       variant={variant}
+      title={description}
       className={`inline-flex items-center font-medium border ${colorClass} ${paddingClass} ${className}`}
     >
       {showIcon && icon}

@@ -201,7 +201,7 @@ export default function EmailLogsScreen() {
         <Card className="bg-card/40 border-border/60">
           <CardContent className="p-3">
             <div className="flex items-center justify-between text-muted-foreground mb-1">
-              <span className="text-[11px] font-medium">Delivered</span>
+              <span className="text-[11px] font-medium" title="Messages accepted by provider for transmission">Sent (Accepted)</span>
               <Send className="w-3.5 h-3.5 text-emerald-400" />
             </div>
             <div className="text-lg font-bold text-foreground">{stats.sent}</div>

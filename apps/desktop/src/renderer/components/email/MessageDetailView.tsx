@@ -10,7 +10,9 @@ import {
   RefreshCw,
   Hash,
   Send,
-  MessageSquareQuote
+  MessageSquareQuote,
+  Copy,
+  Check
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
@@ -19,6 +21,43 @@ import { EmailStatusBadge, EngagementPills, DirectionBadge } from './EmailStatus
 import { SafeEmailPreview } from './SafeEmailPreview';
 import { FailureDiagnosticsCard } from './FailureDiagnosticsCard';
 import { ConversationTimeline } from './ConversationTimeline';
+
+interface CopyableIdentifierProps {
+  label: string;
+  value?: string;
+  title?: string;
+}
+
+const CopyableIdentifier: React.FC<CopyableIdentifierProps> = ({ label, value, title }) => {
+  const [copied, setCopied] = React.useState(false);
+
+  if (!value) return null;
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <div
+      className="flex items-center justify-between gap-1.5 bg-muted/30 hover:bg-muted/50 transition-colors rounded px-2 py-1 border border-border/50 text-[11px] font-mono text-muted-foreground min-w-0"
+      title={title || `${label}: ${value}`}
+    >
+      <span className="text-muted-foreground/70 shrink-0 select-none font-sans font-medium">{label}:</span>
+      <span className="truncate select-all text-foreground/90 font-mono">{value}</span>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="shrink-0 p-0.5 hover:text-foreground text-muted-foreground transition-colors cursor-pointer"
+        title={copied ? 'Copied!' : 'Copy to clipboard'}
+      >
+        {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+      </button>
+    </div>
+  );
+};
 
 export interface MessageDetailViewProps {
   deliveryId: string;
@@ -182,29 +221,23 @@ export const MessageDetailView: React.FC<MessageDetailViewProps> = ({
               </span>
             </div>
           </div>
-
-          {/* Technical Diagnostics Identifiers */}
-          {(delivery.providerMessageId || delivery.providerThreadId || delivery.idempotencyKey) && (
-            <div className="col-span-full pt-2 border-t border-border/40 grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] font-mono text-muted-foreground">
-              {delivery.providerMessageId && (
-                <div className="truncate" title={`Gmail Message ID: ${delivery.providerMessageId}`}>
-                  <span className="text-muted-foreground/70">Gmail Msg ID:</span> {delivery.providerMessageId}
-                </div>
-              )}
-              {delivery.providerThreadId && (
-                <div className="truncate" title={`Gmail Thread ID: ${delivery.providerThreadId}`}>
-                  <span className="text-muted-foreground/70">Thread ID:</span> {delivery.providerThreadId}
-                </div>
-              )}
-              {delivery.idempotencyKey && (
-                <div className="truncate col-span-full" title={`Idempotency Key: ${delivery.idempotencyKey}`}>
-                  <span className="text-muted-foreground/70">Idempotency Key:</span> {delivery.idempotencyKey}
-                </div>
-              )}
-            </div>
-          )}
         </CardContent>
       </Card>
+
+      {/* Subordinate Technical Identifiers */}
+      <div className="space-y-1.5 pt-0.5">
+        <div className="text-[11px] font-semibold text-muted-foreground/80 uppercase tracking-wider flex items-center gap-1.5">
+          <Hash className="w-3 h-3" />
+          Technical Identifiers
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+          <CopyableIdentifier label="Delivery ID" value={delivery.id} />
+          {delivery.executionId && <CopyableIdentifier label="Execution ID" value={delivery.executionId} />}
+          {delivery.providerMessageId && <CopyableIdentifier label="Provider Msg ID" value={delivery.providerMessageId} />}
+          {delivery.providerThreadId && <CopyableIdentifier label="Provider Thread ID" value={delivery.providerThreadId} />}
+          {delivery.idempotencyKey && <CopyableIdentifier label="Idempotency Key" value={delivery.idempotencyKey} />}
+        </div>
+      </div>
 
       {/* Failure & Ambiguous Diagnostics */}
       <FailureDiagnosticsCard

@@ -198,13 +198,13 @@ export const SafeEmailPreview: React.FC<SafeEmailPreviewProps> = ({
 
       {/* Blocked Remote Images Alert Banner */}
       {hasHtml && activeTab === 'html' && blockRemoteImages && (
-        <div className="flex items-center justify-between px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[11px] text-amber-300">
-          <span>Remote images are blocked to protect privacy. Tracking pixels have been stripped.</span>
+        <div className="flex items-center justify-between px-3 py-1 bg-amber-500/5 border-b border-amber-500/15 text-[10.5px] text-amber-300/85">
+          <span className="truncate">Remote images are blocked to protect privacy (tracking pixels stripped).</span>
           <button
             onClick={() => setBlockRemoteImages(false)}
-            className="underline hover:text-amber-200 font-medium ml-2 cursor-pointer"
+            className="underline hover:text-amber-200 font-medium ml-2 shrink-0 cursor-pointer text-[10.5px]"
           >
-            Show remote images
+            Load remote images
           </button>
         </div>
       )}

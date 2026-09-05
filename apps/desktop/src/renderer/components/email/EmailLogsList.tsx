@@ -59,7 +59,7 @@ export const EmailLogsList: React.FC<EmailLogsListProps> = ({
 }) => {
   const statusOptions = [
     { label: 'All Statuses', value: 'all' },
-    { label: 'Sent', value: 'SENT' },
+    { label: 'Sent (Accepted)', value: 'SENT' },
     { label: 'Ambiguous', value: 'AMBIGUOUS' },
     { label: 'Failed', value: 'FAILED' },
     { label: 'Sending / Retrying', value: 'SENDING' },
@@ -231,8 +231,11 @@ export const EmailLogsList: React.FC<EmailLogsListProps> = ({
                       </span>
                     )}
                   </div>
-                  <span className="text-[11px] text-muted-foreground/90 shrink-0 font-mono">
-                    {timestamp ? new Date(timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}
+                  <span
+                    className="text-[11px] text-muted-foreground/90 shrink-0 font-mono"
+                    title={timestamp ? `UTC: ${new Date(timestamp).toISOString()}` : ''}
+                  >
+                    {timestamp ? new Date(timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                   </span>
                 </div>
 
