@@ -23,6 +23,7 @@ export class EmailDeliveriesModule {
     accountId?: string;
     status?: string;
     direction?: 'OUTBOUND' | 'INBOUND' | string;
+    processingStatus?: string;
     startDate?: string;
     endDate?: string;
     search?: string;
@@ -33,6 +34,24 @@ export class EmailDeliveriesModule {
 
   public async getEvents(id: string): Promise<any[]> {
     return this.client.get<any[]>(`/email-deliveries/${id}/events`);
+  }
+
+  public async manualReconcile(
+    id: string,
+    options: {
+      contactId: string;
+      campaignId?: string | null;
+      matchedDeliveryId?: string | null;
+      notes?: string | null;
+    }
+  ): Promise<{
+    success: boolean;
+    inboundDeliveryId: string;
+    contactId: string;
+    matchedDeliveryId: string | null;
+    cancelledExecutionsCount: number;
+  }> {
+    return this.client.post(`/email-deliveries/${id}/manual-reconcile`, options);
   }
 
   public async reconcileDelivery(id: string): Promise<any> {

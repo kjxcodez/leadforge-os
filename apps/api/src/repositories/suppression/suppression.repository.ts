@@ -2,9 +2,12 @@ import {
   SuppressionModel,
   type SuppressionDocument
 } from '../../db/models/suppression.model.js';
+import { ContactModel } from '../../db/models/contact.model.js';
 import {
   SuppressionReason,
-  compareSuppressionPrecedence
+  compareSuppressionPrecedence,
+  ContactStatus,
+  ContactEmailStatus
 } from '@leadforge/schema';
 import { logger } from '../../config/index.js';
 
@@ -112,26 +115,109 @@ export class SuppressionRepository {
   }
 
   /**
-   * Removes suppression for an email address (manual unsuppress).
+   * Removes suppression for an email address (manual unsuppress) and synchronizes
+   * contact eligibility if the contact has no remaining active suppressions (UNSUPPRESS-13).
    */
-  public async unsuppress(email: string, removedBy?: string): Promise<boolean> {
+  public async unsuppress(
+    email: string,
+    removedBy?: string
+  ): Promise<{ unsuppressed: boolean; email: string; restoredContactIds: string[] }> {
     const cleanEmail = email.toLowerCase().trim();
     const res = await SuppressionModel.deleteOne({
       workspaceId: this.workspaceId,
       email: cleanEmail
     });
 
+    const deleted = (res.deletedCount ?? 0) > 0;
+    const restoredContactIds: string[] = [];
+
+    // UNSUPPRESS-13: Synchronize contact lifecycle and address eligibility
+    if (deleted) {
+      try {
+        const matchingContacts = await ContactModel.find({
+          workspaceId: this.workspaceId,
+          $or: [{ email: cleanEmail }, { 'additionalEmails.email': cleanEmail }],
+          deletedAt: null
+        });
+
+        for (const contact of matchingContacts) {
+          // Check if contact has other suppressed emails
+          const otherEmails: string[] = [];
+          if (contact.email && contact.email.toLowerCase().trim() !== cleanEmail) {
+            otherEmails.push(contact.email.toLowerCase().trim());
+          }
+          if (Array.isArray((contact as any).additionalEmails)) {
+            for (const add of (contact as any).additionalEmails) {
+              const addClean = (add?.email || '').toLowerCase().trim();
+              if (addClean && addClean !== cleanEmail) {
+                otherEmails.push(addClean);
+              }
+            }
+          }
+
+          let hasOtherSuppression = false;
+          if (otherEmails.length > 0) {
+            const otherSuppCount = await SuppressionModel.countDocuments({
+              workspaceId: this.workspaceId,
+              email: { $in: otherEmails }
+            });
+            hasOtherSuppression = otherSuppCount > 0;
+          }
+
+          // Narrowest restoration: only restore if no other suppressions exist
+          // and contact was blocked by BOUNCED or INVALID emailStatus
+          if (!hasOtherSuppression) {
+            const currentStatus = contact.status;
+            // Higher priority states: REPLIED, UNSUBSCRIBED, DO_NOT_CONTACT are strictly protected
+            const isProtected =
+              currentStatus === ContactStatus.REPLIED ||
+              currentStatus === ContactStatus.UNSUBSCRIBED ||
+              currentStatus === ContactStatus.DO_NOT_CONTACT ||
+              currentStatus === ContactStatus.ARCHIVED;
+
+            const updates: any = {};
+            if (contact.emailStatus === ContactEmailStatus.INVALID) {
+              updates.emailStatus = ContactEmailStatus.VALID;
+            }
+
+            if (!isProtected && currentStatus === ContactStatus.BOUNCED) {
+              // Restore to CONTACTED (if contacted previously) or NEW
+              updates.status = contact.lastContactedAt ? ContactStatus.CONTACTED : ContactStatus.NEW;
+            }
+
+            if (Object.keys(updates).length > 0) {
+              await ContactModel.updateOne(
+                { _id: contact._id, workspaceId: this.workspaceId },
+                { $set: updates }
+              );
+              restoredContactIds.push(contact._id.toString());
+            }
+          }
+        }
+      } catch (contactErr) {
+        logger.warn(
+          { contactErr, email: cleanEmail, workspaceId: this.workspaceId },
+          'Error updating contact status during unsuppression'
+        );
+      }
+    }
+
     logger.info(
       {
         workspaceId: this.workspaceId,
         email: cleanEmail,
         removedBy,
-        deletedCount: res.deletedCount
+        deletedCount: res.deletedCount,
+        restoredContactIds
       },
-      'Unsuppressed email address'
+      'Unsuppressed email address and synchronized contact eligibility'
     );
 
-    return (res.deletedCount ?? 0) > 0;
+    return {
+      unsuppressed: deleted,
+      email: cleanEmail,
+      restoredContactIds
+    };
   }
 
   /**

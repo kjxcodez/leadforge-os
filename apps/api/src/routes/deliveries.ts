@@ -10,8 +10,8 @@ import {
   finalizeEmailDeliveryDtoSchema
 } from '@leadforge/schema';
 import { successResponse } from '../utils/index.js';
-import { getWorkspaceId } from './common.js';
-import { NotFoundError } from '../errors/index.js';
+import { getWorkspaceId, getUserId } from './common.js';
+import { NotFoundError, BadRequestError } from '../errors/index.js';
 
 export const deliveriesRouter = new OpenAPIHono();
 
@@ -27,6 +27,7 @@ deliveriesRouter.get('/', async (c) => {
   const accountId = c.req.query('accountId');
   const status = c.req.query('status');
   const direction = c.req.query('direction');
+  const processingStatus = c.req.query('processingStatus');
   const search = c.req.query('search');
   const startDate = c.req.query('startDate');
   const endDate = c.req.query('endDate');
@@ -39,6 +40,9 @@ deliveriesRouter.get('/', async (c) => {
   if (accountId && accountId !== 'undefined' && accountId !== 'null') filter.accountId = accountId;
   if (status && status !== 'undefined' && status !== 'null') filter.status = status;
   if (direction && direction !== 'undefined' && direction !== 'null') filter.direction = direction;
+  if (processingStatus && processingStatus !== 'undefined' && processingStatus !== 'null' && processingStatus !== 'all') {
+    filter.processingStatus = processingStatus;
+  }
 
   if (search && search.trim()) {
     const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -211,4 +215,29 @@ deliveriesRouter.post('/poll-replies', async (c) => {
   const results = await service.pollAllInboundReplies();
   return c.json(successResponse(results));
 });
+
+// 13. Manually Reconcile Inbound Reply to Contact / Campaign / Outbound Delivery
+deliveriesRouter.post('/:id/manual-reconcile', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const body = await c.req.json().catch(() => ({}));
+  const userId = getUserId(c);
+
+  const contactId = body.contactId;
+  if (!contactId) {
+    throw new BadRequestError('contactId is required for manual reply reconciliation.');
+  }
+
+  const service = new ReconciliationService(wsId);
+  const result = await service.manualReconcileInboundReply(id, {
+    contactId,
+    campaignId: body.campaignId || null,
+    matchedDeliveryId: body.matchedDeliveryId || null,
+    notes: body.notes || null,
+    operatorId: userId || 'operator'
+  });
+
+  return c.json(successResponse(result));
+});
+
 

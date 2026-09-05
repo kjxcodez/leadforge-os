@@ -44,39 +44,93 @@ export function classifyEmailFailure(err: any): {
 } {
   const code = err?.code || err?.name || 'EMAIL_SEND_FAILED';
   const msg = err?.message || String(err);
+  const lowerMsg = msg.toLowerCase();
   let category = EmailFailureCategory.PROVIDER;
   let safeHumanMessage = 'Email provider failed to dispatch outbound message.';
   let retryable = Boolean(err?.retryable);
   let ambiguous = false;
 
-  if (err?.code === 'AMBIGUOUS_SEND_TIMEOUT') {
+  // 1. Ambiguous Delivery / Network Timeout during send
+  if (err?.code === 'AMBIGUOUS_SEND_TIMEOUT' || lowerMsg.includes('ambiguous_send_timeout')) {
     category = EmailFailureCategory.AMBIGUOUS;
     safeHumanMessage = 'Network connection timed out during send. Provider status is ambiguous.';
     ambiguous = true;
     retryable = false;
-  } else if (err?.reauthRequired || code === 'MAILBOX_REAUTH_REQUIRED' || code === 'GMAIL_AUTH_REVOKED') {
+  }
+  // 2. Permanent Authentication & Credential Revocation
+  else if (
+    err?.reauthRequired ||
+    code === 'MAILBOX_REAUTH_REQUIRED' ||
+    code === 'GMAIL_AUTH_REVOKED' ||
+    code === 'UNAUTHORIZED' ||
+    lowerMsg.includes('invalid_grant') ||
+    lowerMsg.includes('invalid_client') ||
+    lowerMsg.includes('revoked') ||
+    lowerMsg.includes('token expired') ||
+    lowerMsg.includes('insufficient_scope')
+  ) {
     category = EmailFailureCategory.AUTH;
     safeHumanMessage = 'Gmail connection expired or was revoked. Please reconnect the mailbox in Settings.';
     retryable = false;
-  } else if (code === 'PROVIDER_RATE_LIMITED' || code === 'EMAIL_RATE_LIMITED' || err?.isRateLimit) {
+  }
+  // 3. Rate Limits & Quota Exhaustion (429 Cooldown Path)
+  else if (
+    code === 'PROVIDER_RATE_LIMITED' ||
+    code === 'EMAIL_RATE_LIMITED' ||
+    err?.isRateLimit ||
+    lowerMsg.includes('429') ||
+    lowerMsg.includes('ratelimitexceeded') ||
+    lowerMsg.includes('quotaexceeded') ||
+    lowerMsg.includes('user-rate limit exceeded')
+  ) {
     category = EmailFailureCategory.RATE_LIMIT;
     safeHumanMessage = 'Gmail sending rate limit reached. Outgoing message paused until cooldown expires.';
     retryable = true;
-  } else if (code === 'INVALID_RECIPIENT' || code === 'INVALID_SUBJECT') {
+  }
+  // 4. Invalid Recipient / Non-Existent Address / Hard Bounce
+  else if (
+    code === 'INVALID_RECIPIENT' ||
+    code === 'RECIPIENT_SUPPRESSED' ||
+    code === 'INVALID_SUBJECT' ||
+    lowerMsg.includes('550') ||
+    lowerMsg.includes('551') ||
+    lowerMsg.includes('553') ||
+    lowerMsg.includes('5.1.1') ||
+    lowerMsg.includes('address not found') ||
+    lowerMsg.includes('recipient address was rejected')
+  ) {
     category = EmailFailureCategory.INVALID_RECIPIENT;
     safeHumanMessage = code === 'INVALID_SUBJECT'
       ? 'Email subject was rejected as invalid (must not contain newlines or be empty).'
-      : 'Recipient address was rejected by Gmail as invalid or unroutable.';
+      : 'Recipient address was rejected by provider as invalid or unroutable.';
     retryable = false;
-  } else if (code === 'CAMPAIGN_NOT_ACTIVE' || code === 'CONTACT_NOT_ELIGIBLE') {
+  }
+  // 5. Outreach Policy & Safety Gates
+  else if (code === 'CAMPAIGN_NOT_ACTIVE' || code === 'CONTACT_NOT_ELIGIBLE') {
     category = EmailFailureCategory.POLICY;
     safeHumanMessage = 'Outreach policy prevented send: campaign is not active or contact is ineligible.';
     retryable = false;
-  } else if (code === 'TRANSIENT_NETWORK_ERROR') {
+  }
+  // 6. Transient Network Failures (Retryable)
+  else if (
+    code === 'TRANSIENT_NETWORK_ERROR' ||
+    code === 'ECONNRESET' ||
+    code === 'ETIMEDOUT' ||
+    code === 'ENOTFOUND' ||
+    code === 'EAI_AGAIN' ||
+    code === 'ECONNREFUSED' ||
+    lowerMsg.includes('econnreset') ||
+    lowerMsg.includes('etimedout') ||
+    lowerMsg.includes('enotfound') ||
+    lowerMsg.includes('fetch failed') ||
+    lowerMsg.includes('network error')
+  ) {
     category = EmailFailureCategory.NETWORK;
     safeHumanMessage = 'Temporary network communication failure with email provider.';
     retryable = true;
-  } else if (typeof code === 'string' && (code.startsWith('ATTACHMENT_') || code.startsWith('DRIVE_'))) {
+  }
+  // 7. Internal / Attachment Handling Failures
+  else if (typeof code === 'string' && (code.startsWith('ATTACHMENT_') || code.startsWith('DRIVE_'))) {
     category = EmailFailureCategory.INTERNAL;
     safeHumanMessage = `Attachment handling failed: ${msg}`;
     retryable = err?.retryable || false;
@@ -237,7 +291,8 @@ export class EmailService {
       const eligibility = evaluateOutreachEligibility({
         contact: {
           id: contactDoc._id.toString(),
-          email: contactDoc.email,
+          email: normRecipient,
+          bouncedEmail: contactDoc.status === 'BOUNCED' ? (contactDoc.email || null) : null,
           status: contactDoc.status,
           emailStatus: contactDoc.emailStatus,
           emailMeta: contactDoc.emailMeta as any,
@@ -248,7 +303,7 @@ export class EmailService {
       if (!eligibility.eligible) {
         throw new EmailDomainError(
           'CONTACT_NOT_ELIGIBLE',
-          `Contact "${contactDoc.email}" is not eligible for outreach: ${eligibility.reason}.`
+          `Contact "${normRecipient}" is not eligible for outreach: ${eligibility.reason}.`
         );
       }
     }
@@ -707,18 +762,40 @@ export class EmailService {
           );
 
           if (input.contactId && input.contactId !== 'direct-contact') {
-            await ContactModel.updateOne(
-              {
-                _id: input.contactId,
-                workspaceId: this.workspaceId
-              },
-              {
-                $set: {
-                  status: ContactStatus.BOUNCED,
-                  emailStatus: ContactEmailStatus.INVALID
-                }
+            const targetContact = await ContactModel.findOne({
+              _id: input.contactId,
+              workspaceId: this.workspaceId
+            });
+
+            if (targetContact) {
+              const isPrimary = targetContact.email?.toLowerCase().trim() === input.to.toLowerCase().trim();
+              if (isPrimary) {
+                // Primary address hard bounced: mark contact status as BOUNCED
+                await ContactModel.updateOne(
+                  { _id: targetContact._id, workspaceId: this.workspaceId },
+                  {
+                    $set: {
+                      status: ContactStatus.BOUNCED,
+                      emailStatus: ContactEmailStatus.INVALID
+                    }
+                  }
+                );
+              } else {
+                // Secondary address bounced: preserve primary address eligibility
+                await ContactModel.updateOne(
+                  { _id: targetContact._id, workspaceId: this.workspaceId },
+                  {
+                    $set: {
+                      'emailMeta.secondaryBounce': {
+                        email: input.to,
+                        bouncedAt: new Date().toISOString(),
+                        reason: failure.technicalMessage
+                      }
+                    }
+                  }
+                );
               }
-            );
+            }
           }
         } catch (suppressErr) {
           logger.warn({ suppressErr, to: input.to }, 'Failed to record hard bounce suppression on outbound send failure');

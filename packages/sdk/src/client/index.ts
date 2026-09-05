@@ -24,7 +24,8 @@ import {
   GoogleConnectionsModule,
   AttachmentsModule,
   OperationsModule,
-  AnalyticsModule
+  AnalyticsModule,
+  SuppressionsModule
 } from '../modules/index.js';
 
 export class SdkClient {
@@ -46,6 +47,7 @@ export class SdkClient {
   public readonly jobs: JobsModule;
   public readonly locks: LocksModule;
   public readonly emailDeliveries: EmailDeliveriesModule;
+  public readonly suppressions: SuppressionsModule;
   public readonly intelligence: IntelligenceModule;
   public readonly workspaceMemory: WorkspaceMemoryModule;
   public readonly auditLogs: AuditLogsModule;
@@ -74,6 +76,7 @@ export class SdkClient {
     this.jobs = new JobsModule(this.httpClient);
     this.locks = new LocksModule(this.httpClient);
     this.emailDeliveries = new EmailDeliveriesModule(this.httpClient);
+    this.suppressions = new SuppressionsModule(this.httpClient);
     this.intelligence = new IntelligenceModule(this.httpClient);
     this.workspaceMemory = new WorkspaceMemoryModule(this.httpClient);
     this.auditLogs = new AuditLogsModule(this.httpClient);

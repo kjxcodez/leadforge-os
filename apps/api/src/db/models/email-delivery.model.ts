@@ -73,7 +73,7 @@ export interface EmailDeliveryDocument
   inReplyTo?: string | null;
   references?: string[];
   matchedDeliveryId?: string | null;
-  matchConfidence?: 'thread' | 'header' | 'contact' | 'none' | null;
+  matchConfidence?: 'thread' | 'header' | 'contact' | 'manual' | 'none' | null;
   processingStatus?: 'RECEIVED' | 'MATCHED' | 'UNMATCHED' | 'CORRELATION_PENDING' | 'AMBIGUOUS_MATCH' | 'IGNORED';
   hasReply?: boolean;
   replyCount?: number;

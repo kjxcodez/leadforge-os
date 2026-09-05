@@ -77,7 +77,14 @@ suppressionsRouter.delete('/:email', async (c) => {
   }
 
   const repo = new SuppressionRepository(wsId);
-  const removed = await repo.unsuppress(email, userId || 'user');
+  const result = await repo.unsuppress(email, userId || 'user');
+  const responseData = typeof result === 'boolean'
+    ? { email, unsuppressed: result }
+    : {
+        email: result?.email || email,
+        unsuppressed: Boolean(result?.unsuppressed),
+        restoredContactIds: result?.restoredContactIds || []
+      };
 
-  return c.json(successResponse({ email, unsuppressed: removed }));
+  return c.json(successResponse(responseData));
 });

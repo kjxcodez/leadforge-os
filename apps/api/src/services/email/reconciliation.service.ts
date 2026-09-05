@@ -1,12 +1,14 @@
 import { EmailDeliveryModel, type EmailDeliveryDocument } from '../../db/models/email-delivery.model.js';
 import { EmailAccountModel } from '../../db/models/email-account.model.js';
 import { ContactModel } from '../../db/models/contact.model.js';
+import { CampaignModel } from '../../db/models/campaign.model.js';
 import { SequenceExecutionModel } from '../../db/models/sequence-execution.model.js';
 import { EmailEventRepository } from '../../repositories/email-event/email-event.repository.js';
 import { EmailAccountRepository } from '../../repositories/email-account/email-account.repository.js';
 import { EmailAccountService } from './email-account.service.js';
 import { GoogleAuthService } from '../google/auth.service.js';
 import { GmailProvider } from '../google/gmail.provider.js';
+import { BadRequestError, ConflictError, NotFoundError } from '../../errors/index.js';
 import {
   ContactStatus,
   ContactEmailStatus,
@@ -1138,4 +1140,205 @@ export class ReconciliationService {
 
     return results;
   }
+
+  /**
+   * Manually reconciles an unresolved or pending inbound reply with an explicit contact,
+   * optional campaign, and optional parent delivery.
+   *
+   * Enforces strict workspace multi-tenant isolation, duplicate match prevention,
+   * immutable REPLIED event generation, monotonic contact status transition, and
+   * sequence outreach cessation.
+   */
+  public async manualReconcileInboundReply(
+    inboundDeliveryId: string,
+    options: {
+      contactId: string;
+      campaignId?: string | null;
+      matchedDeliveryId?: string | null;
+      notes?: string | null;
+      operatorId?: string | null;
+    }
+  ): Promise<{
+    success: boolean;
+    inboundDeliveryId: string;
+    contactId: string;
+    matchedDeliveryId: string | null;
+    cancelledExecutionsCount: number;
+  }> {
+    // 1. Validate inbound message belongs to caller's workspace
+    const inbound = await EmailDeliveryModel.findOne({
+      _id: inboundDeliveryId,
+      workspaceId: this.workspaceId
+    });
+
+    if (!inbound) {
+      throw new NotFoundError(`Inbound delivery with id "${inboundDeliveryId}" not found in workspace.`);
+    }
+
+    if (inbound.direction !== 'INBOUND') {
+      throw new BadRequestError('Only inbound delivery messages can be reconciled as replies.');
+    }
+
+    if (inbound.processingStatus === 'MATCHED' && inbound.matchedDeliveryId) {
+      throw new ConflictError(`Inbound delivery "${inboundDeliveryId}" is already matched to delivery "${inbound.matchedDeliveryId}".`);
+    }
+
+    // 2. Validate target contact belongs to workspace
+    const contact = await ContactModel.findOne({
+      _id: options.contactId,
+      workspaceId: this.workspaceId,
+      deletedAt: null
+    });
+
+    if (!contact) {
+      throw new NotFoundError(`Target contact with id "${options.contactId}" not found in workspace.`);
+    }
+
+    // 3. If parent outbound delivery is specified, validate it
+    let outbound: EmailDeliveryDocument | null = null;
+    if (options.matchedDeliveryId) {
+      outbound = await EmailDeliveryModel.findOne({
+        _id: options.matchedDeliveryId,
+        workspaceId: this.workspaceId,
+        direction: 'OUTBOUND'
+      });
+
+      if (!outbound) {
+        throw new NotFoundError(`Outbound delivery with id "${options.matchedDeliveryId}" not found in workspace.`);
+      }
+
+      if (options.campaignId && outbound.campaignId && String(options.campaignId) !== String(outbound.campaignId)) {
+        throw new BadRequestError('Specified campaignId does not match outbound delivery campaign.');
+      }
+    } else if (options.campaignId) {
+      const camp = await CampaignModel.findOne({
+        _id: options.campaignId,
+        workspaceId: this.workspaceId
+      });
+
+      if (!camp) {
+        throw new NotFoundError(`Specified campaign with id "${options.campaignId}" not found in workspace.`);
+      }
+    }
+
+    // 4. Update inbound delivery record
+    const effectiveCampaignId = outbound?.campaignId || options.campaignId || null;
+    inbound.processingStatus = 'MATCHED';
+    inbound.matchConfidence = 'manual';
+    inbound.contactId = contact._id.toString();
+    if (outbound) {
+      inbound.matchedDeliveryId = outbound._id.toString();
+      inbound.campaignId = outbound.campaignId || effectiveCampaignId;
+      inbound.sequenceId = outbound.sequenceId || 'inbound-manual';
+      inbound.executionId = outbound.executionId || 'inbound-manual';
+      inbound.stepIndex = (outbound.stepIndex || 0) + 1;
+    } else {
+      inbound.campaignId = effectiveCampaignId;
+      inbound.sequenceId = 'inbound-manual';
+      inbound.executionId = 'inbound-manual';
+    }
+    inbound.reconciledAt = new Date();
+    inbound.reconciliationNotes = options.notes || 'Manually reconciled by operator';
+    await inbound.save();
+
+    // 5. Update parent outbound delivery if present
+    if (outbound) {
+      await EmailDeliveryModel.updateOne(
+        { _id: outbound._id, workspaceId: this.workspaceId },
+        {
+          $set: {
+            hasReply: true,
+            lastRepliedAt: inbound.sentAt || new Date()
+          },
+          $inc: { replyCount: 1 }
+        }
+      );
+    }
+
+    // 6. Record immutable REPLIED event in ledger
+    const dedupeKey = `manual_reply_${this.workspaceId}_${inbound._id.toString()}`;
+    const eventRepo = new EmailEventRepository(this.workspaceId);
+    await eventRepo.recordEvent({
+      deliveryId: outbound ? outbound._id.toString() : inbound._id.toString(),
+      contactId: contact._id.toString(),
+      campaignId: effectiveCampaignId,
+      type: EmailEventType.REPLIED,
+      occurredAt: inbound.sentAt || new Date(),
+      metadata: {
+        manualReconciliation: true,
+        operatorId: options.operatorId || 'operator',
+        inboundDeliveryId: inbound._id.toString(),
+        matchedDeliveryId: outbound ? outbound._id.toString() : null,
+        notes: options.notes || null
+      },
+      dedupeKey
+    });
+
+    // 7. Transition Contact to REPLIED
+    if (canTransitionContactStatus(contact.status, ContactStatus.REPLIED)) {
+      await ContactModel.updateOne(
+        {
+          _id: contact._id,
+          workspaceId: this.workspaceId,
+          status: { $nin: ['UNSUBSCRIBED', 'BOUNCED', 'DO_NOT_CONTACT', 'ARCHIVED'] }
+        } as any,
+        {
+          $set: {
+            status: ContactStatus.REPLIED,
+            lastRepliedAt: inbound.sentAt || new Date()
+          }
+        }
+      );
+    }
+
+    // 8. Halt running sequence outreach for this contact & campaign
+    const cancelFilter: any = {
+      workspaceId: this.workspaceId,
+      contactId: contact._id.toString(),
+      status: { $in: ['active', 'running', 'waiting', 'pending', 'WAITING', 'ACTIVE', 'RUNNING', 'PENDING'] }
+    };
+    if (effectiveCampaignId) {
+      cancelFilter.campaignId = effectiveCampaignId;
+    }
+
+    const cancelled = await SequenceExecutionModel.updateMany(
+      cancelFilter,
+      {
+        $set: {
+          status: 'completed',
+          completedAt: new Date(),
+          nextExecutionAt: null
+        },
+        $inc: { replies: 1 },
+        $push: {
+          logs: {
+            timestamp: new Date(),
+            level: 'info',
+            message: 'Sequence execution halted: reply manually reconciled by operator.'
+          }
+        }
+      }
+    );
+
+    logger.info(
+      {
+        workspaceId: this.workspaceId,
+        inboundDeliveryId: inbound._id.toString(),
+        contactId: contact._id.toString(),
+        matchedDeliveryId: outbound ? outbound._id.toString() : null,
+        operatorId: options.operatorId,
+        cancelledExecutionsCount: cancelled.modifiedCount
+      },
+      'Manually reconciled inbound reply successfully'
+    );
+
+    return {
+      success: true,
+      inboundDeliveryId: inbound._id.toString(),
+      contactId: contact._id.toString(),
+      matchedDeliveryId: outbound ? outbound._id.toString() : null,
+      cancelledExecutionsCount: cancelled.modifiedCount
+    };
+  }
 }
+
