@@ -1752,7 +1752,9 @@ async function handleSendEmailStep(
   // Send-time contact eligibility check
   const eligibility = evaluateOutreachEligibility({
     contact: { ...contact, email: recipientEmail },
-    campaign: campaignDoc
+    campaign: campaignDoc,
+    recipientEmail,
+    bouncedEmail: (contact as any).bouncedEmail || (contact.status === 'BOUNCED' ? (contact.email || null) : null)
   });
   if (!eligibility.eligible) {
     ctx.emitLog(`Contact "${recipientEmail}" is ineligible for outreach: ${eligibility.reason}. Skipping send step.`, 'warn');

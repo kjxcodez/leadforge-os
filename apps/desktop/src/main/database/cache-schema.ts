@@ -377,6 +377,10 @@ export function initCacheSchema(db: Database.Database): void {
         lastRepliedAt DATETIME,
         status TEXT DEFAULT 'PENDING',
         processingStatus TEXT DEFAULT NULL,
+        matchConfidence TEXT DEFAULT NULL,
+        reconciliationAttempts INTEGER DEFAULT 0,
+        reconciliationNotes TEXT DEFAULT NULL,
+        reconciledAt DATETIME,
         attempt INTEGER DEFAULT 1,
         idempotencyKey TEXT UNIQUE,
         sentAt DATETIME,
@@ -387,6 +391,10 @@ export function initCacheSchema(db: Database.Database): void {
 
     const extraDeliveryCols = [
       'processingStatus TEXT DEFAULT NULL',
+      'matchConfidence TEXT DEFAULT NULL',
+      'reconciliationAttempts INTEGER DEFAULT 0',
+      'reconciliationNotes TEXT DEFAULT NULL',
+      'reconciledAt DATETIME',
       'htmlBody TEXT',
       'textBody TEXT',
       'templateId TEXT',

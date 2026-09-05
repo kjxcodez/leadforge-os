@@ -103,6 +103,7 @@ contextBridge.exposeInMainWorld('ipc', {
       'email-deliveries:events',
       'email-deliveries:reconcile',
       'email-deliveries:poll-replies',
+      'email-deliveries:manual-reconcile',
       'operations:health',
       'operations:list',
       'operations:get',

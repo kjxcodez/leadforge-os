@@ -59,13 +59,32 @@ export function registerSuppressionsIpc(): void {
     const unsuppressed = repo.unsuppress(workspaceId, email);
 
     // Sync to API server if available
+    let restoredContactIds: string[] = [];
     try {
       const sdk = WorkspaceManager.getSdk();
       if ((sdk as any).suppressions?.delete) {
-        await (sdk as any).suppressions.delete(email);
+        const apiRes = await (sdk as any).suppressions.delete(email);
+        if (Array.isArray(apiRes?.restoredContactIds)) {
+          restoredContactIds = apiRes.restoredContactIds;
+        }
       }
     } catch {}
 
-    return { success: true, unsuppressed, email };
+    // UNSUPPRESS-13: Synchronize local SQLite contacts projection
+    try {
+      const now = new Date().toISOString();
+      const cleanEmail = email.toLowerCase().trim();
+      db.prepare(`
+        UPDATE contacts
+        SET status = CASE WHEN lastContactedAt IS NOT NULL THEN 'CONTACTED' ELSE 'NEW' END,
+            emailStatus = 'VALID',
+            updatedAt = ?
+        WHERE workspaceId = ?
+          AND LOWER(TRIM(email)) = ?
+          AND status = 'BOUNCED'
+      `).run(now, workspaceId, cleanEmail);
+    } catch {}
+
+    return { success: true, unsuppressed, email, restoredContactIds };
   });
 }

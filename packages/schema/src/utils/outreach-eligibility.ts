@@ -89,6 +89,8 @@ export interface OutreachEligibilityInput {
       domainMatched?: boolean | null | undefined;
     } | null | undefined;
   };
+  recipientEmail?: string | null | undefined;
+  bouncedEmail?: string | null | undefined;
   suppression?: {
     reason?: string | undefined;
   } | boolean | null | undefined;
@@ -113,9 +115,10 @@ export interface OutreachEligibilityResult {
  */
 export function evaluateOutreachEligibility(input: OutreachEligibilityInput): OutreachEligibilityResult {
   const { contact, campaign, context, suppression } = input;
+  const targetEmail = input.recipientEmail || contact.email;
 
   // 1. Email existence
-  if (!contact.email || typeof contact.email !== 'string' || !contact.email.includes('@')) {
+  if (!targetEmail || typeof targetEmail !== 'string' || !targetEmail.includes('@')) {
     return { eligible: false, reason: 'CONTACT_MISSING_EMAIL' };
   }
 
@@ -132,8 +135,8 @@ export function evaluateOutreachEligibility(input: OutreachEligibilityInput): Ou
   if (contactStatus === ContactStatus.BOUNCED || contactStatus === 'BOUNCED') {
     // Multi-address bounce isolation: If contact bounced on a different address (e.g. primary bounced
     // but secondary is being dispatched, or vice-versa), do not block an unrelated valid address.
-    const cleanBounced = contact.bouncedEmail?.toLowerCase().trim();
-    const cleanTarget = contact.email.toLowerCase().trim();
+    const cleanBounced = (input.bouncedEmail || contact.bouncedEmail)?.toLowerCase().trim();
+    const cleanTarget = targetEmail.toLowerCase().trim();
     if (cleanBounced && cleanBounced !== cleanTarget) {
       // Address is distinct from the bounced address on this contact: proceed to address-level checks.
     } else {
@@ -151,7 +154,7 @@ export function evaluateOutreachEligibility(input: OutreachEligibilityInput): Ou
   }
 
   // 2a. Disposable domain check
-  const domain = contact.email.split('@')[1];
+  const domain = targetEmail.split('@')[1];
   if (isDisposableEmailDomain(domain)) {
     return { eligible: false, reason: 'EMAIL_DISPOSABLE' };
   }

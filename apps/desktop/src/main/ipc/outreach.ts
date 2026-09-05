@@ -344,6 +344,7 @@ export function registerOutreachIpc(sdk: SdkClient) {
         companyId: payload?.companyId,
         accountId: payload?.accountId,
         status: payload?.status,
+        processingStatus: payload?.processingStatus,
         direction: payload?.direction,
         search: payload?.search,
         startDate: payload?.startDate,
@@ -365,8 +366,9 @@ export function registerOutreachIpc(sdk: SdkClient) {
               templateId, templateVersion, variablesSnapshot, messageFingerprint,
               safeHumanMessage, technicalMessage, error, retryable, ambiguous,
               direction, openCount, clickCount, hasReply, replyCount,
-              lastOpenedAt, lastClickedAt, lastRepliedAt, status, attempt,
-              idempotencyKey, sentAt, createdAt, updatedAt
+              lastOpenedAt, lastClickedAt, lastRepliedAt, status, processingStatus,
+              matchConfidence, reconciliationAttempts, reconciliationNotes, reconciledAt,
+              attempt, idempotencyKey, sentAt, createdAt, updatedAt
             ) VALUES (
               @id, @workspaceId, @campaignId, @sequenceId, @executionId, @stepIndex,
               @contactId, @companyId, @accountId, @senderEmail, @recipientEmail, @subject,
@@ -374,11 +376,17 @@ export function registerOutreachIpc(sdk: SdkClient) {
               @templateId, @templateVersion, @variablesSnapshot, @messageFingerprint,
               @safeHumanMessage, @technicalMessage, @error, @retryable, @ambiguous,
               @direction, @openCount, @clickCount, @hasReply, @replyCount,
-              @lastOpenedAt, @lastClickedAt, @lastRepliedAt, @status, @attempt,
-              @idempotencyKey, @sentAt, @createdAt, @updatedAt
+              @lastOpenedAt, @lastClickedAt, @lastRepliedAt, @status, @processingStatus,
+              @matchConfidence, @reconciliationAttempts, @reconciliationNotes, @reconciledAt,
+              @attempt, @idempotencyKey, @sentAt, @createdAt, @updatedAt
             )
             ON CONFLICT(id) DO UPDATE SET
               status = excluded.status,
+              processingStatus = excluded.processingStatus,
+              matchConfidence = excluded.matchConfidence,
+              reconciliationAttempts = excluded.reconciliationAttempts,
+              reconciliationNotes = excluded.reconciliationNotes,
+              reconciledAt = excluded.reconciledAt,
               providerMessageId = excluded.providerMessageId,
               providerThreadId = excluded.providerThreadId,
               htmlBody = excluded.htmlBody,
@@ -444,6 +452,11 @@ export function registerOutreachIpc(sdk: SdkClient) {
                 lastClickedAt: row.lastClickedAt ? new Date(row.lastClickedAt).toISOString() : null,
                 lastRepliedAt: row.lastRepliedAt ? new Date(row.lastRepliedAt).toISOString() : null,
                 status: row.status || 'PENDING',
+                processingStatus: row.processingStatus || null,
+                matchConfidence: row.matchConfidence || null,
+                reconciliationAttempts: row.reconciliationAttempts ?? 0,
+                reconciliationNotes: row.reconciliationNotes || null,
+                reconciledAt: row.reconciledAt ? new Date(row.reconciledAt).toISOString() : null,
                 attempt: row.attempt || 1,
                 idempotencyKey: row.idempotencyKey || null,
                 sentAt: row.sentAt ? new Date(row.sentAt).toISOString() : null,
@@ -488,6 +501,10 @@ export function registerOutreachIpc(sdk: SdkClient) {
       if (payload?.status) {
         query += ` AND ed.status = ?`;
         params.push(payload.status);
+      }
+      if (payload?.processingStatus && payload.processingStatus !== 'ALL') {
+        query += ` AND ed.processingStatus = ?`;
+        params.push(payload.processingStatus);
       }
       if (payload?.direction) {
         query += ` AND ed.direction = ?`;
@@ -575,5 +592,19 @@ export function registerOutreachIpc(sdk: SdkClient) {
   safeRegister('email-deliveries:poll-replies', async () => {
     const sdk = WorkspaceManager.getSdk();
     return await sdk.emailDeliveries.pollReplies();
+  });
+
+  safeRegister('email-deliveries:manual-reconcile', async (_event, payload) => {
+    const deliveryId = payload?.inboundDeliveryId || payload?.deliveryId;
+    if (!deliveryId) throw new Error('inboundDeliveryId is required.');
+    if (!payload?.contactId) throw new Error('contactId is required.');
+
+    const sdk = WorkspaceManager.getSdk();
+    return await sdk.emailDeliveries.manualReconcile(deliveryId, {
+      contactId: payload.contactId,
+      campaignId: payload.campaignId || null,
+      matchedDeliveryId: payload.matchedDeliveryId || payload.outboundDeliveryId || null,
+      notes: payload.notes || null
+    });
   });
 }

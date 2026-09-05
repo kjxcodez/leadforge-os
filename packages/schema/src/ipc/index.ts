@@ -532,6 +532,7 @@ export interface IpcChannelMap {
       startDate?: string;
       endDate?: string;
       search?: string;
+      processingStatus?: string;
       page?: number;
       limit?: number;
     };
@@ -551,6 +552,18 @@ export interface IpcChannelMap {
   };
   'email-deliveries:poll-replies': {
     input?: { workspaceId?: string } | void;
+    output: any;
+  };
+  'email-deliveries:manual-reconcile': {
+    input: {
+      deliveryId?: string;
+      inboundDeliveryId?: string;
+      contactId: string;
+      campaignId?: string | null;
+      matchedDeliveryId?: string | null;
+      outboundDeliveryId?: string | null;
+      notes?: string | null;
+    };
     output: any;
   };
   'campaigns:schedule': {
