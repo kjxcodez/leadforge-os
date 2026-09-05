@@ -18,10 +18,11 @@ import {
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Skeleton } from '../ui/skeleton';
-import { EmailStatusBadge, EngagementPills, DirectionBadge } from './EmailStatusBadge';
+import { EmailStatusBadge, EngagementPills, DirectionBadge, InboundReconciliationBadge } from './EmailStatusBadge';
 import { SafeEmailPreview } from './SafeEmailPreview';
 import { FailureDiagnosticsCard } from './FailureDiagnosticsCard';
 import { ConversationTimeline } from './ConversationTimeline';
+import { InboundReconciliationCard } from './InboundReconciliationCard';
 
 interface CopyableIdentifierProps {
   label: string;
@@ -160,6 +161,12 @@ export const MessageDetailView: React.FC<MessageDetailViewProps> = ({
         <div className="flex items-center gap-2 flex-wrap">
           <DirectionBadge direction={delivery.direction || 'OUTBOUND'} />
           <EmailStatusBadge status={delivery.status} />
+          {delivery.processingStatus && (
+            <InboundReconciliationBadge
+              processingStatus={delivery.processingStatus}
+              matchConfidence={delivery.matchConfidence}
+            />
+          )}
           <EngagementPills
             openCount={delivery.openCount}
             clickCount={delivery.clickCount}
@@ -301,6 +308,15 @@ export const MessageDetailView: React.FC<MessageDetailViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* Inbound Reconciliation & Evidence (Phase 17) */}
+      <InboundReconciliationCard
+        delivery={delivery}
+        workspaceId={delivery.workspaceId || ''}
+        onReconciled={handleRefetch}
+        onNavigateToContact={onNavigateToContact}
+        onNavigateToCampaign={onNavigateToCampaign}
+      />
 
       {/* Failure & Ambiguous Diagnostics */}
       <FailureDiagnosticsCard

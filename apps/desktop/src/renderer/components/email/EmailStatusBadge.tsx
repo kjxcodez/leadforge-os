@@ -210,3 +210,57 @@ export const DirectionBadge: React.FC<DirectionBadgeProps> = ({
     </span>
   );
 };
+
+export interface InboundReconciliationBadgeProps {
+  processingStatus?: 'CORRELATION_PENDING' | 'MATCHED' | 'UNMATCHED' | string;
+  matchConfidence?: string | null;
+  className?: string;
+  size?: 'sm' | 'default';
+}
+
+export const InboundReconciliationBadge: React.FC<InboundReconciliationBadgeProps> = ({
+  processingStatus,
+  matchConfidence,
+  className = '',
+  size = 'default'
+}) => {
+  if (!processingStatus) return null;
+  const norm = processingStatus.toUpperCase();
+  const paddingClass = size === 'sm' ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-xs';
+
+  let colorClass = 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+  let label = norm;
+  let icon = <Clock className="w-3 h-3 mr-1" />;
+
+  switch (norm) {
+    case 'MATCHED':
+      colorClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+      icon = <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-400" />;
+      label = matchConfidence ? `Matched (${matchConfidence})` : 'Matched';
+      break;
+    case 'CORRELATION_PENDING':
+      colorClass = 'bg-amber-500/10 text-amber-300 border-amber-500/20 font-medium';
+      icon = <Loader2 className="w-3 h-3 mr-1 text-amber-400 animate-spin" />;
+      label = 'Awaiting Correlation';
+      break;
+    case 'UNMATCHED':
+      colorClass = 'bg-rose-500/10 text-rose-300 border-rose-500/20';
+      icon = <AlertTriangle className="w-3 h-3 mr-1 text-rose-400" />;
+      label = 'Unmatched';
+      break;
+    default:
+      label = norm;
+      break;
+  }
+
+  return (
+    <span
+      title={`Inbound Reply Reconciliation: ${norm}${matchConfidence ? ` • Confidence: ${matchConfidence}` : ''}`}
+      className={`inline-flex items-center font-medium rounded-md border ${colorClass} ${paddingClass} ${className}`}
+    >
+      {icon}
+      <span>{label}</span>
+    </span>
+  );
+};
+

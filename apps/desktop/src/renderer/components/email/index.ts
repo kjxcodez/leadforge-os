@@ -6,3 +6,4 @@ export * from './MessageDetailView';
 export * from './EmailLogsList';
 export * from './SendTestModal';
 export * from './EmailQualityBadge';
+export * from './InboundReconciliationCard';

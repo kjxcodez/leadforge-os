@@ -14,7 +14,7 @@ import {
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
-import { EmailStatusBadge, EngagementPills, DirectionBadge } from './EmailStatusBadge';
+import { EmailStatusBadge, EngagementPills, DirectionBadge, InboundReconciliationBadge } from './EmailStatusBadge';
 
 export interface EmailLogsListProps {
   deliveries: any[];
@@ -31,6 +31,8 @@ export interface EmailLogsListProps {
   onStatusChange?: (status: string) => void;
   directionFilter?: string;
   onDirectionChange?: (direction: string) => void;
+  processingStatusFilter?: string;
+  onProcessingStatusChange?: (status: string) => void;
   onRefresh?: () => void;
   onPollReplies?: () => void;
   isPollingReplies?: boolean;
@@ -52,6 +54,8 @@ export const EmailLogsList: React.FC<EmailLogsListProps> = ({
   onStatusChange,
   directionFilter = 'all',
   onDirectionChange,
+  processingStatusFilter = 'all',
+  onProcessingStatusChange,
   onRefresh,
   onPollReplies,
   isPollingReplies = false,
@@ -70,6 +74,13 @@ export const EmailLogsList: React.FC<EmailLogsListProps> = ({
     { label: 'All Directions', value: 'all' },
     { label: 'Outbound', value: 'OUTBOUND' },
     { label: 'Inbound Replies', value: 'INBOUND' }
+  ];
+
+  const reconciliationOptions = [
+    { label: 'All Reconciliation', value: 'all' },
+    { label: 'Awaiting Correlation', value: 'CORRELATION_PENDING' },
+    { label: 'Matched', value: 'MATCHED' },
+    { label: 'Unmatched', value: 'UNMATCHED' }
   ];
 
   return (
@@ -155,6 +166,28 @@ export const EmailLogsList: React.FC<EmailLogsListProps> = ({
             ))}
           </div>
         </div>
+
+        {/* Inbound Processing Filter Sub-bar */}
+        {(directionFilter === 'INBOUND' || processingStatusFilter !== 'all') && (
+          <div className="flex items-center gap-1 overflow-x-auto text-xs pt-1 border-t border-border/40 no-scrollbar">
+            <span className="text-[10px] text-muted-foreground font-medium mr-1 uppercase tracking-wider">
+              Reconciliation:
+            </span>
+            {reconciliationOptions.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => onProcessingStatusChange && onProcessingStatusChange(opt.value)}
+                className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                  processingStatusFilter === opt.value
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold'
+                    : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Deliveries Count and Quick Summary */}
@@ -253,8 +286,15 @@ export const EmailLogsList: React.FC<EmailLogsListProps> = ({
 
                 {/* Badges Footer */}
                 <div className="flex items-center justify-between gap-2 mt-2 pt-1 border-t border-border/30">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <EmailStatusBadge status={delivery.status} size="sm" />
+                    {delivery.processingStatus && (
+                      <InboundReconciliationBadge
+                        processingStatus={delivery.processingStatus}
+                        matchConfidence={delivery.matchConfidence}
+                        size="sm"
+                      />
+                    )}
                     {delivery.retryable && (
                       <span className="text-[10px] text-amber-400">Retryable</span>
                     )}

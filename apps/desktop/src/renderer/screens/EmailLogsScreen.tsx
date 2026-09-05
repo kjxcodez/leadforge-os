@@ -36,12 +36,13 @@ export default function EmailLogsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [directionFilter, setDirectionFilter] = useState('all');
+  const [processingStatusFilter, setProcessingStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const limit = 50;
 
   // Deliveries List Query
   const deliveriesQuery = useQuery({
-    queryKey: ['email_deliveries', workspaceId, statusFilter, directionFilter, searchQuery, page],
+    queryKey: ['email_deliveries', workspaceId, statusFilter, directionFilter, processingStatusFilter, searchQuery, page],
     queryFn: async () => {
       const payload: any = {
         workspaceId,
@@ -50,6 +51,7 @@ export default function EmailLogsScreen() {
       };
       if (statusFilter !== 'all') payload.status = statusFilter;
       if (directionFilter !== 'all') payload.direction = directionFilter;
+      if (processingStatusFilter !== 'all') payload.processingStatus = processingStatusFilter;
       if (searchQuery.trim()) payload.search = searchQuery.trim();
 
       const res = await (window as any).ipc.invoke('email-deliveries:list', payload);
@@ -287,6 +289,8 @@ export default function EmailLogsScreen() {
               onStatusChange={setStatusFilter}
               directionFilter={directionFilter}
               onDirectionChange={setDirectionFilter}
+              processingStatusFilter={processingStatusFilter}
+              onProcessingStatusChange={setProcessingStatusFilter}
               onRefresh={() => queryClient.invalidateQueries({ queryKey: ['email_deliveries'] })}
               onPollReplies={() => pollRepliesMutation.mutate()}
               isPollingReplies={pollRepliesMutation.isPending}
