@@ -467,6 +467,42 @@ export function computeMessageFingerprint(input: MessageFingerprintInput): strin
 }
 
 /**
+ * Computes deterministic SHA-256 checksums for attachments participating in canonical message identity.
+ * Handles buffers, base64 data, Google Drive identifiers, and metadata fallbacks.
+ * Sorts checksums alphabetically to ensure attachment ordering invariance.
+ */
+export function computeAttachmentChecksums(attachments?: any[] | null): string[] {
+  if (!attachments || !Array.isArray(attachments) || attachments.length === 0) {
+    return [];
+  }
+
+  const checksums: string[] = attachments.map((a) => {
+    if (!a) return crypto.createHash('sha256').update('null').digest('hex');
+    if (a.sha256 && typeof a.sha256 === 'string' && a.sha256.length === 64) {
+      return a.sha256;
+    }
+    if (a.data && Buffer.isBuffer(a.data)) {
+      return crypto.createHash('sha256').update(a.data).digest('hex');
+    }
+    const rawData = (a as any).contentBase64 ?? (a as any).content;
+    if (typeof rawData === 'string' && rawData.trim().length > 0) {
+      return crypto.createHash('sha256').update(Buffer.from(rawData, 'base64')).digest('hex');
+    }
+    const fileId = a.fileId || a.id;
+    if (fileId) {
+      const filename = a.filename || 'attachment';
+      const size = a.size || 0;
+      return crypto.createHash('sha256').update(`${filename}:${fileId}:${size}`).digest('hex');
+    }
+    const filename = a.filename || 'unknown';
+    const size = a.size || 0;
+    return crypto.createHash('sha256').update(`${filename}:${size}`).digest('hex');
+  });
+
+  return checksums.sort();
+}
+
+/**
  * Unified canonical composition engine for outbound messages.
  * Deterministically binds templates, resolves variables with HTML entity safety,
  * sanitizes subjects, renders typography, appends signatures, executes tracking
@@ -535,7 +571,28 @@ export function composeOutboundMessage(input: ComposeMessageInput): ComposeMessa
     }
   }
 
-  // 7. Tracking transformations
+  // 7. Calculate canonical attachment checksums
+  const attachments = input.attachments || [];
+  const attachmentChecksums = computeAttachmentChecksums(attachments);
+
+  // 8. Canonical Message Fingerprint
+  // Evaluated over canonical authored content BEFORE dynamic tracking tokens are injected.
+  // Tracking tokens (pixel nonces, redirect tokens) are delivery instrumentation, not part of
+  // the authored content. Computing fingerprint on canonical pre-tracking content guarantees
+  // preview and delivery fingerprint parity and ensures retries retain identical content identity.
+  const messageFingerprint = computeMessageFingerprint({
+    workspaceId: input.workspaceId,
+    senderEmail: input.sender.email,
+    recipientEmail: input.recipient.email,
+    subject: finalSubject,
+    textBody,
+    htmlBody,
+    attachmentChecksums,
+    templateId,
+    templateVersion
+  });
+
+  // 9. Tracking transformations
   const trackingBaseUrl = input.trackingBaseUrl || 'http://localhost:3000';
   let openTrackingToken = input.existingTracking?.openTrackingToken || '';
   let clickTrackingTokens = input.existingTracking?.clickTrackingTokens
@@ -554,32 +611,6 @@ export function composeOutboundMessage(input: ComposeMessageInput): ComposeMessa
       htmlBody = injectOpenTrackingPixel(htmlBody, trackingBaseUrl, openTrackingToken);
     }
   }
-
-  // 8. Attachment checksum calculation
-  const attachments = input.attachments || [];
-  const attachmentChecksums: string[] = attachments.map((a) => {
-    if (a.sha256) return a.sha256;
-    if (a.contentBase64) {
-      return crypto.createHash('sha256').update(Buffer.from(a.contentBase64, 'base64')).digest('hex');
-    }
-    if (a.data && Buffer.isBuffer(a.data)) {
-      return crypto.createHash('sha256').update(a.data).digest('hex');
-    }
-    return crypto.createHash('sha256').update(a.filename || 'unknown').digest('hex');
-  });
-
-  // 9. Message Fingerprint
-  const messageFingerprint = computeMessageFingerprint({
-    workspaceId: input.workspaceId,
-    senderEmail: input.sender.email,
-    recipientEmail: input.recipient.email,
-    subject: finalSubject,
-    textBody,
-    htmlBody,
-    attachmentChecksums,
-    templateId,
-    templateVersion
-  });
 
   return {
     subject: finalSubject,
