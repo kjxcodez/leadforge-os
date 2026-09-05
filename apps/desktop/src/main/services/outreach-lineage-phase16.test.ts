@@ -228,7 +228,7 @@ export async function runOutreachLineagePhase16Tests() {
 
   // Operator deletes current template from active collection
   delete (templateStore as any)[templateId1].current;
-  assert.strictEqual(templateStore[templateId1].current, undefined);
+  assert.strictEqual(templateStore[templateId1]?.current, undefined);
 
   // Historical version 1 remains accessible in versions table/archive
   const archivedV1 = resolveTemplateVersion(templateId1, 1);
@@ -286,6 +286,7 @@ export async function runOutreachLineagePhase16Tests() {
 
   const composeInput = {
     workspaceId,
+    context: {},
     sender: { email: 'alex@leadforge.ai', name: 'Alex' },
     recipient: { email: 'sarah@enterprise.com', firstName: 'Sarah' },
     template: {
