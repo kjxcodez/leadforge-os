@@ -11,7 +11,8 @@ import {
   normalizeEmailSignature,
   sanitizeSubject,
   htmlToPlainText,
-  computeMessageFingerprint
+  computeMessageFingerprint,
+  computeAttachmentChecksums
 } from '@leadforge/sdk';
 import {
   ContactStatus,
@@ -286,6 +287,7 @@ export class EmailService {
 
     // 2. Derive deterministic idempotency key and composition fingerprint
     const idempotencyKey = this.generateDeterministicIdempotencyKey(input);
+    const attachmentChecksums = computeAttachmentChecksums(input.attachments || []);
     const messageFingerprint = computeMessageFingerprint({
       workspaceId: this.workspaceId,
       senderEmail: account.email,
@@ -293,6 +295,7 @@ export class EmailService {
       subject: input.subject,
       htmlBody: input.html || null,
       textBody: input.text || null,
+      attachmentChecksums,
       templateId: input.templateId || null,
       templateVersion: input.templateVersion || null
     });

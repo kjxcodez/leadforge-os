@@ -1,6 +1,7 @@
 import { EmailAccountModel } from '../../db/models/email-account.model.js';
 import type { EmailAccountDocument } from '../../db/models/email-account.model.js';
-import { EmailTemplateModel } from '../../db/models/email-template.model.js';
+import { EmailTemplateModel, TemplateVersionModel } from '../../db/models/email-template.model.js';
+import { NotFoundError } from '../../errors/index.js';
 import { CampaignModel } from '../../db/models/campaign.model.js';
 import { ContactModel } from '../../db/models/contact.model.js';
 import { CompanyModel } from '../../db/models/company.model.js';
@@ -225,8 +226,53 @@ export class OutreachService {
     } as any).sort({ createdAt: -1 });
   }
 
+  public async getTemplate(id: string): Promise<any> {
+    const template = await EmailTemplateModel.findOne({
+      _id: id,
+      workspaceId: this.workspaceId
+    } as any);
+    if (!template) {
+      throw new NotFoundError(`Template "${id}" not found.`);
+    }
+    return template;
+  }
+
+  public async getTemplateVersion(id: string, version: number): Promise<any> {
+    const templateRepo = new EmailTemplateRepository(this.workspaceId);
+    const versionDoc = await templateRepo.findVersion(id, version);
+    if (!versionDoc) {
+      throw new NotFoundError(`Version ${version} of template "${id}" not found.`);
+    }
+    return versionDoc;
+  }
+
   public async deleteTemplate(id: string): Promise<void> {
-    await EmailTemplateModel.findOneAndDelete({
+    const existing = await EmailTemplateModel.findOne({
+      _id: id,
+      workspaceId: this.workspaceId
+    } as any);
+    if (!existing) return;
+
+    // Archive current active version before deleting so historical references remain resolvable
+    try {
+      await TemplateVersionModel.create({
+        workspaceId: existing.workspaceId,
+        templateId: existing._id.toString(),
+        version: existing.version || 1,
+        name: existing.name,
+        subject: existing.subject,
+        body: existing.body,
+        variables: existing.variables || [],
+        attachments: existing.attachments || []
+      });
+    } catch (err: any) {
+      // 11000 = unique constraint if already archived
+      if (err?.code !== 11000) {
+        console.warn('[OutreachService] Warning archiving template version on delete:', err);
+      }
+    }
+
+    await EmailTemplateModel.deleteOne({
       _id: id,
       workspaceId: this.workspaceId
     } as any);
@@ -236,12 +282,18 @@ export class OutreachService {
    * Renders preview subject and body using a mock contact profile,
    * returning both HTML and plain-text alongside an immutable variable snapshot.
    */
-  public async previewTemplate(templateId: string, contactId?: string): Promise<any> {
-    const template = await EmailTemplateModel.findOne({
-      _id: templateId,
-      workspaceId: this.workspaceId
-    } as any);
-    if (!template) throw new Error('Template not found.');
+  public async previewTemplate(templateId: string, contactId?: string, version?: number): Promise<any> {
+    let template: any = null;
+    if (typeof version === 'number' && version > 0) {
+      const templateRepo = new EmailTemplateRepository(this.workspaceId);
+      template = await templateRepo.findVersion(templateId, version);
+    } else {
+      template = await EmailTemplateModel.findOne({
+        _id: templateId,
+        workspaceId: this.workspaceId
+      } as any);
+    }
+    if (!template) throw new NotFoundError('Template not found.');
 
     let contact: any = null;
     let company: any = null;

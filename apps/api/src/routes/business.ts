@@ -729,6 +729,23 @@ outreachRouter.post('/templates', async (c) => {
   return c.json(successResponse(template));
 });
 
+outreachRouter.get('/templates/:id', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const service = new OutreachService(wsId);
+  const template = await service.getTemplate(id);
+  return c.json(successResponse(template));
+});
+
+outreachRouter.get('/templates/:id/versions/:version', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const version = parseInt(c.req.param('version'), 10);
+  const service = new OutreachService(wsId);
+  const versionDoc = await service.getTemplateVersion(id, version);
+  return c.json(successResponse(versionDoc));
+});
+
 outreachRouter.delete('/templates/:id', async (c) => {
   const wsId = getWorkspaceId(c);
   const id = c.req.param('id');
@@ -750,8 +767,10 @@ outreachRouter.get('/templates/:id/preview', async (c) => {
   const wsId = getWorkspaceId(c);
   const id = c.req.param('id');
   const contactId = c.req.query('contactId');
+  const versionParam = c.req.query('version');
+  const version = versionParam ? parseInt(versionParam, 10) : undefined;
   const service = new OutreachService(wsId);
-  const preview = await service.previewTemplate(id, contactId);
+  const preview = await service.previewTemplate(id, contactId, version);
   return c.json(successResponse(preview));
 });
 

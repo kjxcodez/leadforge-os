@@ -62,15 +62,39 @@ export class EmailTemplateRepository extends BaseRepository<EmailTemplateDocumen
   public async findVersion(
     templateId: string,
     version: number
-  ): Promise<{ subject: string; body: string; variables: string[]; attachments: any[]; version: number } | null> {
-    const current = await this.findById(templateId);
+  ): Promise<{
+    id: string;
+    templateId: string;
+    workspaceId?: string;
+    name: string;
+    subject: string;
+    body: string;
+    variables: string[];
+    attachments: any[];
+    version: number;
+    createdAt?: Date;
+  } | null> {
+    let current: EmailTemplateDocument | null = null;
+    try {
+      current = await this.findById(templateId);
+    } catch {
+      // If the active template is deleted or does not exist in the current collection,
+      // proceed to check archived historical snapshots in TemplateVersionModel
+      current = null;
+    }
+
     if (current && (current.version || 1) === version) {
       return {
+        id: current._id ? current._id.toString() : (current as any).id || templateId,
+        templateId: current._id ? current._id.toString() : (current as any).id || templateId,
+        workspaceId: current.workspaceId,
+        name: current.name,
         subject: current.subject,
         body: current.body,
         variables: current.variables || [],
         attachments: current.attachments || [],
-        version: current.version || 1
+        version: current.version || 1,
+        createdAt: current.createdAt
       };
     }
 
@@ -82,22 +106,21 @@ export class EmailTemplateRepository extends BaseRepository<EmailTemplateDocumen
 
     if (archived) {
       return {
+        id: (archived as any)._id ? (archived as any)._id.toString() : (archived as any).id || templateId,
+        templateId: archived.templateId || templateId,
+        workspaceId: archived.workspaceId,
+        name: archived.name || '',
         subject: archived.subject,
         body: archived.body,
         variables: archived.variables || [],
         attachments: archived.attachments || [],
-        version: archived.version
+        version: archived.version,
+        createdAt: archived.createdAt
       };
     }
 
-    return current
-      ? {
-          subject: current.subject,
-          body: current.body,
-          variables: current.variables || [],
-          attachments: current.attachments || [],
-          version: current.version || 1
-        }
-      : null;
+    // Strictly return null if the requested historical version does not exist.
+    // Never fall back to an active template with a differing version.
+    return null;
   }
 }
