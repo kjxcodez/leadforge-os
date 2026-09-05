@@ -104,7 +104,9 @@ type StepResult =
   | { status: 'success' }
   | { status: 'wait'; delaySeconds: number }
   | { status: 'goto'; targetIndex: number; targetLabel: string }
-  | { status: 'skip'; skipCount: number };
+  | { status: 'skip'; skipCount: number }
+  | { status: 'paused' }
+  | { status: 'cancelled' };
 
 // ── Event publisher ────────────────────────────────────────────────────────────
 
@@ -797,6 +799,76 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
       return { status: 'cancelled', sequenceId, entityId };
     }
 
+    // Phase 15 (PAUSE-07 / DRIFT-STOP-19): Upfront authoritative campaign status check
+    if (resolvedCampaignId) {
+      try {
+        const campaignDoc = await sdk.campaigns.get(resolvedCampaignId);
+        if (campaignDoc) {
+          const campStatus = String(campaignDoc.status || '').toUpperCase();
+          if (campStatus === 'PAUSED') {
+            ctx.emitLog(
+              `Campaign "${resolvedCampaignId}" is PAUSED. Halting execution before dispatching steps: executionId=${executionId}`,
+              'info'
+            );
+            try {
+              if (executionId) {
+                await sdk.executions.update(executionId, { status: 'PAUSED' });
+              }
+              await sdk.locks.releaseLock(sequenceId, entityId);
+            } catch {}
+            publishAutomationEvent('automation:paused', {
+              executionId,
+              sequenceId,
+              workspaceId: ctx.workspaceId,
+              entityId,
+              currentStep,
+              workerPid: process.pid,
+              timestamp: new Date().toISOString()
+            });
+            return {
+              status: 'paused',
+              executionId,
+              sequenceId,
+              entityId,
+              currentStep,
+              campaignId: resolvedCampaignId
+            };
+          }
+          if (campStatus === 'STOPPED' || campStatus === 'FAILED') {
+            ctx.emitLog(
+              `Campaign "${resolvedCampaignId}" is ${campStatus}. Halting execution permanently: executionId=${executionId}`,
+              'warn'
+            );
+            try {
+              if (executionId) {
+                await sdk.executions.update(executionId, { status: 'CANCELLED' });
+              }
+              await sdk.locks.releaseLock(sequenceId, entityId);
+            } catch {}
+            publishAutomationEvent('automation:cancelled', {
+              executionId,
+              sequenceId,
+              workspaceId: ctx.workspaceId,
+              entityId,
+              currentStep,
+              workerPid: process.pid,
+              timestamp: new Date().toISOString()
+            });
+            return {
+              status: 'cancelled',
+              executionId,
+              sequenceId,
+              entityId,
+              currentStep,
+              campaignId: resolvedCampaignId
+            };
+          }
+        }
+      } catch (campErr: any) {
+        ctx.emitLog(`Campaign authority check note: ${campErr.message || campErr}`, 'warn');
+      }
+    }
+
     // ── 4. Load sequence from API ─────────────────────────────────────────────
     ctx.updateProgress(10, { description: 'Loading sequence template...' });
 
@@ -1391,6 +1463,59 @@ export async function executeAutomationWorkflow(ctx: JobContext): Promise<any> {
             currentStep
           };
         }
+      } else if (dispatchResult.status === 'paused') {
+        execCtx!.execution.currentStep = currentStep;
+        ctx.saveCheckpoint({
+          executionId: executionId!,
+          currentStep,
+          sequenceId: sequenceId!,
+          entityId: entityId!,
+          entityType: entityType!,
+          executionContext: execCtx!
+        } satisfies AutomationCheckpoint);
+        ctx.emitLog(`Execution Paused at step ${currentStep}: executionId=${executionId}`, 'info');
+        try {
+          await sdk.locks.releaseLock(sequenceId!, entityId!);
+        } catch {}
+        publishAutomationEvent('automation:paused', {
+          executionId,
+          sequenceId,
+          workspaceId: ctx.workspaceId,
+          entityId,
+          currentStep,
+          workerPid: process.pid,
+          timestamp: new Date().toISOString()
+        });
+        return {
+          status: 'paused',
+          executionId,
+          sequenceId,
+          entityId,
+          currentStep,
+          campaignId: resolvedCampaignId
+        };
+      } else if (dispatchResult.status === 'cancelled') {
+        ctx.emitLog(`Execution Cancelled at step ${currentStep}: executionId=${executionId}`, 'warn');
+        try {
+          await sdk.locks.releaseLock(sequenceId!, entityId!);
+        } catch {}
+        publishAutomationEvent('automation:cancelled', {
+          executionId,
+          sequenceId,
+          workspaceId: ctx.workspaceId,
+          entityId,
+          currentStep,
+          workerPid: process.pid,
+          timestamp: new Date().toISOString()
+        });
+        return {
+          status: 'cancelled',
+          executionId,
+          sequenceId,
+          entityId,
+          currentStep,
+          campaignId: resolvedCampaignId
+        };
       }
     }
 
@@ -1480,7 +1605,12 @@ async function handleSendEmailStep(
   step: StepDefinition,
   ctx: JobContext,
   execCtx: ExecutionContext
-): Promise<{ status: 'success' } | { status: 'wait'; delaySeconds: number; retrySameStep: boolean }> {
+): Promise<
+  | { status: 'success' }
+  | { status: 'wait'; delaySeconds: number; retrySameStep: boolean }
+  | { status: 'paused' }
+  | { status: 'cancelled' }
+> {
   const templateId = step.config?.templateId;
   let rawSubject = step.config?.subject || '';
   let rawBody = step.config?.body || '';
@@ -1514,11 +1644,19 @@ async function handleSendEmailStep(
 
   const contact = await sdk.contacts.get(entityId);
   if (!contact) throw new Error(`Contact not found: ${entityId}`);
-  if (!contact.email) throw new Error(`Contact ${entityId} has no valid email address.`);
+
+  // Phase 15 (SEC-EMAIL-14): Deterministic email resolution
+  // 1. Thread / step override -> 2. Primary verified email -> 3. First secondary email
+  const secondaryList = (contact as any).secondaryEmails;
+  const firstSecondary = Array.isArray(secondaryList) && secondaryList.length > 0 ? String(secondaryList[0]) : null;
+  const candidateEmail = (step.config?.recipientEmail as string | undefined) || contact.email || firstSecondary;
+
+  if (!candidateEmail) throw new Error(`Contact ${entityId} has no valid email address.`);
+  const recipientEmail: string = candidateEmail;
 
   const renderCtx: ExecutionContext = {
     ...execCtx,
-    contact: { ...execCtx.contact, ...contact }
+    contact: { ...execCtx.contact, ...contact, email: recipientEmail }
   };
   const renderedSubject = resolveVariables(rawSubject, renderCtx);
   const renderedBody = resolveVariables(rawBody, renderCtx);
@@ -1538,7 +1676,7 @@ async function handleSendEmailStep(
   const stepIndexNum = typeof execCtx.execution.currentStep === 'number' ? execCtx.execution.currentStep : 0;
   const campaignId = (step.config as any)?.campaignId || (ctx.payload as any)?.campaignId || (execCtx as any)?.campaign?.id;
 
-  // Send-time server-authoritative campaign authorization check
+  // Send-time server-authoritative campaign authorization check (PAUSE-07 / DRIFT-STOP-19)
   let campaignDoc: any = null;
   if (campaignId) {
     try {
@@ -1548,22 +1686,34 @@ async function handleSendEmailStep(
       const campStatus = String(campaignDoc.status || '').toUpperCase();
       if (campStatus === 'STOPPED' || campStatus === 'FAILED') {
         ctx.emitLog(`Campaign "${campaignId}" is in terminal state "${campStatus}". Aborting email send step.`, 'warn');
-        throw new Error(`Campaign "${campaignId}" is ${campStatus}. Email send step aborted.`);
+        try {
+          if (execCtx.execution.id) {
+            await sdk.executions.update(execCtx.execution.id, { status: 'CANCELLED' });
+          }
+          await sdk.locks.releaseLock(sequenceId, entityId);
+        } catch {}
+        return { status: 'cancelled' };
       }
       if (campStatus === 'PAUSED') {
-        ctx.emitLog(`Campaign "${campaignId}" is PAUSED. Pausing execution step for 60s.`, 'info');
-        return { status: 'wait', delaySeconds: 60, retrySameStep: true };
+        ctx.emitLog(`Campaign "${campaignId}" is PAUSED. Halting email send step and setting execution PAUSED.`, 'info');
+        try {
+          if (execCtx.execution.id) {
+            await sdk.executions.update(execCtx.execution.id, { status: 'PAUSED' });
+          }
+          await sdk.locks.releaseLock(sequenceId, entityId);
+        } catch {}
+        return { status: 'paused' };
       }
     }
   }
 
   // Send-time contact eligibility check
   const eligibility = evaluateOutreachEligibility({
-    contact,
+    contact: { ...contact, email: recipientEmail },
     campaign: campaignDoc
   });
   if (!eligibility.eligible) {
-    ctx.emitLog(`Contact "${contact.email}" is ineligible for outreach: ${eligibility.reason}. Skipping send step.`, 'warn');
+    ctx.emitLog(`Contact "${recipientEmail}" is ineligible for outreach: ${eligibility.reason}. Skipping send step.`, 'warn');
     return { status: 'success' };
   }
 
@@ -1572,7 +1722,7 @@ async function handleSendEmailStep(
   try {
     const sendResult = await sdk.outreach.sendEmail({
       accountId: accountDoc.id,
-      to: contact.email,
+      to: recipientEmail,
       subject: renderedSubject,
       text: formattedBody.text,
       html: formattedBody.html,
@@ -1637,7 +1787,7 @@ async function handleSendEmailStep(
         try {
           const retryResult = await sdk.outreach.sendEmail({
             accountId: accountDoc.id,
-            to: contact.email,
+            to: recipientEmail,
             subject: renderedSubject,
             text: formattedBody.text,
             html: formattedBody.html,
@@ -1652,7 +1802,7 @@ async function handleSendEmailStep(
           });
           const sentMsgId = retryResult.messageId || null;
           ctx.emitLog(
-            `Email send succeeded on retry: messageId=${sentMsgId || 'unknown'}, recipient=${contact.email}`,
+            `Email send succeeded on retry: messageId=${sentMsgId || 'unknown'}, recipient=${recipientEmail}`,
             'info'
           );
           return { status: 'success' };

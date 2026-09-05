@@ -208,6 +208,38 @@ export class ProjectionService {
           }
         }
 
+        // Phase 15 (PAUSE-07 / DISCONNECT-16): If worker yielded PAUSED, immediately project into SQLite
+        if (executionId && result?.status === 'paused') {
+          try {
+            const db = getDatabase(workspaceId);
+            const nowIso = new Date().toISOString();
+            db.prepare(`
+              UPDATE sequence_executions
+              SET status = 'PAUSED',
+                  updatedAt = ?
+              WHERE id = ? AND workspaceId = ?
+            `).run(nowIso, executionId, workspaceId);
+          } catch (updateErr: any) {
+            AppLogger.warn('ProjectionService', `Direct SQLite PAUSED projection note: ${updateErr.message}`, workspaceId);
+          }
+        }
+
+        // Phase 15 (DRIFT-STOP-19): If worker yielded CANCELLED, immediately project into SQLite
+        if (executionId && (result?.status === 'cancelled' || result?.status === 'failed_terminal')) {
+          try {
+            const db = getDatabase(workspaceId);
+            const nowIso = new Date().toISOString();
+            db.prepare(`
+              UPDATE sequence_executions
+              SET status = 'CANCELLED',
+                  updatedAt = ?
+              WHERE id = ? AND workspaceId = ?
+            `).run(nowIso, executionId, workspaceId);
+          } catch (updateErr: any) {
+            AppLogger.warn('ProjectionService', `Direct SQLite CANCELLED projection note: ${updateErr.message}`, workspaceId);
+          }
+        }
+
         // If executionId is present, project the individual execution
         if (executionId) {
           try {

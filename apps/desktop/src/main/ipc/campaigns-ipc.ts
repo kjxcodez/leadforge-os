@@ -63,26 +63,42 @@ export function registerCampaignsIpc(): void {
     const enrolledIds: string[] = [];
 
     for (const contactId of contactIds) {
-      // Idempotency check: prevent duplicate enrollments in the same campaign
-      const existing = db
+      // Phase 15 (ENROLL-08): Contact cross-campaign exclusivity check.
+      // A contact cannot have more than one active execution across the entire workspace concurrently.
+      const activeExec = db
         .prepare(
           `
-        SELECT id FROM sequence_executions
-        WHERE campaignId = ? AND contactId = ? AND deletedAt IS NULL
+        SELECT id, campaignId, status FROM sequence_executions
+        WHERE workspaceId = ? AND contactId = ? AND deletedAt IS NULL
+          AND UPPER(status) IN ('PENDING', 'RUNNING', 'WAITING', 'PAUSED')
       `
         )
-        .get(campaignId, contactId);
+        .get(runtime.workspaceId, contactId) as { id: string; campaignId: string; status: string } | undefined;
 
-      if (existing) continue;
+      if (activeExec) {
+        console.warn(
+          `[IPC] Contact ${contactId} already has active execution ${activeExec.id} (campaign ${activeExec.campaignId}, status ${activeExec.status}). Skipping enrollment.`
+        );
+        continue;
+      }
 
-      const created = await sdk.executions.create({
-        sequenceId,
-        campaignId,
-        workspaceId: runtime.workspaceId,
-        contactId,
-        status: isActive ? 'running' : 'paused',
-        startedAt: now
-      });
+      let created;
+      try {
+        created = await sdk.executions.create({
+          sequenceId,
+          campaignId,
+          workspaceId: runtime.workspaceId,
+          contactId,
+          status: isActive ? 'running' : 'paused',
+          startedAt: now
+        });
+      } catch (err: any) {
+        if (err?.message?.includes('exclusivity') || err?.status === 409 || err?.code === 'CONFLICT') {
+          console.warn(`[IPC] Contact ${contactId} enrollment conflict on server:`, err.message);
+          continue;
+        }
+        throw err;
+      }
 
       await LocalCRMRepository.saveFromServer('sequence_executions', created);
 
@@ -457,9 +473,12 @@ export function registerCampaignsIpc(): void {
     const sdk = WorkspaceManager.getSdk();
     const now = new Date().toISOString();
 
-    // 1. Update authoritative server state
+    // 1. Update authoritative server state with USER_REQUESTED pauseReason
     try {
-      const updated = await sdk.campaigns.update(campaignId, { status: 'PAUSED' as any });
+      const updated = await sdk.campaigns.update(campaignId, {
+        status: 'PAUSED' as any,
+        settings: { pauseReason: 'USER_REQUESTED' } as any
+      });
       if (updated) {
         await LocalCRMRepository.saveFromServer('campaigns', updated);
       }
@@ -469,11 +488,11 @@ export function registerCampaignsIpc(): void {
         .run(now, campaignId, runtime.workspaceId);
     }
 
-    // 2. Pause active sequence executions in SQLite
+    // 2. Pause active and waiting sequence executions in SQLite (PAUSE-07)
     db.prepare(`
       UPDATE sequence_executions
       SET status = 'PAUSED', updatedAt = ?
-      WHERE campaignId = ? AND UPPER(status) IN ('RUNNING', 'QUEUED', 'STARTING')
+      WHERE campaignId = ? AND UPPER(status) IN ('RUNNING', 'QUEUED', 'STARTING', 'WAITING')
     `).run(now, campaignId);
 
     // 3. Cancel any in-flight/queued jobs for this campaign
@@ -494,6 +513,87 @@ export function registerCampaignsIpc(): void {
     }
 
     return { success: true, campaignId, status: 'PAUSED' };
+  });
+
+  // 8b. Resume campaign (RESUME-09)
+  safeRegister('campaigns:resume', async (_event, campaignId) => {
+    if (!campaignId) throw new Error('campaignId is required.');
+    const runtime = WorkspaceManager.getActiveRuntime();
+    if (!runtime) throw new Error('No active workspace runtime');
+
+    const db = getDatabase(runtime.workspaceId);
+    const sdk = WorkspaceManager.getSdk();
+    const now = new Date().toISOString();
+
+    const campaign = db
+      .prepare(`SELECT sequenceId, status FROM campaigns WHERE id = ? AND workspaceId = ? AND deletedAt IS NULL`)
+      .get(campaignId, runtime.workspaceId) as { sequenceId: string; status: string } | undefined;
+
+    if (!campaign) throw new Error(`Campaign "${campaignId}" not found or deleted.`);
+
+    // 1. Authoritatively resume campaign in MongoDB via API (clearing pauseReason)
+    try {
+      const updated = await sdk.campaigns.update(campaignId, {
+        status: 'ACTIVE' as any,
+        settings: { pauseReason: null } as any
+      });
+      if (updated) {
+        await LocalCRMRepository.saveFromServer('campaigns', updated);
+      }
+    } catch (err) {
+      console.warn(`[IPC] Server campaign resume warning for ${campaignId}:`, err);
+      db.prepare(`UPDATE campaigns SET status = 'ACTIVE', updatedAt = ? WHERE id = ? AND workspaceId = ?`)
+        .run(now, campaignId, runtime.workspaceId);
+    }
+
+    // 2. Restore paused executions in SQLite
+    const pausedExecutions = db
+      .prepare(`
+        SELECT id, contactId, nextExecutionAt, currentStepIndex 
+        FROM sequence_executions 
+        WHERE campaignId = ? AND UPPER(status) = 'PAUSED' AND deletedAt IS NULL
+      `)
+      .all(campaignId) as Array<{ id: string; contactId: string; nextExecutionAt: string | null; currentStepIndex: number }>;
+
+    let enqueuedCount = 0;
+    const nowMs = Date.now();
+
+    for (const exec of pausedExecutions) {
+      const isWaiting = exec.nextExecutionAt && new Date(exec.nextExecutionAt).getTime() > nowMs;
+      const newStatus = isWaiting ? 'WAITING' : 'RUNNING';
+
+      db.prepare(`UPDATE sequence_executions SET status = ?, updatedAt = ? WHERE id = ?`)
+        .run(newStatus, now, exec.id);
+
+      if (!isWaiting) {
+        try {
+          await sdk.jobs.create({
+            id: randomUUID(),
+            type: 'automation:workflow',
+            priority: 3,
+            payload: {
+              sequenceId: campaign.sequenceId,
+              entityId: exec.contactId,
+              entityType: 'contact',
+              executionId: exec.id,
+              workspaceId: runtime.workspaceId,
+              campaignId,
+              contactId: exec.contactId
+            }
+          });
+          enqueuedCount++;
+        } catch (err) {
+          console.warn('[IPC] Error re-queueing resumed job:', err);
+        }
+      }
+    }
+
+    if (enqueuedCount > 0) {
+      WorkspaceManager.wakeScheduler();
+    }
+
+    console.log(`[IPC] Resumed campaign ${campaignId}. Enqueued ${enqueuedCount} immediate job(s).`);
+    return { success: true, campaignId, status: 'ACTIVE', enqueuedCount };
   });
 
   // 9. Stop campaign (terminal)
