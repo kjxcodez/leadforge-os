@@ -110,6 +110,17 @@ export function registerOutreachIpc(sdk: SdkClient) {
     return sdk.outreach.syncAccountSignature(id);
   });
 
+  safeRegister('email-accounts:reset-health', async (_event, id: string) => {
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime();
+    if (!runtime) throw new Error('No active workspace runtime');
+    const result = await sdk.outreach.resetAccountHealth(id);
+    const { BrowserWindow } = await import('electron');
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.send('email-accounts:changed');
+    });
+    return result;
+  });
+
   safeRegister('email-accounts:send-test', async (_event, payload) => {
     const runtime = WorkspaceManager.getActiveRuntime();
     if (!runtime) throw new Error('No active workspace runtime');

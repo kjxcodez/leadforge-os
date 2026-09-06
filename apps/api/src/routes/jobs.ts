@@ -89,6 +89,16 @@ jobsRouter.post('/recover', async (c) => {
   return c.json(successResponse(result));
 });
 
+// 5b. List Dead-Letter Jobs
+jobsRouter.get('/dead-letters', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const limit = Math.min(parseInt(c.req.query('limit') || '50'), 100);
+  const offset = parseInt(c.req.query('offset') || '0');
+  const repo = new JobRepository(wsId);
+  const result = await repo.listDeadLetters(limit, offset);
+  return c.json(successResponse(result));
+});
+
 // 6. Get Job by ID
 jobsRouter.get('/:id', async (c) => {
   const wsId = getWorkspaceId(c);
@@ -175,3 +185,25 @@ jobsRouter.post('/:id/cancel', async (c) => {
   if (!updated) throw new NotFoundError(`Job with id ${id} not found`);
   return c.json(successResponse(updated));
 });
+
+// 13. Move Job to Dead-Letter
+jobsRouter.post('/:id/dead-letter', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const body = await c.req.json().catch(() => ({}));
+  const repo = new JobRepository(wsId);
+  const updated = await repo.moveToDeadLetter(id, body.reason || 'manual_operator_dead_letter', body.lineage);
+  if (!updated) throw new NotFoundError(`Job with id ${id} not found`);
+  return c.json(successResponse(updated));
+});
+
+// 14. Requeue Dead-Letter Job
+jobsRouter.post('/:id/requeue', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const repo = new JobRepository(wsId);
+  const updated = await repo.requeueDeadLetter(id);
+  if (!updated) throw new NotFoundError(`Dead-letter job with id ${id} not found`);
+  return c.json(successResponse(updated));
+});
+

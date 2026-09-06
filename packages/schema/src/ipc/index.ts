@@ -310,6 +310,22 @@ export interface IpcChannelMap {
     input: { workspaceId: string; jobId: string };
     output: void;
   };
+  'scheduler:dead-letters:list': {
+    input: { workspaceId: string; limit?: number; offset?: number };
+    output: { data: any[]; total: number; limit: number; offset: number };
+  };
+  'scheduler:dead-letters:requeue': {
+    input: { workspaceId: string; jobId: string };
+    output: any;
+  };
+  'scheduler:workers:health': {
+    input?: { workspaceId?: string };
+    output: { workers: any[]; systemStatus: string };
+  };
+  'projection:rebuild': {
+    input: { workspaceId: string };
+    output: { success: boolean; stats: any };
+  };
 
   'discovery:run:create': {
     input: {

@@ -16,6 +16,17 @@ export const jobStatusSchema = z.enum([
 ]);
 export type JobStatus = z.infer<typeof jobStatusSchema>;
 
+export const jobLineageReferencesSchema = z.object({
+  campaignId: z.string().nullable().optional(),
+  executionId: z.string().nullable().optional(),
+  contactId: z.string().nullable().optional(),
+  accountId: z.string().nullable().optional(),
+  failureCategory: z.string().nullable().optional(),
+  lastError: z.string().nullable().optional(),
+  attemptCount: z.number().int().optional()
+}).nullable().optional();
+export type JobLineageReferences = z.infer<typeof jobLineageReferencesSchema>;
+
 export const jobSchema = z.object({
   id: entityIdField,
   workspaceId: entityIdField,
@@ -38,6 +49,10 @@ export const jobSchema = z.object({
   leaseExpiresAt: z.coerce.date().nullable().optional(),
   lastHeartbeatAt: z.coerce.date().nullable().optional(),
   recoveryCount: z.number().int().min(0).default(0),
+  isDeadLetter: z.boolean().default(false).optional(),
+  deadLetteredAt: z.coerce.date().nullable().optional(),
+  deadLetterReason: z.string().nullable().optional(),
+  lineageReferences: jobLineageReferencesSchema,
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date()
 });

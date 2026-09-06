@@ -78,6 +78,8 @@ export class JobScheduler {
   private typeActiveCount = new Map<string, number>();
   /** Tracks terminal jobs to guard against duplicate completion callbacks or late crash events. */
   private terminalJobs = new Set<string>();
+  /** Phase 18: Watchdog tracking of worker crashes per job type. */
+  private workerCrashes = new Map<string, { count: number; windowStart: number }>();
   /** Periodic timer for automated inbound reply polling and reconciliation. */
   private reliabilityTimerId: NodeJS.Timeout | null = null;
   private isPollingReplies = false;
@@ -1051,7 +1053,10 @@ export class JobScheduler {
       } catch {}
       this.activeWorkers.delete(jobId);
     }
-    if (jobType) this.decrementTypeCount(jobType);
+    if (jobType) {
+      this.decrementTypeCount(jobType);
+      this.recordWorkerCrash(jobType);
+    }
 
     if (nextRetry <= maxRetries) {
       const delaySec = Math.min(Math.pow(2, nextRetry), 60);
@@ -1075,11 +1080,26 @@ export class JobScheduler {
       this.terminalJobs.add(jobId);
       AppLogger.error(
         'JobScheduler',
-        `Job "${jobId}" failed permanently after ${maxRetries} retries. Error: ${error}`,
+        `Job "${jobId}" failed permanently after ${maxRetries} retries. Moving to dead-letter. Error: ${error}`,
         this.workspaceId,
         { jobId }
       );
-      await this.sdk.jobs.fail(jobId, error, workerId).catch(() => {});
+
+      // Phase 18: Move to dead-letter with complete execution lineage
+      await this.sdk.jobs
+        .moveToDeadLetter(jobId, error, {
+          campaignId: payload?.campaignId || null,
+          executionId: payload?.executionId || null,
+          contactId: payload?.contactId || null,
+          accountId: payload?.accountId || null,
+          failureCategory: 'RETRY_EXHAUSTION',
+          lastError: error,
+          attemptCount: nextRetry
+        })
+        .catch(async () => {
+          await this.sdk.jobs.fail(jobId, error, workerId).catch(() => {});
+        });
+
       this.eventBus.publish('job:failed', { jobId, error, willRetry: false });
 
       // Project failure into SQLite for automation workflows
@@ -1182,5 +1202,58 @@ export class JobScheduler {
       clearInterval(hb.intervalId);
       this.heartbeats.delete(jobId);
     }
+  }
+
+  /**
+   * Records a crash for a worker type and raises an alert if threshold exceeded.
+   */
+  public recordWorkerCrash(jobType: string): void {
+    const now = Date.now();
+    const windowMs = 10 * 60 * 1000;
+    const current = this.workerCrashes.get(jobType);
+    if (!current || now - current.windowStart > windowMs) {
+      this.workerCrashes.set(jobType, { count: 1, windowStart: now });
+    } else {
+      current.count += 1;
+      if (current.count >= 3) {
+        AppLogger.warn(
+          'JobScheduler',
+          `Worker watchdog alert: worker type "${jobType}" has crashed ${current.count} times in 10 minutes. Marked as DEGRADED.`,
+          this.workspaceId
+        );
+      }
+    }
+  }
+
+  /**
+   * Returns worker health status across supported job types for the Operations Center UI.
+   */
+  public getWorkerHealthStatus(): Record<
+    string,
+    { status: 'HEALTHY' | 'DEGRADED' | 'STALE' | 'FAILED'; crashes: number; active: number }
+  > {
+    const result: Record<
+      string,
+      { status: 'HEALTHY' | 'DEGRADED' | 'STALE' | 'FAILED'; crashes: number; active: number }
+    > = {};
+    const types = [
+      'scraper:maps',
+      'crawler:website',
+      'enrich:intelligence',
+      'outreach:campaign',
+      'automation:workflow',
+      'outreach:imap-poll'
+    ];
+    const now = Date.now();
+    for (const t of types) {
+      const crashInfo = this.workerCrashes.get(t);
+      const active = this.typeActiveCount.get(t) ?? 0;
+      if (crashInfo && now - crashInfo.windowStart < 10 * 60 * 1000 && crashInfo.count >= 3) {
+        result[t] = { status: 'DEGRADED', crashes: crashInfo.count, active };
+      } else {
+        result[t] = { status: 'HEALTHY', crashes: crashInfo?.count ?? 0, active };
+      }
+    }
+    return result;
   }
 }

@@ -81,4 +81,21 @@ export class JobsModule {
   public async recover(staleThresholdMs?: number): Promise<{ recovered: number; failed: number }> {
     return this.client.post<{ recovered: number; failed: number }>('/jobs/recover', { staleThresholdMs });
   }
+
+  public async listDeadLetters(params?: { limit?: number | undefined; offset?: number | undefined }): Promise<{ items: Job[]; total: number }> {
+    const queryParams = toQueryString(params);
+    return this.client.get<{ items: Job[]; total: number }>(`/jobs/dead-letters${queryParams}`);
+  }
+
+  public async moveToDeadLetter(
+    id: string,
+    reason: string,
+    lineage?: Record<string, any>
+  ): Promise<Job> {
+    return this.client.post<Job>(`/jobs/${id}/dead-letter`, { reason, lineage });
+  }
+
+  public async requeueDeadLetter(id: string): Promise<Job> {
+    return this.client.post<Job>(`/jobs/${id}/requeue`, {});
+  }
 }

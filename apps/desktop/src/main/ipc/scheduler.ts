@@ -156,4 +156,36 @@ export function registerSchedulerIpc() {
     await sdk.jobs.updateStatus(jobId, { status: 'queued' }).catch(() => {});
     AppLogger.info('JobScheduler', `Resumed job "${jobId}" (queued) via API.`, workspaceId);
   });
+
+  // 6. List dead-letter jobs
+  safeRegister('scheduler:dead-letters:list', async (_event, { workspaceId, limit, offset }: { workspaceId: string; limit?: number; offset?: number }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    const runtime = WorkspaceManager.getActiveRuntime();
+    const sdk = runtime && runtime.workspaceId === workspaceId ? runtime.sdk : WorkspaceManager.getSdk();
+    const options: { limit?: number; offset?: number } = {};
+    if (typeof limit === 'number') options.limit = limit;
+    if (typeof offset === 'number') options.offset = offset;
+    return sdk.jobs.listDeadLetters(options);
+  });
+
+  // 7. Requeue a dead-letter job
+  safeRegister('scheduler:dead-letters:requeue', async (_event, { workspaceId, jobId }: { workspaceId: string; jobId: string }) => {
+    if (!workspaceId) throw new Error('workspaceId is required.');
+    if (!jobId) throw new Error('jobId is required.');
+    const runtime = WorkspaceManager.getActiveRuntime();
+    const sdk = runtime && runtime.workspaceId === workspaceId ? runtime.sdk : WorkspaceManager.getSdk();
+    const result = await sdk.jobs.requeueDeadLetter(jobId);
+    WorkspaceManager.wakeScheduler();
+    AppLogger.info('JobScheduler', `Requeued dead-letter job "${jobId}" via API.`, workspaceId);
+    return result;
+  });
+
+  // 8. Worker health watchdog status
+  safeRegister('scheduler:workers:health', async (_event, { workspaceId }: { workspaceId?: string } = {}) => {
+    const runtime = WorkspaceManager.getActiveRuntime();
+    if (runtime && (!workspaceId || runtime.workspaceId === workspaceId)) {
+      return runtime.scheduler.getWorkerHealthStatus();
+    }
+    return { workers: [], systemStatus: 'HEALTHY' };
+  });
 }

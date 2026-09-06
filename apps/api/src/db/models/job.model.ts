@@ -25,6 +25,18 @@ export interface JobDocument extends mongoose.Document, WorkspaceScopedDocument 
   leaseExpiresAt?: Date | null;
   lastHeartbeatAt?: Date | null;
   recoveryCount?: number;
+  isDeadLetter?: boolean;
+  deadLetteredAt?: Date | null;
+  deadLetterReason?: string | null;
+  lineageReferences?: {
+    campaignId?: string | null;
+    executionId?: string | null;
+    contactId?: string | null;
+    accountId?: string | null;
+    failureCategory?: string | null;
+    lastError?: string | null;
+    attemptCount?: number | null;
+  } | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -67,7 +79,25 @@ const jobSchema = new Schema<JobDocument>(
     durationMs: { type: Number, default: null },
     leaseExpiresAt: { type: Date, default: null, index: true },
     lastHeartbeatAt: { type: Date, default: null },
-    recoveryCount: { type: Number, default: 0 }
+    recoveryCount: { type: Number, default: 0 },
+    isDeadLetter: { type: Boolean, default: false, index: true },
+    deadLetteredAt: { type: Date, default: null },
+    deadLetterReason: { type: String, default: null },
+    lineageReferences: {
+      type: new Schema(
+        {
+          campaignId: { type: String, default: null },
+          executionId: { type: String, default: null },
+          contactId: { type: String, default: null },
+          accountId: { type: String, default: null },
+          failureCategory: { type: String, default: null },
+          lastError: { type: String, default: null },
+          attemptCount: { type: Number, default: 0 }
+        },
+        { _id: false }
+      ),
+      default: null
+    }
   },
   {
     strict: true,
@@ -82,7 +112,9 @@ jobSchema.index({ workspaceId: 1, status: 1, priority: -1, createdAt: 1 });
 jobSchema.index({ workspaceId: 1, scheduledAt: 1, status: 1 });
 // 3. Stale lease recovery index
 jobSchema.index({ workspaceId: 1, status: 1, leaseExpiresAt: 1 });
-// 4. Partial unique index for idempotency keys per workspace
+// 4. Dead-letter index
+jobSchema.index({ workspaceId: 1, isDeadLetter: 1, createdAt: -1 });
+// 5. Partial unique index for idempotency keys per workspace
 jobSchema.index(
   { workspaceId: 1, idempotencyKey: 1 },
   { unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string' } } }

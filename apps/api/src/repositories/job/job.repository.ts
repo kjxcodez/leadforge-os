@@ -231,6 +231,18 @@ export class JobRepository extends BaseRepository<JobDocument> {
               error: 'Job failed permanently: worker lease expired and max retries exceeded.',
               finishedAt: now,
               leaseExpiresAt: null,
+              isDeadLetter: true,
+              deadLetteredAt: now,
+              deadLetterReason: 'worker_lease_expired_retries_exhausted',
+              lineageReferences: {
+                campaignId: job.payload?.campaignId || null,
+                executionId: job.payload?.executionId || null,
+                contactId: job.payload?.contactId || null,
+                accountId: job.payload?.accountId || null,
+                failureCategory: 'LEASE_EXPIRED',
+                lastError: 'Job failed permanently: worker lease expired and max retries exceeded.',
+                attemptCount: nextRetry
+              },
               updatedAt: now
             },
             $inc: {
@@ -243,6 +255,89 @@ export class JobRepository extends BaseRepository<JobDocument> {
     }
 
     return { recovered, failed };
+  }
+
+  /**
+   * Transitions a job into the terminal dead-letter state with full execution lineage.
+   */
+  public async moveToDeadLetter(
+    id: string,
+    reason: string,
+    lineage?: {
+      campaignId?: string | null;
+      executionId?: string | null;
+      contactId?: string | null;
+      accountId?: string | null;
+      failureCategory?: string | null;
+      lastError?: string | null;
+      attemptCount?: number | null;
+    }
+  ): Promise<JobDocument | null> {
+    const now = new Date();
+    const filter = this.applyScope({ _id: id } as any);
+    const existing = await this.findOne({ _id: id } as any);
+    if (!existing) return null;
+
+    const combinedLineage = {
+      campaignId: lineage?.campaignId ?? existing.payload?.campaignId ?? null,
+      executionId: lineage?.executionId ?? existing.payload?.executionId ?? null,
+      contactId: lineage?.contactId ?? existing.payload?.contactId ?? null,
+      accountId: lineage?.accountId ?? existing.payload?.accountId ?? null,
+      failureCategory: lineage?.failureCategory ?? 'RETRY_EXHAUSTION',
+      lastError: lineage?.lastError ?? existing.error ?? reason,
+      attemptCount: lineage?.attemptCount ?? existing.retryCount ?? 0
+    };
+
+    return this.atomicFindOneAndUpdate(filter, {
+      $set: {
+        status: 'failed',
+        error: reason,
+        isDeadLetter: true,
+        deadLetteredAt: now,
+        deadLetterReason: reason,
+        lineageReferences: combinedLineage,
+        finishedAt: now,
+        leaseExpiresAt: null,
+        updatedAt: now
+      }
+    });
+  }
+
+  /**
+   * Lists dead-letter jobs for operator inspection, scoped to workspace.
+   */
+  public async listDeadLetters(
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<{ items: JobDocument[]; total: number }> {
+    const filter = this.applyScope({ isDeadLetter: true } as any);
+    const [items, total] = await Promise.all([
+      this.model.find(filter).sort({ deadLetteredAt: -1, createdAt: -1 }).skip(offset).limit(limit),
+      this.model.countDocuments(filter)
+    ]);
+    return { items, total };
+  }
+
+  /**
+   * Requeues a dead-letter job for execution by resetting retry counters.
+   */
+  public async requeueDeadLetter(id: string): Promise<JobDocument | null> {
+    const now = new Date();
+    const filter = this.applyScope({ _id: id, isDeadLetter: true } as any);
+    return this.atomicFindOneAndUpdate(filter, {
+      $set: {
+        status: 'queued',
+        isDeadLetter: false,
+        deadLetteredAt: null,
+        deadLetterReason: null,
+        error: null,
+        retryCount: 0,
+        workerId: null,
+        leaseExpiresAt: null,
+        scheduledAt: now,
+        updatedAt: now
+      }
+    });
   }
 
   /**
