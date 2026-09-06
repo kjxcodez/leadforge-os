@@ -21,6 +21,8 @@ export type EmailProviderHealth =
   | 'reauth_required'
   | 'failed';
 
+import type { EmailAccountHealth } from '../../db/models/email-account.model.js';
+
 export interface SafeEmailAccount {
   id: string;
   workspaceId: string;
@@ -33,6 +35,7 @@ export interface SafeEmailAccount {
   hourlyLimit: number;
   dailySent: number;
   hourlySent: number;
+  health?: EmailAccountHealth | null;
   signature?: string | null;
   lastVerifiedAt?: string | null;
   lastError?: string | null;

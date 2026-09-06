@@ -205,6 +205,14 @@ emailRouter.post('/accounts/:id/sync-signature', async (c) => {
   return c.json(successResponse(result));
 });
 
+emailRouter.post('/accounts/:id/reset-health', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const id = c.req.param('id');
+  const service = new EmailAccountService(wsId);
+  const result = await service.resetMailboxHealth(id);
+  return c.json(successResponse(result));
+});
+
 // ── Global Test Recipients ───────────────────────────────────────────────
 
 emailRouter.get('/test-recipients', async (c) => {

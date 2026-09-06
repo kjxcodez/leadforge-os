@@ -11,6 +11,7 @@ import { EmailDomainError, type SafeEmailAccount } from './types.js';
 import { GoogleAuthService, GMAIL_DEFAULT_SCOPES, DRIVE_FILE_SCOPE } from '../google/auth.service.js';
 import { GmailProvider } from '../google/gmail.provider.js';
 import { normalizeEmailSignature } from '@leadforge/sdk';
+import { EmailAccountRepository } from '../../repositories/email-account/email-account.repository.js';
 import type { EmailProvider } from './providers/types.js';
 
 /**
@@ -224,6 +225,22 @@ export class EmailAccountService {
           logger.warn({ sigErr, email }, 'Could not fetch signature during Gmail OAuth connection');
         }
 
+        // Phase 18: Reset mailbox health to HEALTHY upon successful reconnection
+        accountDoc.health = {
+          state: 'HEALTHY',
+          consecutiveFailures: 0,
+          failureWindowStart: null,
+          lastFailureAt: null,
+          lastSuccessfulSendAt: accountDoc.health?.lastSuccessfulSendAt || null,
+          lastFailureCategory: null,
+          cooldownUntil: null,
+          operatorActionRequired: false,
+          operatorMessage: null
+        };
+        accountDoc.status = 'connected';
+        accountDoc.lastError = null;
+        await accountDoc.save();
+
         // Phase 15 (DISCONNECT-16): Auto-resume campaigns that were paused strictly because the mailbox disconnected.
         // Preserve manual user pause intent: campaigns paused with 'USER_REQUESTED' must NOT auto-resume.
         try {
@@ -335,6 +352,17 @@ export class EmailAccountService {
     account.encryptedAccessToken = null;
     account.tokenExpiresAt = null;
     account.lastError = 'Disconnected by user';
+    account.health = {
+      state: 'DISCONNECTED',
+      consecutiveFailures: 0,
+      failureWindowStart: null,
+      lastFailureAt: null,
+      lastSuccessfulSendAt: account.health?.lastSuccessfulSendAt || null,
+      lastFailureCategory: null,
+      cooldownUntil: null,
+      operatorActionRequired: true,
+      operatorMessage: 'Mailbox disconnected by user.'
+    };
     await account.save();
 
     // Phase 15 (DISCONNECT-16): Transition campaigns using this sending account into safe recoverable PAUSED state
@@ -406,6 +434,17 @@ export class EmailAccountService {
 
     await account.save();
     return sanitize(account.toObject());
+  }
+
+  /**
+   * Resets mailbox health state to HEALTHY (operator manual action).
+   */
+  async resetMailboxHealth(id: string): Promise<SafeEmailAccount> {
+    const account = await this.findAccount(id);
+    const repo = new EmailAccountRepository(this.workspaceId);
+    await repo.resetHealthState(account._id.toString());
+    const updated = await this.findAccount(id);
+    return sanitize(updated.toObject());
   }
 
   /**

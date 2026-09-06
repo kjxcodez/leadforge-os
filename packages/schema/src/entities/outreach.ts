@@ -127,6 +127,29 @@ export const sendStateSchema = z.object({
 }).optional();
 export type SendState = z.infer<typeof sendStateSchema>;
 
+export const mailboxHealthStateSchema = z.enum([
+  'HEALTHY',
+  'COOLDOWN',
+  'AUTH_REQUIRED',
+  'DISCONNECTED',
+  'DEGRADED',
+  'BLOCKED'
+]);
+export type MailboxHealthState = z.infer<typeof mailboxHealthStateSchema>;
+
+export const emailAccountHealthSchema = z.object({
+  state: mailboxHealthStateSchema.default('HEALTHY'),
+  consecutiveFailures: z.number().int().nonnegative().default(0),
+  failureWindowStart: z.coerce.date().nullable().optional(),
+  lastFailureAt: z.coerce.date().nullable().optional(),
+  lastSuccessfulSendAt: z.coerce.date().nullable().optional(),
+  lastFailureCategory: z.enum(['AUTH', 'RATE_LIMIT', 'NETWORK', 'INVALID_RECIPIENT', 'AMBIGUOUS']).nullable().optional(),
+  cooldownUntil: z.coerce.date().nullable().optional(),
+  operatorActionRequired: z.boolean().default(false),
+  operatorMessage: z.string().nullable().optional()
+}).optional();
+export type EmailAccountHealth = z.infer<typeof emailAccountHealthSchema>;
+
 export const emailAccountSchema = z.object({
   id: entityIdField,
   workspaceId: entityIdField.optional(),
@@ -148,6 +171,7 @@ export const emailAccountSchema = z.object({
   hourlySent: z.number().int().default(0),
   sendPolicy: sendPolicySchema,
   sendState: sendStateSchema,
+  health: emailAccountHealthSchema,
   signature: z.string().nullable().optional(),
   testRecipients: z.array(testRecipientSchema).optional(),
   lastVerifiedAt: z.union([z.date(), z.string()]).nullable().optional(),
@@ -158,6 +182,7 @@ export const emailAccountSchema = z.object({
   updatedAt: z.union([z.date(), z.string()])
 });
 export type EmailAccount = z.infer<typeof emailAccountSchema>;
+
 
 
 

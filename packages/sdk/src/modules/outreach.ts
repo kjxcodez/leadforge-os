@@ -89,6 +89,10 @@ export class OutreachModule {
     return this.client.post<{ success: boolean }>(`/email/accounts/${id}/disconnect`, {});
   }
 
+  public async resetAccountHealth(id: string): Promise<EmailAccount> {
+    return this.client.post<EmailAccount>(`/email/accounts/${id}/reset-health`, {});
+  }
+
   public async sendTestEmail(
     id: string,
     payload: {

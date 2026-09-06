@@ -1,5 +1,10 @@
 import { BaseRepository } from '../base/base.repository.js';
-import { EmailAccountModel, type EmailAccountDocument } from '../../db/models/email-account.model.js';
+import {
+  EmailAccountModel,
+  type EmailAccountDocument,
+  type MailboxHealthState,
+  type EmailAccountHealth
+} from '../../db/models/email-account.model.js';
 import { EMAIL_POLICY, resolveEffectivePolicy } from '../../constants/email-policy.js';
 import { logger } from '../../config/index.js';
 
@@ -11,6 +16,9 @@ export type ReservationRejectionReason =
   | 'MAILBOX_NOT_FOUND'
   | 'MAILBOX_NOT_ACTIVE'
   | 'PROVIDER_RATE_LIMITED'
+  | 'MAILBOX_HEALTH_COOLDOWN'
+  | 'MAILBOX_AUTH_REQUIRED'
+  | 'MAILBOX_BLOCKED'
   | 'MAILBOX_CONCURRENCY_BUSY'
   | 'MIN_INTERVAL_THROTTLED'
   | 'HOURLY_QUOTA_EXCEEDED'
@@ -93,6 +101,25 @@ export class EmailAccountRepository extends BaseRepository<EmailAccountDocument>
       _id: accountId,
       status: { $in: ['connected', 'active'] },
       $and: [
+        {
+          $or: [
+            { 'health.state': { $exists: false } },
+            { 'health.state': 'HEALTHY' }
+          ]
+        },
+        {
+          $or: [
+            { 'health.cooldownUntil': { $exists: false } },
+            { 'health.cooldownUntil': null },
+            { 'health.cooldownUntil': { $lte: now } }
+          ]
+        },
+        {
+          $or: [
+            { 'health.operatorActionRequired': { $exists: false } },
+            { 'health.operatorActionRequired': false }
+          ]
+        },
         {
           $or: [
             { 'sendState.rateLimitedUntil': { $exists: false } },
@@ -235,6 +262,25 @@ export class EmailAccountRepository extends BaseRepository<EmailAccountDocument>
       return { success: false, reason: 'MAILBOX_NOT_ACTIVE' };
     }
 
+    const health = currentAccount.health;
+    if (health?.state === 'AUTH_REQUIRED' || currentAccount.status === 'reauth_required') {
+      return { success: false, reason: 'MAILBOX_AUTH_REQUIRED' };
+    }
+
+    if (health?.state === 'BLOCKED' || health?.operatorActionRequired) {
+      return { success: false, reason: 'MAILBOX_BLOCKED' };
+    }
+
+    if ((health?.state === 'COOLDOWN' || health?.state === 'DEGRADED') && health?.cooldownUntil && health.cooldownUntil > now) {
+      const retryAfterSec = Math.max(1, Math.ceil((health.cooldownUntil.getTime() - nowMs) / 1000));
+      return {
+        success: false,
+        reason: 'MAILBOX_HEALTH_COOLDOWN',
+        retryAfterSec,
+        nextSendAt: health.cooldownUntil.toISOString()
+      };
+    }
+
     const state = currentAccount.sendState;
 
     if (state?.rateLimitedUntil && state.rateLimitedUntil > now) {
@@ -366,6 +412,10 @@ export class EmailAccountRepository extends BaseRepository<EmailAccountDocument>
       $set: {
         'sendState.sendLeaseExpiresAt': null,
         'sendState.rateLimitedUntil': rateLimitedUntil,
+        'health.state': 'COOLDOWN',
+        'health.cooldownUntil': rateLimitedUntil,
+        'health.lastFailureCategory': 'RATE_LIMIT',
+        'health.lastFailureAt': new Date(),
         updatedAt: new Date()
       }
     });
@@ -379,6 +429,215 @@ export class EmailAccountRepository extends BaseRepository<EmailAccountDocument>
       },
       'setProviderCooldown: mailbox rate-limited by provider'
     );
+  }
+
+  /**
+   * Restores mailbox health to HEALTHY after a successful send.
+   * Resets consecutive failure counters and clears cooldowns.
+   */
+  public async recordSendSuccess(accountId: string): Promise<void> {
+    const now = new Date();
+    const filter = this.applyScope({ _id: accountId } as any);
+
+    await this.atomicFindOneAndUpdate(filter, {
+      $set: {
+        'health.state': 'HEALTHY',
+        'health.consecutiveFailures': 0,
+        'health.failureWindowStart': null,
+        'health.lastSuccessfulSendAt': now,
+        'health.cooldownUntil': null,
+        'health.operatorActionRequired': false,
+        'health.operatorMessage': null,
+        'sendState.rateLimitedUntil': null,
+        updatedAt: now
+      }
+    });
+
+    logger.debug(
+      { accountId, workspaceId: this.workspaceId },
+      'recordSendSuccess: mailbox health restored to HEALTHY'
+    );
+  }
+
+  /**
+   * Records a provider failure against mailbox health.
+   * Implements bounded sliding failure window (15m), consecutive counters,
+   * deterministic cooldowns, and escalation to DEGRADED, AUTH_REQUIRED, or BLOCKED.
+   */
+  public async recordSendFailure(
+    accountId: string,
+    failure: {
+      category: 'AUTH' | 'RATE_LIMIT' | 'NETWORK' | 'INVALID_RECIPIENT' | 'AMBIGUOUS';
+      message?: string;
+      retryAfterSec?: number;
+    }
+  ): Promise<{ state: MailboxHealthState; cooldownUntil?: Date | null; operatorActionRequired: boolean }> {
+    const now = new Date();
+    const nowMs = now.getTime();
+    const filter = this.applyScope({ _id: accountId } as any);
+    const current = await this.findOne({ _id: accountId } as any);
+    if (!current) {
+      return { state: 'HEALTHY', operatorActionRequired: false };
+    }
+
+    const currentHealth = current.health || {
+      state: 'HEALTHY',
+      consecutiveFailures: 0,
+      operatorActionRequired: false
+    };
+
+    // 15-minute sliding failure window
+    const windowMs = 15 * 60 * 1000;
+    const windowStart =
+      currentHealth.failureWindowStart && nowMs - new Date(currentHealth.failureWindowStart).getTime() < windowMs
+        ? currentHealth.failureWindowStart
+        : now;
+
+    const consecutiveFailures = (currentHealth.consecutiveFailures || 0) + 1;
+    let nextState: MailboxHealthState = currentHealth.state || 'HEALTHY';
+    let cooldownUntil: Date | null = null;
+    let operatorActionRequired = false;
+    let operatorMessage: string | null = null;
+
+    if (failure.category === 'AUTH') {
+      nextState = 'AUTH_REQUIRED';
+      operatorActionRequired = true;
+      operatorMessage = failure.message || 'Provider authorization invalid or revoked. Re-authentication required.';
+    } else if (failure.category === 'RATE_LIMIT') {
+      const cooldownSec = failure.retryAfterSec && failure.retryAfterSec > 0 ? failure.retryAfterSec : 300;
+      nextState = 'COOLDOWN';
+      cooldownUntil = new Date(nowMs + cooldownSec * 1000);
+      operatorMessage = `Provider rate limit encountered. Cooldown active until ${cooldownUntil.toISOString()}.`;
+    } else if (failure.category === 'NETWORK') {
+      if (consecutiveFailures >= 5) {
+        nextState = 'BLOCKED';
+        operatorActionRequired = true;
+        operatorMessage = `Mailbox blocked after ${consecutiveFailures} consecutive network failures.`;
+      } else if (consecutiveFailures >= 3) {
+        nextState = 'DEGRADED';
+        cooldownUntil = new Date(nowMs + 5 * 60 * 1000); // 5-minute transient cooldown
+        operatorMessage = `Mailbox degraded due to ${consecutiveFailures} consecutive network failures. Cooling down 5m.`;
+      }
+    } else if (failure.category === 'AMBIGUOUS') {
+      if (consecutiveFailures >= 5) {
+        nextState = 'BLOCKED';
+        operatorActionRequired = true;
+        operatorMessage = 'Mailbox blocked due to repeated ambiguous send outcomes.';
+      }
+    }
+
+    const updateDoc: any = {
+      $set: {
+        'health.state': nextState,
+        'health.consecutiveFailures': consecutiveFailures,
+        'health.failureWindowStart': windowStart,
+        'health.lastFailureAt': now,
+        'health.lastFailureCategory': failure.category,
+        'health.cooldownUntil': cooldownUntil,
+        'health.operatorActionRequired': operatorActionRequired,
+        'health.operatorMessage': operatorMessage,
+        lastError: failure.message || `Provider failure (${failure.category})`,
+        updatedAt: now
+      }
+    };
+
+    if (failure.category === 'AUTH') {
+      updateDoc.$set.status = 'reauth_required';
+    }
+    if (cooldownUntil) {
+      updateDoc.$set['sendState.rateLimitedUntil'] = cooldownUntil;
+    }
+
+    await this.atomicFindOneAndUpdate(filter, updateDoc);
+
+    logger.warn(
+      {
+        accountId,
+        workspaceId: this.workspaceId,
+        category: failure.category,
+        consecutiveFailures,
+        nextState,
+        cooldownUntil: cooldownUntil?.toISOString(),
+        operatorActionRequired
+      },
+      'recordSendFailure: mailbox health state updated'
+    );
+
+    return { state: nextState, cooldownUntil: cooldownUntil ?? null, operatorActionRequired };
+  }
+
+  /**
+   * Resets mailbox health to HEALTHY (operator manual reset).
+   */
+  public async resetHealthState(accountId: string): Promise<void> {
+    const now = new Date();
+    const filter = this.applyScope({ _id: accountId } as any);
+
+    await this.atomicFindOneAndUpdate(filter, {
+      $set: {
+        'health.state': 'HEALTHY',
+        'health.consecutiveFailures': 0,
+        'health.failureWindowStart': null,
+        'health.cooldownUntil': null,
+        'health.operatorActionRequired': false,
+        'health.operatorMessage': null,
+        'sendState.rateLimitedUntil': null,
+        status: 'connected',
+        lastError: null,
+        updatedAt: now
+      }
+    });
+
+    logger.info(
+      { accountId, workspaceId: this.workspaceId },
+      'resetHealthState: mailbox reset to HEALTHY by operator'
+    );
+  }
+
+  /**
+   * Evaluates if a mailbox is currently eligible to dispatch outreach.
+   */
+  public static isMailboxEligibleForDispatch(account: EmailAccountDocument | any): {
+    eligible: boolean;
+    reason?: string;
+    retryAfterSec?: number;
+  } {
+    if (!account) {
+      return { eligible: false, reason: 'MAILBOX_NOT_FOUND' };
+    }
+    if (!['connected', 'active'].includes(account.status)) {
+      return { eligible: false, reason: 'MAILBOX_NOT_ACTIVE' };
+    }
+
+    const now = Date.now();
+    const health = account.health;
+
+    if (health) {
+      if (health.operatorActionRequired || health.state === 'BLOCKED') {
+        return { eligible: false, reason: 'MAILBOX_BLOCKED' };
+      }
+      if (health.state === 'AUTH_REQUIRED' || account.status === 'reauth_required') {
+        return { eligible: false, reason: 'MAILBOX_AUTH_REQUIRED' };
+      }
+      if (health.cooldownUntil) {
+        const cooldownEnd = new Date(health.cooldownUntil).getTime();
+        if (cooldownEnd > now) {
+          const retryAfterSec = Math.max(1, Math.ceil((cooldownEnd - now) / 1000));
+          return { eligible: false, reason: 'MAILBOX_HEALTH_COOLDOWN', retryAfterSec };
+        }
+      }
+    }
+
+    const sendState = account.sendState;
+    if (sendState?.rateLimitedUntil) {
+      const rateLimitedUntil = new Date(sendState.rateLimitedUntil).getTime();
+      if (rateLimitedUntil > now) {
+        const retryAfterSec = Math.max(1, Math.ceil((rateLimitedUntil - now) / 1000));
+        return { eligible: false, reason: 'PROVIDER_RATE_LIMITED', retryAfterSec };
+      }
+    }
+
+    return { eligible: true };
   }
 
   /**

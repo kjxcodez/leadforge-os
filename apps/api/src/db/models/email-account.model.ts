@@ -42,6 +42,20 @@ export interface EmailAccountSendState {
   sendLeaseExpiresAt?: Date | null;
 }
 
+export type MailboxHealthState = 'HEALTHY' | 'COOLDOWN' | 'AUTH_REQUIRED' | 'DISCONNECTED' | 'DEGRADED' | 'BLOCKED';
+
+export interface EmailAccountHealth {
+  state: MailboxHealthState;
+  consecutiveFailures: number;
+  failureWindowStart?: Date | null;
+  lastFailureAt?: Date | null;
+  lastSuccessfulSendAt?: Date | null;
+  lastFailureCategory?: 'AUTH' | 'RATE_LIMIT' | 'NETWORK' | 'INVALID_RECIPIENT' | 'AMBIGUOUS' | null;
+  cooldownUntil?: Date | null;
+  operatorActionRequired: boolean;
+  operatorMessage?: string | null;
+}
+
 export interface EmailAccountDocument extends mongoose.Document, WorkspaceScopedDocument {
   name: string;
   email: string;
@@ -63,6 +77,8 @@ export interface EmailAccountDocument extends mongoose.Document, WorkspaceScoped
   sendPolicy?: EmailAccountSendPolicy | null;
   /** Authoritative send state for atomic quota and lease management. */
   sendState?: EmailAccountSendState | null;
+  /** Authoritative mailbox health state for reliability and error tracking. */
+  health?: EmailAccountHealth | null;
   signature?: string | null;
   testRecipients?: TestRecipientEntry[];
   lastVerifiedAt?: Date | null;
@@ -119,6 +135,29 @@ const emailAccountSchema = new Schema<EmailAccountDocument>(
       }, { _id: false }),
       default: null
     },
+    // Authoritative mailbox health state
+    health: {
+      type: new Schema({
+        state: {
+          type: String,
+          enum: ['HEALTHY', 'COOLDOWN', 'AUTH_REQUIRED', 'DISCONNECTED', 'DEGRADED', 'BLOCKED'],
+          default: 'HEALTHY'
+        },
+        consecutiveFailures: { type: Number, default: 0 },
+        failureWindowStart: { type: Date, default: null },
+        lastFailureAt: { type: Date, default: null },
+        lastSuccessfulSendAt: { type: Date, default: null },
+        lastFailureCategory: { type: String, default: null },
+        cooldownUntil: { type: Date, default: null },
+        operatorActionRequired: { type: Boolean, default: false },
+        operatorMessage: { type: String, default: null }
+      }, { _id: false }),
+      default: () => ({
+        state: 'HEALTHY',
+        consecutiveFailures: 0,
+        operatorActionRequired: false
+      })
+    },
     signature: { type: String, default: null },
     testRecipients: [
       {
@@ -148,6 +187,9 @@ emailAccountSchema.index({ workspaceId: 1, email: 1 }, { unique: true });
 
 // Compound index for atomic reservation and quota evaluation
 emailAccountSchema.index({ workspaceId: 1, _id: 1, status: 1, 'sendState.rateLimitedUntil': 1, 'sendState.lastSentAt': 1 });
+
+// Health state index for fast filtering and operator alerts
+emailAccountSchema.index({ workspaceId: 1, 'health.state': 1 });
 
 export const EmailAccountModel = mongoose.models.EmailAccount
   ? (mongoose.models.EmailAccount as mongoose.Model<EmailAccountDocument>)
