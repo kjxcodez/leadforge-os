@@ -48,7 +48,7 @@ export function OperationsCenterScreen() {
   const navigate = useNavigate();
 
   // Navigation tabs
-  const [activeTab, setActiveTab] = useState<'active' | 'failures' | 'all' | 'logs'>('active');
+  const [activeTab, setActiveTab] = useState<'active' | 'failures' | 'deadletters' | 'mailboxes' | 'watchdog' | 'all' | 'logs'>('active');
 
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -141,10 +141,43 @@ export function OperationsCenterScreen() {
     refetchInterval: 5000
   });
 
+  // 6. Fetch Email Accounts & Mailbox Health
+  const mailboxesQuery = useQuery({
+    queryKey: ['email_accounts_health', workspaceId],
+    queryFn: async () => {
+      if (!workspaceId) return [];
+      return window.ipc.invoke('email-accounts:list', undefined);
+    },
+    enabled: !!workspaceId && (activeTab === 'mailboxes' || activeTab === 'active'),
+    refetchInterval: 5000
+  });
+
+  // 7. Fetch Worker Watchdog Telemetry
+  const watchdogQuery = useQuery({
+    queryKey: ['worker_watchdog_health', workspaceId],
+    queryFn: async () => {
+      if (!workspaceId) return { workers: [], systemStatus: 'HEALTHY' };
+      return window.ipc.invoke('scheduler:workers:health', { workspaceId });
+    },
+    enabled: !!workspaceId && (activeTab === 'watchdog' || activeTab === 'active'),
+    refetchInterval: 4000
+  });
+
+  // 8. Fetch Dead-Letter Queue
+  const deadLettersQuery = useQuery({
+    queryKey: ['dead_letters_list', workspaceId],
+    queryFn: async () => {
+      if (!workspaceId) return { data: [], total: 0, limit: 50, offset: 0 };
+      return window.ipc.invoke('scheduler:dead-letters:list', { workspaceId, limit: 50 });
+    },
+    enabled: !!workspaceId && (activeTab === 'deadletters' || activeTab === 'failures'),
+    refetchInterval: 5000
+  });
+
   // Quick Action Mutations
   const pollRepliesMutation = useMutation({
     mutationFn: async () => {
-      return (window as any).ipc.invoke('email-deliveries:poll-replies', { workspaceId });
+      return (window as any).ipc.invoke('email-deliveries:poll-replies');
     },
     onSuccess: (res: any) => {
       toast.success('Inbound reply polling initiated.');
@@ -181,6 +214,60 @@ export function OperationsCenterScreen() {
     },
     onError: (err: any) => {
       toast.error(`Recovery execution failed: ${err.message || err}`);
+    }
+  });
+
+  const reindexInboundMutation = useMutation({
+    mutationFn: async () => {
+      return (window as any).ipc.invoke('email-deliveries:reindex-inbound', { limit: 50 });
+    },
+    onSuccess: (res: any) => {
+      toast.success(`Inbound re-indexing finished: ${res?.matchedCount ?? 0} matched, ${res?.suppressedExecutionsCount ?? 0} halted.`);
+      queryClient.invalidateQueries({ queryKey: ['operations_health'] });
+      queryClient.invalidateQueries({ queryKey: ['operations_list'] });
+    },
+    onError: (err: any) => {
+      toast.error(`Inbound re-index failed: ${err.message || err}`);
+    }
+  });
+
+  const rebuildProjectionMutation = useMutation({
+    mutationFn: async () => {
+      return window.ipc.invoke('projection:rebuild', { workspaceId });
+    },
+    onSuccess: () => {
+      toast.success('Authoritative projection rebuilt from MongoDB.');
+      queryClient.invalidateQueries();
+    },
+    onError: (err: any) => {
+      toast.error(`Projection rebuild failed: ${err.message || err}`);
+    }
+  });
+
+  const resetHealthMutation = useMutation({
+    mutationFn: async (accountId: string) => {
+      return (window as any).ipc.invoke('email-accounts:reset-health', accountId);
+    },
+    onSuccess: () => {
+      toast.success('Mailbox health state reset to HEALTHY.');
+      queryClient.invalidateQueries({ queryKey: ['email_accounts_health'] });
+    },
+    onError: (err: any) => {
+      toast.error(`Reset health failed: ${err.message || err}`);
+    }
+  });
+
+  const requeueDeadLetterMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      return window.ipc.invoke('scheduler:dead-letters:requeue', { workspaceId, jobId });
+    },
+    onSuccess: () => {
+      toast.success('Dead-letter job successfully requeued.');
+      queryClient.invalidateQueries({ queryKey: ['dead_letters_list'] });
+      queryClient.invalidateQueries({ queryKey: ['operations_list'] });
+    },
+    onError: (err: any) => {
+      toast.error(`Requeue failed: ${err.message || err}`);
     }
   });
 
@@ -260,6 +347,25 @@ export function OperationsCenterScreen() {
         return <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/30 rounded-none text-[10px] font-mono">CANCELLED</Badge>;
       default:
         return <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/30 rounded-none text-[10px] font-mono">{status?.toUpperCase() || 'QUEUED'}</Badge>;
+    }
+  };
+
+  const getMailboxHealthBadge = (healthData: any) => {
+    const state = healthData?.state || 'HEALTHY';
+    switch (state) {
+      case 'HEALTHY':
+        return <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-none text-[10px] font-mono">HEALTHY</Badge>;
+      case 'COOLDOWN':
+        return <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-none text-[10px] font-mono animate-pulse">COOLDOWN</Badge>;
+      case 'AUTH_REQUIRED':
+        return <Badge className="bg-rose-500/10 text-rose-400 border border-rose-500/30 rounded-none text-[10px] font-mono">AUTH REQUIRED</Badge>;
+      case 'BLOCKED':
+        return <Badge className="bg-red-500/20 text-red-500 border border-red-500/40 rounded-none text-[10px] font-mono">BLOCKED</Badge>;
+      case 'DEGRADED':
+        return <Badge className="bg-orange-500/10 text-orange-400 border border-orange-500/30 rounded-none text-[10px] font-mono">DEGRADED</Badge>;
+      case 'DISCONNECTED':
+      default:
+        return <Badge className="bg-zinc-500/10 text-zinc-400 border border-zinc-500/30 rounded-none text-[10px] font-mono">{state}</Badge>;
     }
   };
 
@@ -405,6 +511,30 @@ export function OperationsCenterScreen() {
               <Zap className={`h-3 w-3 mr-1 ${cleanStaleMutation.isPending ? 'animate-spin' : ''}`} />
               Clean Leases
             </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={reindexInboundMutation.isPending}
+              className="h-7 text-[11px] rounded-none border-border-subtle hover:border-primary"
+              onClick={() => reindexInboundMutation.mutate()}
+            >
+              <ArrowRight className={`h-3 w-3 mr-1 ${reindexInboundMutation.isPending ? 'animate-spin' : ''}`} />
+              Re-index Inbound
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={rebuildProjectionMutation.isPending}
+              className="h-7 text-[11px] rounded-none border-border-subtle hover:border-primary"
+              onClick={() => rebuildProjectionMutation.mutate()}
+            >
+              <Database className={`h-3 w-3 mr-1 ${rebuildProjectionMutation.isPending ? 'animate-spin' : ''}`} />
+              Rebuild Projection
+            </Button>
           </div>
         }
       />
@@ -506,6 +636,9 @@ export function OperationsCenterScreen() {
         {[
           { id: 'active', label: `Active (${health?.metrics?.activeOperationsCount || 0})`, icon: Play },
           { id: 'failures', label: `Failure Queue (${health?.metrics?.failedOperationsCount || 0})`, icon: AlertTriangle },
+          { id: 'deadletters', label: `Dead Letters (${deadLettersQuery.data?.total || deadLettersQuery.data?.data?.length || 0})`, icon: XCircle },
+          { id: 'mailboxes', label: `Mailbox Health (${mailboxesQuery.data?.length || 0})`, icon: Mail },
+          { id: 'watchdog', label: `Watchdog (${watchdogQuery.data?.systemStatus || 'OK'})`, icon: Cpu },
           { id: 'all', label: 'All Operations', icon: Layers },
           { id: 'logs', label: 'System Logs', icon: FileText }
         ].map((tab) => {
@@ -537,7 +670,7 @@ export function OperationsCenterScreen() {
       </div>
 
       {/* Filters & Search Toolbar (shown for operational tables) */}
-      {activeTab !== 'logs' && (
+      {(activeTab === 'active' || activeTab === 'failures' || activeTab === 'all') && (
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 flex-1 min-w-[240px]">
             <div className="relative flex-1">
@@ -817,6 +950,273 @@ export function OperationsCenterScreen() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* 5b. Dead-Letter Queue Tab */}
+      {activeTab === 'deadletters' && (
+        <div className="space-y-3">
+          <div className="border border-border-subtle bg-card rounded-none p-3.5 flex items-center justify-between">
+            <div>
+              <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <XCircle className="h-4 w-4 text-rose-400" />
+                Dead-Letter Queue & Incident Lineage
+              </h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Stuck or exhausted jobs retained with immutable execution lineage for inspection and recovery.
+              </p>
+            </div>
+            <Badge className="bg-rose-500/10 text-rose-400 border border-rose-500/30 rounded-none text-xs font-mono">
+              {deadLettersQuery.data?.total || deadLettersQuery.data?.data?.length || 0} DEAD-LETTER JOBS
+            </Badge>
+          </div>
+
+          <div className="border border-border-subtle bg-card rounded-none overflow-hidden">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-border-subtle bg-muted/30 text-[10px] text-muted-foreground uppercase font-semibold">
+                  <th className="py-2.5 px-3">Job ID</th>
+                  <th className="py-2.5 px-3">Type</th>
+                  <th className="py-2.5 px-3">Dead-Letter Reason</th>
+                  <th className="py-2.5 px-3">Lineage Context</th>
+                  <th className="py-2.5 px-3">Retries</th>
+                  <th className="py-2.5 px-3">Dead-Lettered At</th>
+                  <th className="py-2.5 px-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {(!deadLettersQuery.data?.data || deadLettersQuery.data.data.length === 0) ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-emerald-400 text-xs">
+                      <CheckCircle2 className="h-5 w-5 mx-auto mb-1 text-emerald-400 opacity-80" />
+                      Dead-Letter queue is empty. Zero abandoned jobs.
+                    </td>
+                  </tr>
+                ) : (
+                  deadLettersQuery.data.data.map((job: any) => {
+                    const lineage = job.lineageReferences || {};
+                    return (
+                      <tr key={job.id} className="hover:bg-muted/20 transition-colors">
+                        <td className="py-2.5 px-3 font-mono text-[11px] text-foreground font-semibold">
+                          {job.id}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-[11px] text-primary">{job.type}</td>
+                        <td className="py-2.5 px-3 text-rose-400 text-[11px] max-w-[240px] truncate" title={job.deadLetterReason || lineage.lastError || ''}>
+                          {job.deadLetterReason || lineage.lastError || 'Exhausted retries'}
+                        </td>
+                        <td className="py-2.5 px-3 text-[10px] font-mono text-muted-foreground max-w-[220px]">
+                          {lineage.campaignId && <div className="truncate">camp: {lineage.campaignId}</div>}
+                          {lineage.contactId && <div className="truncate">contact: {lineage.contactId}</div>}
+                          {lineage.mailbox && <div className="truncate text-foreground/80">mb: {lineage.mailbox}</div>}
+                          {!lineage.campaignId && !lineage.contactId && !lineage.mailbox && '—'}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-[11px]">
+                          {job.retryCount ?? job.retries ?? 0} / {job.maxRetries ?? 3}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-[10px] text-muted-foreground">
+                          {job.deadLetteredAt ? new Date(job.deadLetteredAt).toLocaleTimeString() : '—'}
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-[10px] rounded-none border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                            disabled={requeueDeadLetterMutation.isPending}
+                            onClick={() => requeueDeadLetterMutation.mutate(job.id)}
+                          >
+                            Requeue
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 5c. Mailbox Health Tab */}
+      {activeTab === 'mailboxes' && (
+        <div className="space-y-3">
+          <div className="border border-border-subtle bg-card rounded-none p-3.5 flex items-center justify-between">
+            <div>
+              <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <Mail className="h-4 w-4 text-primary" />
+                Sending Mailbox Health & Dispatch Eligibility
+              </h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Stateful dispatch eligibility model enforcing safe cooldown periods without corrupting campaign pause status.
+              </p>
+            </div>
+            <Badge className="bg-primary/10 text-primary border border-primary/30 rounded-none text-xs font-mono">
+              {mailboxesQuery.data?.length || 0} MAILBOXES
+            </Badge>
+          </div>
+
+          <div className="border border-border-subtle bg-card rounded-none overflow-hidden">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-border-subtle bg-muted/30 text-[10px] text-muted-foreground uppercase font-semibold">
+                  <th className="py-2.5 px-3">Account Address</th>
+                  <th className="py-2.5 px-3">Connection</th>
+                  <th className="py-2.5 px-3">Health State</th>
+                  <th className="py-2.5 px-3">Consecutive Failures</th>
+                  <th className="py-2.5 px-3">Cooldown Status</th>
+                  <th className="py-2.5 px-3">Last Failure Code</th>
+                  <th className="py-2.5 px-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {(!mailboxesQuery.data || mailboxesQuery.data.length === 0) ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-muted-foreground text-xs">
+                      No email accounts configured in this workspace.
+                    </td>
+                  </tr>
+                ) : (
+                  mailboxesQuery.data.map((acc: any) => {
+                    const healthData = acc.health || {};
+                    const isCooldown = healthData.state === 'COOLDOWN';
+                    const cooldownRemaining = isCooldown && healthData.cooldownUntil
+                      ? Math.max(0, Math.round((new Date(healthData.cooldownUntil).getTime() - Date.now()) / 1000))
+                      : 0;
+                    return (
+                      <tr key={acc.id} className="hover:bg-muted/20 transition-colors">
+                        <td className="py-2.5 px-3 font-mono text-[11px] text-foreground font-semibold">
+                          {acc.email}
+                        </td>
+                        <td className="py-2.5 px-3 text-[11px] capitalize text-muted-foreground">
+                          {acc.status || 'connected'}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {getMailboxHealthBadge(healthData)}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-[11px]">
+                          {healthData.consecutiveSendFailures ?? 0}
+                        </td>
+                        <td className="py-2.5 px-3 text-[11px]">
+                          {isCooldown ? (
+                            <span className="text-amber-400 font-mono text-[10px]">
+                              Active ({cooldownRemaining}s rem) • Cycle #{healthData.cooldownCount || 1}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-[10px]">None active</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-[10px] font-mono text-muted-foreground">
+                          {healthData.lastFailureCode || '—'}
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-[10px] rounded-none border-border-subtle hover:border-primary"
+                            disabled={resetHealthMutation.isPending}
+                            onClick={() => resetHealthMutation.mutate(acc.id)}
+                          >
+                            Reset Health
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 5d. Worker Watchdog Tab */}
+      {activeTab === 'watchdog' && (
+        <div className="space-y-3">
+          <div className="border border-border-subtle bg-card rounded-none p-3.5 flex items-center justify-between">
+            <div>
+              <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <Cpu className="h-4 w-4 text-emerald-400" />
+                Scheduler Worker Watchdog Telemetry
+              </h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Active worker monitoring with bounded crash limits (max 5) and stale lease cleanups.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-muted text-muted-foreground rounded-none text-xs font-mono">
+                SYSTEM: {watchdogQuery.data?.systemStatus || 'HEALTHY'}
+              </Badge>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-6 text-[10px] rounded-none border-border-subtle"
+                onClick={() => cleanStaleMutation.mutate()}
+                disabled={cleanStaleMutation.isPending}
+              >
+                Clean Leases
+              </Button>
+            </div>
+          </div>
+
+          <div className="border border-border-subtle bg-card rounded-none overflow-hidden">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-border-subtle bg-muted/30 text-[10px] text-muted-foreground uppercase font-semibold">
+                  <th className="py-2.5 px-3">Worker Plugin</th>
+                  <th className="py-2.5 px-3">State</th>
+                  <th className="py-2.5 px-3">Crash Count</th>
+                  <th className="py-2.5 px-3">Heartbeat</th>
+                  <th className="py-2.5 px-3">Last Crash</th>
+                  <th className="py-2.5 px-3">Diagnostic Error</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {(!watchdogQuery.data?.workers || watchdogQuery.data.workers.length === 0) ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-muted-foreground text-xs">
+                      Zero registered workers in active pool.
+                    </td>
+                  </tr>
+                ) : (
+                  watchdogQuery.data.workers.map((w: any) => (
+                    <tr key={w.type} className="hover:bg-muted/20 transition-colors">
+                      <td className="py-2.5 px-3 font-mono text-[11px] text-foreground font-semibold">
+                        {w.type}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <Badge
+                          className={`rounded-none text-[10px] font-mono ${
+                            w.status === 'RUNNING'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 animate-pulse'
+                              : w.status === 'CRASHED'
+                                ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                                : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/30'
+                          }`}
+                        >
+                          {w.status}
+                        </Badge>
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-[11px]">
+                        {w.crashCount} / {w.maxConsecutiveCrashes || 5}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-[10px] text-muted-foreground">
+                        {formatElapsed(w.lastHeartbeat)} ago
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-[10px] text-muted-foreground">
+                        {w.lastCrashAt ? `${formatElapsed(w.lastCrashAt)} ago` : 'None'}
+                      </td>
+                      <td className="py-2.5 px-3 text-[11px] text-muted-foreground truncate max-w-[260px]" title={w.lastError || ''}>
+                        {w.lastError || 'None'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

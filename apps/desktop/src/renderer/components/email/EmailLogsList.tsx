@@ -14,6 +14,7 @@ import {
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
+import { Badge } from '../ui/badge';
 import { EmailStatusBadge, EngagementPills, DirectionBadge, InboundReconciliationBadge } from './EmailStatusBadge';
 
 export interface EmailLogsListProps {
@@ -296,7 +297,17 @@ export const EmailLogsList: React.FC<EmailLogsListProps> = ({
                       />
                     )}
                     {delivery.retryable && (
-                      <span className="text-[10px] text-amber-400">Retryable</span>
+                      <span className="text-[10px] text-amber-400 font-mono">Retryable</span>
+                    )}
+                    {delivery.failureCategory && (
+                      <Badge className="bg-rose-500/10 text-rose-400 border border-rose-500/30 rounded-none text-[9px] font-mono px-1 py-0">
+                        {delivery.failureCategory}
+                      </Badge>
+                    )}
+                    {(delivery.retryCount ?? 0) > 0 && (
+                      <span className="text-[9px] font-mono text-muted-foreground/80">
+                        r:{delivery.retryCount}
+                      </span>
                     )}
                   </div>
 
