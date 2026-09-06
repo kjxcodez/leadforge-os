@@ -328,6 +328,20 @@ export class EmailService {
     const effectiveLimits = await this.accountRepo.resolveEffectiveLimits(input.accountId);
     const reservation = await this.accountRepo.reserveSendSlot(input.accountId, effectiveLimits);
     if (!reservation.success) {
+      if (reservation.reason === 'MAILBOX_AUTH_REQUIRED') {
+        throw new EmailDomainError(
+          'MAILBOX_REAUTH_REQUIRED',
+          `Mailbox "${account.email}" requires re-authorization before dispatching outreach.`,
+          true
+        );
+      }
+      if (reservation.reason === 'MAILBOX_BLOCKED') {
+        throw new EmailDomainError(
+          'MAILBOX_NOT_AUTHORIZED',
+          `Mailbox "${account.email}" is blocked due to repeated provider failures. Operator intervention required.`,
+          false
+        );
+      }
       throw new EmailDomainError(
         'EMAIL_RATE_LIMITED',
         `Mailbox sending limit reached for "${account.email}": ${reservation.reason || 'send slot unavailable'}.`,
@@ -663,6 +677,9 @@ export class EmailService {
       // Release in-flight send lease on success (quota remains consumed)
       await this.accountRepo.clearSendLease(input.accountId);
 
+      // Phase 18: Record send success to restore mailbox health to HEALTHY and reset failure counters
+      await this.accountRepo.recordSendSuccess(input.accountId);
+
       await EmailAccountModel.updateOne(
         { _id: input.accountId } as any,
         { lastVerifiedAt: new Date() }
@@ -699,6 +716,24 @@ export class EmailService {
       );
 
       const failure = classifyEmailFailure(err);
+
+      // Phase 18: Record provider failure against mailbox health
+      // Note: INVALID_RECIPIENT is address-level and does NOT degrade or penalize the mailbox.
+      if (
+        failure.category !== EmailFailureCategory.INVALID_RECIPIENT &&
+        failure.category !== EmailFailureCategory.POLICY
+      ) {
+        let failureCat: 'AUTH' | 'RATE_LIMIT' | 'NETWORK' | 'INVALID_RECIPIENT' | 'AMBIGUOUS' = 'NETWORK';
+        if (failure.category === EmailFailureCategory.AUTH) failureCat = 'AUTH';
+        else if (failure.category === EmailFailureCategory.RATE_LIMIT) failureCat = 'RATE_LIMIT';
+        else if (failure.category === EmailFailureCategory.AMBIGUOUS) failureCat = 'AMBIGUOUS';
+
+        await this.accountRepo.recordSendFailure(input.accountId, {
+          category: failureCat,
+          message: failure.safeHumanMessage || err.message,
+          retryAfterSec: err.retryAfterSec
+        });
+      }
 
       if (err.code === 'AMBIGUOUS_SEND_TIMEOUT') {
         // Critical Ambiguous Send: Network failed after dispatch.

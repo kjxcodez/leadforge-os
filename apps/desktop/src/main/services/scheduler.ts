@@ -571,6 +571,35 @@ export class JobScheduler {
                   `).run(nowIso, exec.id, this.workspaceId);
                   continue;
                 }
+
+                // Phase 18: Mailbox Health & Cooldown Gate
+                if (mongoCampaign.sendingAccountId) {
+                  try {
+                    const mailbox = await this.sdk.outreach.getAccount(mongoCampaign.sendingAccountId).catch(() => null);
+                    if (mailbox) {
+                      const health = (mailbox as any).health;
+                      const nowTime = Date.now();
+                      if (health?.state === 'AUTH_REQUIRED' || mailbox.status === 'reauth_required') {
+                        AppLogger.warn('JobScheduler', `Deferring execution ${exec.id}: mailbox ${mailbox.email} requires authentication`, this.workspaceId);
+                        continue;
+                      }
+                      if (health?.operatorActionRequired || health?.state === 'BLOCKED') {
+                        AppLogger.warn('JobScheduler', `Deferring execution ${exec.id}: mailbox ${mailbox.email} is blocked`, this.workspaceId);
+                        continue;
+                      }
+                      if (health?.cooldownUntil && new Date(health.cooldownUntil).getTime() > nowTime) {
+                        const cooldownEnd = new Date(health.cooldownUntil).toISOString();
+                        db.prepare(`
+                          UPDATE sequence_executions
+                          SET nextExecutionAt = ?, updatedAt = ?
+                          WHERE id = ? AND workspaceId = ? AND UPPER(status) = 'WAITING'
+                        `).run(cooldownEnd, nowIso, exec.id, this.workspaceId);
+                        AppLogger.info('JobScheduler', `Deferred execution ${exec.id} to ${cooldownEnd} due to mailbox cooldown`, this.workspaceId);
+                        continue;
+                      }
+                    }
+                  } catch {}
+                }
               }
             } catch {}
           }

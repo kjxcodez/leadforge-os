@@ -1870,6 +1870,49 @@ async function handleSendEmailStep(
       }
     }
 
+    const isAuthRequired =
+      sendErr.code === 'MAILBOX_REAUTH_REQUIRED' ||
+      sendErr.code === 'GMAIL_AUTH_REVOKED' ||
+      sendErr.code === 'UNAUTHORIZED' ||
+      errMsg.includes('MAILBOX_REAUTH_REQUIRED') ||
+      errMsg.includes('Re-authentication required');
+
+    if (isAuthRequired) {
+      ctx.emitLog(
+        `Mailbox requires re-authorization: ${errMsg}. Yielding WAITING state so operator can reconnect without failing execution.`,
+        'warn'
+      );
+      return { status: 'wait', delaySeconds: 300, retrySameStep: true };
+    }
+
+    const isMailboxBlocked =
+      sendErr.code === 'MAILBOX_NOT_AUTHORIZED' ||
+      sendErr.code === 'MAILBOX_BLOCKED' ||
+      errMsg.includes('MAILBOX_BLOCKED') ||
+      errMsg.includes('Operator action required') ||
+      errMsg.includes('Operator intervention required');
+
+    if (isMailboxBlocked) {
+      ctx.emitLog(
+        `Mailbox is blocked: ${errMsg}. Yielding WAITING state for operator review.`,
+        'warn'
+      );
+      return { status: 'wait', delaySeconds: 300, retrySameStep: true };
+    }
+
+    const isAmbiguous =
+      sendErr.code === 'AMBIGUOUS_SEND_TIMEOUT' ||
+      errMsg.includes('AMBIGUOUS_SEND_TIMEOUT') ||
+      errMsg.includes('ambiguous');
+
+    if (isAmbiguous) {
+      ctx.emitLog(
+        `Ambiguous send result encountered: ${errMsg}. Yielding WAITING state for sent-folder reconciliation check. Will NOT blindly retry send.`,
+        'warn'
+      );
+      return { status: 'wait', delaySeconds: 120, retrySameStep: true };
+    }
+
     ctx.emitLog(
       `Email send failed for recipient ${contact.email} (subject: "${renderedSubject}"): ${errMsg}`,
       'error',
