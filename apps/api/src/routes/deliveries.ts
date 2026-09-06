@@ -216,6 +216,17 @@ deliveriesRouter.post('/poll-replies', async (c) => {
   return c.json(successResponse(results));
 });
 
+// 12b. Re-index Pending Inbound Replies (Bounded Exponential Backoff)
+deliveriesRouter.post('/reindex-inbound', async (c) => {
+  const wsId = getWorkspaceId(c);
+  const body = await c.req.json().catch(() => ({}));
+  const limit = typeof body.limit === 'number' ? body.limit : 50;
+
+  const service = new ReconciliationService(wsId);
+  const result = await service.reindexPendingInboundReplies({ limit });
+  return c.json(successResponse(result));
+});
+
 // 13. Manually Reconcile Inbound Reply to Contact / Campaign / Outbound Delivery
 deliveriesRouter.post('/:id/manual-reconcile', async (c) => {
   const wsId = getWorkspaceId(c);

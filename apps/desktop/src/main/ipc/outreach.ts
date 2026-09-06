@@ -605,6 +605,11 @@ export function registerOutreachIpc(sdk: SdkClient) {
     return await sdk.emailDeliveries.pollReplies();
   });
 
+  safeRegister('email-deliveries:reindex-inbound', async (_event, payload?: { limit?: number }) => {
+    const sdk = WorkspaceManager.getSdk();
+    return await sdk.emailDeliveries.reindexPendingInboundReplies(payload);
+  });
+
   safeRegister('email-deliveries:manual-reconcile', async (_event, payload) => {
     const deliveryId = payload?.inboundDeliveryId || payload?.deliveryId;
     if (!deliveryId) throw new Error('inboundDeliveryId is required.');

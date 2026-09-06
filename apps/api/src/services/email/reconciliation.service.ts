@@ -875,17 +875,35 @@ export class ReconciliationService {
    * This handles the race where a recipient replies while the outbound message was still SENDING or
    * before the provider message/thread IDs were finalized in the database.
    */
-  public async reconcilePendingInboundReplies(): Promise<{
+  public async reconcilePendingInboundReplies(limit = 50): Promise<{
     processedCount: number;
     matchedCount: number;
     expiredCount: number;
     suppressedExecutionsCount: number;
   }> {
+    const now = new Date();
+    const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
     const pendingInbounds = await EmailDeliveryModel.find({
       workspaceId: this.workspaceId,
       direction: 'INBOUND',
-      processingStatus: 'CORRELATION_PENDING'
-    }).limit(50);
+      processingStatus: 'CORRELATION_PENDING',
+      createdAt: { $gte: cutoff24h },
+      $and: [
+        {
+          $or: [
+            { reconciliationAttempts: { $exists: false } },
+            { reconciliationAttempts: { $lt: 5 } }
+          ]
+        },
+        {
+          $or: [
+            { nextReconciliationAt: null },
+            { nextReconciliationAt: { $lte: now } }
+          ]
+        }
+      ]
+    }).limit(limit);
 
     let processedCount = 0;
     let matchedCount = 0;
@@ -1079,11 +1097,11 @@ export class ReconciliationService {
         );
       } else {
         // No match found on this attempt: check bounded expiration window
-        const attempts = (pending.reconciliationAttempts || 1) + 1;
+        const attempts = (pending.reconciliationAttempts || 0) + 1;
         const createdAt = (pending as any).createdAt ? new Date((pending as any).createdAt).getTime() : Date.now();
         const ageMs = Date.now() - createdAt;
-        const maxAttempts = 3;
-        const maxAgeMs = 15 * 60 * 1000; // 15 minutes
+        const maxAttempts = 5;
+        const maxAgeMs = 24 * 60 * 60 * 1000; // 24 hours
 
         if (attempts >= maxAttempts || ageMs >= maxAgeMs) {
           expiredCount++;
@@ -1093,17 +1111,21 @@ export class ReconciliationService {
               $set: {
                 processingStatus: 'UNMATCHED',
                 reconciliationAttempts: attempts,
-                reconciliationNotes: 'Exhausted correlation window without finding matching outbound delivery.'
+                reconciliationNotes: `Exhausted bounded re-indexing window (${attempts} attempts or >24h) without finding matching outbound delivery.`
               }
             }
           );
         } else {
+          // Exponential backoff: 1m, 2m, 4m, 8m (capped at 24h)
+          const delayMs = Math.min(24 * 60 * 60 * 1000, 60000 * Math.pow(2, attempts - 1));
+          const nextRetry = new Date(Date.now() + delayMs);
           await EmailDeliveryModel.updateOne(
             { _id: pending._id },
             {
               $set: {
                 reconciliationAttempts: attempts,
-                nextReconciliationAt: new Date(Date.now() + 60000)
+                nextReconciliationAt: nextRetry,
+                reconciliationNotes: `Attempt ${attempts}/${maxAttempts}: matching outbound delivery not yet available. Retrying at ${nextRetry.toISOString()}.`
               }
             }
           );
@@ -1117,6 +1139,18 @@ export class ReconciliationService {
       expiredCount,
       suppressedExecutionsCount
     };
+  }
+
+  /**
+   * Public bounded re-indexer for pending inbound replies.
+   */
+  public async reindexPendingInboundReplies(options?: { limit?: number }): Promise<{
+    processedCount: number;
+    matchedCount: number;
+    expiredCount: number;
+    suppressedExecutionsCount: number;
+  }> {
+    return this.reconcilePendingInboundReplies(options?.limit ?? 50);
   }
 
   /**

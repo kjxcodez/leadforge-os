@@ -66,6 +66,10 @@ export class EmailDeliveriesModule {
     return this.client.post<any>('/email-deliveries/poll-replies', {});
   }
 
+  public async reindexPendingInboundReplies(options?: { limit?: number | undefined }): Promise<any> {
+    return this.client.post<any>('/email-deliveries/reindex-inbound', options || {});
+  }
+
   public async get(id: string): Promise<EmailDelivery> {
     return this.client.get<EmailDelivery>(`/email-deliveries/${id}`);
   }
