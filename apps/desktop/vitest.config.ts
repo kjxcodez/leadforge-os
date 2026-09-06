@@ -19,12 +19,20 @@ export default defineConfig({
       'src/main/services/audiences.test.ts',
       'src/main/services/campaign.test.ts',
       'src/main/services/campaign-analytics.test.ts',
+      'src/main/services/campaign-lifecycle-safety-phase15.test.ts',
+      'src/main/services/crash-matrix-qualification.test.ts',
       'src/main/services/email-quality-intelligence.test.ts',
       'src/main/services/fresh-database.test.ts',
       'src/main/services/fresh-database-all-queries.test.ts',
+      'src/main/services/inbound-suppression-phase17.test.ts',
+      'src/main/services/operational-reliability-phase18.test.ts',
       'src/main/services/operations-cache.test.ts',
+      'src/main/services/outreach-lineage-phase16.test.ts',
       'src/main/services/post-release-stabilization.test.ts',
-      'src/main/services/release-qualification.test.ts'
+      'src/main/services/production-qualification-e2e.test.ts',
+      'src/main/services/release-qualification.test.ts',
+      'src/main/services/scheduler-execution-hardening.test.ts',
+      'src/main/services/adversarial-cross-race-qualification.test.ts'
     ],
     alias: {
       '@leadforge/schema': path.resolve(__dirname, '../../packages/schema/src/index.ts'),
