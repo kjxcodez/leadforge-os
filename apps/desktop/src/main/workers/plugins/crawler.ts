@@ -4,7 +4,7 @@ import pLimit from 'p-limit';
 import type { JobContext } from '../../../shared/types/job';
 import { SdkClient } from '@leadforge/sdk';
 import { generateEntityId, ContactStatus, ContactEmailStatus, sanitizeAndValidateEmail } from '@leadforge/schema';
-import { resolveWorkerApiUrl } from '../worker-host';
+import { resolveWorkerApiUrl } from '../worker-env';
 import { extractCandidatesFromHtml } from './crawler-extractor.js';
 
 interface QueueItem {

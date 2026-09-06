@@ -1,7 +1,7 @@
 import type { JobContext } from '../../../shared/types/job';
 import { SdkClient, renderCanonicalVariables, formatEmailBody, captureVariablesSnapshot, type CanonicalVariableContext } from '@leadforge/sdk';
 import { generateEntityId, evaluateOutreachEligibility } from '@leadforge/schema';
-import { resolveWorkerApiUrl } from '../worker-host';
+import { resolveWorkerApiUrl } from '../worker-env';
 
 interface ContactRecord {
   id: string;

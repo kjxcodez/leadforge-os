@@ -20,6 +20,7 @@ import { registerSuppressionsIpc } from './suppressions-ipc';
 import { registerAnalyticsIpc } from './analytics-ipc';
 import { registerPlaywrightIpc } from '../lib/playwright-setup';
 import { WorkspaceManager } from '../lib/workspace-manager';
+import { AppLogger } from '../lib/logger';
 
 /**
  * Orchestrates and registers all IPC channels exactly once, utilizing safeRegister
@@ -34,6 +35,26 @@ export function registerAllIpc(
 ) {
   // Bind SDK instance to WorkspaceManager for isolated sync runtimes
   WorkspaceManager.setSdk(sdk);
+
+  // Subscribe to AppLogger to asynchronously push workspace logs to cloud MongoDB
+  AppLogger.subscribe((record) => {
+    if (record.workspaceId && record.workspaceId !== 'global') {
+      try {
+        const sdkInstance = WorkspaceManager.getSdk();
+        if (sdkInstance && typeof sdkInstance.systemLogs?.append === 'function') {
+          sdkInstance.systemLogs
+            .append({
+              severity: record.severity,
+              task: record.task,
+              message: record.message,
+              durationMs: record.durationMs || undefined,
+              metadata: record.metadata || undefined
+            })
+            .catch(() => {});
+        }
+      } catch {}
+    }
+  });
 
   const setWorkspaceHeader = (workspaceId: string | null) => {
     if (workspaceId) {

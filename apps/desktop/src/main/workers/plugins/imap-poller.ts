@@ -2,7 +2,7 @@ import { ImapFlow } from 'imapflow';
 import type { JobContext } from '../../../shared/types/job';
 import { SdkClient } from '@leadforge/sdk';
 import { generateEntityId, ContactStatus } from '@leadforge/schema';
-import { resolveWorkerApiUrl } from '../worker-host';
+import { resolveWorkerApiUrl } from '../worker-env';
 
 function getHeaderValue(headers: Buffer | undefined, headerName: string): string | null {
   if (!headers) return null;

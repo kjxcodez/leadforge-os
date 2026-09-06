@@ -15,6 +15,8 @@ export interface LogRecord {
   timestamp: string;
 }
 
+export type LogSubscriber = (record: LogRecord) => void;
+
 /**
  * AppLoggerClass manages structured system logging to stdout, local SQLite,
  * rotating filesystem files, and real-time IPC broadcasts.
@@ -22,6 +24,17 @@ export interface LogRecord {
 class AppLoggerClass {
   private logDir: string = '';
   private memoryLogs: LogRecord[] = [];
+  private subscribers: LogSubscriber[] = [];
+
+  /**
+   * Registers a subscriber callback for log records (decoupled event stream).
+   */
+  public subscribe(subscriber: LogSubscriber): () => void {
+    this.subscribers.push(subscriber);
+    return () => {
+      this.subscribers = this.subscribers.filter((s) => s !== subscriber);
+    };
+  }
 
   constructor() {
     try {
@@ -93,32 +106,13 @@ class AppLoggerClass {
       }
     }
 
-    // 3. Dev Mode event stream
-    try {
-      const { logDevModeEvent } = require('../ipc/observability-ipc');
-      if (typeof logDevModeEvent === 'function') {
-        logDevModeEvent('LOG', `[${record.severity.toUpperCase()}] [${record.task}] ${record.message}`, record);
-      }
-    } catch {}
-
-    // 4. Asynchronously append to authoritative MongoDB system-logs
-    if (workspaceId && workspaceId !== 'global') {
+    // 3. Dispatch to registered subscribers (decoupled dev-mode stream, cloud sync, etc.)
+    for (const sub of this.subscribers) {
       try {
-        const { WorkspaceManager } = require('./workspace-manager');
-        const sdk = WorkspaceManager.getSdk();
-        if (sdk && typeof sdk.systemLogs?.append === 'function') {
-          sdk.systemLogs
-            .append({
-              workspaceId,
-              severity: record.severity,
-              task: record.task,
-              message: record.message,
-              durationMs: record.durationMs || undefined,
-              metadata: record.metadata || undefined
-            })
-            .catch(() => {});
-        }
-      } catch {}
+        sub(record);
+      } catch {
+        // subscriber failure must not break logger
+      }
     }
 
     // 5. IPC Broadcast to Renderer BrowserWindow

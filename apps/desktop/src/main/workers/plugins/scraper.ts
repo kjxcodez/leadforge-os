@@ -3,7 +3,7 @@ import type { JobContext } from '../../../shared/types/job';
 import { normalizeStateName, normalizeCountryName } from '../../../shared/utils/locations';
 import { SdkClient } from '@leadforge/sdk';
 import { generateEntityId, CompanyStatus, ContactStatus } from '@leadforge/schema';
-import { resolveWorkerApiUrl } from '../worker-host';
+import { resolveWorkerApiUrl } from '../worker-env';
 
 /**
  * Resolves link shorteners and redirectors (e.g. t.co, bit.ly) to find the destination URL.

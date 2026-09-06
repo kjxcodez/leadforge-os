@@ -3,7 +3,7 @@ import { AIRuntime, PromptsLibrary } from '@leadforge/ai';
 import type { JobContext } from '../../../shared/types/job';
 import { SdkClient, renderCanonicalVariables, formatEmailBody, captureVariablesSnapshot } from '@leadforge/sdk';
 import { generateEntityId, CampaignStatus, evaluateOutreachEligibility } from '@leadforge/schema';
-import { resolveWorkerApiUrl } from '../worker-host';
+import { resolveWorkerApiUrl } from '../worker-env';
 
 function decryptSecretFallback(val: string): string {
   if (!val) return '';

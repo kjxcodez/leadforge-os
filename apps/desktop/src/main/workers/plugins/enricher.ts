@@ -2,7 +2,7 @@ import dns from 'dns';
 import { promisify } from 'util';
 import type { JobContext } from '../../../shared/types/job';
 import { SdkClient } from '@leadforge/sdk';
-import { resolveWorkerApiUrl } from '../worker-host';
+import { resolveWorkerApiUrl } from '../worker-env';
 
 const resolveMxAsync = promisify(dns.resolveMx);
 

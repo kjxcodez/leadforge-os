@@ -28,6 +28,11 @@ export function logDevModeEvent(type: string, message: string, meta?: any) {
 }
 
 export function registerObservabilityIpc() {
+  // Subscribe to AppLogger to stream logs into dev-mode events without circular dependency
+  AppLogger.subscribe((record) => {
+    logDevModeEvent('LOG', `[${record.severity.toUpperCase()}] [${record.task}] ${record.message}`, record);
+  });
+
   // Query dev-mode in-memory logs
   safeRegister('dev-mode:log', async (_event, { limit = 100 } = {}) => {
     return devModeEvents.slice(-limit).reverse();

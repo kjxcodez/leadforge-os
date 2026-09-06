@@ -8,7 +8,7 @@ import {
 } from '../../services/intelligence-engine';
 import { SdkClient } from '@leadforge/sdk';
 import { generateEntityId } from '@leadforge/schema';
-import { resolveWorkerApiUrl } from '../worker-host';
+import { resolveWorkerApiUrl } from '../worker-env';
 
 /**
  * Lead Intelligence Enrichment Worker Plugin (Phase 7 - API/MongoDB-First).
