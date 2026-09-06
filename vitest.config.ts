@@ -31,6 +31,7 @@ export default defineConfig({
       'apps/desktop/src/main/services/outreach-lineage-phase16.test.ts',
       'apps/desktop/src/main/services/inbound-suppression-phase17.test.ts',
       'apps/desktop/src/main/services/operational-reliability-phase18.test.ts',
+      'apps/desktop/src/main/services/production-qualification-e2e.test.ts',
       'apps/desktop/src/main/services/post-release-stabilization.test.ts',
       'apps/desktop/src/main/services/release-qualification.test.ts',
       'apps/desktop/src/main/services/scheduler-execution-hardening.test.ts'
