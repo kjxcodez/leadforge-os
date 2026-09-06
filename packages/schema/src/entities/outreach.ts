@@ -127,6 +127,16 @@ export const sendStateSchema = z.object({
 }).optional();
 export type SendState = z.infer<typeof sendStateSchema>;
 
+export const MailboxHealthState = {
+  HEALTHY: 'HEALTHY',
+  COOLDOWN: 'COOLDOWN',
+  AUTH_REQUIRED: 'AUTH_REQUIRED',
+  DISCONNECTED: 'DISCONNECTED',
+  DEGRADED: 'DEGRADED',
+  BLOCKED: 'BLOCKED'
+} as const;
+export type MailboxHealthState = (typeof MailboxHealthState)[keyof typeof MailboxHealthState];
+
 export const mailboxHealthStateSchema = z.enum([
   'HEALTHY',
   'COOLDOWN',
@@ -135,7 +145,6 @@ export const mailboxHealthStateSchema = z.enum([
   'DEGRADED',
   'BLOCKED'
 ]);
-export type MailboxHealthState = z.infer<typeof mailboxHealthStateSchema>;
 
 export const emailAccountHealthSchema = z.object({
   state: mailboxHealthStateSchema.default('HEALTHY'),
@@ -182,6 +191,71 @@ export const emailAccountSchema = z.object({
   updatedAt: z.union([z.date(), z.string()])
 });
 export type EmailAccount = z.infer<typeof emailAccountSchema>;
+
+/**
+ * Evaluates whether an email account is currently eligible to dispatch outreach.
+ */
+export function isMailboxEligibleForDispatch(account: {
+  status?: string | null;
+  health?: {
+    state?: MailboxHealthState | string | null;
+    cooldownUntil?: Date | string | null;
+    consecutiveSendFailures?: number | null;
+  } | null;
+}): { eligible: boolean; reason?: string } {
+  if (account.status !== 'connected') {
+    return {
+      eligible: false,
+      reason: `Account status is "${account.status || 'unknown'}", must be "connected"`
+    };
+  }
+
+  const health = account.health;
+  if (!health) {
+    return { eligible: true };
+  }
+
+  const now = new Date();
+
+  switch (health.state) {
+    case 'HEALTHY':
+      return { eligible: true };
+
+    case 'COOLDOWN': {
+      if (health.cooldownUntil && new Date(health.cooldownUntil) > now) {
+        return {
+          eligible: false,
+          reason: `Mailbox is in cooldown until ${new Date(health.cooldownUntil).toISOString()}`
+        };
+      }
+      return { eligible: true };
+    }
+
+    case 'AUTH_REQUIRED':
+      return {
+        eligible: false,
+        reason: 'Mailbox requires re-authentication before sending can resume'
+      };
+
+    case 'BLOCKED':
+      return {
+        eligible: false,
+        reason: 'Mailbox is blocked by provider or administrator'
+      };
+
+    case 'DEGRADED':
+      return { eligible: true };
+
+    case 'DISCONNECTED':
+      return {
+        eligible: false,
+        reason: 'Mailbox is disconnected'
+      };
+
+    default:
+      return { eligible: true };
+  }
+}
 
 
 
