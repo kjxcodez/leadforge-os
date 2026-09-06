@@ -26,6 +26,7 @@ const integrationTests = [
   'src/main/services/inbound-suppression-phase17.test.ts',
   'src/main/services/operational-reliability-phase18.test.ts',
   'src/main/services/production-qualification-e2e.test.ts',
+  'src/main/services/crash-matrix-qualification.test.ts',
   'src/main/services/post-release-stabilization.test.ts',
   'src/main/services/release-qualification.test.ts',
   'src/main/services/scheduler-execution-hardening.test.ts'
