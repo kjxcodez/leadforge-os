@@ -138,7 +138,7 @@ export const SafeEmailPreview: React.FC<SafeEmailPreviewProps> = ({
   }, [sanitizedHtml, activeTab, hasHtml]);
 
   return (
-    <div className={`flex flex-col border border-border/80 rounded-lg overflow-hidden bg-card/50 ${className}`}>
+    <div className={`flex flex-col border border-border/80 rounded-lg overflow-hidden bg-card/50 min-w-0 ${className}`}>
       {/* Header Controls Bar */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border/60 bg-muted/30 text-xs">
         <div className="flex items-center gap-2">
@@ -210,17 +210,17 @@ export const SafeEmailPreview: React.FC<SafeEmailPreviewProps> = ({
       )}
 
       {/* Content Area */}
-      <div className="relative min-h-[140px] bg-background/50">
+      <div className="relative min-h-[140px] bg-background/50 min-w-0 max-w-full overflow-hidden">
         {activeTab === 'html' && hasHtml ? (
           <iframe
             ref={iframeRef}
             title={subject || 'Email Preview'}
             sandbox="allow-same-origin"
-            className="w-full border-none block"
+            className="w-full max-w-full min-w-0 border-none block"
             style={{ minHeight: '140px' }}
           />
         ) : (
-          <div className="p-4 text-sm font-mono whitespace-pre-wrap text-foreground/90 leading-relaxed select-text">
+          <div className="p-4 text-sm font-mono whitespace-pre-wrap break-words min-w-0 text-foreground/90 leading-relaxed select-text">
             {textBody || '(No message body content)'}
           </div>
         )}

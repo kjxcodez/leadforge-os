@@ -44,15 +44,15 @@ const CopyableIdentifier: React.FC<CopyableIdentifierProps> = ({ label, value, t
 
   return (
     <div
-      className="flex items-center justify-between gap-1.5 bg-muted/30 hover:bg-muted/50 transition-colors rounded px-2 py-1 border border-border/50 text-[11px] font-mono text-muted-foreground min-w-0"
+      className="flex items-center justify-between gap-1.5 bg-muted/30 hover:bg-muted/50 transition-colors rounded px-2 py-1 border border-border/50 text-[11px] font-mono text-muted-foreground min-w-0 max-w-full overflow-hidden"
       title={title || `${label}: ${value}`}
     >
       <span className="text-muted-foreground/70 shrink-0 select-none font-sans font-medium">{label}:</span>
-      <span className="truncate select-all text-foreground/90 font-mono">{value}</span>
+      <span className="truncate select-all text-foreground/90 font-mono min-w-0 flex-1">{value}</span>
       <button
         type="button"
         onClick={handleCopy}
-        className="shrink-0 p-0.5 hover:text-foreground text-muted-foreground transition-colors cursor-pointer"
+        className="shrink-0 p-0.5 hover:text-foreground text-muted-foreground transition-colors cursor-pointer ml-1"
         title={copied ? 'Copied!' : 'Copy to clipboard'}
       >
         {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
@@ -140,11 +140,11 @@ export const MessageDetailView: React.FC<MessageDetailViewProps> = ({
   }
 
   return (
-    <div className={`flex flex-col h-full overflow-y-auto space-y-5 p-5 ${className}`}>
+    <div className={`flex flex-col h-full min-h-0 min-w-0 w-full overflow-y-auto overflow-x-hidden space-y-5 p-5 ${className}`}>
       {/* Subject & Top Badges Header */}
-      <div className="space-y-2 border-b border-border/60 pb-4">
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="text-lg font-semibold text-foreground tracking-tight select-text">
+      <div className="space-y-2 border-b border-border/60 pb-4 min-w-0">
+        <div className="flex items-start justify-between gap-3 min-w-0">
+          <h2 className="text-lg font-semibold text-foreground tracking-tight select-text break-words min-w-0 flex-1">
             {delivery.subject || '(No Subject)'}
           </h2>
           <Button
@@ -179,27 +179,27 @@ export const MessageDetailView: React.FC<MessageDetailViewProps> = ({
       </div>
 
       {/* Structured Metadata Box */}
-      <Card className="bg-card/40 border-border/60">
-        <CardContent className="p-3.5 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+      <Card className="bg-card/40 border-border/60 min-w-0 overflow-hidden">
+        <CardContent className="p-3.5 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs min-w-0">
           {/* Sender / Recipient */}
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground font-medium w-16">From:</span>
-              <span className="font-mono text-foreground select-text truncate">
+          <div className="space-y-1.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-muted-foreground font-medium w-16 shrink-0">From:</span>
+              <span className="font-mono text-foreground select-text truncate min-w-0 flex-1">
                 {delivery.senderEmail || '—'}
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground font-medium w-16">To:</span>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="font-mono text-foreground select-text truncate">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-muted-foreground font-medium w-16 shrink-0">To:</span>
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <span className="font-mono text-foreground select-text truncate min-w-0 flex-1">
                   {delivery.recipientEmail || '—'}
                 </span>
                 {delivery.contactId && onNavigateToContact && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-5 px-1.5 text-[10px] text-primary hover:text-primary"
+                    className="h-5 px-1.5 text-[10px] text-primary hover:text-primary shrink-0"
                     onClick={() => onNavigateToContact(delivery.contactId)}
                   >
                     <User className="w-2.5 h-2.5 mr-0.5" />
@@ -211,18 +211,18 @@ export const MessageDetailView: React.FC<MessageDetailViewProps> = ({
           </div>
 
           {/* Campaign / Sequence */}
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground font-medium w-20">Campaign:</span>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-foreground truncate font-medium">
+          <div className="space-y-1.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-muted-foreground font-medium w-20 shrink-0">Campaign:</span>
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <span className="text-foreground truncate font-medium min-w-0 flex-1">
                   {delivery.campaignName || delivery.campaignId || 'Direct / Ad-hoc'}
                 </span>
                 {delivery.campaignId && onNavigateToCampaign && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-5 px-1.5 text-[10px] text-primary hover:text-primary"
+                    className="h-5 px-1.5 text-[10px] text-primary hover:text-primary shrink-0"
                     onClick={() => onNavigateToCampaign(delivery.campaignId)}
                   >
                     <Layers className="w-2.5 h-2.5 mr-0.5" />
@@ -231,9 +231,9 @@ export const MessageDetailView: React.FC<MessageDetailViewProps> = ({
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground font-medium w-20">Step / Time:</span>
-              <span className="text-muted-foreground">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-muted-foreground font-medium w-20 shrink-0">Step / Time:</span>
+              <span className="text-muted-foreground truncate min-w-0 flex-1">
                 Step {(delivery.stepIndex ?? 0) + 1} •{' '}
                 {delivery.sentAt ? new Date(delivery.sentAt).toLocaleString() : delivery.createdAt ? new Date(delivery.createdAt).toLocaleString() : '—'}
               </span>
@@ -243,12 +243,12 @@ export const MessageDetailView: React.FC<MessageDetailViewProps> = ({
       </Card>
 
       {/* Subordinate Technical Identifiers */}
-      <div className="space-y-1.5 pt-0.5">
+      <div className="space-y-1.5 pt-0.5 min-w-0">
         <div className="text-[11px] font-semibold text-muted-foreground/80 uppercase tracking-wider flex items-center gap-1.5">
           <Hash className="w-3 h-3" />
           Technical Identifiers
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 min-w-0">
           <CopyableIdentifier label="Delivery ID" value={delivery.id} />
           {delivery.executionId && <CopyableIdentifier label="Execution ID" value={delivery.executionId} />}
           {delivery.providerMessageId && <CopyableIdentifier label="Provider Msg ID" value={delivery.providerMessageId} />}
@@ -258,27 +258,27 @@ export const MessageDetailView: React.FC<MessageDetailViewProps> = ({
       </div>
 
       {/* Outreach Lineage & Composition Provenance (Phase 16) */}
-      <div className="space-y-1.5 pt-0.5">
+      <div className="space-y-1.5 pt-0.5 min-w-0">
         <div className="text-[11px] font-semibold text-muted-foreground/80 uppercase tracking-wider flex items-center gap-1.5">
           <Fingerprint className="w-3 h-3 text-primary" />
           Outreach Lineage & Composition
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 min-w-0">
           <CopyableIdentifier
             label="Template"
             value={delivery.templateId || undefined}
             title={delivery.templateId ? `Template ID: ${delivery.templateId}` : 'Direct Outreach / No Template'}
           />
-          <div className="flex items-center justify-between gap-1.5 bg-muted/30 hover:bg-muted/50 transition-colors rounded px-2 py-1 border border-border/50 text-[11px] font-mono text-muted-foreground min-w-0">
+          <div className="flex items-center justify-between gap-1.5 bg-muted/30 hover:bg-muted/50 transition-colors rounded px-2 py-1 border border-border/50 text-[11px] font-mono text-muted-foreground min-w-0 max-w-full overflow-hidden">
             <span className="text-muted-foreground/70 shrink-0 select-none font-sans font-medium">Version:</span>
-            <span className="truncate select-all text-foreground/90 font-mono">
+            <span className="truncate select-all text-foreground/90 font-mono min-w-0 flex-1">
               {typeof delivery.templateVersion === 'number'
                 ? `v${delivery.templateVersion} (Immutable Historical)`
                 : 'Legacy / Unversioned'}
             </span>
           </div>
           {delivery.messageFingerprint && (
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 min-w-0">
               <CopyableIdentifier
                 label="Content Fingerprint"
                 value={delivery.messageFingerprint}
@@ -290,18 +290,18 @@ export const MessageDetailView: React.FC<MessageDetailViewProps> = ({
 
         {/* Variables Snapshot Badges */}
         {parsedVariables && Object.keys(parsedVariables).length > 0 && (
-          <div className="bg-muted/20 border border-border/40 rounded p-2 text-xs space-y-1 mt-1">
+          <div className="bg-muted/20 border border-border/40 rounded p-2 text-xs space-y-1 mt-1 min-w-0 overflow-hidden">
             <div className="text-[10px] uppercase font-semibold text-muted-foreground/70 tracking-wider">
               Variables Snapshot
             </div>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1.5 min-w-0">
               {Object.entries(parsedVariables).map(([key, val]) => (
                 <span
                   key={key}
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-background/80 border border-border/60 text-[11px] font-mono text-foreground/90"
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-background/80 border border-border/60 text-[11px] font-mono text-foreground/90 min-w-0 max-w-full"
                 >
-                  <span className="text-muted-foreground/70 font-sans">{key}:</span>
-                  <span className="font-semibold select-all">{String(val)}</span>
+                  <span className="text-muted-foreground/70 font-sans shrink-0">{key}:</span>
+                  <span className="font-semibold select-all truncate min-w-0">{String(val)}</span>
                 </span>
               ))}
             </div>

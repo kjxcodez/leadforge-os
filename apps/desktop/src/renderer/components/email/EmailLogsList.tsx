@@ -85,12 +85,12 @@ export const EmailLogsList: React.FC<EmailLogsListProps> = ({
   ];
 
   return (
-    <div className={`flex flex-col h-full bg-background border-r border-border/70 ${className}`}>
+    <div className={`flex flex-col h-full min-h-0 min-w-0 bg-background border-r border-border/70 overflow-hidden ${className}`}>
       {/* Top Filter & Action Bar */}
-      <div className="p-3 border-b border-border/70 space-y-2 bg-card/40">
+      <div className="p-3 border-b border-border/70 space-y-2 bg-card/40 shrink-0">
         <div className="flex items-center gap-2">
           {/* Search Input */}
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-0">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="text"
@@ -132,7 +132,7 @@ export const EmailLogsList: React.FC<EmailLogsListProps> = ({
         </div>
 
         {/* Filter Pills */}
-        <div className="flex items-center justify-between gap-2 overflow-x-auto text-xs py-0.5 no-scrollbar">
+        <div className="flex items-center justify-between gap-2 overflow-x-auto text-xs py-0.5 no-scrollbar min-w-0">
           {/* Status Filter */}
           <div className="flex items-center gap-1">
             {statusOptions.map((opt) => (
@@ -249,8 +249,8 @@ export const EmailLogsList: React.FC<EmailLogsListProps> = ({
                 }`}
               >
                 {/* Header: Address / Name + Date */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 truncate">
+                <div className="flex items-center justify-between gap-2 min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0 truncate">
                     {isInbound ? (
                       <ArrowDownLeft className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                     ) : (
@@ -274,13 +274,13 @@ export const EmailLogsList: React.FC<EmailLogsListProps> = ({
                 </div>
 
                 {/* Subject Line */}
-                <p className="text-xs font-medium text-foreground/90 truncate mt-1">
+                <p className="text-xs font-medium text-foreground/90 truncate mt-1 min-w-0">
                   {delivery.subject || '(No Subject)'}
                 </p>
 
                 {/* Campaign / Step snippet */}
                 {delivery.campaignName && (
-                  <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                  <p className="text-[11px] text-muted-foreground truncate mt-0.5 min-w-0">
                     {delivery.campaignName} • Step {(delivery.stepIndex ?? 0) + 1}
                   </p>
                 )}
@@ -329,7 +329,7 @@ export const EmailLogsList: React.FC<EmailLogsListProps> = ({
 
       {/* Pagination Controls Footer */}
       {totalPages > 1 && onPageChange && (
-        <div className="p-2 border-t border-border/70 flex items-center justify-between text-xs bg-card/40">
+        <div className="p-2 border-t border-border/70 flex items-center justify-between text-xs bg-card/40 shrink-0">
           <span className="text-muted-foreground text-[11px]">
             Page {page} of {totalPages}
           </span>

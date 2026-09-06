@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../components/ui/resizable';
 import { PageHeader } from '../components/common/PageHeader';
 import { useWorkspace } from '../hooks/useWorkspace';
 import { EmailLogsList } from '../components/email/EmailLogsList';
@@ -154,7 +153,7 @@ export default function EmailLogsScreen() {
   });
 
   return (
-    <div className="flex flex-col h-full space-y-4 p-4 lg:p-6 overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-5rem)] max-h-[calc(100vh-5rem)] space-y-3 overflow-hidden">
       {/* Header with Title and Global Actions */}
       <PageHeader
         title="Email Logs & Delivery Ledger"
@@ -269,60 +268,61 @@ export default function EmailLogsScreen() {
         </Card>
       </div>
 
-      {/* Main Split Pane Layout */}
-      <div className="flex-1 min-h-0 border border-border/70 rounded-lg overflow-hidden bg-card/20 shadow-sm">
-        <ResizablePanelGroup orientation="horizontal" className="h-full w-full">
-          {/* Left Pane: Email Deliveries List */}
-          <ResizablePanel defaultSize={42} minSize={30} maxSize={55}>
-            <EmailLogsList
-              deliveries={deliveries}
-              selectedDeliveryId={selectedDeliveryId}
-              onSelectDelivery={handleSelectDelivery}
-              isLoading={deliveriesQuery.isLoading}
-              page={page}
-              totalPages={(deliveriesQuery.data as any)?.totalPages || 1}
-              totalItems={(deliveriesQuery.data as any)?.total || deliveries.length}
-              onPageChange={setPage}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              statusFilter={statusFilter}
-              onStatusChange={setStatusFilter}
-              directionFilter={directionFilter}
-              onDirectionChange={setDirectionFilter}
-              processingStatusFilter={processingStatusFilter}
-              onProcessingStatusChange={setProcessingStatusFilter}
-              onRefresh={() => queryClient.invalidateQueries({ queryKey: ['email_deliveries'] })}
-              onPollReplies={() => pollRepliesMutation.mutate()}
-              isPollingReplies={pollRepliesMutation.isPending}
+      {/* Main Split Pane Layout (Desktop Master/Detail) */}
+      <div
+        className="flex-1 min-h-0 border border-border/70 rounded-lg overflow-hidden bg-card/20 shadow-sm grid"
+        style={{ gridTemplateColumns: 'minmax(320px, 380px) minmax(0, 1fr)' }}
+      >
+        {/* Left Pane: Email Deliveries List */}
+        <div className="h-full min-h-0 min-w-0 overflow-hidden flex flex-col">
+          <EmailLogsList
+            deliveries={deliveries}
+            selectedDeliveryId={selectedDeliveryId}
+            onSelectDelivery={handleSelectDelivery}
+            isLoading={deliveriesQuery.isLoading}
+            page={page}
+            totalPages={(deliveriesQuery.data as any)?.totalPages || 1}
+            totalItems={(deliveriesQuery.data as any)?.total || deliveries.length}
+            onPageChange={setPage}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            statusFilter={statusFilter}
+            onStatusChange={setStatusFilter}
+            directionFilter={directionFilter}
+            onDirectionChange={setDirectionFilter}
+            processingStatusFilter={processingStatusFilter}
+            onProcessingStatusChange={setProcessingStatusFilter}
+            onRefresh={() => queryClient.invalidateQueries({ queryKey: ['email_deliveries'] })}
+            onPollReplies={() => pollRepliesMutation.mutate()}
+            isPollingReplies={pollRepliesMutation.isPending}
+            className="h-full"
+          />
+        </div>
+
+        {/* Right Pane: Selected Delivery / Message Detail */}
+        <div className="h-full min-h-0 min-w-0 overflow-hidden bg-background/50 flex flex-col">
+          {selectedDeliveryId ? (
+            <MessageDetailView
+              deliveryId={selectedDeliveryId}
+              onClose={() => setSelectedDeliveryId(null)}
+              onNavigateToContact={(contactId) => navigate(`/contacts?id=${contactId}`)}
+              onNavigateToCampaign={(campaignId) => navigate(`/campaigns?id=${campaignId}`)}
               className="h-full"
             />
-          </ResizablePanel>
-
-          <ResizableHandle withHandle />
-
-          {/* Right Pane: Selected Delivery / Message Detail */}
-          <ResizablePanel defaultSize={58} minSize={35}>
-            {selectedDeliveryId ? (
-              <MessageDetailView
-                deliveryId={selectedDeliveryId}
-                onClose={() => setSelectedDeliveryId(null)}
-                onNavigateToContact={(contactId) => navigate(`/contacts?id=${contactId}`)}
-                onNavigateToCampaign={(campaignId) => navigate(`/campaigns?id=${campaignId}`)}
-                className="h-full"
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full p-8 text-center text-muted-foreground space-y-3">
-                <Mail className="w-12 h-12 text-muted-foreground/30" />
-                <div className="space-y-1">
-                  <h3 className="text-sm font-semibold text-foreground">No message selected</h3>
-                  <p className="text-xs text-muted-foreground/80 max-w-sm">
-                    Select an outbound email or inbound reply from the ledger on the left to preview rendered content, failure diagnostics, and engagement timelines.
-                  </p>
-                </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full p-8 text-center text-muted-foreground space-y-3">
+              <div className="w-12 h-12 rounded-full bg-muted/40 flex items-center justify-center border border-border/60">
+                <Mail className="w-6 h-6 text-muted-foreground/40" />
               </div>
-            )}
-          </ResizablePanel>
-        </ResizablePanelGroup>
+              <div className="space-y-1 max-w-sm">
+                <h3 className="text-sm font-semibold text-foreground">Select a message</h3>
+                <p className="text-xs text-muted-foreground/80 leading-relaxed">
+                  Choose an email from the list on the left to inspect its delivery status, provider diagnostics, rendered preview, and engagement timelines.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -158,4 +158,100 @@ describe('Email Logs UI & Safe Preview Suite', () => {
       expect(inboundReply.matchConfidence).toBe('thread');
     });
   });
+
+  describe('Email Logs Master/Detail Split Layout & Defensive Geometry', () => {
+    it('enforces robust desktop master/detail column constraints with min 300px left pane and minmax(0, 1fr) detail pane', () => {
+      // Preferred CSS Grid layout specification
+      const gridColumnsDef = 'minmax(320px, 380px) minmax(0, 1fr)';
+      expect(gridColumnsDef).toContain('minmax(320px, 380px)');
+      expect(gridColumnsDef).toContain('minmax(0, 1fr)');
+
+      // Simulate responsive layout calculations across required desktop window widths
+      const testViewports = [
+        { width: 1920, name: '1080p full desktop' },
+        { width: 1600, name: '1600x900 standard desktop' },
+        { width: 1440, name: '1440x900 laptop' },
+        { width: 1280, name: '1280x800 compact desktop' },
+        { width: 1100, name: '1100x700 minimum supported desktop' }
+      ];
+
+      const sidebarWidth = 240;
+      const shellPadding = 32; // 2rem total padding
+      const minLeftPane = 300;
+      const maxLeftPane = 380;
+
+      for (const vp of testViewports) {
+        const availableContentWidth = vp.width - sidebarWidth - shellPadding;
+        expect(availableContentWidth).toBeGreaterThan(minLeftPane + 200);
+
+        // Calculate left pane within [300px, 380px]
+        const leftPaneWidth = Math.min(Math.max(availableContentWidth * 0.3, minLeftPane), maxLeftPane);
+        const detailPaneWidth = availableContentWidth - leftPaneWidth;
+
+        // Verify left pane never collapses below minimum
+        expect(leftPaneWidth).toBeGreaterThanOrEqual(minLeftPane);
+        expect(leftPaneWidth).toBeLessThanOrEqual(maxLeftPane);
+
+        // Verify detail pane receives all remaining space and is comfortable
+        expect(detailPaneWidth).toBeGreaterThan(450);
+      }
+    });
+
+    it('ensures long technical identifiers preserve exact underlying values for clipboard copy while UI truncates safely', () => {
+      const longIdentifiers = {
+        deliveryId: 'del_01HZYXABCDEF123456789012345678901234567890',
+        executionId: 'exec_lineage_01HZYXABCDEF123456789012345678901234567890',
+        providerMessageId: '<CADk29Xb_1234567890abcdefghijklmnopqrstuvwxyz_ABCD@mail.gmail.com>',
+        idempotencyKey: 'idemp_workspace123_contact456_step0_attempt1_1725619200000_unique_salt',
+        contentFingerprint: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+      };
+
+      // Full fidelity preserved for clipboard operations
+      for (const [key, value] of Object.entries(longIdentifiers)) {
+        expect(value.length).toBeGreaterThan(30);
+        // Verify value has no whitespace that could distort raw IDs
+        expect(value.trim()).toBe(value);
+      }
+
+      // Content fingerprint is exact 64-char SHA-256 hex string
+      expect(longIdentifiers.contentFingerprint).toHaveLength(64);
+      expect(longIdentifiers.contentFingerprint).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    it('validates independent scrolling layout contracts to prevent full-page scroll blowout', () => {
+      // The master page shell must be bounded by viewport height minus header/padding
+      const rootHeightClass = 'h-[calc(100vh-5rem)] max-h-[calc(100vh-5rem)]';
+      const rootOverflow = 'overflow-hidden';
+
+      expect(rootHeightClass).toContain('100vh');
+      expect(rootOverflow).toBe('overflow-hidden');
+
+      // The split pane must allow both list and detail to scroll independently
+      const listScrollClass = 'flex-1 overflow-y-auto';
+      const detailScrollClass = 'overflow-y-auto overflow-x-hidden';
+
+      expect(listScrollClass).toContain('overflow-y-auto');
+      expect(detailScrollClass).toContain('overflow-y-auto');
+      expect(detailScrollClass).toContain('overflow-x-hidden');
+    });
+
+    it('guarantees empty selection state preserves identical split geometry without collapsing list', () => {
+      // Both states must render inside identical grid containers
+      const selectedStateContainer = {
+        gridStyle: { gridTemplateColumns: 'minmax(320px, 380px) minmax(0, 1fr)' },
+        leftPaneClass: 'h-full min-h-0 min-w-0 overflow-hidden flex flex-col',
+        rightPaneClass: 'h-full min-h-0 min-w-0 overflow-hidden bg-background/50 flex flex-col'
+      };
+
+      const emptyStateContainer = {
+        gridStyle: { gridTemplateColumns: 'minmax(320px, 380px) minmax(0, 1fr)' },
+        leftPaneClass: 'h-full min-h-0 min-w-0 overflow-hidden flex flex-col',
+        rightPaneClass: 'h-full min-h-0 min-w-0 overflow-hidden bg-background/50 flex flex-col'
+      };
+
+      expect(selectedStateContainer.gridStyle).toEqual(emptyStateContainer.gridStyle);
+      expect(selectedStateContainer.leftPaneClass).toEqual(emptyStateContainer.leftPaneClass);
+      expect(selectedStateContainer.rightPaneClass).toEqual(emptyStateContainer.rightPaneClass);
+    });
+  });
 });

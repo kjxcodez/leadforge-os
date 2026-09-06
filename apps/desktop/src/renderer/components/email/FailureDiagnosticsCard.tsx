@@ -101,7 +101,7 @@ export const FailureDiagnosticsCard: React.FC<FailureDiagnosticsCardProps> = ({
 
   return (
     <Card
-      className={`border ${
+      className={`border min-w-0 overflow-hidden ${
         isAmbiguous
           ? 'bg-amber-500/10 border-amber-500/30'
           : 'bg-rose-500/10 border-rose-500/30'
@@ -246,7 +246,7 @@ export const FailureDiagnosticsCard: React.FC<FailureDiagnosticsCardProps> = ({
                 </div>
               )}
               {technicalMessage && (
-                <div>
+                <div className="break-all whitespace-pre-wrap">
                   <span className="text-foreground/70">Technical Message:</span> {technicalMessage}
                 </div>
               )}

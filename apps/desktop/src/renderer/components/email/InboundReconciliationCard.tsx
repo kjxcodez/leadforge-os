@@ -83,7 +83,7 @@ export const InboundReconciliationCard: React.FC<InboundReconciliationCardProps>
   };
 
   return (
-    <Card className="border-border/70 bg-card/40 overflow-hidden">
+    <Card className="border-border/70 bg-card/40 overflow-hidden min-w-0">
       <CardHeader className="p-3.5 pb-2 border-b border-border/50 bg-muted/20">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -152,30 +152,30 @@ export const InboundReconciliationCard: React.FC<InboundReconciliationCardProps>
         )}
 
         {/* Evidence & Diagnostics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
-          <div className="flex items-center justify-between p-1.5 rounded bg-muted/30 border border-border/40">
-            <span className="text-muted-foreground font-medium">Confidence:</span>
-            <span className="font-mono text-foreground">{delivery.matchConfidence || '—'}</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] min-w-0">
+          <div className="flex items-center justify-between p-1.5 rounded bg-muted/30 border border-border/40 min-w-0">
+            <span className="text-muted-foreground font-medium shrink-0">Confidence:</span>
+            <span className="font-mono text-foreground truncate min-w-0">{delivery.matchConfidence || '—'}</span>
           </div>
 
-          <div className="flex items-center justify-between p-1.5 rounded bg-muted/30 border border-border/40">
-            <span className="text-muted-foreground font-medium">Attempts:</span>
+          <div className="flex items-center justify-between p-1.5 rounded bg-muted/30 border border-border/40 min-w-0">
+            <span className="text-muted-foreground font-medium shrink-0">Attempts:</span>
             <span className="font-mono text-foreground">{delivery.reconciliationAttempts ?? 0}</span>
           </div>
 
           {delivery.reconciledAt && (
-            <div className="flex items-center justify-between p-1.5 rounded bg-muted/30 border border-border/40">
-              <span className="text-muted-foreground font-medium">Reconciled At:</span>
-              <span className="font-mono text-foreground text-[10px]">
+            <div className="flex items-center justify-between p-1.5 rounded bg-muted/30 border border-border/40 min-w-0">
+              <span className="text-muted-foreground font-medium shrink-0">Reconciled At:</span>
+              <span className="font-mono text-foreground text-[10px] truncate min-w-0">
                 {new Date(delivery.reconciledAt).toLocaleString()}
               </span>
             </div>
           )}
 
           {delivery.contactId && (
-            <div className="flex items-center justify-between p-1.5 rounded bg-muted/30 border border-border/40">
-              <span className="text-muted-foreground font-medium">Contact ID:</span>
-              <div className="flex items-center gap-1">
+            <div className="flex items-center justify-between p-1.5 rounded bg-muted/30 border border-border/40 min-w-0">
+              <span className="text-muted-foreground font-medium shrink-0">Contact ID:</span>
+              <div className="flex items-center gap-1 min-w-0">
                 <span className="font-mono text-foreground text-[10px] truncate max-w-[120px]">
                   {delivery.contactId}
                 </span>
@@ -183,7 +183,7 @@ export const InboundReconciliationCard: React.FC<InboundReconciliationCardProps>
                   <button
                     type="button"
                     onClick={() => onNavigateToContact(delivery.contactId)}
-                    className="text-primary hover:underline text-[10px] cursor-pointer"
+                    className="text-primary hover:underline text-[10px] cursor-pointer shrink-0"
                   >
                     view
                   </button>
@@ -193,9 +193,9 @@ export const InboundReconciliationCard: React.FC<InboundReconciliationCardProps>
           )}
 
           {delivery.reconciliationNotes && (
-            <div className="md:col-span-2 p-1.5 rounded bg-muted/30 border border-border/40 space-y-0.5">
+            <div className="md:col-span-2 p-1.5 rounded bg-muted/30 border border-border/40 space-y-0.5 min-w-0 overflow-hidden">
               <span className="text-muted-foreground font-medium block">Reconciliation Notes:</span>
-              <p className="font-mono text-foreground text-[10px] whitespace-pre-wrap">
+              <p className="font-mono text-foreground text-[10px] whitespace-pre-wrap break-all">
                 {delivery.reconciliationNotes}
               </p>
             </div>
