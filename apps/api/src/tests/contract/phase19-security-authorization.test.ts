@@ -32,7 +32,7 @@ describe('Phase 19 Security Hardening & Cross-Tenant Authorization Matrix', () =
       app.route('/email', emailRouter);
       const res = await app.request('/email/accounts/acc_123/reset-health', { method: 'POST' });
       expect(res.status).toBe(403);
-      const body = await res.json();
+      const body = (await res.json()) as any;
       expect(body.error).toBeDefined();
       expect(body.error.message).toBe('FORBIDDEN');
     });
@@ -45,7 +45,7 @@ describe('Phase 19 Security Hardening & Cross-Tenant Authorization Matrix', () =
         body: JSON.stringify({ contactId: 'cnt_1' })
       });
       expect(res.status).toBe(403);
-      const body = await res.json();
+      const body = (await res.json()) as any;
       expect(body.error).toBeDefined();
       expect(body.error.message).toBe('FORBIDDEN');
     });
@@ -54,7 +54,7 @@ describe('Phase 19 Security Hardening & Cross-Tenant Authorization Matrix', () =
       app.route('/jobs', jobsRouter);
       const res = await app.request('/jobs/dead-letters', { method: 'GET' });
       expect(res.status).toBe(403);
-      const body = await res.json();
+      const body = (await res.json()) as any;
       expect(body.error).toBeDefined();
       expect(body.error.message).toBe('FORBIDDEN');
     });
@@ -91,7 +91,7 @@ describe('Phase 19 Security Hardening & Cross-Tenant Authorization Matrix', () =
       });
 
       expect(res.status).toBe(404);
-      const body = await res.json();
+      const body = (await res.json()) as any;
       expect(body.error).toBeDefined();
       expect(body.error.message).toBe('NOT_FOUND');
     });
@@ -108,7 +108,7 @@ describe('Phase 19 Security Hardening & Cross-Tenant Authorization Matrix', () =
       });
 
       expect(res.status).toBe(404);
-      const body = await res.json();
+      const body = (await res.json()) as any;
       expect(body.error).toBeDefined();
       expect(body.error.message).toBe('NOT_FOUND');
     });
@@ -149,7 +149,7 @@ describe('Phase 19 Security Hardening & Cross-Tenant Authorization Matrix', () =
       });
 
       expect(res.status).toBe(400);
-      const body = await res.json();
+      const body = (await res.json()) as any;
       expect(body.error).toBeDefined();
       expect(body.stack).toBeUndefined(); // Zero stack trace leakage
     });
@@ -162,7 +162,7 @@ describe('Phase 19 Security Hardening & Cross-Tenant Authorization Matrix', () =
       });
 
       expect(res.status).toBe(400);
-      const body = await res.json();
+      const body = (await res.json()) as any;
       expect(body.error.message).toBe('BAD_REQUEST');
       expect(body.stack).toBeUndefined();
     });
@@ -176,7 +176,7 @@ describe('Phase 19 Security Hardening & Cross-Tenant Authorization Matrix', () =
       });
 
       expect(res.status).toBe(404);
-      const body = await res.json();
+      const body = (await res.json()) as any;
       expect(body.error).toBeDefined();
       expect(body.stack).toBeUndefined();
     });
@@ -194,7 +194,7 @@ describe('Phase 19 Security Hardening & Cross-Tenant Authorization Matrix', () =
       });
 
       expect(res.status).toBe(404);
-      const body = await res.json();
+      const body = (await res.json()) as any;
       expect(body.error.message).toBe('NOT_FOUND');
       expect(body.stack).toBeUndefined();
     });
@@ -244,7 +244,7 @@ describe('Phase 19 Security Hardening & Cross-Tenant Authorization Matrix', () =
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = (await res.json()) as any;
       const rawString = JSON.stringify(body);
 
       // Invariant: Zero secret tokens exposed in response

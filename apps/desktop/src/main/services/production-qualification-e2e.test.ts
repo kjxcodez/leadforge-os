@@ -283,7 +283,11 @@ export async function runProductionQualificationE2ETests() {
   const cooldownDurationMs = 15 * 60 * 1000;
   const cooldownUntil = new Date(time24hLater.getTime() + cooldownDurationMs);
 
-  const mailboxHealth = {
+  const mailboxHealth: {
+    state: MailboxHealthState;
+    cooldownUntil: Date | null;
+    consecutiveSendFailures: number;
+  } = {
     state: MailboxHealthState.COOLDOWN,
     cooldownUntil,
     consecutiveSendFailures: 1
