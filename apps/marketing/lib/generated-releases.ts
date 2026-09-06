@@ -17,6 +17,42 @@ export interface Release {
 
 export const GENERATED_RELEASES: Release[] = [
   {
+    "version": "v1.1.1-beta.5",
+    "releaseDate": "2026-09-06T16:11:35Z",
+    "prerelease": true,
+    "releaseNotes": "",
+    "assets": [
+      {
+        "name": "latest.yml",
+        "platform": "Other",
+        "downloadUrl": "https://github.com/kjxcodez/leadforge-os/releases/download/v1.1.1-beta.5/latest.yml",
+        "sizeBytes": 378,
+        "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "LeadForge.OS-1.1.1-beta.5-win-x64.exe",
+        "platform": "Windows (x64)",
+        "downloadUrl": "https://github.com/kjxcodez/leadforge-os/releases/download/v1.1.1-beta.5/LeadForge.OS-1.1.1-beta.5-win-x64.exe",
+        "sizeBytes": 100312108,
+        "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "LeadForge.OS-1.1.1-beta.5-win-x64.exe.blockmap",
+        "platform": "Other",
+        "downloadUrl": "https://github.com/kjxcodez/leadforge-os/releases/download/v1.1.1-beta.5/LeadForge.OS-1.1.1-beta.5-win-x64.exe.blockmap",
+        "sizeBytes": 104203,
+        "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "LeadForge.OS-1.1.1-beta.5-win-x64.exe.sha256",
+        "platform": "Other",
+        "downloadUrl": "https://github.com/kjxcodez/leadforge-os/releases/download/v1.1.1-beta.5/LeadForge.OS-1.1.1-beta.5-win-x64.exe.sha256",
+        "sizeBytes": 104,
+        "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ]
+  },
+  {
     "version": "v1.1.1-beta.4.2",
     "releaseDate": "2026-09-02T18:36:18Z",
     "prerelease": true,
