@@ -1,6 +1,7 @@
 import { safeRegister } from './helper';
 import { SdkClient } from '@leadforge/sdk';
 import { LocalWorkspaceRepository } from '../database/repositories/local-workspace';
+import { WorkspaceManager } from '../lib/workspace-manager';
 
 /**
  * Registers workspace management and membership/invitations IPC channels.
@@ -158,6 +159,13 @@ export function registerWorkspaceIpc(
   safeRegister('workspaces:invites:decline', async (_event, payload) => {
     console.log('Main Process: Declining invite:', payload);
     return sdk.workspaces.declineInvite(payload);
+  });
+
+  safeRegister('projection:rebuild', async (_event, payload?: { workspaceId?: string }) => {
+    const runtime = await WorkspaceManager.getOrAwaitActiveRuntime(payload?.workspaceId);
+    if (!runtime) throw new Error('No active workspace runtime');
+    const { ProjectionService } = await import('../services/projection-service');
+    return ProjectionService.rebuildWorkspaceProjection(runtime.workspaceId, runtime.sdk);
   });
 }
 

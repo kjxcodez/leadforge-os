@@ -151,6 +151,13 @@ export class CacheHydrator {
           const res = await sdk.companyDiscoveryRuns.list();
           return Array.isArray(res) ? res : (res as any)?.data || [];
         }
+      },
+      {
+        table: 'email_deliveries',
+        fetch: async () => {
+          const res = await sdk.emailDeliveries.list({ limit: 200 }).catch(() => ({ data: [] }));
+          return Array.isArray((res as any)?.data) ? (res as any).data : (Array.isArray(res) ? res : []);
+        }
       }
     ];
 

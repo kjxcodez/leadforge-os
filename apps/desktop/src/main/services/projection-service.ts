@@ -1,6 +1,8 @@
 import { SdkClient } from '@leadforge/sdk';
 import { LocalCRMRepository } from '../database/repositories/local-crm';
 import { getDatabase } from '../database/connection';
+import { initCacheSchema } from '../database/cache-schema';
+import { CacheHydrator } from './cache-hydrator';
 import { AppLogger } from '../lib/logger';
 import { BrowserWindow } from 'electron';
 
@@ -296,6 +298,58 @@ export class ProjectionService {
         err
       );
     }
+  }
+
+  /**
+   * Rebuilds the disposable local SQLite projection for a workspace from authoritative MongoDB state.
+   * Atomically clears local projection tables for the workspace and runs full hydration.
+   */
+  public static async rebuildWorkspaceProjection(
+    workspaceId: string,
+    sdk: SdkClient
+  ): Promise<{ success: boolean; stats: Record<string, number> }> {
+    if (!workspaceId) throw new Error('workspaceId is required to rebuild projection.');
+
+    AppLogger.info('ProjectionService', `Initiating authoritative projection rebuild for workspace ${workspaceId}`, workspaceId);
+
+    const db = getDatabase(workspaceId);
+    initCacheSchema(db);
+
+    const tablesToClear = [
+      'companies',
+      'contacts',
+      'campaigns',
+      'sequences',
+      'sequence_executions',
+      'templates',
+      'email_accounts',
+      'email_deliveries',
+      'audiences',
+      'discovery_runs',
+      'company_discovery_runs',
+      'suppressions'
+    ];
+
+    const clearTransaction = db.transaction(() => {
+      for (const table of tablesToClear) {
+        try {
+          db.prepare(`DELETE FROM ${table} WHERE workspaceId = ?`).run(workspaceId);
+        } catch (tableErr: any) {
+          AppLogger.warn('ProjectionService', `Table "${table}" clear notice: ${tableErr.message}`, workspaceId);
+        }
+      }
+    });
+
+    clearTransaction();
+
+    const result = await CacheHydrator.hydrateWorkspaceCache(workspaceId, sdk);
+
+    this.broadcastProjectionUpdated('rebuild', workspaceId);
+
+    return {
+      success: result.success,
+      stats: result.recordsHydrated
+    };
   }
 
   /**
