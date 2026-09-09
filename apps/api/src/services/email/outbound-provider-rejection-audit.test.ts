@@ -42,8 +42,8 @@ describe('Phase 5 Item A — Forensic Audit: Outbound Provider Rejection & Failu
     });
   });
 
-  describe('Finding 2: Google REST API Error Mapping Anomalies in GmailProvider', () => {
-    it('CONFIRMED: HTTP 403 Daily Quota / Anti-Abuse Block is misclassified as MAILBOX_REAUTH_REQUIRED', async () => {
+  describe('Finding 2: Google REST API Error Mapping Anomalies in GmailProvider (Remediated in Issue #33)', () => {
+    it('REMEDIATED: HTTP 403 Daily Quota is correctly classified as PROVIDER_RATE_LIMITED without reauth mutation', async () => {
       const mockAuthService: any = {
         getValidAccessToken: vi.fn().mockResolvedValue('mock-access-token')
       };
@@ -63,7 +63,6 @@ describe('Phase 5 Item A — Forensic Audit: Outbound Provider Rejection & Failu
         );
       });
 
-      // Mock GoogleConnectionModel.findById
       const { GoogleConnectionModel } = await import('../../db/models/google-connection.model.js');
       vi.spyOn(GoogleConnectionModel, 'findById').mockResolvedValue({
         _id: 'conn_123',
@@ -71,16 +70,7 @@ describe('Phase 5 Item A — Forensic Audit: Outbound Provider Rejection & Failu
         status: 'active',
         gmailStatus: 'connected'
       } as any);
-      vi.spyOn(GoogleConnectionModel, 'updateOne').mockResolvedValue({} as any);
-
-      await expect(
-        provider.sendMessage({
-          connectionId: 'conn_123',
-          from: 'sender@leadforge.ai',
-          to: 'lead@target.com',
-          subject: 'Audit Test'
-        })
-      ).rejects.toThrowError(EmailDomainError);
+      const updateOneSpy = vi.spyOn(GoogleConnectionModel, 'updateOne').mockResolvedValue({} as any);
 
       try {
         await provider.sendMessage({
@@ -89,14 +79,17 @@ describe('Phase 5 Item A — Forensic Audit: Outbound Provider Rejection & Failu
           to: 'lead@target.com',
           subject: 'Audit Test'
         });
+        expect.unreachable('Should have thrown EmailDomainError');
       } catch (err: any) {
-        // Confirmed defect: 403 quota/abuse block is misclassified as MAILBOX_REAUTH_REQUIRED!
-        expect(err.code).toBe('MAILBOX_REAUTH_REQUIRED');
-        expect(err.classification).toBe('authentication');
+        expect(err.code).toBe('PROVIDER_RATE_LIMITED');
+        expect(err.classification).toBe('provider_rate_limited');
+        expect(err.retryable).toBe(true);
+        expect(err.reauthRequired).toBe(false);
+        expect(updateOneSpy).not.toHaveBeenCalled();
       }
     });
 
-    it('CONFIRMED: HTTP 400 Bad Request / Malformed MIME is misclassified as INVALID_RECIPIENT', async () => {
+    it('REMEDIATED: HTTP 400 Bad Request / Malformed MIME is classified as MALFORMED_PAYLOAD', async () => {
       const mockAuthService: any = {
         getValidAccessToken: vi.fn().mockResolvedValue('mock-access-token')
       };
@@ -131,32 +124,29 @@ describe('Phase 5 Item A — Forensic Audit: Outbound Provider Rejection & Failu
           to: 'valid.lead@target.com',
           subject: 'Audit Test'
         });
+        expect.unreachable('Should have thrown EmailDomainError');
       } catch (err: any) {
-        // Confirmed defect: 400 Bad Request is misclassified as INVALID_RECIPIENT!
-        // In EmailService.send, this causes valid contacts to be suppressed as a HARD_BOUNCE.
-        expect(err.code).toBe('INVALID_RECIPIENT');
-        expect(err.classification).toBe('invalid_request');
+        expect(err.code).toBe('MALFORMED_PAYLOAD');
+        expect(err.classification).toBe('malformed_payload');
+        expect(err.code).not.toBe('INVALID_RECIPIENT');
       }
     });
 
-    it('CONFIRMED: Error code mismatch on HTTP 429 rate limit between GmailProvider and EmailService', () => {
-      // In gmail.provider.ts line 161, GmailProvider throws:
+    it('REMEDIATED: Error code match on HTTP 429 rate limit between GmailProvider and EmailService', () => {
       const providerError = new EmailDomainError(
-        'SENDER_RATE_LIMITED',
+        'PROVIDER_RATE_LIMITED',
         'Gmail API rate limit exceeded for sender: quota exceeded',
         false,
         true,
-        'rate_limit'
+        'provider_rate_limited',
+        60
       );
 
-      // In email.service.ts line 751:
-      // if (err.code === 'PROVIDER_RATE_LIMITED' || err.classification === 'provider_rate_limited')
       const matchesCode = providerError.code === 'PROVIDER_RATE_LIMITED';
       const matchesClassification = (providerError as any).classification === 'provider_rate_limited';
 
-      // Proves that EmailService.send line 751 fails to match, skipping setProviderCooldown!
-      expect(matchesCode).toBe(false);
-      expect(matchesClassification).toBe(false);
+      expect(matchesCode).toBe(true);
+      expect(matchesClassification).toBe(true);
     });
   });
 

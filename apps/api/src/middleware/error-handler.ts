@@ -70,6 +70,7 @@ export function errorHandler(error: Error, c: Context): Response {
         statusCode = 401;
       } else if (
         code === 'MAILBOX_DISCONNECTED' ||
+        code === 'POLICY_BLOCKED' ||
         code === 'ATTACHMENT_ACCESS_DENIED' ||
         code === 'DRIVE_ATTACHMENT_ACCESS_DENIED' ||
         code === 'DRIVE_ACCESS_DENIED'
