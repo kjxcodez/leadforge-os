@@ -467,7 +467,7 @@ export class EmailAccountRepository extends BaseRepository<EmailAccountDocument>
   public async recordSendFailure(
     accountId: string,
     failure: {
-      category: 'AUTH' | 'RATE_LIMIT' | 'NETWORK' | 'INVALID_RECIPIENT' | 'AMBIGUOUS';
+      category: 'AUTH' | 'RATE_LIMIT' | 'NETWORK' | 'INVALID_RECIPIENT' | 'AMBIGUOUS' | 'POLICY';
       message?: string;
       retryAfterSec?: number;
     }
@@ -508,6 +508,16 @@ export class EmailAccountRepository extends BaseRepository<EmailAccountDocument>
       nextState = 'COOLDOWN';
       cooldownUntil = new Date(nowMs + cooldownSec * 1000);
       operatorMessage = `Provider rate limit encountered. Cooldown active until ${cooldownUntil.toISOString()}.`;
+    } else if (failure.category === 'POLICY') {
+      if (consecutiveFailures >= 3) {
+        nextState = 'BLOCKED';
+        operatorActionRequired = true;
+        operatorMessage = `Mailbox blocked due to repeated policy or spam rejections: ${failure.message || 'Reputation/policy block'}`;
+      } else {
+        nextState = 'DEGRADED';
+        cooldownUntil = new Date(nowMs + 10 * 60 * 1000); // 10-minute cooldown on policy block
+        operatorMessage = `Mailbox degraded due to provider policy or spam rejection: ${failure.message || 'Policy rejection'}`;
+      }
     } else if (failure.category === 'NETWORK') {
       if (consecutiveFailures >= 5) {
         nextState = 'BLOCKED';

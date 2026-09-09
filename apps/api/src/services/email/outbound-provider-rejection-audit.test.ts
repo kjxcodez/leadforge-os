@@ -6,42 +6,39 @@ import { VALID_DELIVERY_TRANSITIONS } from '../../repositories/email-delivery/em
 import { EmailDomainError } from './types.js';
 
 describe('Phase 5 Item A — Forensic Audit: Outbound Provider Rejection & Failure Classification', () => {
-  describe('Finding 1: Brittle Error Classification in classifyEmailFailure()', () => {
-    it('CONFIRMED: SMTP 554 / Spamhaus blocks are misclassified as generic PROVIDER instead of POLICY/SPAM', () => {
+  describe('Finding 1: Error Classification in classifyEmailFailure() (Remediated in Issue #32)', () => {
+    it('REMEDIATED: SMTP 554 / Spamhaus blocks are correctly classified as POLICY', () => {
       const spamError = new Error(
         '554 5.7.1 Service unavailable; Client host blocked using Spamhaus; spam detected'
       );
       const classified = classifyEmailFailure(spamError);
 
-      // Current behavior: falls through to default PROVIDER category, NOT POLICY
-      expect(classified.category).toBe(EmailFailureCategory.PROVIDER);
-      expect(classified.category).not.toBe(EmailFailureCategory.POLICY);
-
-      // In EmailService line 726, PROVIDER defaults to failureCat = 'NETWORK'
-      // which records against mailbox health as a transient network hiccup!
+      expect(classified.category).toBe(EmailFailureCategory.POLICY);
+      expect(classified.retryable).toBe(false);
+      expect(classified.bounceCategory).toBe(BounceCategory.SPAM_REJECTION);
+      expect(classified.isHardBounce).toBe(false);
     });
 
-    it('CONFIRMED: Recipient policy / DMARC authentication rejections are misclassified as PROVIDER', () => {
+    it('REMEDIATED: Recipient policy / DMARC authentication rejections are correctly classified as POLICY', () => {
       const policyError = new Error(
         '550 5.7.26 This message does not pass authentication checks (SPF/DKIM/DMARC).'
       );
       const classified = classifyEmailFailure(policyError);
 
-      // Current behavior: matches neither INVALID_RECIPIENT nor POLICY branch
-      // (because 550 is checked, but wait: 550 IS checked in classifyEmailFailure line 95!)
-      // Let us check what 550 does:
-      expect(classified.category).toBe(EmailFailureCategory.INVALID_RECIPIENT);
-      // Because line 95 checks `550`, a DMARC / SPF policy rejection is misclassified as INVALID_RECIPIENT!
-      // This causes the valid recipient to be marked as a non-existent hard bounce!
+      expect(classified.category).toBe(EmailFailureCategory.POLICY);
+      expect(classified.retryable).toBe(false);
+      expect(classified.bounceCategory).toBe(BounceCategory.POLICY_REJECTION);
+      expect(classified.isHardBounce).toBe(false);
     });
 
-    it('CONFIRMED: 554 Transaction Failed / Relaying Denied falls through to default PROVIDER', () => {
+    it('REMEDIATED: 554 Transaction Failed / Relaying Denied is classified as POLICY', () => {
       const relayError = new Error('554 5.7.1 Relay access denied');
       const classified = classifyEmailFailure(relayError);
 
-      expect(classified.category).toBe(EmailFailureCategory.PROVIDER);
+      expect(classified.category).toBe(EmailFailureCategory.POLICY);
       expect(classified.retryable).toBe(false);
-      // LeadForge delivery ledger records this as PROVIDER and failureCat: 'NETWORK'
+      expect(classified.bounceCategory).toBe(BounceCategory.POLICY_REJECTION);
+      expect(classified.isHardBounce).toBe(false);
     });
   });
 

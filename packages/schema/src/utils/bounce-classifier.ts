@@ -92,7 +92,48 @@ export function classifyBounce(input: ClassifyBounceInput): BounceClassification
     };
   }
 
-  // 3. Mailbox Unavailable / User Unknown (Hard Bounce)
+  // 3. Spam / Reputation Rejection
+  if (
+    (enhancedStatusCode === '5.7.1' && (lowerMsg.includes('spam') || lowerMsg.includes('blocklist') || lowerMsg.includes('reputation'))) ||
+    lowerMsg.includes('blocked by spamhaus') ||
+    lowerMsg.includes('spam detected') ||
+    lowerMsg.includes('content rejected')
+  ) {
+    return {
+      category: BounceCategory.SPAM_REJECTION,
+      isPermanent: true,
+      isHardBounce: false,
+      statusCode: statusCode || 554,
+      enhancedStatusCode: enhancedStatusCode || '5.7.1',
+      diagnosticMessage: message,
+      safeDescription: 'Rejected by receiving mail server due to spam filtering or IP reputation.',
+      observedAt
+    };
+  }
+
+  // 4. Policy / DMARC / SPF / Authentication Rejection
+  if (
+    enhancedStatusCode === '5.7.1' ||
+    enhancedStatusCode === '5.7.26' ||
+    lowerMsg.includes('dmarc') ||
+    lowerMsg.includes('spf') ||
+    lowerMsg.includes('dkim') ||
+    lowerMsg.includes('policy rejection') ||
+    lowerMsg.includes('relay access denied')
+  ) {
+    return {
+      category: BounceCategory.POLICY_REJECTION,
+      isPermanent: true,
+      isHardBounce: false,
+      statusCode: statusCode || 554,
+      enhancedStatusCode: enhancedStatusCode || '5.7.1',
+      diagnosticMessage: message,
+      safeDescription: 'Rejected by security or authentication policy (SPF, DKIM, or DMARC).',
+      observedAt
+    };
+  }
+
+  // 5. Mailbox Unavailable / User Unknown (Hard Bounce)
   if (
     enhancedStatusCode === '5.1.1' ||
     statusCode === 550 ||
@@ -116,47 +157,6 @@ export function classifyBounce(input: ClassifyBounceInput): BounceClassification
       enhancedStatusCode: enhancedStatusCode || '5.1.1',
       diagnosticMessage: message,
       safeDescription: 'Recipient mailbox does not exist or is permanently unavailable.',
-      observedAt
-    };
-  }
-
-  // 4. Spam / Reputation Rejection
-  if (
-    enhancedStatusCode === '5.7.1' && (lowerMsg.includes('spam') || lowerMsg.includes('blocklist') || lowerMsg.includes('reputation')) ||
-    lowerMsg.includes('blocked by spamhaus') ||
-    lowerMsg.includes('spam detected') ||
-    lowerMsg.includes('content rejected')
-  ) {
-    return {
-      category: BounceCategory.SPAM_REJECTION,
-      isPermanent: true,
-      isHardBounce: false,
-      statusCode: statusCode || 554,
-      enhancedStatusCode: enhancedStatusCode || '5.7.1',
-      diagnosticMessage: message,
-      safeDescription: 'Rejected by receiving mail server due to spam filtering or IP reputation.',
-      observedAt
-    };
-  }
-
-  // 5. Policy / DMARC / SPF / Authentication Rejection
-  if (
-    enhancedStatusCode === '5.7.1' ||
-    enhancedStatusCode === '5.7.26' ||
-    lowerMsg.includes('dmarc') ||
-    lowerMsg.includes('spf') ||
-    lowerMsg.includes('dkim') ||
-    lowerMsg.includes('policy rejection') ||
-    lowerMsg.includes('relay access denied')
-  ) {
-    return {
-      category: BounceCategory.POLICY_REJECTION,
-      isPermanent: true,
-      isHardBounce: false,
-      statusCode: statusCode || 554,
-      enhancedStatusCode: enhancedStatusCode || '5.7.1',
-      diagnosticMessage: message,
-      safeDescription: 'Rejected by security or authentication policy (SPF, DKIM, or DMARC).',
       observedAt
     };
   }

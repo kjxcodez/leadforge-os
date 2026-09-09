@@ -18,7 +18,9 @@ import {
   ContactStatus,
   ContactEmailStatus,
   EmailFailureCategory,
+  BounceCategory,
   SuppressionReason,
+  classifyBounce,
   evaluateOutreachEligibility,
   generateTrackingToken,
   injectOpenTrackingPixel,
@@ -41,24 +43,27 @@ export function classifyEmailFailure(err: any): {
   technicalMessage: string;
   retryable: boolean;
   ambiguous: boolean;
+  bounceCategory?: BounceCategory;
+  isHardBounce?: boolean;
 } {
   const code = err?.code || err?.name || 'EMAIL_SEND_FAILED';
   const msg = err?.message || String(err);
   const lowerMsg = msg.toLowerCase();
-  let category = EmailFailureCategory.PROVIDER;
-  let safeHumanMessage = 'Email provider failed to dispatch outbound message.';
-  let retryable = Boolean(err?.retryable);
-  let ambiguous = false;
 
   // 1. Ambiguous Delivery / Network Timeout during send
   if (err?.code === 'AMBIGUOUS_SEND_TIMEOUT' || lowerMsg.includes('ambiguous_send_timeout')) {
-    category = EmailFailureCategory.AMBIGUOUS;
-    safeHumanMessage = 'Network connection timed out during send. Provider status is ambiguous.';
-    ambiguous = true;
-    retryable = false;
+    return {
+      code,
+      category: EmailFailureCategory.AMBIGUOUS,
+      safeHumanMessage: 'Network connection timed out during send. Provider status is ambiguous.',
+      technicalMessage: msg,
+      retryable: false,
+      ambiguous: true
+    };
   }
-  // 2. Permanent Authentication & Credential Revocation
-  else if (
+
+  // 2. Permanent Authentication & Credential Revocation (Sender OAuth)
+  if (
     err?.reauthRequired ||
     code === 'MAILBOX_REAUTH_REQUIRED' ||
     code === 'GMAIL_AUTH_REVOKED' ||
@@ -69,13 +74,20 @@ export function classifyEmailFailure(err: any): {
     lowerMsg.includes('token expired') ||
     lowerMsg.includes('insufficient_scope')
   ) {
-    category = EmailFailureCategory.AUTH;
-    safeHumanMessage = 'Gmail connection expired or was revoked. Please reconnect the mailbox in Settings.';
-    retryable = false;
+    return {
+      code,
+      category: EmailFailureCategory.AUTH,
+      safeHumanMessage: 'Gmail connection expired or was revoked. Please reconnect the mailbox in Settings.',
+      technicalMessage: msg,
+      retryable: false,
+      ambiguous: false
+    };
   }
+
   // 3. Rate Limits & Quota Exhaustion (429 Cooldown Path)
-  else if (
+  if (
     code === 'PROVIDER_RATE_LIMITED' ||
+    code === 'SENDER_RATE_LIMITED' ||
     code === 'EMAIL_RATE_LIMITED' ||
     err?.isRateLimit ||
     lowerMsg.includes('429') ||
@@ -83,36 +95,55 @@ export function classifyEmailFailure(err: any): {
     lowerMsg.includes('quotaexceeded') ||
     lowerMsg.includes('user-rate limit exceeded')
   ) {
-    category = EmailFailureCategory.RATE_LIMIT;
-    safeHumanMessage = 'Gmail sending rate limit reached. Outgoing message paused until cooldown expires.';
-    retryable = true;
+    return {
+      code,
+      category: EmailFailureCategory.RATE_LIMIT,
+      safeHumanMessage: 'Gmail sending rate limit reached. Outgoing message paused until cooldown expires.',
+      technicalMessage: msg,
+      retryable: true,
+      ambiguous: false
+    };
   }
-  // 4. Invalid Recipient / Non-Existent Address / Hard Bounce
-  else if (
-    code === 'INVALID_RECIPIENT' ||
-    code === 'RECIPIENT_SUPPRESSED' ||
-    code === 'INVALID_SUBJECT' ||
-    lowerMsg.includes('550') ||
-    lowerMsg.includes('551') ||
-    lowerMsg.includes('553') ||
-    lowerMsg.includes('5.1.1') ||
-    lowerMsg.includes('address not found') ||
-    lowerMsg.includes('recipient address was rejected')
-  ) {
-    category = EmailFailureCategory.INVALID_RECIPIENT;
-    safeHumanMessage = code === 'INVALID_SUBJECT'
-      ? 'Email subject was rejected as invalid (must not contain newlines or be empty).'
-      : 'Recipient address was rejected by provider as invalid or unroutable.';
-    retryable = false;
+
+  // 4. Outreach Policy & Safety Gates (Internal LeadForge policy)
+  if (code === 'CAMPAIGN_NOT_ACTIVE' || code === 'CONTACT_NOT_ELIGIBLE') {
+    return {
+      code,
+      category: EmailFailureCategory.POLICY,
+      safeHumanMessage: 'Outreach policy prevented send: campaign is not active or contact is ineligible.',
+      technicalMessage: msg,
+      retryable: false,
+      ambiguous: false
+    };
   }
-  // 5. Outreach Policy & Safety Gates
-  else if (code === 'CAMPAIGN_NOT_ACTIVE' || code === 'CONTACT_NOT_ELIGIBLE') {
-    category = EmailFailureCategory.POLICY;
-    safeHumanMessage = 'Outreach policy prevented send: campaign is not active or contact is ineligible.';
-    retryable = false;
+
+  // 5. Invalid Subject
+  if (code === 'INVALID_SUBJECT') {
+    return {
+      code,
+      category: EmailFailureCategory.INVALID_RECIPIENT,
+      safeHumanMessage: 'Email subject was rejected as invalid (must not contain newlines or be empty).',
+      technicalMessage: msg,
+      retryable: false,
+      ambiguous: false,
+      isHardBounce: false
+    };
   }
-  // 6. Transient Network Failures (Retryable)
-  else if (
+
+  // 6. Internal / Attachment Handling Failures
+  if (typeof code === 'string' && (code.startsWith('ATTACHMENT_') || code.startsWith('DRIVE_'))) {
+    return {
+      code,
+      category: EmailFailureCategory.INTERNAL,
+      safeHumanMessage: `Attachment handling failed: ${msg}`,
+      technicalMessage: msg,
+      retryable: err?.retryable || false,
+      ambiguous: false
+    };
+  }
+
+  // 7. Transient Network Failures (Connection glitches to provider API)
+  if (
     code === 'TRANSIENT_NETWORK_ERROR' ||
     code === 'ECONNRESET' ||
     code === 'ETIMEDOUT' ||
@@ -125,24 +156,94 @@ export function classifyEmailFailure(err: any): {
     lowerMsg.includes('fetch failed') ||
     lowerMsg.includes('network error')
   ) {
-    category = EmailFailureCategory.NETWORK;
-    safeHumanMessage = 'Temporary network communication failure with email provider.';
-    retryable = true;
-  }
-  // 7. Internal / Attachment Handling Failures
-  else if (typeof code === 'string' && (code.startsWith('ATTACHMENT_') || code.startsWith('DRIVE_'))) {
-    category = EmailFailureCategory.INTERNAL;
-    safeHumanMessage = `Attachment handling failed: ${msg}`;
-    retryable = err?.retryable || false;
+    return {
+      code,
+      category: EmailFailureCategory.NETWORK,
+      safeHumanMessage: 'Temporary network communication failure with email provider.',
+      technicalMessage: msg,
+      retryable: true,
+      ambiguous: false
+    };
   }
 
+  // 8. Delegate to Canonical Bounce & Rejection Classifier
+  const bounce = classifyBounce({ code, message: msg });
+  if (bounce && bounce.category !== BounceCategory.UNKNOWN) {
+    let category = EmailFailureCategory.PROVIDER;
+    let retryable = !bounce.isPermanent;
+
+    switch (bounce.category) {
+      case BounceCategory.SPAM_REJECTION:
+      case BounceCategory.POLICY_REJECTION:
+      case BounceCategory.AUTHENTICATION_REJECTION:
+        category = EmailFailureCategory.POLICY;
+        retryable = false;
+        break;
+
+      case BounceCategory.MAILBOX_UNAVAILABLE:
+      case BounceCategory.DOMAIN_UNAVAILABLE:
+      case BounceCategory.HARD_BOUNCE:
+        category = EmailFailureCategory.INVALID_RECIPIENT;
+        retryable = false;
+        break;
+
+      case BounceCategory.RATE_LIMIT:
+        category = EmailFailureCategory.RATE_LIMIT;
+        retryable = true;
+        break;
+
+      case BounceCategory.SOFT_BOUNCE:
+        category = EmailFailureCategory.PROVIDER;
+        retryable = true;
+        break;
+
+      default:
+        category = EmailFailureCategory.PROVIDER;
+        retryable = Boolean(err?.retryable);
+        break;
+    }
+
+    return {
+      code: bounce.enhancedStatusCode || (bounce.statusCode ? String(bounce.statusCode) : code),
+      category,
+      safeHumanMessage: bounce.safeDescription || 'Email provider failed to dispatch outbound message.',
+      technicalMessage: msg,
+      retryable,
+      ambiguous: false,
+      bounceCategory: bounce.category,
+      isHardBounce: bounce.isHardBounce
+    };
+  }
+
+  // 9. Specific legacy address-level indicators not caught by numeric status codes
+  if (
+    code === 'INVALID_RECIPIENT' ||
+    code === 'RECIPIENT_SUPPRESSED' ||
+    lowerMsg.includes('address not found') ||
+    lowerMsg.includes('recipient address was rejected')
+  ) {
+    return {
+      code,
+      category: EmailFailureCategory.INVALID_RECIPIENT,
+      safeHumanMessage: 'Recipient address was rejected by provider as invalid or unroutable.',
+      technicalMessage: msg,
+      retryable: false,
+      ambiguous: false,
+      bounceCategory: BounceCategory.MAILBOX_UNAVAILABLE,
+      isHardBounce: true
+    };
+  }
+
+  // 10. Default unclassified provider failure
   return {
     code,
-    category,
-    safeHumanMessage,
+    category: EmailFailureCategory.PROVIDER,
+    safeHumanMessage: 'Email provider failed to dispatch outbound message.',
     technicalMessage: msg,
-    retryable,
-    ambiguous
+    retryable: Boolean(err?.retryable),
+    ambiguous: false,
+    bounceCategory: BounceCategory.UNKNOWN,
+    isHardBounce: false
   };
 }
 
@@ -719,14 +820,12 @@ export class EmailService {
 
       // Phase 18: Record provider failure against mailbox health
       // Note: INVALID_RECIPIENT is address-level and does NOT degrade or penalize the mailbox.
-      if (
-        failure.category !== EmailFailureCategory.INVALID_RECIPIENT &&
-        failure.category !== EmailFailureCategory.POLICY
-      ) {
-        let failureCat: 'AUTH' | 'RATE_LIMIT' | 'NETWORK' | 'INVALID_RECIPIENT' | 'AMBIGUOUS' = 'NETWORK';
+      if (failure.category !== EmailFailureCategory.INVALID_RECIPIENT) {
+        let failureCat: 'AUTH' | 'RATE_LIMIT' | 'NETWORK' | 'INVALID_RECIPIENT' | 'AMBIGUOUS' | 'POLICY' = 'NETWORK';
         if (failure.category === EmailFailureCategory.AUTH) failureCat = 'AUTH';
         else if (failure.category === EmailFailureCategory.RATE_LIMIT) failureCat = 'RATE_LIMIT';
         else if (failure.category === EmailFailureCategory.AMBIGUOUS) failureCat = 'AMBIGUOUS';
+        else if (failure.category === EmailFailureCategory.POLICY) failureCat = 'POLICY';
 
         await this.accountRepo.recordSendFailure(input.accountId, {
           category: failureCat,
@@ -780,8 +879,9 @@ export class EmailService {
 
       // Phase 10: Automatic suppression & contact transition on permanent hard bounce
       const isHardBounce =
-        failure.category === EmailFailureCategory.INVALID_RECIPIENT ||
-        err.code === 'INVALID_RECIPIENT';
+        failure.isHardBounce === true ||
+        (failure.category === EmailFailureCategory.INVALID_RECIPIENT &&
+          err.code !== 'INVALID_SUBJECT');
 
       if (isHardBounce) {
         try {

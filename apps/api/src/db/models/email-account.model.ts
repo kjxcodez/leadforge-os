@@ -50,7 +50,7 @@ export interface EmailAccountHealth {
   failureWindowStart?: Date | null;
   lastFailureAt?: Date | null;
   lastSuccessfulSendAt?: Date | null;
-  lastFailureCategory?: 'AUTH' | 'RATE_LIMIT' | 'NETWORK' | 'INVALID_RECIPIENT' | 'AMBIGUOUS' | null;
+  lastFailureCategory?: 'AUTH' | 'RATE_LIMIT' | 'NETWORK' | 'INVALID_RECIPIENT' | 'AMBIGUOUS' | 'POLICY' | null;
   cooldownUntil?: Date | null;
   operatorActionRequired: boolean;
   operatorMessage?: string | null;
