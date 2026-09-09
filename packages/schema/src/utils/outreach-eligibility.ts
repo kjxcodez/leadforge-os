@@ -69,7 +69,9 @@ export type OutreachIneligibilityReason =
   | 'CAMPAIGN_PAUSED'
   | 'CAMPAIGN_NOT_ACTIVE'
   | 'ALREADY_CONTACTED'
-  | 'ALREADY_EXECUTED';
+  | 'ALREADY_EXECUTED'
+  | 'DOMAIN_PACING_THROTTLED'
+  | 'COMPANY_CARDINALITY_EXCEEDED';
 
 export interface OutreachEligibilityInput {
   contact: {
