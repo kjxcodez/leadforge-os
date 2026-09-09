@@ -89,35 +89,66 @@ export function classifyEmailFailure(err: any): {
     code === 'PROVIDER_RATE_LIMITED' ||
     code === 'SENDER_RATE_LIMITED' ||
     code === 'EMAIL_RATE_LIMITED' ||
+    code === 'QUOTA_EXCEEDED' ||
     err?.isRateLimit ||
+    err?.classification === 'provider_rate_limited' ||
+    err?.classification === 'rate_limit' ||
     lowerMsg.includes('429') ||
     lowerMsg.includes('ratelimitexceeded') ||
     lowerMsg.includes('quotaexceeded') ||
-    lowerMsg.includes('user-rate limit exceeded')
+    lowerMsg.includes('user-rate limit exceeded') ||
+    lowerMsg.includes('daily sending quota exceeded')
   ) {
     return {
-      code,
+      code: 'PROVIDER_RATE_LIMITED',
       category: EmailFailureCategory.RATE_LIMIT,
       safeHumanMessage: 'Gmail sending rate limit reached. Outgoing message paused until cooldown expires.',
       technicalMessage: msg,
       retryable: true,
-      ambiguous: false
+      ambiguous: false,
+      bounceCategory: BounceCategory.RATE_LIMIT,
+      isHardBounce: false
     };
   }
 
-  // 4. Outreach Policy & Safety Gates (Internal LeadForge policy)
-  if (code === 'CAMPAIGN_NOT_ACTIVE' || code === 'CONTACT_NOT_ELIGIBLE') {
+  // 4. Outreach Policy & Safety Gates (Internal LeadForge policy & Provider Policy Block)
+  if (
+    code === 'POLICY_BLOCKED' ||
+    code === 'CAMPAIGN_NOT_ACTIVE' ||
+    code === 'CONTACT_NOT_ELIGIBLE' ||
+    err?.classification === 'policy_rejection'
+  ) {
     return {
-      code,
+      code: code || 'POLICY_BLOCKED',
       category: EmailFailureCategory.POLICY,
-      safeHumanMessage: 'Outreach policy prevented send: campaign is not active or contact is ineligible.',
+      safeHumanMessage: 'Outreach policy or email provider anti-abuse filter prevented send.',
       technicalMessage: msg,
       retryable: false,
-      ambiguous: false
+      ambiguous: false,
+      bounceCategory: BounceCategory.POLICY_REJECTION,
+      isHardBounce: false
     };
   }
 
-  // 5. Invalid Subject
+  // 5. Malformed Payload / Provider Bad Request (Non-Recipient Error)
+  if (
+    code === 'MALFORMED_PAYLOAD' ||
+    code === 'INVALID_ARGUMENT' ||
+    err?.classification === 'malformed_payload' ||
+    err?.classification === 'invalid_request'
+  ) {
+    return {
+      code: 'MALFORMED_PAYLOAD',
+      category: EmailFailureCategory.INTERNAL,
+      safeHumanMessage: 'Outgoing email message was rejected by provider as malformed or invalid request.',
+      technicalMessage: msg,
+      retryable: false,
+      ambiguous: false,
+      isHardBounce: false
+    };
+  }
+
+  // 6. Invalid Subject
   if (code === 'INVALID_SUBJECT') {
     return {
       code,
@@ -130,7 +161,7 @@ export function classifyEmailFailure(err: any): {
     };
   }
 
-  // 6. Internal / Attachment Handling Failures
+  // 7. Internal / Attachment Handling Failures
   if (typeof code === 'string' && (code.startsWith('ATTACHMENT_') || code.startsWith('DRIVE_'))) {
     return {
       code,
@@ -142,7 +173,7 @@ export function classifyEmailFailure(err: any): {
     };
   }
 
-  // 7. Transient Network Failures (Connection glitches to provider API)
+  // 8. Transient Network Failures (Connection glitches to provider API)
   if (
     code === 'TRANSIENT_NETWORK_ERROR' ||
     code === 'ECONNRESET' ||
@@ -846,8 +877,15 @@ export class EmailService {
         throw err;
       }
 
-      // If provider rate limited (e.g. Google 429), set mailbox provider cooldown
-      if (err.code === 'PROVIDER_RATE_LIMITED' || err.classification === 'provider_rate_limited') {
+      // If provider rate limited (e.g. Google 429, daily quota), set mailbox provider cooldown
+      if (
+        err.code === 'PROVIDER_RATE_LIMITED' ||
+        err.code === 'SENDER_RATE_LIMITED' ||
+        err.code === 'QUOTA_EXCEEDED' ||
+        err.classification === 'provider_rate_limited' ||
+        err.classification === 'rate_limit' ||
+        failure.category === EmailFailureCategory.RATE_LIMIT
+      ) {
         const cooldownSec = err.retryAfterSec || 60;
         await this.accountRepo.setProviderCooldown(input.accountId, cooldownSec);
       }
@@ -881,7 +919,8 @@ export class EmailService {
       const isHardBounce =
         failure.isHardBounce === true ||
         (failure.category === EmailFailureCategory.INVALID_RECIPIENT &&
-          err.code !== 'INVALID_SUBJECT');
+          err.code !== 'INVALID_SUBJECT' &&
+          err.code !== 'MALFORMED_PAYLOAD');
 
       if (isHardBounce) {
         try {

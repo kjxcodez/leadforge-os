@@ -136,7 +136,13 @@ export class GmailProvider {
         'Gmail messages.send returned error response'
       );
 
-      if (res.status === 401 || res.status === 403) {
+      const lowerMsg = fullErrorText.toLowerCase();
+      const statusStr = body?.error?.status || '';
+      const errorsList: any[] = Array.isArray(body?.error?.errors) ? body.error.errors : [];
+      const errorReasons: string[] = errorsList.map((e: any) => String(e.reason || ''));
+
+      // 1. Authentication / Credential Revocation (HTTP 401)
+      if (res.status === 401) {
         await GoogleConnectionModel.updateOne(
           { _id: options.connectionId },
           {
@@ -156,23 +162,110 @@ export class GmailProvider {
         );
       }
 
-      if (res.status === 429 || body?.error?.status === 'RESOURCE_EXHAUSTED') {
+      // 2. HTTP 403 Forbidden: Disambiguate Quota, Policy/Abuse, and Genuine Auth
+      if (res.status === 403) {
+        const isQuotaError =
+          errorReasons.some((r: string) =>
+            ['dailyLimitExceeded', 'userRateLimitExceeded', 'rateLimitExceeded', 'quotaExceeded'].includes(r)
+          ) ||
+          lowerMsg.includes('quota') ||
+          lowerMsg.includes('sending limit') ||
+          lowerMsg.includes('user-rate limit exceeded') ||
+          statusStr === 'RESOURCE_EXHAUSTED';
+
+        if (isQuotaError) {
+          const retryAfterHeader = res.headers?.get ? res.headers.get('retry-after') : (res.headers as any)?.['retry-after'];
+          const parsedSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : NaN;
+          const retryAfterSec = !isNaN(parsedSec) && parsedSec > 0 ? parsedSec : (lowerMsg.includes('daily') ? 3600 : 300);
+          throw new EmailDomainError(
+            'PROVIDER_RATE_LIMITED',
+            `Gmail sending quota or rate limit exceeded for sender "${connection.email}": ${fullErrorText}. Please back off before retrying.`,
+            false,
+            true,
+            'provider_rate_limited',
+            retryAfterSec
+          );
+        }
+
+        const isPolicyError =
+          errorReasons.some((r: string) =>
+            ['abuse', 'spam', 'policyRejection', 'bulkSendingLimitExceeded'].includes(r)
+          ) ||
+          lowerMsg.includes('spam') ||
+          lowerMsg.includes('abuse') ||
+          lowerMsg.includes('policy') ||
+          lowerMsg.includes('bulk sending') ||
+          lowerMsg.includes('unsolicited mail');
+
+        if (isPolicyError) {
+          throw new EmailDomainError(
+            'POLICY_BLOCKED',
+            `Gmail blocked message due to sending policy or anti-abuse filters: ${fullErrorText}`,
+            false,
+            false,
+            'policy_rejection'
+          );
+        }
+
+        // Genuine Auth / Permission / Scope failure (e.g. PERMISSION_DENIED without quota, invalid scopes)
+        await GoogleConnectionModel.updateOne(
+          { _id: options.connectionId },
+          {
+            $set: {
+              gmailStatus: 'reauth_required',
+              status: 'reauth_required',
+              lastError: fullErrorText || 'Gmail authorization expired or revoked'
+            }
+          }
+        );
         throw new EmailDomainError(
-          'SENDER_RATE_LIMITED',
-          `Gmail API rate limit exceeded for sender "${connection.email}": ${fullErrorText}. Please back off before retrying.`,
-          false,
+          'MAILBOX_REAUTH_REQUIRED',
+          `Gmail authorization expired or was revoked (${fullErrorText}). Please reconnect the mailbox.`,
           true,
-          'rate_limit'
+          false,
+          'authentication'
         );
       }
 
-      if (res.status === 400) {
+      // 3. HTTP 429 Too Many Requests / Resource Exhausted
+      if (res.status === 429 || statusStr === 'RESOURCE_EXHAUSTED') {
+        const retryAfterHeader = res.headers?.get ? res.headers.get('retry-after') : (res.headers as any)?.['retry-after'];
+        const parsedSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : NaN;
+        const retryAfterSec = !isNaN(parsedSec) && parsedSec > 0 ? parsedSec : 60;
         throw new EmailDomainError(
-          'INVALID_RECIPIENT',
-          `Gmail rejected message as invalid request: ${fullErrorText}`,
+          'PROVIDER_RATE_LIMITED',
+          `Gmail API rate limit exceeded for sender "${connection.email}": ${fullErrorText}. Please back off before retrying.`,
+          false,
+          true,
+          'provider_rate_limited',
+          retryAfterSec
+        );
+      }
+
+      // 4. HTTP 400 Bad Request: Differentiate Malformed Payload from Invalid Recipient
+      if (res.status === 400) {
+        const isRecipientError =
+          lowerMsg.includes('invalid recipient') ||
+          lowerMsg.includes('recipient address was rejected') ||
+          lowerMsg.includes('recipient address invalid') ||
+          errorReasons.some((r: string) => r.toLowerCase().includes('recipient'));
+
+        if (isRecipientError) {
+          throw new EmailDomainError(
+            'INVALID_RECIPIENT',
+            `Gmail rejected recipient address: ${fullErrorText}`,
+            false,
+            false,
+            'invalid_recipient'
+          );
+        }
+
+        throw new EmailDomainError(
+          'MALFORMED_PAYLOAD',
+          `Gmail rejected message payload or request format: ${fullErrorText}`,
           false,
           false,
-          'invalid_request'
+          'malformed_payload'
         );
       }
 
