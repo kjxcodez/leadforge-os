@@ -57,6 +57,27 @@ describe('Phase 10: Bounce & Rejection Classifier', () => {
     expect(result.isHardBounce).toBe(false);
   });
 
+  it('classifies 550 5.7.26 SPF/DKIM/DMARC rejection as POLICY_REJECTION (not MAILBOX_UNAVAILABLE)', () => {
+    const result = classifyBounce({
+      message: '550 5.7.26 This message does not pass authentication checks (SPF/DKIM/DMARC).'
+    });
+
+    expect(result.category).toBe(BounceCategory.POLICY_REJECTION);
+    expect(result.isPermanent).toBe(true);
+    expect(result.isHardBounce).toBe(false);
+  });
+
+  it('classifies 554 5.7.1 Relay access denied as POLICY_REJECTION', () => {
+    const result = classifyBounce({
+      code: 554,
+      message: '554 5.7.1 Relay access denied'
+    });
+
+    expect(result.category).toBe(BounceCategory.POLICY_REJECTION);
+    expect(result.isPermanent).toBe(true);
+    expect(result.isHardBounce).toBe(false);
+  });
+
   it('classifies 452 mailbox full as non-permanent SOFT_BOUNCE', () => {
     const result = classifyBounce({
       code: 452,
