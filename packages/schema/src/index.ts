@@ -11,3 +11,4 @@ export * from './utils/tracking.js';
 export * from './utils/disposable-domains.js';
 export * from './utils/bounce-classifier.js';
 export * from './utils/email-quality-engine.js';
+export * from './utils/campaign-circuit-breaker.js';
