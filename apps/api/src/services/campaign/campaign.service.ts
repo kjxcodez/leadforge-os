@@ -219,6 +219,7 @@ export class CampaignService {
     const existing = await this.campaignRepository.findById(id);
     const updatedSettings = { ...(existing.settings || {}) };
     delete updatedSettings.pauseReason;
+    updatedSettings.resumedAt = new Date().toISOString();
     return this.updateCampaign(id, {
       status: CampaignStatus.ACTIVE as any,
       settings: updatedSettings

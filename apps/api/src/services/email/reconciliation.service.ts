@@ -19,8 +19,10 @@ import {
   generateEntityId,
   parseDsnReport,
   mapBounceCategoryToFailureCategory,
-  sanitizeHtmlForPreview
+  sanitizeHtmlForPreview,
+  isCircuitBreakerRejectionCategory
 } from '@leadforge/schema';
+import { CampaignCircuitBreakerService } from '../campaign/campaign-circuit-breaker.service.js';
 import { SuppressionRepository } from '../../repositories/suppression/suppression.repository.js';
 import { EmailDomainError } from './types.js';
 import { logger } from '../../config/index.js';
@@ -803,6 +805,21 @@ export class ReconciliationService {
                 }
               );
             }
+          }
+        }
+
+        // Evaluate campaign circuit breaker if DSN bounce matches rejection criteria
+        if (bouncedDelivery.campaignId && isCircuitBreakerRejectionCategory(failureCategory)) {
+          try {
+            const breakerService = new CampaignCircuitBreakerService(this.workspaceId);
+            await breakerService.checkAndTripBreaker(this.workspaceId, bouncedDelivery.campaignId, {
+              id: bouncedDelivery._id.toString(),
+              failureCategory,
+              failureCode: dsnReport.classification.enhancedStatusCode || String(dsnReport.classification.statusCode || 'BOUNCE'),
+              technicalMessage: dsnReport.classification.diagnosticMessage
+            });
+          } catch (breakerErr) {
+            logger.warn({ breakerErr, campaignId: bouncedDelivery.campaignId }, 'Failed to evaluate campaign circuit breaker on DSN bounce');
           }
         }
 

@@ -25,7 +25,8 @@ import {
   evaluateOutreachEligibility,
   generateTrackingToken,
   injectOpenTrackingPixel,
-  rewriteLinksForClickTracking
+  rewriteLinksForClickTracking,
+  isCircuitBreakerRejectionCategory
 } from '@leadforge/schema';
 import {
   EmailDomainError,
@@ -33,6 +34,7 @@ import {
   type SendEmailResult
 } from './types.js';
 import { EmailAccountService } from './email-account.service.js';
+import { CampaignCircuitBreakerService } from '../campaign/campaign-circuit-breaker.service.js';
 import { SuppressionRepository } from '../../repositories/suppression/suppression.repository.js';
 import { logger } from '../../config/index.js';
 import crypto from 'crypto';
@@ -904,6 +906,21 @@ export class EmailService {
           }
         } catch (suppressErr) {
           logger.warn({ suppressErr, to: input.to }, 'Failed to record hard bounce suppression on outbound send failure');
+        }
+      }
+
+      // Evaluate campaign circuit breaker if this failure is an outbound rejection
+      if (input.campaignId && isCircuitBreakerRejectionCategory(failure.category)) {
+        try {
+          const breakerService = new CampaignCircuitBreakerService(this.workspaceId);
+          await breakerService.checkAndTripBreaker(this.workspaceId, input.campaignId, {
+            id: deliveryRecord._id.toString(),
+            failureCategory: failure.category,
+            failureCode: failure.code,
+            technicalMessage: failure.technicalMessage
+          });
+        } catch (breakerErr) {
+          logger.warn({ breakerErr, campaignId: input.campaignId }, 'Failed to evaluate campaign circuit breaker on outbound send failure');
         }
       }
 
