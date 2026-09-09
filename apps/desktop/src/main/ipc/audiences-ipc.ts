@@ -2,6 +2,7 @@ import { safeRegister } from './helper';
 import { LocalCRMRepository } from '../database/repositories/local-crm';
 import { getDatabase } from '../database/connection';
 import { WorkspaceManager } from '../lib/workspace-manager';
+import { ProjectionService } from '../services/projection-service';
 
 export function resolveAudienceLocally(
   workspaceId: string,
@@ -216,6 +217,7 @@ export function registerAudiencesIpc() {
     const sdk = WorkspaceManager.getSdk();
     const created = await sdk.audiences.create(payload);
     await LocalCRMRepository.saveFromServer('audiences', created);
+    ProjectionService.broadcastProjectionUpdated('audiences', record.workspaceId);
     return created;
   });
 

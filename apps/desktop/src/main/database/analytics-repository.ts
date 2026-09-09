@@ -18,6 +18,34 @@ import {
 export class DesktopAnalyticsRepository {
   constructor(private readonly db: Database.Database) {}
 
+  private isDsnBounceRecord(d: any): boolean {
+    if (
+      d.sequenceId === 'inbound-dsn' ||
+      d.executionId === 'inbound-dsn' ||
+      d.contactId === 'bounce-subsystem'
+    ) {
+      return true;
+    }
+    const sender = (d.senderEmail || '').toLowerCase();
+    if (
+      sender.includes('mailer-daemon') ||
+      sender.includes('postmaster') ||
+      sender.includes('mail delivery subsystem')
+    ) {
+      return true;
+    }
+    const subject = (d.subject || '').toLowerCase();
+    if (
+      subject.includes('delivery status notification') ||
+      subject.includes('failure notice') ||
+      subject.includes('undelivered mail') ||
+      subject.includes('mail delivery failed')
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   public getOverview(
     workspaceId: string,
     campaignId: string,
@@ -165,8 +193,14 @@ export class DesktopAnalyticsRepository {
           }
         }
       } else if (dir === 'INBOUND') {
-        repliesReceived++;
-        if (d.contactId) replyingContactsSet.add(d.contactId);
+        if (this.isDsnBounceRecord(d)) {
+          hardBounces++;
+        } else {
+          repliesReceived++;
+          if (d.contactId && d.contactId !== 'unmatched-contact') {
+            replyingContactsSet.add(d.contactId);
+          }
+        }
       }
     }
 
@@ -497,7 +531,11 @@ export class DesktopAnalyticsRepository {
         point.observedClicks += Number(d.clickCount || 0);
         point.replies += Number(d.replyCount || 0) + (d.hasReply ? 1 : 0);
       } else if (dir === 'INBOUND') {
-        point.replies++;
+        if (this.isDsnBounceRecord(d)) {
+          point.bounces++;
+        } else {
+          point.replies++;
+        }
       }
     }
 

@@ -10,7 +10,8 @@ export const emailDeliveryStatusSchema = z.enum([
   'RETRYING',
   'AMBIGUOUS',
   'CANCELLED',
-  'SUPPRESSED'
+  'SUPPRESSED',
+  'RECEIVED'
 ]);
 export type EmailDeliveryStatus = z.infer<typeof emailDeliveryStatusSchema>;
 

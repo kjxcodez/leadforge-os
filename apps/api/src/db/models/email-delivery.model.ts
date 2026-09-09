@@ -127,7 +127,7 @@ const emailDeliverySchema = new Schema<EmailDeliveryDocument>(
     status: {
       type: String,
       required: true,
-      enum: ['QUEUED', 'SENDING', 'SENT', 'FAILED', 'RETRYING', 'AMBIGUOUS', 'CANCELLED', 'SUPPRESSED'],
+      enum: ['QUEUED', 'SENDING', 'SENT', 'FAILED', 'RETRYING', 'AMBIGUOUS', 'CANCELLED', 'SUPPRESSED', 'RECEIVED'],
       default: 'QUEUED',
       index: true
     },

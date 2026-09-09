@@ -48,7 +48,8 @@ import {
   HardDrive,
   ExternalLink,
   X,
-  BarChart3
+  BarChart3,
+  Loader2
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { PageHeader } from '../components/common/PageHeader';
@@ -91,6 +92,7 @@ export default function CampaignsScreen() {
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [campaignOpen, setCampaignOpen] = useState(!!initialAudienceId);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Selected Enrollment for stepper timeline panel
   const [selectedEnrollment, setSelectedEnrollment] = useState<any | null>(null);
@@ -200,7 +202,7 @@ export default function CampaignsScreen() {
   });
 
   const audiencesQuery = useQuery({
-    queryKey: ['audiences', workspaceId],
+    queryKey: ['audiences', 'list', workspaceId],
     queryFn: async () => {
       return window.ipc.invoke('audiences:list', { workspaceId });
     },
@@ -552,6 +554,8 @@ export default function CampaignsScreen() {
 
   const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     if (!campName.trim()) {
       toast.error('Please enter a valid Campaign Name before launching.');
       return;
@@ -585,6 +589,7 @@ export default function CampaignsScreen() {
       }
     }
 
+    setIsSubmitting(true);
     try {
       let targetSeqId = campSeqId;
 
@@ -626,7 +631,8 @@ export default function CampaignsScreen() {
         targetSeqId = seq.id;
       }
 
-      // 2. Create Campaign
+      // 2. Create Campaign (Phase 3: includes client-scoped idempotencyKey)
+      const submissionIdempotencyKey = `camp_sub_${workspaceId}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       const campaign = await window.ipc.invoke('campaigns:create', {
         workspaceId,
         name: campName.trim(),
@@ -636,6 +642,7 @@ export default function CampaignsScreen() {
         dailyLimit: campLimit,
         timezone: campTimezone,
         status: 'ACTIVE',
+        idempotencyKey: submissionIdempotencyKey,
         settings: {
           useSignature: campUseSignature
         }
@@ -685,6 +692,8 @@ export default function CampaignsScreen() {
       );
     } catch (err: any) {
       toast.error(`Failed to launch campaign: ${err.message || err}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -2374,12 +2383,31 @@ export default function CampaignsScreen() {
             </div>
 
             <div className="flex justify-end gap-2 pt-3 border-t border-border-subtle">
-              <Button type="button" variant="secondary" className="rounded-none" onClick={() => setCampaignOpen(false)}>
+              <Button
+                type="button"
+                variant="secondary"
+                className="rounded-none"
+                onClick={() => setCampaignOpen(false)}
+                disabled={isSubmitting}
+              >
                 Cancel
               </Button>
-              <Button type="submit" className="rounded-none gap-1.5 font-semibold">
-                <Megaphone className="w-3.5 h-3.5" />
-                Launch Outreach
+              <Button
+                type="submit"
+                className="rounded-none gap-1.5 font-semibold"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Launching Outreach...
+                  </>
+                ) : (
+                  <>
+                    <Megaphone className="w-3.5 h-3.5" />
+                    Launch Outreach
+                  </>
+                )}
               </Button>
             </div>
           </form>

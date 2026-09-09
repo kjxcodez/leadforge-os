@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkspace } from '../hooks/useWorkspace';
 import { motion } from 'framer-motion';
 import { SyncContactRepository, SyncCompanyRepository } from '../repositories/sync';
@@ -105,6 +105,7 @@ function ContactEmailHistory({ contactId, workspaceId }: { contactId: string; wo
 export default function ContactsScreen() {
   const { activeWorkspace } = useWorkspace();
   const workspaceId = activeWorkspace?.id || '';
+  const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -364,6 +365,7 @@ export default function ContactsScreen() {
       }
     });
 
+    queryClient.invalidateQueries({ queryKey: ['audiences', 'list', workspaceId] });
     toast.success(`Saved audience segment "${audName.trim()}"!`);
     setSelectedIds([]);
   };
@@ -1051,6 +1053,7 @@ export default function ContactsScreen() {
         isOpen={audienceModalOpen}
         onClose={() => setAudienceModalOpen(false)}
         onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['audiences', 'list', workspaceId] });
           toast.success('Audience saved successfully!');
           setSelectedIds([]);
           contactsQuery.refetch();

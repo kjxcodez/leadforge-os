@@ -611,7 +611,16 @@ campaignsRouter.post('/', async (c) => {
   const wsId = getWorkspaceId(c);
   const body = await c.req.json();
   const service = new CampaignService(wsId);
-  const campaign = await service.createCampaign({ ...body, workspaceId: wsId });
+  const idempotencyKey =
+    c.req.header('idempotency-key') ||
+    c.req.header('x-idempotency-key') ||
+    body.idempotencyKey ||
+    body.idempotency_key;
+  const campaign = await service.createCampaign({
+    ...body,
+    ...(idempotencyKey ? { idempotencyKey } : {}),
+    workspaceId: wsId
+  });
   return c.json(successResponse(campaign));
 });
 

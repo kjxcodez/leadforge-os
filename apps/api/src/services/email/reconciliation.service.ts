@@ -42,6 +42,25 @@ export interface InboundPollResult {
   suppressedExecutionsCount: number;
 }
 
+export interface InboundRelevanceEvaluation {
+  isRelevant: boolean;
+  reason:
+    | 'dsn_matched'
+    | 'thread_matched'
+    | 'header_matched'
+    | 'contact_matched'
+    | 'fast_reply_pending'
+    | 'irrelevant'
+    | 'self_sent';
+  bouncedDelivery?: EmailDeliveryDocument | null;
+  dsnReport?: ReturnType<typeof parseDsnReport>;
+  matchedDelivery?: EmailDeliveryDocument | null;
+  matchConfidence?: 'thread' | 'header' | 'contact' | 'none';
+  contactDoc?: any;
+  pendingSendingDelivery?: EmailDeliveryDocument | null;
+  normalizedFrom: string;
+}
+
 export class ReconciliationService {
   private readonly accounts: EmailAccountService;
   private readonly accountRepo: EmailAccountRepository;
@@ -382,6 +401,223 @@ export class ReconciliationService {
   }
 
   /**
+   * Phase 2: LeadForge Inbound Email Relevance Evaluator.
+   *
+   * Enforces the boundary between candidate mailbox fetch and LeadForge acceptance.
+   * Evaluates the four canonical relevance signals:
+   *   1. DSN bounce matching an outbound delivery in current workspace
+   *   2. Gmail threadId matching providerThreadId of outbound delivery in workspace
+   *   3. In-Reply-To or References header matching providerMessageId in workspace
+   *   4. Sender address matching active contact with qualifying outbound delivery (SENT, AMBIGUOUS, or SENDING)
+   *
+   * Irrelevant candidate messages (newsletters, colleague emails, personal messages) return isRelevant: false
+   * and must be silently dropped before writing to the operational ledger.
+   */
+  public async evaluateInboundRelevance(
+    item: { id: string; threadId?: string | null | undefined },
+    detail: {
+      headers: Record<string, any>;
+      bodyText?: string | null | undefined;
+      bodyHtml?: string | null | undefined;
+      internalDate?: Date | null | undefined;
+    },
+    accountEmail: string
+  ): Promise<InboundRelevanceEvaluation> {
+    const fromRaw = detail.headers.from || '';
+    const emailMatch = fromRaw.match(/<([^>]+)>/) || fromRaw.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    const normalizedFrom = (emailMatch?.[1] || fromRaw).toLowerCase().trim();
+
+    // 0. Skip self-sent messages
+    if (accountEmail && normalizedFrom === accountEmail.toLowerCase().trim()) {
+      return { isRelevant: false, reason: 'self_sent', normalizedFrom };
+    }
+
+    // 1. Relevance Rule 1: DSN / Bounce
+    const dsnReport = parseDsnReport(detail.bodyText || detail.bodyHtml, detail.headers);
+    if (dsnReport && dsnReport.isDsn) {
+      let bouncedDelivery: EmailDeliveryDocument | null = null;
+      if (item.threadId) {
+        bouncedDelivery = await EmailDeliveryModel.findOne({
+          workspaceId: this.workspaceId,
+          direction: 'OUTBOUND',
+          providerThreadId: item.threadId
+        }).sort({ sentAt: -1 });
+      }
+
+      if (!bouncedDelivery && dsnReport.failedRecipient) {
+        bouncedDelivery = await EmailDeliveryModel.findOne({
+          workspaceId: this.workspaceId,
+          direction: 'OUTBOUND',
+          recipientEmail: dsnReport.failedRecipient.toLowerCase().trim()
+        }).sort({ sentAt: -1 });
+      }
+
+      if (bouncedDelivery) {
+        return {
+          isRelevant: true,
+          reason: 'dsn_matched',
+          bouncedDelivery,
+          dsnReport,
+          normalizedFrom
+        };
+      }
+
+      // DSN bounce with no matching LeadForge outbound delivery in this workspace -> DROP
+      return {
+        isRelevant: false,
+        reason: 'irrelevant',
+        dsnReport,
+        normalizedFrom
+      };
+    }
+
+    // 2. Relevance Rule 2: Matching Gmail Thread
+    let matchedDelivery: EmailDeliveryDocument | null = null;
+    let matchConfidence: 'thread' | 'header' | 'contact' | 'none' = 'none';
+
+    if (item.threadId) {
+      matchedDelivery = await EmailDeliveryModel.findOne({
+        workspaceId: this.workspaceId,
+        direction: 'OUTBOUND',
+        providerThreadId: item.threadId,
+        status: { $in: ['SENT', 'AMBIGUOUS'] }
+      }).sort({ sentAt: -1 });
+
+      if (matchedDelivery) {
+        matchConfidence = 'thread';
+      }
+    }
+
+    // 3. Relevance Rule 3: Message Header Correlation (In-Reply-To / References)
+    if (!matchedDelivery) {
+      const headerRefs: string[] = [];
+      if (detail.headers.inReplyTo) headerRefs.push(detail.headers.inReplyTo);
+      if (Array.isArray(detail.headers.references)) headerRefs.push(...detail.headers.references);
+
+      for (const ref of headerRefs) {
+        const cleanRef = ref.replace(/[<>]/g, '').trim();
+        matchedDelivery = await EmailDeliveryModel.findOne({
+          workspaceId: this.workspaceId,
+          direction: 'OUTBOUND',
+          status: { $in: ['SENT', 'AMBIGUOUS'] },
+          $or: [
+            { providerMessageId: cleanRef },
+            { providerMessageId: ref }
+          ]
+        });
+
+        if (matchedDelivery) {
+          matchConfidence = 'header';
+          break;
+        }
+      }
+    }
+
+    // 4. Relevance Rule 4: Contact Address Correlation (Active contact + qualifying outbound delivery)
+    let contactDoc = null;
+    if (!matchedDelivery) {
+      contactDoc = await ContactModel.findOne({
+        workspaceId: this.workspaceId,
+        $or: [{ email: normalizedFrom }, { 'additionalEmails.email': normalizedFrom }],
+        deletedAt: null
+      });
+
+      if (contactDoc) {
+        matchedDelivery = await EmailDeliveryModel.findOne({
+          workspaceId: this.workspaceId,
+          contactId: contactDoc._id.toString(),
+          direction: 'OUTBOUND',
+          status: { $in: ['SENT', 'AMBIGUOUS'] }
+        }).sort({ sentAt: -1 });
+
+        if (matchedDelivery) {
+          matchConfidence = 'contact';
+        }
+      }
+    } else if (matchedDelivery.contactId) {
+      contactDoc = await ContactModel.findOne({
+        _id: matchedDelivery.contactId,
+        workspaceId: this.workspaceId
+      });
+    }
+
+    if (matchedDelivery) {
+      return {
+        isRelevant: true,
+        reason: `${matchConfidence}_matched` as any,
+        matchedDelivery,
+        contactDoc,
+        matchConfidence,
+        normalizedFrom
+      };
+    }
+
+    // 5. Fast-Reply Safety Rule: Outbound delivery in SENDING status exists
+    let pendingSendingDelivery: EmailDeliveryDocument | null = null;
+
+    if (contactDoc) {
+      pendingSendingDelivery = await EmailDeliveryModel.findOne({
+        workspaceId: this.workspaceId,
+        contactId: contactDoc._id.toString(),
+        direction: 'OUTBOUND',
+        status: 'SENDING'
+      }).sort({ createdAt: -1 });
+    }
+
+    if (!pendingSendingDelivery && normalizedFrom) {
+      pendingSendingDelivery = await EmailDeliveryModel.findOne({
+        workspaceId: this.workspaceId,
+        recipientEmail: normalizedFrom,
+        direction: 'OUTBOUND',
+        status: 'SENDING'
+      }).sort({ createdAt: -1 });
+    }
+
+    if (!pendingSendingDelivery && item.threadId) {
+      pendingSendingDelivery = await EmailDeliveryModel.findOne({
+        workspaceId: this.workspaceId,
+        direction: 'OUTBOUND',
+        providerThreadId: item.threadId,
+        status: 'SENDING'
+      }).sort({ createdAt: -1 });
+    }
+
+    if (pendingSendingDelivery) {
+      return {
+        isRelevant: true,
+        reason: 'fast_reply_pending',
+        pendingSendingDelivery,
+        contactDoc,
+        normalizedFrom
+      };
+    }
+
+    // Irrelevant candidate: no matching outbound delivery or active outreach
+    return {
+      isRelevant: false,
+      reason: 'irrelevant',
+      normalizedFrom
+    };
+  }
+
+  /**
+   * Helper verifying whether an inbound candidate is relevant to LeadForge outreach.
+   */
+  public async isLeadForgeRelevant(
+    item: { id: string; threadId?: string | null | undefined },
+    detail: {
+      headers: Record<string, any>;
+      bodyText?: string | null | undefined;
+      bodyHtml?: string | null | undefined;
+      internalDate?: Date | null | undefined;
+    },
+    accountEmail: string
+  ): Promise<boolean> {
+    const evaluation = await this.evaluateInboundRelevance(item, detail, accountEmail);
+    return evaluation.isRelevant;
+  }
+
+  /**
    * Ingests and correlates inbound email replies received by a specific email account.
    */
   public async pollInboundRepliesForAccount(accountId: string): Promise<InboundPollResult> {
@@ -429,46 +665,31 @@ export class ReconciliationService {
         continue;
       }
 
-      processedCount++;
       const detail = await this.gmailProvider.getMessage(connectionId, item.id).catch(() => null);
       if (!detail) continue;
 
-      // Extract sender address from "From" header
-      const fromRaw = detail.headers.from || '';
-      const emailMatch = fromRaw.match(/<([^>]+)>/) || fromRaw.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
-      const normalizedFrom = (emailMatch?.[1] || fromRaw).toLowerCase().trim();
-
-      // Skip self-sent messages
-      if (normalizedFrom === (account.email || '').toLowerCase().trim()) {
+      // ── Phase 2: LeadForge Relevance Evaluation ────────────────────────────
+      const evaluation = await this.evaluateInboundRelevance(item, detail, account.email);
+      if (!evaluation.isRelevant) {
+        logger.debug(
+          { inboundMessageId: item.id, reason: evaluation.reason, from: evaluation.normalizedFrom },
+          'Silently dropped irrelevant mailbox message (no LeadForge outreach relationship)'
+        );
         continue;
       }
 
-      // ── Phase 10: Inbound Delivery Status Notification (DSN / Bounce) Handling ──
-      const dsnReport = parseDsnReport(detail.bodyText || detail.bodyHtml, detail.headers);
-      if (dsnReport && dsnReport.isDsn) {
-        logger.info(
-          { inboundMessageId: item.id, failedRecipient: dsnReport.failedRecipient, category: dsnReport.classification.category },
-          'Detected inbound Delivery Status Notification (bounce) from mail subsystem'
-        );
+      processedCount++;
+      const safeHtml = detail.bodyHtml ? sanitizeHtmlForPreview(detail.bodyHtml) : null;
+      const safeText = detail.bodyText || null;
+      const incomingDate = detail.internalDate || new Date();
+      const normalizedFrom = evaluation.normalizedFrom;
 
-        let bouncedDelivery: EmailDeliveryDocument | null = null;
-        if (item.threadId) {
-          bouncedDelivery = await EmailDeliveryModel.findOne({
-            workspaceId: this.workspaceId,
-            direction: 'OUTBOUND',
-            providerThreadId: item.threadId
-          }).sort({ sentAt: -1 });
-        }
+      // ── Case 1: Relevant DSN / Bounce Notification ────────────────────────
+      if (evaluation.reason === 'dsn_matched' && evaluation.bouncedDelivery && evaluation.dsnReport) {
+        const bouncedDelivery = evaluation.bouncedDelivery;
+        const dsnReport = evaluation.dsnReport;
+        const targetRecipient = dsnReport.failedRecipient || bouncedDelivery.recipientEmail;
 
-        if (!bouncedDelivery && dsnReport.failedRecipient) {
-          bouncedDelivery = await EmailDeliveryModel.findOne({
-            workspaceId: this.workspaceId,
-            direction: 'OUTBOUND',
-            recipientEmail: dsnReport.failedRecipient
-          }).sort({ sentAt: -1 });
-        }
-
-        const targetRecipient = dsnReport.failedRecipient || bouncedDelivery?.recipientEmail;
         let bouncedContact = null;
         if (targetRecipient) {
           bouncedContact = await ContactModel.findOne({
@@ -478,38 +699,36 @@ export class ReconciliationService {
           });
         }
 
-        if (bouncedDelivery) {
-          await EmailDeliveryModel.updateOne(
-            { _id: bouncedDelivery._id },
-            {
-              $set: {
-                status: 'FAILED',
-                failureCategory: EmailFailureCategory.INVALID_RECIPIENT,
-                failureCode: dsnReport.classification.enhancedStatusCode || String(dsnReport.classification.statusCode || 'BOUNCE'),
-                safeHumanMessage: dsnReport.classification.safeDescription,
-                technicalMessage: dsnReport.classification.diagnosticMessage
-              }
+        await EmailDeliveryModel.updateOne(
+          { _id: bouncedDelivery._id },
+          {
+            $set: {
+              status: 'FAILED',
+              failureCategory: EmailFailureCategory.INVALID_RECIPIENT,
+              failureCode: dsnReport.classification.enhancedStatusCode || String(dsnReport.classification.statusCode || 'BOUNCE'),
+              safeHumanMessage: dsnReport.classification.safeDescription,
+              technicalMessage: dsnReport.classification.diagnosticMessage
             }
-          );
+          }
+        );
 
-          // Emit immutable BOUNCED event
-          const bounceEventKey = `bounce_${this.workspaceId}_${item.id}`;
-          await eventRepo.recordEvent({
-            deliveryId: bouncedDelivery._id.toString(),
-            contactId: bouncedContact ? bouncedContact._id.toString() : (bouncedDelivery.contactId || 'unknown'),
-            campaignId: bouncedDelivery.campaignId || null,
-            type: EmailEventType.BOUNCED,
-            occurredAt: detail.internalDate || new Date(),
-            metadata: {
-              dsnMessageId: item.id,
-              failedRecipient: targetRecipient,
-              category: dsnReport.classification.category,
-              statusCode: dsnReport.classification.statusCode,
-              enhancedStatusCode: dsnReport.classification.enhancedStatusCode
-            },
-            dedupeKey: bounceEventKey
-          });
-        }
+        // Emit immutable BOUNCED event
+        const bounceEventKey = `bounce_${this.workspaceId}_${item.id}`;
+        await eventRepo.recordEvent({
+          deliveryId: bouncedDelivery._id.toString(),
+          contactId: bouncedContact ? bouncedContact._id.toString() : (bouncedDelivery.contactId || 'unknown'),
+          campaignId: bouncedDelivery.campaignId || null,
+          type: EmailEventType.BOUNCED,
+          occurredAt: detail.internalDate || new Date(),
+          metadata: {
+            dsnMessageId: item.id,
+            failedRecipient: targetRecipient,
+            category: dsnReport.classification.category,
+            statusCode: dsnReport.classification.statusCode,
+            enhancedStatusCode: dsnReport.classification.enhancedStatusCode
+          },
+          dedupeKey: bounceEventKey
+        });
 
         // Auto-suppress on hard bounce
         if (dsnReport.classification.isHardBounce && targetRecipient) {
@@ -584,118 +803,46 @@ export class ReconciliationService {
         await EmailDeliveryModel.create({
           workspaceId: this.workspaceId,
           direction: 'INBOUND',
-          status: 'SENT',
+          status: 'RECEIVED',
           idempotencyKey,
-          matchedDeliveryId: bouncedDelivery ? bouncedDelivery._id.toString() : null,
-          contactId: bouncedContact ? bouncedContact._id.toString() : 'bounce-subsystem',
-          campaignId: bouncedDelivery?.campaignId || null,
-          sequenceId: bouncedDelivery?.sequenceId || 'inbound-dsn',
-          executionId: bouncedDelivery?.executionId || 'inbound-dsn',
-          stepIndex: (bouncedDelivery?.stepIndex || 0) + 1,
+          matchedDeliveryId: bouncedDelivery._id.toString(),
+          contactId: bouncedContact ? bouncedContact._id.toString() : (bouncedDelivery.contactId || 'bounce-subsystem'),
+          campaignId: bouncedDelivery.campaignId || null,
+          sequenceId: bouncedDelivery.sequenceId || 'inbound-dsn',
+          executionId: bouncedDelivery.executionId || 'inbound-dsn',
+          stepIndex: (bouncedDelivery.stepIndex || 0) + 1,
           accountId: account._id.toString(),
           senderEmail: normalizedFrom,
           recipientEmail: account.email,
           subject: detail.headers.subject || 'Delivery Status Notification',
-          htmlBody: detail.bodyHtml ? sanitizeHtmlForPreview(detail.bodyHtml) : null,
-          textBody: detail.bodyText || null,
+          htmlBody: safeHtml,
+          textBody: safeText,
           provider: 'gmail',
           providerMessageId: item.id,
           providerThreadId: item.threadId,
-          matchConfidence: bouncedDelivery ? 'thread' : 'none',
-          processingStatus: bouncedDelivery ? 'MATCHED' : 'UNMATCHED',
-          sentAt: detail.internalDate || new Date()
+          matchConfidence: 'thread',
+          processingStatus: 'MATCHED',
+          sentAt: incomingDate
         });
 
-        processedCount++;
         continue;
       }
 
-      // ── Hierarchical Correlation ──────────────────────────────────────────
-      let matchedDelivery: EmailDeliveryDocument | null = null;
-      let matchConfidence: 'thread' | 'header' | 'contact' | 'none' = 'none';
-
-      // 1. Thread ID Correlation (Strongest)
-      if (item.threadId) {
-        matchedDelivery = await EmailDeliveryModel.findOne({
-          workspaceId: this.workspaceId,
-          direction: 'OUTBOUND',
-          providerThreadId: item.threadId
-        }).sort({ sentAt: -1 });
-
-        if (matchedDelivery) {
-          matchConfidence = 'thread';
-        }
-      }
-
-      // 2. Message Header Correlation (In-Reply-To / References)
-      if (!matchedDelivery) {
-        const headerRefs: string[] = [];
-        if (detail.headers.inReplyTo) headerRefs.push(detail.headers.inReplyTo);
-        if (Array.isArray(detail.headers.references)) headerRefs.push(...detail.headers.references);
-
-        for (const ref of headerRefs) {
-          const cleanRef = ref.replace(/[<>]/g, '').trim();
-          matchedDelivery = await EmailDeliveryModel.findOne({
-            workspaceId: this.workspaceId,
-            direction: 'OUTBOUND',
-            $or: [
-              { providerMessageId: cleanRef },
-              { providerMessageId: ref }
-            ]
-          });
-
-          if (matchedDelivery) {
-            matchConfidence = 'header';
-            break;
-          }
-        }
-      }
-
-      // 3. Sender Contact Correlation (Fallback)
-      let contactDoc = null;
-      if (!matchedDelivery) {
-        contactDoc = await ContactModel.findOne({
-          workspaceId: this.workspaceId,
-          $or: [{ email: normalizedFrom }, { 'additionalEmails.email': normalizedFrom }],
-          deletedAt: null
-        });
-
-        if (contactDoc) {
-          matchedDelivery = await EmailDeliveryModel.findOne({
-            workspaceId: this.workspaceId,
-            contactId: contactDoc._id.toString(),
-            accountId: account._id.toString(),
-            direction: 'OUTBOUND',
-            status: 'SENT'
-          }).sort({ sentAt: -1 });
-
-          if (matchedDelivery) {
-            matchConfidence = 'contact';
-          }
-        }
-      } else if (matchedDelivery.contactId) {
-        contactDoc = await ContactModel.findOne({
-          _id: matchedDelivery.contactId,
-          workspaceId: this.workspaceId
-        });
-      }
-
-      // ── Persist Inbound Message ───────────────────────────────────────────
-      const safeHtml = detail.bodyHtml ? sanitizeHtmlForPreview(detail.bodyHtml) : null;
-      const safeText = detail.bodyText || null;
-      const incomingDate = detail.internalDate || new Date();
-
-      if (matchedDelivery && contactDoc) {
+      // ── Case 2: Relevant Matched Reply ────────────────────────────────────
+      if (evaluation.matchedDelivery) {
+        const matchedDelivery = evaluation.matchedDelivery;
+        const contactDoc = evaluation.contactDoc;
+        const matchConfidence = evaluation.matchConfidence || 'none';
         matchedCount++;
 
         // Save matched inbound message in unified ledger
         await EmailDeliveryModel.create({
           workspaceId: this.workspaceId,
           direction: 'INBOUND',
-          status: 'SENT',
+          status: 'RECEIVED',
           idempotencyKey,
           matchedDeliveryId: matchedDelivery._id.toString(),
-          contactId: contactDoc._id.toString(),
+          contactId: contactDoc ? contactDoc._id.toString() : (matchedDelivery.contactId || 'unmatched-contact'),
           campaignId: matchedDelivery.campaignId || null,
           sequenceId: matchedDelivery.sequenceId || 'inbound-direct',
           executionId: matchedDelivery.executionId || 'inbound-direct',
@@ -720,7 +867,7 @@ export class ReconciliationService {
         const dedupeKey = `reply_${this.workspaceId}_${item.id}`;
         await eventRepo.recordEvent({
           deliveryId: matchedDelivery._id.toString(),
-          contactId: contactDoc._id.toString(),
+          contactId: contactDoc ? contactDoc._id.toString() : (matchedDelivery.contactId || 'unmatched-contact'),
           campaignId: matchedDelivery.campaignId || null,
           type: EmailEventType.REPLIED,
           occurredAt: incomingDate,
@@ -747,7 +894,7 @@ export class ReconciliationService {
         );
 
         // Monotonic Contact Status Transition: NEW / CONTACTED -> REPLIED
-        if (canTransitionContactStatus(contactDoc.status, ContactStatus.REPLIED)) {
+        if (contactDoc && canTransitionContactStatus(contactDoc.status, ContactStatus.REPLIED)) {
           await ContactModel.updateOne(
             {
               _id: contactDoc._id,
@@ -763,11 +910,10 @@ export class ReconciliationService {
           );
         }
 
-        // ── Sequence Outreach Suppression (Phase 6S / Phase 12) ─────────────
         // Scope cancellation to the matched campaign / execution to preserve unrelated campaigns
         const cancelFilter: any = {
           workspaceId: this.workspaceId,
-          contactId: contactDoc._id.toString(),
+          contactId: contactDoc ? contactDoc._id.toString() : matchedDelivery.contactId,
           status: { $in: ['active', 'running', 'waiting', 'pending', 'WAITING', 'ACTIVE', 'RUNNING', 'PENDING'] }
         };
 
@@ -802,27 +948,31 @@ export class ReconciliationService {
         logger.info(
           {
             inboundMessageId: item.id,
-            contactId: contactDoc._id.toString(),
+            contactId: contactDoc ? contactDoc._id.toString() : matchedDelivery.contactId,
             matchedDeliveryId: matchedDelivery._id.toString(),
             matchConfidence
           },
           'Successfully ingested and matched inbound email reply'
         );
-      } else {
-        // Phase 15 (INBOUND-03): Unmatched incoming email: ingest with CORRELATION_PENDING status
-        // to permit recovery if outbound delivery was SENDING or provider IDs are still indexing.
+        continue;
+      }
+
+      // ── Case 3: Fast-Reply Race (Outbound is currently SENDING) ───────────
+      if (evaluation.reason === 'fast_reply_pending' && evaluation.pendingSendingDelivery) {
+        const pending = evaluation.pendingSendingDelivery;
+        const contactDoc = evaluation.contactDoc;
         unmatchedCount++;
 
         await EmailDeliveryModel.create({
           workspaceId: this.workspaceId,
           direction: 'INBOUND',
-          status: 'SENT',
+          status: 'RECEIVED',
           idempotencyKey,
           matchedDeliveryId: null,
-          contactId: contactDoc ? contactDoc._id.toString() : 'unmatched-contact',
-          campaignId: null,
-          sequenceId: 'inbound-direct',
-          executionId: 'inbound-direct',
+          contactId: contactDoc ? contactDoc._id.toString() : (pending.contactId || 'unmatched-contact'),
+          campaignId: pending.campaignId || null,
+          sequenceId: pending.sequenceId || 'inbound-direct',
+          executionId: pending.executionId || 'inbound-direct',
           stepIndex: 0,
           accountId: account._id.toString(),
           senderEmail: normalizedFrom,
@@ -843,9 +993,10 @@ export class ReconciliationService {
         });
 
         logger.info(
-          { inboundMessageId: item.id, from: normalizedFrom },
-          'Ingested inbound email as CORRELATION_PENDING (awaiting reconciliation against outbound deliveries)'
+          { inboundMessageId: item.id, from: normalizedFrom, pendingDeliveryId: pending._id.toString() },
+          'Ingested inbound email as CORRELATION_PENDING (fast reply to in-flight SENDING outbound delivery)'
         );
+        continue;
       }
     }
 

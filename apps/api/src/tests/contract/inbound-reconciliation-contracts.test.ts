@@ -59,7 +59,7 @@ describe('Inbound Reconciliation & Suppression Contracts (Phase 17)', () => {
         _id: 'del_inbound_1',
         workspaceId: 'ws_test',
         direction: 'INBOUND',
-        status: 'SENT',
+        status: 'RECEIVED',
         processingStatus: 'MATCHED',
         matchConfidence: 'manual',
         contactId: 'contact_42',
@@ -94,6 +94,8 @@ describe('Inbound Reconciliation & Suppression Contracts (Phase 17)', () => {
       expect(res.status).toBe(200);
       const json = (await res.json()) as any;
       expect(json.success).toBe(true);
+      expect(json.data.direction).toBe('INBOUND');
+      expect(json.data.status).toBe('RECEIVED');
       expect(json.data.processingStatus).toBe('MATCHED');
       expect(json.data.matchConfidence).toBe('manual');
       expect(json.data.contactId).toBe('contact_42');
@@ -116,6 +118,7 @@ describe('Inbound Reconciliation & Suppression Contracts (Phase 17)', () => {
           {
             _id: 'del_pending_1',
             direction: 'INBOUND',
+            status: 'RECEIVED',
             processingStatus: 'CORRELATION_PENDING',
             subject: 'Re: Follow up'
           }
@@ -142,6 +145,8 @@ describe('Inbound Reconciliation & Suppression Contracts (Phase 17)', () => {
       expect(res.status).toBe(200);
       const json = (await res.json()) as any;
       expect(json.success).toBe(true);
+      expect(json.data.data[0].direction).toBe('INBOUND');
+      expect(json.data.data[0].status).toBe('RECEIVED');
       expect(json.data.data[0].processingStatus).toBe('CORRELATION_PENDING');
       expect(EmailDeliveryRepository.prototype.paginate).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -180,6 +185,70 @@ describe('Inbound Reconciliation & Suppression Contracts (Phase 17)', () => {
       expect(json.data.unsuppressed).toBe(true);
       expect(json.data.email).toBe('bounced@example.com');
       expect(json.data.restoredContactIds).toEqual(['contact_bounced_1', 'contact_bounced_2']);
+    });
+  });
+
+  describe('Inbound Delivery Status Semantics Contract (Phase 1)', () => {
+    it('enforces that inbound deliveries are persisted and exposed with direction INBOUND and status RECEIVED', async () => {
+      const mockInboundDelivery = {
+        _id: 'del_inbound_reply_1',
+        workspaceId: 'ws_test',
+        direction: 'INBOUND',
+        status: 'RECEIVED',
+        processingStatus: 'MATCHED',
+        matchConfidence: 'thread',
+        contactId: 'contact_1',
+        subject: 'Re: Interested in demo',
+        senderEmail: 'lead@example.com',
+        recipientEmail: 'sales@leadforge.com'
+      };
+
+      EmailDeliveryRepository.prototype.findById = vi.fn().mockResolvedValue(mockInboundDelivery);
+
+      app.use('*', async (c, next) => {
+        (c as any).set('workspaceId', 'ws_test');
+        (c as any).set('user', { id: 'usr_test' });
+        await next();
+      });
+      app.route('/email-deliveries', deliveriesRouter);
+
+      const res = await app.request('/email-deliveries/del_inbound_reply_1');
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as any;
+      expect(json.success).toBe(true);
+      expect(json.data.direction).toBe('INBOUND');
+      expect(json.data.status).toBe('RECEIVED');
+      expect(json.data.status).not.toBe('SENT');
+    });
+
+    it('enforces that DSN bounce and pending inbounds also adhere to direction INBOUND and status RECEIVED', async () => {
+      const mockDsnDelivery = {
+        _id: 'del_inbound_dsn_1',
+        workspaceId: 'ws_test',
+        direction: 'INBOUND',
+        status: 'RECEIVED',
+        processingStatus: 'MATCHED',
+        sequenceId: 'inbound-dsn',
+        executionId: 'inbound-dsn',
+        subject: 'Delivery Status Notification (Failure)',
+        senderEmail: 'mailer-daemon@googlemail.com'
+      };
+
+      EmailDeliveryRepository.prototype.findById = vi.fn().mockResolvedValue(mockDsnDelivery);
+
+      app.use('*', async (c, next) => {
+        (c as any).set('workspaceId', 'ws_test');
+        (c as any).set('user', { id: 'usr_test' });
+        await next();
+      });
+      app.route('/email-deliveries', deliveriesRouter);
+
+      const res = await app.request('/email-deliveries/del_inbound_dsn_1');
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as any;
+      expect(json.success).toBe(true);
+      expect(json.data.direction).toBe('INBOUND');
+      expect(json.data.status).toBe('RECEIVED');
     });
   });
 });

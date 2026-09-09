@@ -385,7 +385,8 @@ export function registerCrmIpc() {
       : 'DRAFT';
     const payload = {
       ...record,
-      status: validStatus
+      status: validStatus,
+      idempotencyKey: record.idempotencyKey || undefined
     };
     const created = await sdk.campaigns.create(payload);
     await LocalCRMRepository.saveFromServer('campaigns', created);

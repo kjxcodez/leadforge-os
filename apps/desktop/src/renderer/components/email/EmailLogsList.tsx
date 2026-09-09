@@ -65,6 +65,7 @@ export const EmailLogsList: React.FC<EmailLogsListProps> = ({
   const statusOptions = [
     { label: 'All Statuses', value: 'all' },
     { label: 'Sent (Accepted)', value: 'SENT' },
+    { label: 'Received', value: 'RECEIVED' },
     { label: 'Ambiguous', value: 'AMBIGUOUS' },
     { label: 'Failed', value: 'FAILED' },
     { label: 'Sending / Retrying', value: 'SENDING' },

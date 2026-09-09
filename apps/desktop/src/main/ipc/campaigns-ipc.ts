@@ -423,44 +423,18 @@ export function registerCampaignsIpc(): void {
       .prepare(`SELECT id, contactId, nextExecutionAt, status FROM sequence_executions WHERE campaignId = ? AND UPPER(status) != 'COMPLETED' AND deletedAt IS NULL`)
       .all(campaignId) as Array<{ id: string; contactId: string; nextExecutionAt: string | null; status: string }>;
 
-    let enqueuedJobsCount = 0;
-
     for (const enroll of enrollments) {
       if (enroll.status?.toUpperCase() === 'COMPLETED') continue;
       const isWaiting = enroll.nextExecutionAt && new Date(enroll.nextExecutionAt) > new Date();
       const newStatus = isWaiting ? 'WAITING' : 'RUNNING';
 
       db.prepare(`UPDATE sequence_executions SET status = ?, updatedAt = ? WHERE id = ?`).run(newStatus, now, enroll.id);
-
-      if (!isWaiting) {
-        try {
-          await sdk.jobs.create({
-            id: randomUUID(),
-            type: 'automation:workflow',
-            priority: 3,
-            payload: {
-              sequenceId: campaign.sequenceId,
-              entityId: enroll.contactId,
-              entityType: 'contact',
-              executionId: enroll.id,
-              workspaceId: runtime.workspaceId,
-              campaignId,
-              contactId: enroll.contactId
-            }
-          });
-          enqueuedJobsCount++;
-        } catch (err) {
-          console.warn('[IPC] Error queueing scheduled job:', err);
-        }
-      }
     }
 
-    if (enqueuedJobsCount > 0) {
-      WorkspaceManager.wakeScheduler();
-    }
+    WorkspaceManager.wakeScheduler();
 
-    console.log(`[IPC] Campaign "${campaignId}" scheduled successfully. Enqueued ${enqueuedJobsCount} workflow job(s).`);
-    return { success: true, campaignId, enqueuedJobsCount };
+    console.log(`[IPC] Campaign "${campaignId}" scheduled successfully.`);
+    return { success: true, campaignId };
   });
 
   // 8. Pause campaign

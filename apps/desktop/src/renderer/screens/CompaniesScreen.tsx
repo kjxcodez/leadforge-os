@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SyncCompanyRepository, SyncContactRepository } from '../repositories/sync';
 import {
   useEntityList,
@@ -44,6 +44,7 @@ import { motion } from 'framer-motion';
 export default function CompaniesScreen() {
   const { activeWorkspace } = useWorkspace();
   const workspaceId = activeWorkspace?.id || '';
+  const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -1013,6 +1014,7 @@ export default function CompaniesScreen() {
         isOpen={audienceModalOpen}
         onClose={() => setAudienceModalOpen(false)}
         onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['audiences', 'list', workspaceId] });
           toast.success('Audience saved successfully!');
           setSelectedIds([]);
           companiesQuery.refetch();

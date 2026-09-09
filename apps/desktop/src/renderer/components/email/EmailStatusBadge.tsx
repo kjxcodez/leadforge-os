@@ -38,6 +38,12 @@ export const EmailStatusBadge: React.FC<EmailStatusBadgeProps> = ({
   let icon = <Clock className="w-3 h-3 mr-1" />;
 
   switch (normStatus) {
+    case 'RECEIVED':
+      colorClass = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
+      icon = <ArrowDownLeft className="w-3 h-3 mr-1 text-cyan-400" />;
+      label = 'Received';
+      description = 'Inbound message received and ingested';
+      break;
     case 'SENT':
       colorClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
       icon = <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-400" />;

@@ -35,6 +35,7 @@ export interface CampaignDocument
   timezone: string;
   dailyLimit: number;
   settings?: Record<string, any> | null;
+  idempotencyKey?: string | null;
 }
 
 const campaignSchema = new Schema<CampaignDocument>(
@@ -91,6 +92,11 @@ const campaignSchema = new Schema<CampaignDocument>(
     settings: {
       type: Schema.Types.Mixed,
       default: null
+    },
+    idempotencyKey: {
+      type: String,
+      unique: true,
+      sparse: true
     }
   },
   {

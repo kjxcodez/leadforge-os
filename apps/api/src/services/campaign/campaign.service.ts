@@ -1,5 +1,5 @@
 import { CampaignRepository } from '../../repositories/campaign/campaign.repository.js';
-import type { CampaignDocument } from '../../db/models/campaign.model.js';
+import { CampaignModel, type CampaignDocument } from '../../db/models/campaign.model.js';
 import { JobModel, SequenceExecutionModel } from '../../db/models/index.js';
 import {
   createCampaignDtoSchema,
@@ -10,7 +10,7 @@ import {
   type CreateCampaignDto,
   type UpdateCampaignDto
 } from '@leadforge/schema';
-import { ValidationError } from '../../errors/index.js';
+import { ValidationError, ConflictError } from '../../errors/index.js';
 
 export class CampaignService {
   private campaignRepository: CampaignRepository;
@@ -35,20 +35,71 @@ export class CampaignService {
   public async createCampaign(dto: CreateCampaignDto): Promise<CampaignDocument> {
     const validated = createCampaignDtoSchema.parse(dto);
     const clientRecord: any = dto;
-    return this.campaignRepository.create({
-      ...(clientRecord.id || clientRecord._id ? { _id: clientRecord.id || clientRecord._id } : {}),
-      name: validated.name,
-      description: validated.description || null,
-      sequenceId: validated.sequenceId || null,
-      sendingAccountId: validated.sendingAccountId || null,
-      steps: validated.steps || [],
-      status: (validated.status ? String(validated.status).toUpperCase() : 'DRAFT') as any,
-      template: validated.template || null,
-      schedule: validated.schedule || null,
-      timezone: validated.timezone || 'UTC',
-      dailyLimit: validated.dailyLimit !== undefined ? validated.dailyLimit : 0,
-      settings: validated.settings || null
-    });
+    const idempotencyKey = (clientRecord.idempotencyKey || clientRecord.idempotency_key) as string | undefined;
+
+    // ── Phase 3: Server-Side Campaign Idempotency Boundary ────────────────────
+    if (idempotencyKey) {
+      const existing = await CampaignModel.findOne({
+        workspaceId: this.workspaceId,
+        idempotencyKey,
+        deletedAt: null
+      });
+
+      if (existing) {
+        const createdAtTime = existing.createdAt ? new Date(existing.createdAt).getTime() : 0;
+        const ageMs = Date.now() - createdAtTime;
+        if (ageMs <= 60000) {
+          return existing;
+        }
+        throw new ConflictError('A campaign with this idempotency key was already created outside the 60-second window.');
+      }
+    }
+
+    try {
+      return await this.campaignRepository.create({
+        ...(clientRecord.id || clientRecord._id ? { _id: clientRecord.id || clientRecord._id } : {}),
+        name: validated.name,
+        description: validated.description || null,
+        sequenceId: validated.sequenceId || null,
+        sendingAccountId: validated.sendingAccountId || null,
+        steps: validated.steps || [],
+        status: (validated.status ? String(validated.status).toUpperCase() : 'DRAFT') as any,
+        template: validated.template || null,
+        schedule: validated.schedule || null,
+        timezone: validated.timezone || 'UTC',
+        dailyLimit: validated.dailyLimit !== undefined ? validated.dailyLimit : 0,
+        settings: validated.settings || null,
+        ...(idempotencyKey ? { idempotencyKey } : {})
+      });
+    } catch (err: any) {
+      // Deterministic concurrent race resolution:
+      // If two concurrent requests with the same idempotencyKey reach the server simultaneously,
+      // the second request will trigger a unique index violation on idempotencyKey.
+      const isConflict =
+        err instanceof ConflictError ||
+        err?.code === 11000 ||
+        err?.code === 'CONFLICT' ||
+        err?.statusCode === 409 ||
+        err?.message?.includes('duplicate key') ||
+        err?.message?.includes('unique constraint');
+
+      if (idempotencyKey && isConflict) {
+        const existing = await CampaignModel.findOne({
+          workspaceId: this.workspaceId,
+          idempotencyKey,
+          deletedAt: null
+        });
+        if (existing) {
+          const createdAtTime = existing.createdAt ? new Date(existing.createdAt).getTime() : 0;
+          const ageMs = Date.now() - createdAtTime;
+          if (ageMs <= 60000) {
+            return existing;
+          }
+          throw new ConflictError('A campaign with this idempotency key was already created outside the 60-second window.');
+        }
+      }
+      throw err;
+    }
   }
 
   public async updateCampaign(id: string, dto: UpdateCampaignDto): Promise<CampaignDocument> {

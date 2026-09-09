@@ -12,7 +12,8 @@ export const VALID_DELIVERY_TRANSITIONS: Record<EmailDeliveryStatus, EmailDelive
   FAILED: ['SENDING', 'RETRYING'], // Allow retry on failed deliveries
   SENT: [], // Terminal
   CANCELLED: ['QUEUED', 'SENDING'],
-  SUPPRESSED: [] // Terminal
+  SUPPRESSED: [], // Terminal
+  RECEIVED: [] // Terminal (Inbound delivery record)
 };
 
 export class EmailDeliveryRepository extends BaseRepository<EmailDeliveryDocument> {
