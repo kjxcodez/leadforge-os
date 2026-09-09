@@ -251,6 +251,10 @@ export interface IpcChannelMap {
     input: string;
     output: { success: boolean; campaignId: string; status: string };
   };
+  'campaigns:runtime:overview': {
+    input: { workspaceId: string; campaignId?: string };
+    output: { jobs: any[]; waiting: any[] };
+  };
   'scheduler:queue:list': {
     input: { workspaceId: string };
     output: { jobs: any[]; waiting: any[] };
