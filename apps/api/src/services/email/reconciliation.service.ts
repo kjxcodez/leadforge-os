@@ -18,6 +18,7 @@ import {
   canTransitionContactStatus,
   generateEntityId,
   parseDsnReport,
+  mapBounceCategoryToFailureCategory,
   sanitizeHtmlForPreview
 } from '@leadforge/schema';
 import { SuppressionRepository } from '../../repositories/suppression/suppression.repository.js';
@@ -699,15 +700,21 @@ export class ReconciliationService {
           });
         }
 
+        const bounceCategory = dsnReport.classification.category;
+        const failureCategory = mapBounceCategoryToFailureCategory(bounceCategory);
+
         await EmailDeliveryModel.updateOne(
           { _id: bouncedDelivery._id },
           {
             $set: {
               status: 'FAILED',
-              failureCategory: EmailFailureCategory.INVALID_RECIPIENT,
+              failureCategory,
+              failureClassification: bounceCategory,
               failureCode: dsnReport.classification.enhancedStatusCode || String(dsnReport.classification.statusCode || 'BOUNCE'),
               safeHumanMessage: dsnReport.classification.safeDescription,
-              technicalMessage: dsnReport.classification.diagnosticMessage
+              technicalMessage: dsnReport.classification.diagnosticMessage,
+              retryable: !dsnReport.classification.isPermanent,
+              error: dsnReport.classification.safeDescription || dsnReport.classification.diagnosticMessage
             }
           }
         );

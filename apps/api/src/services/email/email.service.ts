@@ -21,6 +21,7 @@ import {
   BounceCategory,
   SuppressionReason,
   classifyBounce,
+  mapBounceCategoryToFailureCategory,
   evaluateOutreachEligibility,
   generateTrackingToken,
   injectOpenTrackingPixel,
@@ -169,39 +170,8 @@ export function classifyEmailFailure(err: any): {
   // 8. Delegate to Canonical Bounce & Rejection Classifier
   const bounce = classifyBounce({ code, message: msg });
   if (bounce && bounce.category !== BounceCategory.UNKNOWN) {
-    let category = EmailFailureCategory.PROVIDER;
-    let retryable = !bounce.isPermanent;
-
-    switch (bounce.category) {
-      case BounceCategory.SPAM_REJECTION:
-      case BounceCategory.POLICY_REJECTION:
-      case BounceCategory.AUTHENTICATION_REJECTION:
-        category = EmailFailureCategory.POLICY;
-        retryable = false;
-        break;
-
-      case BounceCategory.MAILBOX_UNAVAILABLE:
-      case BounceCategory.DOMAIN_UNAVAILABLE:
-      case BounceCategory.HARD_BOUNCE:
-        category = EmailFailureCategory.INVALID_RECIPIENT;
-        retryable = false;
-        break;
-
-      case BounceCategory.RATE_LIMIT:
-        category = EmailFailureCategory.RATE_LIMIT;
-        retryable = true;
-        break;
-
-      case BounceCategory.SOFT_BOUNCE:
-        category = EmailFailureCategory.PROVIDER;
-        retryable = true;
-        break;
-
-      default:
-        category = EmailFailureCategory.PROVIDER;
-        retryable = Boolean(err?.retryable);
-        break;
-    }
+    const category = mapBounceCategoryToFailureCategory(bounce.category);
+    const retryable = !bounce.isPermanent;
 
     return {
       code: bounce.enhancedStatusCode || (bounce.statusCode ? String(bounce.statusCode) : code),
