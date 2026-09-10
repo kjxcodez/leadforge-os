@@ -8,8 +8,8 @@ export const VALID_DELIVERY_TRANSITIONS: Record<EmailDeliveryStatus, EmailDelive
   QUEUED: ['SENDING', 'SENT', 'FAILED', 'CANCELLED', 'SUPPRESSED'],
   SENDING: ['SENT', 'FAILED', 'RETRYING', 'AMBIGUOUS', 'CANCELLED'],
   RETRYING: ['SENDING', 'SENT', 'CANCELLED', 'FAILED'],
-  AMBIGUOUS: ['SENT', 'FAILED', 'RETRYING', 'CANCELLED', 'SENDING'],
-  FAILED: ['SENDING', 'RETRYING'], // Allow retry on failed deliveries
+  AMBIGUOUS: ['SENT', 'FAILED', 'CANCELLED'], // Strictly non-retryable; requires reconciliation
+  FAILED: ['SENDING', 'RETRYING'], // Allow retry on retryable failed deliveries
   SENT: [], // Terminal
   CANCELLED: ['QUEUED', 'SENDING'],
   SUPPRESSED: [], // Terminal
@@ -54,6 +54,24 @@ export class EmailDeliveryRepository extends BaseRepository<EmailDeliveryDocumen
     if (existing) {
       if (existing.status === 'SENT' || existing.status === 'SUPPRESSED') {
         return { delivery: existing, isAlreadySent: true };
+      }
+
+      // Invariant: An AMBIGUOUS delivery must never be automatically re-dispatched.
+      if (existing.status === 'AMBIGUOUS') {
+        throw new EmailDomainError(
+          'AMBIGUOUS_SEND_TIMEOUT',
+          `Delivery with idempotency key "${dto.idempotencyKey}" is in AMBIGUOUS state pending reconciliation. Blind re-dispatch is forbidden.`,
+          false,
+          false
+        );
+      }
+
+      // If existing failed delivery was permanent (non-retryable), forbid re-sending
+      if (existing.status === 'FAILED' && existing.retryable === false) {
+        throw new EmailDomainError(
+          'EMAIL_SEND_FAILED',
+          `Cannot transition delivery ${existing._id} from permanent FAILED status to SENDING.`
+        );
       }
 
       // If already in active SENDING state with valid lease, prevent concurrent duplicate execution
@@ -110,6 +128,43 @@ export class EmailDeliveryRepository extends BaseRepository<EmailDeliveryDocumen
       return { delivery: updated!, isAlreadySent: false };
     }
 
+    // Invariant: Prevent creating a duplicate delivery record for an execution/contact/step with an existing AMBIGUOUS delivery
+    if (dto.executionId && dto.contactId && dto.stepIndex !== undefined) {
+      const ambiguousExecution = await this.findOne({
+        executionId: dto.executionId,
+        contactId: dto.contactId,
+        stepIndex: dto.stepIndex,
+        status: 'AMBIGUOUS'
+      });
+
+      if (ambiguousExecution) {
+        throw new EmailDomainError(
+          'AMBIGUOUS_SEND_TIMEOUT',
+          `An outbound delivery for execution "${dto.executionId}", step ${dto.stepIndex}, contact "${dto.contactId}" is in AMBIGUOUS state pending reconciliation. Blind re-dispatch is forbidden.`,
+          false,
+          false
+        );
+      }
+    }
+
+    if (dto.campaignId && dto.contactId && dto.stepIndex !== undefined) {
+      const ambiguousCampaign = await this.findOne({
+        campaignId: dto.campaignId,
+        contactId: dto.contactId,
+        stepIndex: dto.stepIndex,
+        status: 'AMBIGUOUS'
+      });
+
+      if (ambiguousCampaign) {
+        throw new EmailDomainError(
+          'AMBIGUOUS_SEND_TIMEOUT',
+          `An outbound delivery for campaign "${dto.campaignId}", step ${dto.stepIndex}, contact "${dto.contactId}" is in AMBIGUOUS state pending reconciliation. Blind re-dispatch is forbidden.`,
+          false,
+          false
+        );
+      }
+    }
+
     // Create fresh delivery in SENDING state
     try {
       const recipientDomain = (dto as any).recipientDomain || normalizeDomain(dto.recipientEmail);
@@ -152,6 +207,14 @@ export class EmailDeliveryRepository extends BaseRepository<EmailDeliveryDocumen
         const concurrentDoc = await this.findOne({ idempotencyKey: dto.idempotencyKey });
         if (concurrentDoc && (concurrentDoc.status === 'SENT' || concurrentDoc.status === 'SUPPRESSED')) {
           return { delivery: concurrentDoc, isAlreadySent: true };
+        }
+        if (concurrentDoc && concurrentDoc.status === 'AMBIGUOUS') {
+          throw new EmailDomainError(
+            'AMBIGUOUS_SEND_TIMEOUT',
+            `Delivery with idempotency key "${dto.idempotencyKey}" is in AMBIGUOUS state pending reconciliation. Blind re-dispatch is forbidden.`,
+            false,
+            false
+          );
         }
         throw new EmailDomainError(
           'DELIVERY_ALREADY_RESERVED',

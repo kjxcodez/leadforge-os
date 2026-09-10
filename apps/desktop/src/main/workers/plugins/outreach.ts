@@ -361,6 +361,14 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
       sendError = err.message || String(err);
       sendSuccess = false;
 
+      const isAmbiguous =
+        err.code === 'AMBIGUOUS_SEND_TIMEOUT' ||
+        err.category === 'AMBIGUOUS' ||
+        err.ambiguous === true ||
+        sendError.includes('AMBIGUOUS_SEND_TIMEOUT') ||
+        sendError.includes('ambiguous') ||
+        sendError.includes('pending reconciliation');
+
       const isRateLimited =
         err.status === 429 ||
         err.code === 'EMAIL_RATE_LIMITED' ||
@@ -376,7 +384,18 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
         sendError.includes('COMPANY_CARDINALITY_EXCEEDED') ||
         sendError.includes('cardinality limit reached');
 
-      if (isCardinalityExceeded) {
+      if (isAmbiguous) {
+        skippedCount++;
+        ctx.emitLog(
+          `⚠️ Ambiguous delivery outcome for "${contact.email}": send outcome is unconfirmed (pending reconciliation). Blind re-dispatch suppressed to prevent duplicate sending.`,
+          'warn',
+          {
+            recipient: contact.email,
+            campaignId,
+            error: sendError
+          }
+        );
+      } else if (isCardinalityExceeded) {
         skippedCount++;
         ctx.emitLog(
           `Skipped contact "${contact.email}": company contact cardinality limit reached for campaign.`,
@@ -425,8 +444,24 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
             ctx.emitLog(`✅ Email sent on retry to ${contact.email} (messageId: ${messageId})`, 'info');
           } catch (retryErr: any) {
             sendError = retryErr.message || String(retryErr);
-            failureCount++;
-            ctx.emitLog(`❌ Failed to send email on retry to ${contact.email}: ${sendError}`, 'error');
+            const isRetryAmbiguous =
+              retryErr.code === 'AMBIGUOUS_SEND_TIMEOUT' ||
+              retryErr.category === 'AMBIGUOUS' ||
+              retryErr.ambiguous === true ||
+              sendError.includes('AMBIGUOUS_SEND_TIMEOUT') ||
+              sendError.includes('ambiguous') ||
+              sendError.includes('pending reconciliation');
+
+            if (isRetryAmbiguous) {
+              skippedCount++;
+              ctx.emitLog(
+                `⚠️ Ambiguous delivery outcome on retry for "${contact.email}": pending reconciliation. Blind re-dispatch suppressed.`,
+                'warn'
+              );
+            } else {
+              failureCount++;
+              ctx.emitLog(`❌ Failed to send email on retry to ${contact.email}: ${sendError}`, 'error');
+            }
           }
         }
       } else {

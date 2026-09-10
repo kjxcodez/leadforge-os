@@ -55,7 +55,14 @@ export function classifyEmailFailure(err: any): {
   const lowerMsg = msg.toLowerCase();
 
   // 1. Ambiguous Delivery / Network Timeout during send
-  if (err?.code === 'AMBIGUOUS_SEND_TIMEOUT' || lowerMsg.includes('ambiguous_send_timeout')) {
+  if (
+    err?.code === 'AMBIGUOUS_SEND_TIMEOUT' ||
+    err?.category === 'AMBIGUOUS' ||
+    err?.ambiguous === true ||
+    lowerMsg.includes('ambiguous_send_timeout') ||
+    lowerMsg.includes('ambiguous') ||
+    lowerMsg.includes('pending reconciliation')
+  ) {
     return {
       code,
       category: EmailFailureCategory.AMBIGUOUS,
@@ -834,14 +841,18 @@ export class EmailService {
         });
       }
 
-      if (err.code === 'AMBIGUOUS_SEND_TIMEOUT') {
+      if (
+        err.code === 'AMBIGUOUS_SEND_TIMEOUT' ||
+        failure.category === EmailFailureCategory.AMBIGUOUS ||
+        failure.ambiguous === true
+      ) {
         // Critical Ambiguous Send: Network failed after dispatch.
         // Clear in-flight lease so mailbox is not locked forever, but do NOT release quota or retry blindly!
         await this.accountRepo.clearSendLease(input.accountId);
         await this.deliveryRepo.markAmbiguous(
           deliveryRecord._id.toString(),
           err.message,
-          'Network timeout during Gmail API transmission. Requires manual/reconciliation check.'
+          'Network timeout or indeterminate provider response during transmission. Requires reconciliation.'
         );
         throw err;
       }
