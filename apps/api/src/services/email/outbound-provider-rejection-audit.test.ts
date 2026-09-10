@@ -173,13 +173,11 @@ describe('Phase 5 Item A — Forensic Audit: Outbound Provider Rejection & Failu
   });
 
   describe('Finding 4: Unsafe State Transitions Violating Idempotency Invariants', () => {
-    it('CONFIRMED: VALID_DELIVERY_TRANSITIONS permits AMBIGUOUS -> SENDING and FAILED -> SENDING without safety check', () => {
-      // Delivery state machine permits transitioning from AMBIGUOUS or FAILED back to SENDING
-      expect(VALID_DELIVERY_TRANSITIONS.AMBIGUOUS).toContain('SENDING');
-      expect(VALID_DELIVERY_TRANSITIONS.FAILED).toContain('SENDING');
-
-      // This allows reserveDelivery to reclaim an AMBIGUOUS delivery and dispatch a duplicate email
-      // without verifying whether the provider already accepted the previous attempt!
+    it('RESOLVED (Issue #37): VALID_DELIVERY_TRANSITIONS strictly forbids AMBIGUOUS -> SENDING and AMBIGUOUS -> RETRYING', () => {
+      // Delivery state machine strictly forbids transitioning from AMBIGUOUS back to SENDING or RETRYING
+      expect(VALID_DELIVERY_TRANSITIONS.AMBIGUOUS).not.toContain('SENDING');
+      expect(VALID_DELIVERY_TRANSITIONS.AMBIGUOUS).not.toContain('RETRYING');
+      expect(VALID_DELIVERY_TRANSITIONS.AMBIGUOUS).toEqual(['SENT', 'FAILED', 'CANCELLED']);
     });
   });
 });

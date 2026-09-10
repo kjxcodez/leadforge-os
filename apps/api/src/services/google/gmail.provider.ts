@@ -114,8 +114,8 @@ export class GmailProvider {
         'AMBIGUOUS_SEND_TIMEOUT',
         `Network failure while contacting Gmail API: ${netErr.message}`,
         false,
-        true,
-        'transient_network'
+        false,
+        'ambiguous_network'
       );
     }
 
