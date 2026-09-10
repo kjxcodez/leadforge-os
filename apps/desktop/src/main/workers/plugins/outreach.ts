@@ -365,17 +365,30 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
         err.status === 429 ||
         err.code === 'EMAIL_RATE_LIMITED' ||
         err.code === 'PROVIDER_RATE_LIMITED' ||
+        err.code === 'DOMAIN_PACING_THROTTLED' ||
+        sendError.includes('DOMAIN_PACING_THROTTLED') ||
         sendError.includes('RATE_LIMITED') ||
         sendError.includes('rate limit') ||
         sendError.includes('429');
 
-      if (isRateLimited) {
+      const isCardinalityExceeded =
+        err.code === 'COMPANY_CARDINALITY_EXCEEDED' ||
+        sendError.includes('COMPANY_CARDINALITY_EXCEEDED') ||
+        sendError.includes('cardinality limit reached');
+
+      if (isCardinalityExceeded) {
+        skippedCount++;
+        ctx.emitLog(
+          `Skipped contact "${contact.email}": company contact cardinality limit reached for campaign.`,
+          'info'
+        );
+      } else if (isRateLimited) {
         const retrySec = typeof err.retryAfterSec === 'number' && err.retryAfterSec > 0
           ? err.retryAfterSec
           : 10;
 
         ctx.emitLog(
-          `Mailbox throttled (retryAfter=${retrySec}s). Backing off before retrying ${contact.email}...`,
+          `Outreach throttled by domain pacing/rate limit (retryAfter=${retrySec}s). Backing off before retrying ${contact.email}...`,
           'warn'
         );
 

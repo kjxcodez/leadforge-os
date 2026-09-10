@@ -35,6 +35,7 @@ import {
 } from './types.js';
 import { EmailAccountService } from './email-account.service.js';
 import { CampaignCircuitBreakerService } from '../campaign/campaign-circuit-breaker.service.js';
+import { DomainPacingService } from '../outreach/domain-pacing.service.js';
 import { SuppressionRepository } from '../../repositories/suppression/suppression.repository.js';
 import { logger } from '../../config/index.js';
 import crypto from 'crypto';
@@ -108,14 +109,27 @@ export function classifyEmailFailure(err: any): {
     };
   }
 
-  // 4. Outreach Policy & Safety Gates (Internal LeadForge policy)
-  if (code === 'CAMPAIGN_NOT_ACTIVE' || code === 'CONTACT_NOT_ELIGIBLE') {
+  // 4. Outreach Policy & Safety Gates (Internal LeadForge policy & Issue #36)
+  if (code === 'CAMPAIGN_NOT_ACTIVE' || code === 'CONTACT_NOT_ELIGIBLE' || code === 'COMPANY_CARDINALITY_EXCEEDED') {
     return {
       code,
       category: EmailFailureCategory.POLICY,
-      safeHumanMessage: 'Outreach policy prevented send: campaign is not active or contact is ineligible.',
+      safeHumanMessage: code === 'COMPANY_CARDINALITY_EXCEEDED'
+        ? 'Outreach policy prevented send: company contact cardinality limit reached for campaign.'
+        : 'Outreach policy prevented send: campaign is not active or contact is ineligible.',
       technicalMessage: msg,
       retryable: false,
+      ambiguous: false
+    };
+  }
+
+  if (code === 'DOMAIN_PACING_THROTTLED') {
+    return {
+      code,
+      category: EmailFailureCategory.RATE_LIMIT,
+      safeHumanMessage: 'Destination domain outbound pacing throttled.',
+      technicalMessage: msg,
+      retryable: true,
       ambiguous: false
     };
   }
@@ -397,10 +411,22 @@ export class EmailService {
       );
     }
 
+    // 0d. Server-authoritative company cardinality & domain pacing gate (Issue #36)
+    const pacingService = new DomainPacingService(this.workspaceId);
+    const pacingReservation = await pacingService.checkAndReservePacing({
+      recipientEmail: normRecipient,
+      campaignId: input.campaignId,
+      contactId: input.contactId,
+      companyId: contactDoc?.companyId || null,
+      campaignSettings: campaignDoc?.settings || null,
+      requestId: input.idempotencyKey
+    });
+
     // 1. Atomic send slot reservation (prevents counter race conditions)
     const effectiveLimits = await this.accountRepo.resolveEffectiveLimits(input.accountId);
     const reservation = await this.accountRepo.reserveSendSlot(input.accountId, effectiveLimits);
     if (!reservation.success) {
+      await pacingReservation.releaseDomainLease();
       if (reservation.reason === 'MAILBOX_AUTH_REQUIRED') {
         throw new EmailDomainError(
           'MAILBOX_REAUTH_REQUIRED',
@@ -488,6 +514,7 @@ export class EmailService {
           'Idempotency skip: delivery previously recorded as SENT in ledger'
         );
         await this.accountRepo.releaseSendSlot(input.accountId);
+        await pacingReservation.releaseDomainLease();
         return {
           messageId: deliveryRecord.providerMessageId || '',
           threadId: deliveryRecord.providerThreadId || null,
@@ -497,6 +524,7 @@ export class EmailService {
       }
     } catch (reserveErr: any) {
       await this.accountRepo.releaseSendSlot(input.accountId);
+      await pacingReservation.releaseDomainLease();
       throw reserveErr;
     }
 

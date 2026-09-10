@@ -1,7 +1,7 @@
 import { BaseRepository } from '../base/base.repository.js';
 import { EmailDeliveryModel, type EmailDeliveryDocument } from '../../db/models/email-delivery.model.js';
 import type { EmailDeliveryStatus, ReserveEmailDeliveryDto } from '@leadforge/schema';
-import { generateEntityId } from '@leadforge/schema';
+import { generateEntityId, normalizeDomain } from '@leadforge/schema';
 import { EmailDomainError } from '../../services/email/types.js';
 
 export const VALID_DELIVERY_TRANSITIONS: Record<EmailDeliveryStatus, EmailDeliveryStatus[]> = {
@@ -78,6 +78,8 @@ export class EmailDeliveryRepository extends BaseRepository<EmailDeliveryDocumen
         );
       }
 
+      const recipientDomain = (dto as any).recipientDomain || normalizeDomain(dto.recipientEmail);
+
       // Reclaim / transition to SENDING
       const updated = await this.atomicFindOneAndUpdate(
         { _id: existing._id },
@@ -87,6 +89,7 @@ export class EmailDeliveryRepository extends BaseRepository<EmailDeliveryDocumen
             leaseExpiresAt,
             senderEmail: dto.senderEmail,
             recipientEmail: dto.recipientEmail,
+            recipientDomain,
             subject: dto.subject,
             htmlBody: dto.htmlBody || existing.htmlBody,
             textBody: dto.textBody || existing.textBody,
@@ -109,6 +112,7 @@ export class EmailDeliveryRepository extends BaseRepository<EmailDeliveryDocumen
 
     // Create fresh delivery in SENDING state
     try {
+      const recipientDomain = (dto as any).recipientDomain || normalizeDomain(dto.recipientEmail);
       const created = await this.create({
         _id: dto.id || generateEntityId(),
         workspaceId: wsId,
@@ -121,6 +125,7 @@ export class EmailDeliveryRepository extends BaseRepository<EmailDeliveryDocumen
         accountId: dto.accountId,
         senderEmail: dto.senderEmail,
         recipientEmail: dto.recipientEmail,
+        recipientDomain,
         subject: dto.subject,
         htmlBody: dto.htmlBody || null,
         textBody: dto.textBody || null,

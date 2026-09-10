@@ -1806,10 +1806,25 @@ async function handleSendEmailStep(
   } catch (sendErr: any) {
     const errMsg = sendErr.message || String(sendErr);
 
+    const isCardinalityExceeded =
+      sendErr.code === 'COMPANY_CARDINALITY_EXCEEDED' ||
+      errMsg.includes('COMPANY_CARDINALITY_EXCEEDED') ||
+      errMsg.includes('Company contact cardinality limit reached');
+
+    if (isCardinalityExceeded) {
+      ctx.emitLog(
+        `Contact "${recipientEmail}" deferred: company contact cardinality limit reached for campaign "${campaignId}". Yielding WAITING state.`,
+        'warn'
+      );
+      return { status: 'wait', delaySeconds: 3600, retrySameStep: true };
+    }
+
     const isRateLimited =
       sendErr.status === 429 ||
       sendErr.code === 'EMAIL_RATE_LIMITED' ||
       sendErr.code === 'PROVIDER_RATE_LIMITED' ||
+      sendErr.code === 'DOMAIN_PACING_THROTTLED' ||
+      errMsg.includes('DOMAIN_PACING_THROTTLED') ||
       errMsg.includes('EMAIL_RATE_LIMITED') ||
       errMsg.includes('PROVIDER_RATE_LIMITED') ||
       errMsg.includes('429') ||
