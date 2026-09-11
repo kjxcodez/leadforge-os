@@ -384,7 +384,23 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
         sendError.includes('COMPANY_CARDINALITY_EXCEEDED') ||
         sendError.includes('cardinality limit reached');
 
-      if (isAmbiguous) {
+      const isSuppressedOrDnc =
+        err.code === 'COMPANY_DNC' ||
+        err.code === 'DOMAIN_SUPPRESSED' ||
+        err.code === 'RECIPIENT_SUPPRESSED' ||
+        sendError.includes('COMPANY_DNC') ||
+        sendError.includes('DOMAIN_SUPPRESSED') ||
+        sendError.includes('RECIPIENT_SUPPRESSED') ||
+        sendError.includes('Do Not Contact') ||
+        sendError.includes('suppressed in this workspace');
+
+      if (isSuppressedOrDnc) {
+        skippedCount++;
+        ctx.emitLog(
+          `Skipped contact "${contact.email}": blocked by suppression/DNC policy (${err.code || 'POLICY_BLOCKED'}).`,
+          'info'
+        );
+      } else if (isAmbiguous) {
         skippedCount++;
         ctx.emitLog(
           `⚠️ Ambiguous delivery outcome for "${contact.email}": send outcome is unconfirmed (pending reconciliation). Blind re-dispatch suppressed to prevent duplicate sending.`,
@@ -475,10 +491,11 @@ export async function dispatchOutreach(ctx: JobContext): Promise<any> {
 
         // Phase 10: Auto-suppress on hard bounce
         const isHardBounce =
-          err.code === 'INVALID_RECIPIENT' ||
-          err.status === 400 ||
-          sendError.includes('INVALID_RECIPIENT') ||
-          sendError.includes('550');
+          !isSuppressedOrDnc &&
+          (err.code === 'INVALID_RECIPIENT' ||
+            err.status === 400 ||
+            sendError.includes('INVALID_RECIPIENT') ||
+            sendError.includes('550'));
 
         if (isHardBounce) {
           try {

@@ -23,6 +23,7 @@ import {
   classifyBounce,
   mapBounceCategoryToFailureCategory,
   evaluateOutreachEligibility,
+  normalizeDomain,
   generateTrackingToken,
   injectOpenTrackingPixel,
   rewriteLinksForClickTracking,
@@ -208,6 +209,20 @@ export function classifyEmailFailure(err: any): {
     };
   }
 
+  // 8b. Company DNC & Domain Suppression policy rejections (local policy, NOT provider failures or hard bounces)
+  if (code === 'COMPANY_DNC' || code === 'DOMAIN_SUPPRESSED') {
+    return {
+      code,
+      category: EmailFailureCategory.POLICY,
+      safeHumanMessage: 'Outbound dispatch blocked by company or domain suppression policy.',
+      technicalMessage: msg,
+      retryable: false,
+      ambiguous: false,
+      bounceCategory: BounceCategory.POLICY_REJECTION,
+      isHardBounce: false
+    };
+  }
+
   // 9. Specific legacy address-level indicators not caught by numeric status codes
   if (
     code === 'INVALID_RECIPIENT' ||
@@ -342,30 +357,19 @@ export class EmailService {
       );
     }
 
-    // 0a. Pre-flight suppression check: block if recipient is suppressed in workspace (even for direct sends)
+    const normRecipient = input.to.toLowerCase().trim();
     const suppressionRepo = new SuppressionRepository(this.workspaceId);
-    const isSuppressed = await suppressionRepo.isSuppressed(input.to);
+
+    // 1. Workspace recipient suppression check: block if recipient is suppressed in workspace (even for direct sends)
+    const isSuppressed = await suppressionRepo.isSuppressed(normRecipient);
     if (isSuppressed) {
       throw new EmailDomainError(
         'RECIPIENT_SUPPRESSED',
-        `Recipient "${input.to}" is suppressed in this workspace and cannot receive outreach.`
+        `Recipient "${normRecipient}" is suppressed in this workspace and cannot receive outreach.`
       );
     }
 
-    // 0a. Server-authoritative campaign send authorization check
-    let campaignDoc: any = null;
-    if (input.campaignId) {
-      campaignDoc = await CampaignModel.findOne({ _id: input.campaignId, workspaceId: this.workspaceId });
-      if (campaignDoc && campaignDoc.status !== 'ACTIVE') {
-        throw new EmailDomainError(
-          'CAMPAIGN_NOT_ACTIVE',
-          `Campaign "${input.campaignId}" is in status "${campaignDoc.status}". Sending is not authorized.`
-        );
-      }
-    }
-
-    // 0b. Server-authoritative contact outreach eligibility check
-    const normRecipient = input.to.toLowerCase().trim();
+    // Resolve contact document to determine canonical company identity
     let contactDoc: any = null;
     if (input.contactId && input.contactId !== 'direct-contact') {
       contactDoc = await ContactModel.findOne({ _id: input.contactId, workspaceId: this.workspaceId });
@@ -381,6 +385,63 @@ export class EmailService {
       }
     }
 
+    // 2. Company DNC check: block if contact's canonical company is marked Do Not Contact in workspace
+    const companyId = contactDoc?.companyId || null;
+    if (companyId) {
+      const isCompanyDnc = await suppressionRepo.isCompanySuppressed(companyId);
+      if (isCompanyDnc) {
+        logger.info(
+          {
+            workspaceId: this.workspaceId,
+            companyId,
+            contactId: input.contactId,
+            recipient: normRecipient,
+            campaignId: input.campaignId
+          },
+          'Outreach dispatch blocked by company DNC policy'
+        );
+        throw new EmailDomainError(
+          'COMPANY_DNC',
+          `Company "${companyId}" is marked Do Not Contact in this workspace. Outbound outreach to "${normRecipient}" is blocked.`
+        );
+      }
+    }
+
+    // 3. Domain suppression check: block if recipient domain is suppressed in workspace
+    const normDomain = normalizeDomain(normRecipient);
+    if (normDomain) {
+      const isDomainSuppressed = await suppressionRepo.isDomainSuppressed(normDomain);
+      if (isDomainSuppressed) {
+        logger.info(
+          {
+            workspaceId: this.workspaceId,
+            domain: normDomain,
+            contactId: input.contactId,
+            recipient: normRecipient,
+            campaignId: input.campaignId
+          },
+          'Outreach dispatch blocked by domain suppression policy'
+        );
+        throw new EmailDomainError(
+          'DOMAIN_SUPPRESSED',
+          `Domain "${normDomain}" is suppressed in this workspace. Outbound outreach to "${normRecipient}" is blocked.`
+        );
+      }
+    }
+
+    // 4. Server-authoritative campaign send authorization check
+    let campaignDoc: any = null;
+    if (input.campaignId) {
+      campaignDoc = await CampaignModel.findOne({ _id: input.campaignId, workspaceId: this.workspaceId });
+      if (campaignDoc && campaignDoc.status !== 'ACTIVE') {
+        throw new EmailDomainError(
+          'CAMPAIGN_NOT_ACTIVE',
+          `Campaign "${input.campaignId}" is in status "${campaignDoc.status}". Sending is not authorized.`
+        );
+      }
+    }
+
+    // 5. Server-authoritative contact outreach eligibility check
     if (contactDoc) {
       const eligibility = evaluateOutreachEligibility({
         contact: {
