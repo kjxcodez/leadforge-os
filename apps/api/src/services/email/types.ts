@@ -73,6 +73,7 @@ export interface SendEmailInput {
   templateId?: string | undefined;
   templateVersion?: number | undefined;
   variablesSnapshot?: Record<string, any> | undefined;
+  trackingEnabled?: boolean | undefined;
 }
 
 export interface SendEmailResult {
@@ -134,7 +135,8 @@ export interface EmailProviderErrorShape {
     | 'GMAIL_SEARCH_FAILED'
     | 'GMAIL_INBOUND_LIST_FAILED'
     | 'GMAIL_GET_MESSAGE_FAILED'
-    | 'TRANSIENT_NETWORK_ERROR';
+    | 'TRANSIENT_NETWORK_ERROR'
+    | 'INVALID_TRACKING_CONFIG';
   message: string;
   reauthRequired?: boolean;
   retryable?: boolean;

@@ -27,6 +27,7 @@ import {
   generateTrackingToken,
   injectOpenTrackingPixel,
   rewriteLinksForClickTracking,
+  validateTrackingBaseUrl,
   isCircuitBreakerRejectionCategory
 } from '@leadforge/schema';
 import {
@@ -441,6 +442,35 @@ export class EmailService {
       }
     }
 
+    // 4b. Authoritative email tracking policy check & fail-closed runtime URL validation
+    const isTrackingEnabled = Boolean(
+      campaignDoc
+        ? (campaignDoc.trackingEnabled ?? campaignDoc.settings?.trackingEnabled ?? false)
+        : (input.trackingEnabled ?? false)
+    );
+
+    let validatedTrackingBaseUrl: string | null = null;
+    if (isTrackingEnabled) {
+      const rawTrackingUrl = process.env.TRACKING_BASE_URL || process.env.API_BASE_URL;
+      const validation = validateTrackingBaseUrl(rawTrackingUrl);
+      if (!validation.isValid) {
+        logger.warn(
+          {
+            workspaceId: this.workspaceId,
+            campaignId: input.campaignId,
+            rawTrackingUrl,
+            error: validation.error
+          },
+          'Outreach send rejected: tracking is enabled but tracking base URL is invalid'
+        );
+        throw new EmailDomainError(
+          'INVALID_TRACKING_CONFIG',
+          'Email tracking is enabled, but the configured tracking URL is invalid. Configure a valid HTTPS tracking URL or disable tracking for this campaign.'
+        );
+      }
+      validatedTrackingBaseUrl = validation.normalizedUrl || null;
+    }
+
     // 5. Server-authoritative contact outreach eligibility check
     if (contactDoc) {
       const eligibility = evaluateOutreachEligibility({
@@ -754,23 +784,23 @@ export class EmailService {
       }
     }
 
-    // 6. Setup Tracking (open pixel & click redirect) and persist exact rendered outbound message
-    const trackingBaseUrl =
-      process.env.TRACKING_BASE_URL ||
-      process.env.API_BASE_URL ||
-      'http://localhost:3000';
-    const openTrackingToken = deliveryRecord.openTrackingToken || generateTrackingToken();
-    let clickTokens: Array<{ token: string; targetUrl: string }> = deliveryRecord.clickTrackingTokens?.length
-      ? deliveryRecord.clickTrackingTokens
-      : [];
+    // 6. Setup Tracking (open pixel & click redirect) if explicitly enabled and persist exact rendered outbound message
+    let openTrackingToken: string | null = null;
+    let clickTokens: Array<{ token: string; targetUrl: string }> = [];
 
-    if (finalHtml) {
-      const clickRes = rewriteLinksForClickTracking(finalHtml, trackingBaseUrl);
+    if (isTrackingEnabled && finalHtml && validatedTrackingBaseUrl) {
+      const activeOpenToken = deliveryRecord.openTrackingToken || generateTrackingToken();
+      openTrackingToken = activeOpenToken;
+      clickTokens = deliveryRecord.clickTrackingTokens?.length
+        ? deliveryRecord.clickTrackingTokens
+        : [];
+
+      const clickRes = rewriteLinksForClickTracking(finalHtml, validatedTrackingBaseUrl);
       finalHtml = clickRes.rewrittenHtml;
       if (!clickTokens.length) {
         clickTokens = clickRes.tokens;
       }
-      finalHtml = injectOpenTrackingPixel(finalHtml, trackingBaseUrl, openTrackingToken);
+      finalHtml = injectOpenTrackingPixel(finalHtml, validatedTrackingBaseUrl, activeOpenToken);
     }
 
     // Persist exact rendered content & tracking metadata onto delivery record

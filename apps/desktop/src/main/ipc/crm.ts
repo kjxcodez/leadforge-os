@@ -383,9 +383,11 @@ export function registerCrmIpc() {
     const validStatus = ['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED'].includes(rawStatus)
       ? rawStatus
       : 'DRAFT';
+    const trackingEnabled = Boolean(record.trackingEnabled ?? record.settings?.trackingEnabled ?? false);
     const payload = {
       ...record,
       status: validStatus,
+      trackingEnabled,
       idempotencyKey: record.idempotencyKey || undefined
     };
     const created = await sdk.campaigns.create(payload);

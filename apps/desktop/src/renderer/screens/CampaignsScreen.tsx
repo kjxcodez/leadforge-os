@@ -112,6 +112,7 @@ export default function CampaignsScreen() {
   const [campLimit, setCampLimit] = useState(200);
   const [campTimezone, setCampTimezone] = useState('UTC');
   const [campUseSignature, setCampUseSignature] = useState(true);
+  const [campTrackingEnabled, setCampTrackingEnabled] = useState(false);
 
   const [selectedAudienceId, setSelectedAudienceId] = useState(initialAudienceId);
   const [sequenceSteps, setSequenceSteps] = useState<SequenceStepItem[]>([
@@ -377,6 +378,7 @@ export default function CampaignsScreen() {
       setCampDesc('');
       setCampSeqId('');
       setCampAccId('');
+      setCampTrackingEnabled(false);
     }
   });
 
@@ -643,8 +645,10 @@ export default function CampaignsScreen() {
         timezone: campTimezone,
         status: 'ACTIVE',
         idempotencyKey: submissionIdempotencyKey,
+        trackingEnabled: campTrackingEnabled,
         settings: {
-          useSignature: campUseSignature
+          useSignature: campUseSignature,
+          trackingEnabled: campTrackingEnabled
         }
       });
 
@@ -2351,6 +2355,23 @@ export default function CampaignsScreen() {
                   Include Gmail signature on outbound emails
                 </Label>
               </div>
+
+              {/* Email Tracking Option */}
+              <div className="space-y-1 pt-1 pb-1 border-t border-border-subtle/50">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="camp-tracking-enabled"
+                    checked={campTrackingEnabled}
+                    onCheckedChange={(c) => setCampTrackingEnabled(!!c)}
+                  />
+                  <Label htmlFor="camp-tracking-enabled" className="text-xs cursor-pointer select-none font-medium text-foreground">
+                    Enable email tracking
+                  </Label>
+                </div>
+                <p className="text-[11px] text-muted-foreground pl-6">
+                  Track email opens and link clicks for this campaign.
+                </p>
+              </div>
             </div>
 
             {/* Section 5: Review & Safety Summary */}
@@ -2378,6 +2399,10 @@ export default function CampaignsScreen() {
                 <div>
                   <span className="text-foreground font-semibold">Signature:</span>{' '}
                   {campUseSignature ? 'Enabled (Gmail)' : 'Disabled'}
+                </div>
+                <div>
+                  <span className="text-foreground font-semibold">Tracking:</span>{' '}
+                  {campTrackingEnabled ? 'Enabled (Opens & Clicks)' : 'Disabled'}
                 </div>
               </div>
             </div>

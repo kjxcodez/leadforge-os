@@ -192,6 +192,7 @@ export function initCacheSchema(db: Database.Database): void {
         dailyLimit INTEGER DEFAULT 50,
         timezone TEXT DEFAULT 'UTC',
         status TEXT DEFAULT 'DRAFT',
+        trackingEnabled INTEGER DEFAULT 0,
         settings TEXT DEFAULT '{}',
         stats TEXT DEFAULT '{}',
         createdAt DATETIME,
@@ -199,6 +200,13 @@ export function initCacheSchema(db: Database.Database): void {
         deletedAt DATETIME DEFAULT NULL
       )
     `).run();
+
+    try {
+      const campCols = db.pragma('table_info(campaigns)') as Array<{ name: string }>;
+      if (!campCols.some((c) => c.name === 'trackingEnabled')) {
+        db.prepare('ALTER TABLE campaigns ADD COLUMN trackingEnabled INTEGER DEFAULT 0').run();
+      }
+    } catch (_) {}
 
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_campaigns_ws ON campaigns(workspaceId)`).run();
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_cache_campaigns_ws_del ON campaigns(workspaceId, deletedAt)`).run();
